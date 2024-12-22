@@ -7,12 +7,12 @@ import zipfile
 import lxml.etree as etree
 from hamilton.function_modifiers import cache
 
-URL = "https://gutenberg.org/cache/epub/1023/pg1023.txt"
+URL = "https://gutenberg.org/epub/1023/pg1023.txt"
 
 HTML_ZIP_URL="https://www.gutenberg.org/cache/epub/1023/pg1023-h.zip"
 
 
-def text(url: str = URL) -> Dict[str,Any]:
+def plaintext(url: str = URL) -> Dict[str,Any]:
     response = requests.get(url)
     return {"source": "gutenberg",
             "text":   response.text}
@@ -25,7 +25,7 @@ def html_paths (url: str = HTML_ZIP_URL) -> Dict[str,Path]:
     return {f: Path(f"data/{f}") for f in z.namelist()}
 
 
-def html_data(html_paths: Dict[str,Path]) -> Dict[str,str]:
+def chapters(html_paths: Dict[str,Path]) -> Dict[str,str]:
     data = {}
     for name,path in html_paths.items():
         if name.endswith(".html"):
@@ -50,7 +50,9 @@ def html_data(html_paths: Dict[str,Path]) -> Dict[str,str]:
                     if element.xpath('./a[@id]'):
                         break
                 if title or text:
-                    result.append({"id": anchors[i][0].attrib['id'], "title": title, "text": text.strip()})
+                    result.append({"id": anchors[i][0].attrib['id'],
+                                   "book_title": "Bleak House",
+                                   "title": title, "text": text.strip()})
             data[name] = result
     return data
 

@@ -1,8 +1,9 @@
 import os
-from typing import Dict,Any
+from typing import Dict, Any, List
 import json
 import anthropic
 import dotenv
+from hamilton.function_modifiers import config
 
 
 def _get_tokens(text: str) -> Dict[str,Any]:
@@ -20,7 +21,21 @@ def _get_tokens(text: str) -> Dict[str,Any]:
 
     return json.loads(response.model_dump_json())
 
-def lengths(text: Dict[str,Any]) -> Dict[str,Any]:
+
+@config.when(input_choice="plaintext")
+def lengths__plaintext(plaintext: Dict[str,Any]) -> Dict[str,Any]:
     return {
-        "tokens": _get_tokens(text['text']),
-        "characters": len(text['text'])}
+        "tokens": _get_tokens(plaintext['text']),
+        "characters": len(plaintext['text'])}
+
+@config.when(input_choice="chapters")
+def lengths__chapters(chapters: Dict[str,Any]) -> Dict[str,Any]:
+    result = {}
+    for doc_key in chapters:
+        this_doc = chapters[doc_key]
+        result[doc_key] = _get_chapter_lengths(this_doc)
+    return result
+
+def _get_chapter_lengths(chapters: List[Dict[str,Any]]) -> Dict[str,Any]:
+    return {"tokens": sum(_get_tokens(chapter['text']) for chapter in chapters),
+            "characters": sum(len(chapter['text']) for chapter in chapters)}
