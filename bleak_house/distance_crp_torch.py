@@ -11,7 +11,8 @@ def dd_crp(
     decay_function: Callable[[torch.Tensor, Dict[str, float]], torch.Tensor] = None,
     seed: int = None,
     temperature: float = 1.0,
-    decay_params: Dict[str, float] = None
+    decay_params: Dict[str, float] = None,
+    batch_size: int = 32
 ) -> Tuple[List[int], List[List[int]]]:
     """
     Implements a Distance-Dependent Chinese Restaurant Process (dd-CRP) using PyTorch tensors.
@@ -20,10 +21,11 @@ def dd_crp(
         sentences (List[str]): Sentences to cluster.
         model (SentenceTransformer): Pretrained SentenceTransformer model.
         alpha (float): Concentration parameter for starting a new cluster.
-        decay_function (Callable): Function to apply a decay to distances.
+        decay_function (Callable): Function to apply a decay to distances. Must accept a tensor of distances and a dictionary of parameters.
         seed (int): Random seed for replicability.
         temperature (float): Temperature parameter for softmax scaling.
         decay_params (Dict[str, float]): Parameters for the decay function.
+        batch_size (int): Batch size for encoding sentences.
 
     Returns:
         Tuple[List[int], List[List[int]]]:
@@ -32,6 +34,8 @@ def dd_crp(
     """
     if decay_function is None:
         raise ValueError("A decay function must be provided.")
+    if not callable(decay_function):
+        raise ValueError("The decay function must be callable.")
     if decay_params is None:
         decay_params = {}
 
@@ -44,19 +48,17 @@ def dd_crp(
     assignments: List[int] = []  # Cluster assignments
     clusters: List[List[int]] = []  # Clustered groups
 
-    # Iterate through each sentence
-    for i, sentence in enumerate(sentences):
-        # Compute the embedding for the current sentence
-        current_embedding = model.encode(sentence,
-                                         convert_to_tensor=True)
+    # Encode sentences in batches
+    sentence_embeddings = model.encode(sentences, convert_to_tensor=True, batch_size=batch_size)
 
+    # Iterate through each sentence
+    for i, current_embedding in enumerate(sentence_embeddings):
         # Compute similarity and distances
         link_scores: List[float] = []
         if embeddings:  # Only compute if there are previous embeddings
             all_embeddings = torch.stack(embeddings)  # Combine previous embeddings into a tensor
-       
             similarities = torch.nn.functional.cosine_similarity(
-                current_embedding, all_embeddings, dim=1
+                current_embedding.unsqueeze(0), all_embeddings, dim=1
             )  # Compute cosine similarity
             distances = 1 - similarities  # Convert similarity to distance
             link_scores = decay_function(distances, **decay_params).tolist()  # Apply decay
@@ -85,17 +87,3 @@ def dd_crp(
 
     return assignments, clusters
 
-
-def torch_exponential_decay(distance: torch.Tensor, **kwargs) -> torch.Tensor:
-    """Exponential decay: f(d) = exp(-d)."""
-    return torch.exp(-distance)
-
-
-def torch_window_decay(distance: torch.Tensor, delta: float = 1.0, **kwargs) -> torch.Tensor:
-    """Window decay: f(d) = 1 if d <= delta, else 0."""
-    return (distance <= delta).float()
-
-
-def torch_logistic_decay(distance: torch.Tensor, mu: float = 1.0, kappa: float = 1.0, **kwargs) -> torch.Tensor:
-    """Logistic decay: f(d) = 1 / (1 + exp(kappa * (d - mu)))."""
-    return 1 / (1 + torch.exp(kappa * (distance - mu)))
