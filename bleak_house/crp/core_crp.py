@@ -1,8 +1,7 @@
 import torch
 from torch.nn.functional import softmax
-from typing import List, Tuple,Callable
+from typing import List, Tuple, Callable
 from crp.hybrid_distance import compute_hybrid_distance
-
 
 
 def dd_crp_with_hybrid_distance(
@@ -30,12 +29,11 @@ def dd_crp_with_hybrid_distance(
     Returns:
         Cluster assignments and cluster groups.
     """
-    
+
     if decay_function is None:
         raise ValueError("A decay function must be provided.")
     if decay_params is None:
         decay_params = {}
-
 
     assignments = []
     clusters = []
@@ -49,14 +47,20 @@ def dd_crp_with_hybrid_distance(
             for j in range(i):
                 prev_embedding = embeddings[j]
                 prev_chapter = chapters[j]
-                dist,_,_ = compute_hybrid_distance(
-                    current_embedding, prev_embedding, current_chapter, prev_chapter, max_chapter, min_chapter, alpha_text
+                dist, _, _ = compute_hybrid_distance(
+                    current_embedding,
+                    prev_embedding,
+                    current_chapter,
+                    prev_chapter,
+                    max_chapter,
+                    min_chapter,
+                    alpha_text,
                 )
                 # Apply decay function to the distance
                 link_scores.append(dist)
         link_scores.append(alpha)
         link_scores = decay_function(torch.tensor(link_scores), **decay_params)
-        link_probs = softmax( link_scores / temperature, dim=0)
+        link_probs = softmax(link_scores / temperature, dim=0)
         sampled_index = torch.multinomial(link_probs, 1).item()
 
         if sampled_index == len(link_probs) - 1:
