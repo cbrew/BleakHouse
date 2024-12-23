@@ -29,11 +29,11 @@ if __name__ == "__main__":
     embeddings = model.encode(sentences, convert_to_tensor=True)
 
     # CRP parameters
-    alpha = 3.0  # Likelihood of starting a new cluster
-    alpha_text = 0.5  # Weight for text similarity in hybrid distance
+    alpha = 4.0  # Likelihood of starting a new cluster
+    alpha_text = 0.75  # Weight for text similarity in hybrid distance
     temperature = 1.0  # Softmax temperature
     decay_function = torch_exponential_decay
-    decay_params = {"decay_rate": 0.10}
+    decay_params = {"decay_rate": 0.05}
     seed = 17629
 
     # Run the Distance-Dependent Chinese Restaurant Process (dd-CRP)
