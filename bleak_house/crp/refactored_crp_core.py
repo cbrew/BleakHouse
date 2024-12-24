@@ -55,30 +55,6 @@ def compute_distance_matrix(
     return hybrid_distance_matrix, text_distance_matrix, object_distance_matrix
 
 
-def _prepare_distance_matrix(
-    embeddings: torch.Tensor,
-    objects: List[O],
-    object_distance_function: Callable[[List[O], List[O]], torch.Tensor],
-    alpha_text: float,
-) -> torch.Tensor:
-    """
-    Wrapper to compute the distance matrix.
-
-    Parameters:
-        embeddings: Tensor of precomputed embeddings (n_samples x embedding_dim).
-        objects: Arbitrary objects for computing distances.
-        object_distance_function: Callable to compute pairwise object distances.
-        alpha_text: Weight for text similarity in hybrid distance.
-
-    Returns:
-        Distance matrix.
-    """
-    distance_matrix, _, _ = compute_distance_matrix(
-        embeddings, objects, object_distance_function, alpha_text
-    )
-    return distance_matrix
-
-
 def _dd_crp_with_hybrid_distance(
     sentences: List[str],
     distance_matrix: torch.Tensor,
@@ -172,7 +148,7 @@ def hybrid_dd_crp(
         Cluster assignments and cluster groups.
     """
     # Compute distance matrix
-    distance_matrix = _prepare_distance_matrix(
+    distance_matrix, _, _ = compute_distance_matrix(
         embeddings, objects, object_distance_function, alpha_text
     )
 
