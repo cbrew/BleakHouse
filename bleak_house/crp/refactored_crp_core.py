@@ -92,12 +92,12 @@ def _dd_crp_with_hybrid_distance(
         if i > 0:
             link_scores = distance_matrix[i, :i].tolist()
 
-        # Add alpha for new cluster creation
-        link_scores.append(alpha)
-
         # Apply decay function
         link_scores = torch.tensor(link_scores)
-        link_scores = decay_function(link_scores, **decay_params)
+        link_scores = decay_function(link_scores, **decay_params).tolist()
+        # Add alpha for new cluster creation
+        link_scores.append(alpha)
+        link_scores = torch.tensor(link_scores)
 
         # Compute probabilities with softmax
         link_probs = torch.softmax(link_scores / temperature, dim=0)
