@@ -1,6 +1,6 @@
 from sentence_transformers import SentenceTransformer
 import torch
-from refactored_crp_core import hybrid_dd_crp
+from hybrid_distance_crp import hybrid_dd_crp
 from decay_functions import torch_exponential_decay
 
 # Example sentences
