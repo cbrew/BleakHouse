@@ -1,7 +1,9 @@
 import abc
 from dataclasses import dataclass, field
-from typing import List, Tuple, TypeVar, Dict
+from typing import List, Tuple, TypeVar, Set
 import torch
+
+torch.manual_seed(17629)
 
 # Define a type variable for the object type
 O = TypeVar("O")
@@ -32,7 +34,7 @@ class HybridDistanceComponent(abc.ABC):
 
     @abc.abstractmethod
     def decay_function(
-        self, distances: torch.Tensor, new_object: O, cluster_objects: List[O]
+        self, distances: torch.Tensor, new_object: O, clusters: List[List[int]]
     ) -> torch.Tensor:
         """
         Apply decay to distances based on cluster context.
@@ -59,7 +61,7 @@ class StructuredObject:
     label: str
     position: int
     embedding: torch.Tensor
-    unavailable: Dict = field(default_factory=dict)
+    unavailable: Set = field(default_factory=set)
 
 
 class StructuredObjectComponent(HybridDistanceComponent):
@@ -100,13 +102,17 @@ class StructuredObjectComponent(HybridDistanceComponent):
 
         # Combine distances
         distance_matrix = position_distances + embedding_distances
+
+        # Leave the symbolic part of the computation for the decay function
+        # Its logic is different, because it depends on the cluster context, not just the pairwise distances.
+
         return distance_matrix
 
     def decay_function(
         self,
         distances: torch.Tensor,
         new_object: StructuredObject,
-        cluster_objects: List[List[StructuredObject]],
+        clusters: List[List[int]],
     ) -> torch.Tensor:
         """
         Apply decay rules for structured objects.
@@ -119,20 +125,25 @@ class StructuredObjectComponent(HybridDistanceComponent):
         Returns:
             Tensor of decayed distances, enforcing availability constraints.
         """
+
+        # symbolic part of computation.
         mytype = new_object.label
-        for cluster in cluster_objects:
+        for cluster in clusters:
             for member in cluster:
-                if mytype in member.unavailable:
+                member_object = self.objects[member]
+                if mytype in member_object.unavailable:
                     # we know none of the other members will be available either
                     break
                 elif mytype == "person":
-                    member.unavailable[mytype] = True
+                    for index in cluster:
+                        self.objects[index].unavailable.add("person")
+                    break
 
         unavailable_indices = sorted(
-            (obj.id - 1)
-            for cluster in cluster_objects
-            for obj in cluster
-            if mytype in obj.unavailable
+            index
+            for cluster in clusters
+            for index in cluster
+            if mytype in self.objects[index].unavailable
         )
         distances[unavailable_indices] = float(-9999.0)
 
@@ -171,13 +182,10 @@ def _dd_crp_structured(
             for component, weight in zip(components, component_weights):
                 # we are going to mess with the distances, so we need a fresh copy
                 distances = component.distance_matrix[i, :i].detach().clone()
-                cluster_objects = [
-                    [objects[j] for j in cluster] for cluster in clusters
-                ]
                 decayed_distances = weight * component.decay_function(
                     distances,
                     new_object=object,
-                    cluster_objects=cluster_objects,
+                    clusters=clusters,
                 )
                 link_scores.append(decayed_distances.tolist())
 
@@ -188,7 +196,7 @@ def _dd_crp_structured(
         # Add alpha for new cluster creation
         link_scores.append(alpha)
 
-        # Compute probabilities with softmax
+        # Compute probabilities with softmax, because we want a temperature parameter.
         link_probs = torch.softmax(torch.tensor(link_scores) / temperature, dim=0)
 
         # Sample a cluster assignment
@@ -241,14 +249,14 @@ if __name__ == "__main__":
         StructuredObject(id=1, label="person", position=1, embedding=torch.rand(5)),
         StructuredObject(id=2, label="location", position=2, embedding=torch.rand(5)),
         StructuredObject(
-            id=3, label="organization", position=10, embedding=torch.rand(5)
+            id=3, label="organization", position=2, embedding=torch.rand(5)
         ),
-        StructuredObject(id=4, label="location", position=12, embedding=torch.rand(5)),
-        StructuredObject(id=5, label="person", position=20, embedding=torch.rand(5)),
-        StructuredObject(id=6, label="location", position=25, embedding=torch.rand(5)),
-        StructuredObject(id=7, label="person", position=25, embedding=torch.rand(5)),
-        StructuredObject(id=8, label="location", position=25, embedding=torch.rand(5)),
-        StructuredObject(id=9, label="person", position=25, embedding=torch.rand(5)),
+        StructuredObject(id=4, label="location", position=3, embedding=torch.rand(5)),
+        StructuredObject(id=5, label="person", position=3, embedding=torch.rand(5)),
+        StructuredObject(id=6, label="location", position=3, embedding=torch.rand(5)),
+        StructuredObject(id=7, label="person", position=4, embedding=torch.rand(5)),
+        StructuredObject(id=8, label="location", position=5, embedding=torch.rand(5)),
+        StructuredObject(id=9, label="person", position=5, embedding=torch.rand(5)),
     ]
 
     structured_component = StructuredObjectComponent(objects)
@@ -265,7 +273,7 @@ if __name__ == "__main__":
 
     print("Assignments:", assignments)
     print("Clusters:", clusters)
-    for object in objects:
+    for i, cluster in enumerate(clusters):
         print(
-            f"Object {object.id} assigned to cluster {assignments[object.id - 1]} {object.label} {object.position} {object.embedding} {object.unavailable}"
+            f"Cluster {i}: {[(objects[j].label,objects[j].position) for j in cluster]}"
         )
