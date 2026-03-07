@@ -1,37 +1,35 @@
-[tool.poetry]
-name = "bleak_house"
+[project]
+name = "bleak-house"
 version = "0.1.0"
-description = ""
-authors = ["Chris Brew <brewc@dy6nm2ng4q.legal.regn.net>"]
-readme = "README.md"
+description = "Literary podcast pipeline for Dickens' Bleak House"
+authors = [{ name = "Chris Brew", email = "brewc@dy6nm2ng4q.legal.regn.net" }]
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.32.3",
+    "sf-hamilton[visualization]>=1.85.1",
+    "burr[opentelemetry,start]>=0.35.1",
+    "notebook>=7.3.2",
+    "anthropic>=0.40.0",
+    "lxml>=5.3.0",
+    "openai>=1.58.1",
+    "lancedb>=0.17.0",
+    "pydantic>=2.10.4",
+    "pyarrow>=18.1.0",
+    "opentelemetry-instrumentation-openai>=0.34.0",
+    "opentelemetry-instrumentation-lancedb>=0.34.0",
+    "beautifulsoup4>=4.12.0",
+    "python-dotenv>=1.0.0",
+    "pandas>=2.0.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-requests = "^2.32.3"
-sf-hamilton = {extras = ["visualization"], version = "^1.85.1"}
-loguru = "^0.7.3"
-burr = {extras = ["opentelemetry", "start"], version = "^0.35.1"}
-jupter = "^0.1.0"
-lab = "^8.3"
-notebook = "^7.3.2"
-anthropic = "^0.40.0"
-lxml = "^5.3.0"
-openai = "^1.58.1"
-lancedb = "^0.17.0"
-pydantic = "^2.10.4"
-pyarrow = "^18.1.0"
-opentelemetry-instrumentation-openai = "^0.34.0"
-opentelemetry-instrumentation-lancedb = "^0.34.0"
-sentence-transformers = "^3.3.1"
-scikit-learn = "^1.6.0"
-tqdm = "^4.67.1"
-scipy = "^1.14.1"
-seaborn = "^0.13.2"
-
-
-[tool.poetry.group.dev.dependencies]
-black = "^24.10.0"
+[dependency-groups]
+dev = [
+    "ruff>=0.8.0",
+    "pyright>=1.1.0",
+    "mypy>=1.0.0",
+    "pytest>=8.0.0",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
