@@ -173,27 +173,33 @@ DEFAULT_PERSONAS = [
         name="Dr. Hartley",
         role="literary_critic",
         description=(
-            "Focuses on narrative technique, character development, and thematic depth. "
-            "Notices structural choices, prose style, and how Dickens builds complexity. "
-            "Tone: analytical but accessible, occasionally passionate about craft."
+            "A novelist herself who teaches creative writing.  Obsessed with how "
+            "Dickens constructs his effects — the architecture of sentences, the "
+            "dual narration, the way a single image can carry a chapter's meaning.  "
+            "Gets visibly excited when she spots a structural choice she admires.  "
+            "Has a gift for making technical craft feel thrilling rather than dry."
         ),
     ),
     ExpertPersona(
         name="Prof. Blackstone",
         role="social_historian",
         description=(
-            "Focuses on social critique, institutional failure, and historical context. "
-            "Connects passages to Victorian society, the legal system, and class structure. "
-            "Tone: authoritative, sometimes indignant about injustice, contextualizing."
+            "A legal historian who specializes in Victorian institutions.  Brings "
+            "the real-world context — what Chancery actually was, how the Poor Law "
+            "worked, what it meant to be Jo.  Can get genuinely angry about "
+            "injustice, past and present.  Connects Dickens' world to modern "
+            "parallels without being heavy-handed about it.  Dry wit."
         ),
     ),
     ExpertPersona(
         name="Ms. Woodcourt",
         role="close_reader",
         description=(
-            "Focuses on humor, atmosphere, character voice, and quotable moments. "
-            "Reads passages aloud, catches verbal wit, notices emotional texture. "
-            "Tone: warm, enthusiastic, attuned to the pleasure of reading."
+            "A book critic and lifelong Dickens reader who came to the novel as a "
+            "teenager and has re-read it five times.  Focuses on the experience of "
+            "reading — what's funny, what's moving, what makes you stop and re-read "
+            "a sentence.  Loves reading passages aloud and catching the verbal music.  "
+            "Has strong opinions about which characters deserve better."
         ),
     ),
 ]
