@@ -1,0 +1,105 @@
+================================================================================
+Experiment 8: The Redundancy Question
+Tag: 20260308_214926_3dc223e
+================================================================================
+
+VARIANT CONFIGURATIONS:
+  no_penalty      cluster_capacity=999  cluster_penalty= 0
+  default         cluster_capacity=  3  cluster_penalty= 5
+  strict          cluster_capacity=  1  cluster_penalty=10
+
+--------------------------------------------------------------------------------
+COMPARISON: no_penalty vs default
+--------------------------------------------------------------------------------
+  Passages in no_penalty: 9
+  Passages in default: 7
+  Shared passages:           2
+  Only in no_penalty:          7
+  Only in default:          5
+  Paired changes analysed:   10
+
+  DISTANCE METRICS (replaced <-> replacement):
+    Mean embedding distance (cosine):  0.5251
+    Mean enrichment distance (L1/7d):  3.20
+
+  DIVERSITY OF REPLACEMENTS:
+    From different chapter:           100.0%
+    From different narrator:          0.0%
+    From different character cluster:  70.0%
+
+  CHARACTERIZATION (emb_close < 0.15, enr_close <= 3):
+    Both close (genuine near-duplicates):             0
+    Emb close, enr distant (transport catches more):  0
+    Emb distant, enr close (beyond surface sim):      7
+    Both distant (network flow balancing):            3
+
+  INTERPRETATION:
+    Transport optimizes beyond surface similarity — replacements are textually distant but enrichment-similar (70% of changes).
+
+--------------------------------------------------------------------------------
+COMPARISON: no_penalty vs strict
+--------------------------------------------------------------------------------
+  Passages in no_penalty: 9
+  Passages in strict: 9
+  Shared passages:           3
+  Only in no_penalty:          6
+  Only in strict:          6
+  Paired changes analysed:   8
+
+  DISTANCE METRICS (replaced <-> replacement):
+    Mean embedding distance (cosine):  0.5536
+    Mean enrichment distance (L1/7d):  2.75
+
+  DIVERSITY OF REPLACEMENTS:
+    From different chapter:           100.0%
+    From different narrator:          0.0%
+    From different character cluster:  100.0%
+
+  CHARACTERIZATION (emb_close < 0.15, enr_close <= 3):
+    Both close (genuine near-duplicates):             0
+    Emb close, enr distant (transport catches more):  0
+    Emb distant, enr close (beyond surface sim):      6
+    Both distant (network flow balancing):            2
+
+  INTERPRETATION:
+    Transport optimizes beyond surface similarity — replacements are textually distant but enrichment-similar (75% of changes).
+
+--------------------------------------------------------------------------------
+COMPARISON: default vs strict
+--------------------------------------------------------------------------------
+  Passages in default: 7
+  Passages in strict: 9
+  Shared passages:           2
+  Only in default:          5
+  Only in strict:          7
+  Paired changes analysed:   7
+
+  DISTANCE METRICS (replaced <-> replacement):
+    Mean embedding distance (cosine):  0.5090
+    Mean enrichment distance (L1/7d):  1.86
+
+  DIVERSITY OF REPLACEMENTS:
+    From different chapter:           100.0%
+    From different narrator:          0.0%
+    From different character cluster:  100.0%
+
+  CHARACTERIZATION (emb_close < 0.15, enr_close <= 3):
+    Both close (genuine near-duplicates):             0
+    Emb close, enr distant (transport catches more):  0
+    Emb distant, enr close (beyond surface sim):      6
+    Both distant (network flow balancing):            1
+
+  INTERPRETATION:
+    Transport optimizes beyond surface similarity — replacements are textually distant but enrichment-similar (86% of changes).
+
+================================================================================
+OVERALL CONCLUSION
+================================================================================
+Does transport-redundancy correspond to embedding-redundancy?
+  Across all pairs (25 classified changes):
+    Both close:                0 (0%)
+    Emb close, enr distant:    0 (0%)
+    Emb distant, enr close:   19 (76%)
+    Both distant:              6 (24%)
+
+  Transport-redundancy diverges from embedding-redundancy. The transport layer encodes a notion of redundancy that standard RAG (embedding similarity) does not capture.
