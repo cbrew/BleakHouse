@@ -311,14 +311,23 @@ def solve_dimension_embedding(
                 "passage", p.passage_id, "cluster", str(cid),
             )
 
-    # Cluster -> Expert (capacity = cluster_capacity, cost = cluster_penalty)
+    # Cluster -> Expert (parallel arcs with convex penalty)
+    cluster_supply: dict[int, int] = {}
+    for cid, members_list in cluster_members.items():
+        cluster_supply[cid] = sum(
+            STRENGTH_TO_SUPPLY[p.provisions[dimension]] for p in members_list
+        )
+
+    lam = config.cluster_lambda
     for cid in cluster_members:
+        k = cluster_supply[cid]
         for exp, _ in demanding_experts:
-            add_arc(
-                cluster_node[cid], expert_node[exp.name],
-                config.cluster_capacity, config.cluster_penalty,
-                "cluster", str(cid), "expert", exp.name,
-            )
+            for slot in range(k):
+                add_arc(
+                    cluster_node[cid], expert_node[exp.name],
+                    1, slot * lam,
+                    "cluster", str(cid), "expert", exp.name,
+                )
 
     # NULL -> each expert (capacity = expert's demand, cost = null_cost)
     for exp, demand in demanding_experts:
@@ -360,6 +369,7 @@ def solve_dimension_embedding(
     # -- Extract assignments and null flows --
     cluster_passage_flow: dict[int, list[tuple[str, int, int]]] = {}
     cluster_expert_flow: dict[tuple[int, str], int] = {}
+    cluster_expert_penalty: dict[tuple[int, str], int] = {}
     null_flows_by_expert: dict[str, int] = {exp.name: 0 for exp, _ in demanding_experts}
 
     for arc_idx in range(smcf.num_arcs()):
@@ -375,13 +385,17 @@ def solve_dimension_embedding(
             )
         elif tail_type == "cluster" and head_type == "expert":
             cid = int(tail_id)
-            cluster_expert_flow[(cid, head_id)] = flow
+            key = (cid, head_id)
+            cluster_expert_flow[key] = cluster_expert_flow.get(key, 0) + flow
+            cluster_expert_penalty[key] = cluster_expert_penalty.get(key, 0) + unit_cost
         elif tail_type == "null" and head_type == "expert":
             null_flows_by_expert[head_id] += flow
 
     # Attribute passage->expert assignments through clusters
     assignments: list[Assignment] = []
     for (cid, expert_name), expert_flow in cluster_expert_flow.items():
+        total_penalty = cluster_expert_penalty.get((cid, expert_name), 0)
+        avg_penalty = total_penalty // max(expert_flow, 1)
         remaining = expert_flow
         for pid, p_flow, p_cost in cluster_passage_flow.get(cid, []):
             if remaining <= 0:
@@ -393,7 +407,7 @@ def solve_dimension_embedding(
                         passage_id=pid,
                         expert=expert_name,
                         dimension=dimension,
-                        cost=p_cost + config.cluster_penalty,
+                        cost=p_cost + avg_penalty,
                     )
                 )
             remaining -= assigned
