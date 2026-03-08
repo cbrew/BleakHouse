@@ -123,4 +123,5 @@ class Passage(BaseModel):
     char_end: int
     text: str
     enrichment: FieldReportEnrichment | None = None
+    context: str | None = None
     literary_element_ids: list[str] = Field(default_factory=list)
