@@ -5,9 +5,9 @@ enrichment-redundancy, or a distinct notion constructed from the interaction
 of supply, demand, and cost structure.
 
 Variants:
-  (a) no_penalty    — cluster_capacity=999, cluster_penalty=0
-  (b) default       — cluster_capacity=3, cluster_penalty=5 (default)
-  (c) strict        — cluster_capacity=1, cluster_penalty=10
+  (a) no_penalty    — cluster_lambda=0 (no redundancy penalty)
+  (b) default       — cluster_lambda=5 (default convex penalty)
+  (c) strict        — cluster_lambda=20 (steep convex penalty)
 
 For each pair of variants, analyses the passages that changed and measures
 embedding distance and enrichment profile distance between replaced and
@@ -88,9 +88,9 @@ def make_tag() -> str:
 # ---------------------------------------------------------------------------
 
 VARIANT_CONFIGS: dict[str, ProducerConfig] = {
-    "no_penalty": ProducerConfig(cluster_capacity=999, cluster_penalty=0),
-    "default": ProducerConfig(),  # cluster_capacity=3, cluster_penalty=5
-    "strict": ProducerConfig(cluster_capacity=1, cluster_penalty=10),
+    "no_penalty": ProducerConfig(cluster_lambda=0),
+    "default": ProducerConfig(),  # cluster_lambda=5
+    "strict": ProducerConfig(cluster_lambda=20),
 }
 
 # All pairwise comparisons (from less constrained to more constrained)
@@ -379,8 +379,7 @@ def build_report(analyses: list[PairwiseAnalysis], tag: str) -> str:
     lines.append("VARIANT CONFIGURATIONS:")
     for name, cfg in VARIANT_CONFIGS.items():
         lines.append(
-            f"  {name:<15s} cluster_capacity={cfg.cluster_capacity:3d}  "
-            f"cluster_penalty={cfg.cluster_penalty:2d}"
+            f"  {name:<15s} cluster_lambda={cfg.cluster_lambda:2d}"
         )
     lines.append("")
 
@@ -522,8 +521,7 @@ def serialize_results(
         cfg = VARIANT_CONFIGS[name]
         ids = extract_all_passage_ids(result)
         data["variants"][name] = {
-            "cluster_capacity": cfg.cluster_capacity,
-            "cluster_penalty": cfg.cluster_penalty,
+            "cluster_lambda": cfg.cluster_lambda,
             "n_assignments": len(result.assignments),
             "n_unique_passages": len(ids),
             "passage_ids": sorted(ids),
@@ -583,7 +581,7 @@ def run_experiment() -> None:
     # Run transport pipeline for each variant
     variant_results: dict[str, AggregatedResult] = {}
     for name, config in VARIANT_CONFIGS.items():
-        logger.info("Running variant '%s' (cap=%d, penalty=%d)", name, config.cluster_capacity, config.cluster_penalty)
+        logger.info("Running variant '%s' (lambda=%d)", name, config.cluster_lambda)
         result = run_pipeline(
             experts=DEFAULT_EXPERTS,
             arcs=DEFAULT_ARCS,

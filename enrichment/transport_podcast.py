@@ -82,8 +82,7 @@ class ProducerConfig:
     total_budget: int = 60  # max passages total
     per_expert_max: int = 25  # max per expert
     per_expert_min: int = 8  # min per expert
-    cluster_capacity: int = 3  # max passages drawn from one cluster
-    cluster_penalty: int = 5  # per-unit cost for flowing through a cluster node
+    cluster_lambda: int = 5  # marginal penalty per additional passage from same cluster
     null_cost: int = 100  # cost for unmet demand
     strong_cost: int = 1  # cost for strong provision match
     weak_cost: int = 3  # cost for weak provision match
@@ -279,16 +278,19 @@ def solve_dimension(
 ) -> DimensionResult:
     """Build and solve the min-cost flow network for one provision dimension.
 
-    Redundancy is controlled via intermediate cluster nodes rather than convex
-    arc duplication.  Each passage belongs to a literary cluster.  The network
-    routes flow through cluster nodes with bounded capacity and a per-unit
-    penalty, so the solver naturally spreads across clusters.
+    Redundancy is controlled via intermediate cluster nodes with convex
+    (linearly increasing) penalties.  Each passage belongs to a literary
+    cluster.  The cluster→expert link uses parallel arcs of capacity 1 with
+    costs 0, λ, 2λ, …, so the first passage from a cluster is free but each
+    additional one is progressively more expensive.  The number of parallel
+    arcs equals the cluster's total supply (strong passages contribute 2,
+    weak passages contribute 1), so strong/weak naturally sets capacity.
 
     Network structure (5 layers):
         SUPER_SOURCE -> passage nodes         (cap=supply, cost=0)
         SUPER_SOURCE -> NULL node             (cap=total_demand, cost=0)
         passage nodes -> cluster nodes        (cap=supply, cost=base_cost)
-        cluster nodes -> expert nodes         (cap=cluster_capacity, cost=cluster_penalty)
+        cluster nodes -> expert nodes         (k parallel arcs, cap=1, cost=i*λ)
         NULL -> expert nodes                  (cap=expert demand, cost=null_cost)
         expert nodes -> SUPER_SINK            (cap=demand, cost=0)
     """
@@ -387,16 +389,26 @@ def solve_dimension(
                 "passage", p.passage_id, "cluster", str(cid),
             )
 
-    # Cluster -> Expert (capacity = cluster_capacity, cost = cluster_penalty)
-    # This is the redundancy control: each cluster can send at most
-    # cluster_capacity units to each expert.
+    # Cluster -> Expert (parallel arcs with convex penalty)
+    # For each (cluster, expert) pair, create k parallel arcs of capacity 1
+    # with costs 0, λ, 2λ, ..., (k-1)*λ.  k = total supply from the
+    # cluster's eligible passages (strong=2, weak=1 per passage).
+    cluster_supply: dict[int, int] = {}
+    for cid, members in cluster_members.items():
+        cluster_supply[cid] = sum(
+            STRENGTH_TO_SUPPLY[p.provisions[dimension]] for p in members
+        )
+
+    lam = config.cluster_lambda
     for cid in cluster_members:
+        k = cluster_supply[cid]
         for exp, _ in demanding_experts:
-            add_arc(
-                cluster_node[cid], expert_node[exp.name],
-                config.cluster_capacity, config.cluster_penalty,
-                "cluster", str(cid), "expert", exp.name,
-            )
+            for slot in range(k):
+                add_arc(
+                    cluster_node[cid], expert_node[exp.name],
+                    1, slot * lam,
+                    "cluster", str(cid), "expert", exp.name,
+                )
 
     # NULL -> each expert (capacity = expert's demand, cost = null_cost)
     for exp, demand in demanding_experts:
@@ -446,8 +458,9 @@ def solve_dimension(
 
     # Collect passage contributions to clusters
     cluster_passage_flow: dict[int, list[tuple[str, int, int]]] = {}  # cid -> [(pid, flow, cost)]
-    # Collect cluster flow to experts
-    cluster_expert_flow: dict[tuple[int, str], int] = {}  # (cid, expert) -> flow
+    # Collect cluster flow to experts: accumulate total flow and total penalty
+    cluster_expert_flow: dict[tuple[int, str], int] = {}  # (cid, expert) -> total flow
+    cluster_expert_penalty: dict[tuple[int, str], int] = {}  # (cid, expert) -> sum of slot penalties
     null_flows_by_expert: dict[str, int] = {exp.name: 0 for exp, _ in demanding_experts}
 
     for arc_idx in range(smcf.num_arcs()):
@@ -461,13 +474,19 @@ def solve_dimension(
             cluster_passage_flow.setdefault(cid, []).append((tail_id, flow, unit_cost))
         elif tail_type == "cluster" and head_type == "expert":
             cid = int(tail_id)
-            cluster_expert_flow[(cid, head_id)] = flow
+            key = (cid, head_id)
+            cluster_expert_flow[key] = cluster_expert_flow.get(key, 0) + flow
+            # Each parallel arc has flow 0 or 1; unit_cost is the slot penalty
+            cluster_expert_penalty[key] = cluster_expert_penalty.get(key, 0) + unit_cost
         elif tail_type == "null" and head_type == "expert":
             null_flows_by_expert[head_id] += flow
 
     # Attribute passage→expert assignments through clusters
     assignments: list[Assignment] = []
     for (cid, expert_name), expert_flow in cluster_expert_flow.items():
+        # Average cluster penalty across the slots used
+        total_penalty = cluster_expert_penalty.get((cid, expert_name), 0)
+        avg_penalty = total_penalty // max(expert_flow, 1)
         remaining = expert_flow
         for pid, p_flow, p_cost in cluster_passage_flow.get(cid, []):
             if remaining <= 0:
@@ -479,7 +498,7 @@ def solve_dimension(
                         passage_id=pid,
                         expert=expert_name,
                         dimension=dimension,
-                        cost=p_cost + config.cluster_penalty,
+                        cost=p_cost + avg_penalty,
                     )
                 )
             remaining -= assigned
