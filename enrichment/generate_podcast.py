@@ -92,18 +92,34 @@ def _build_passage_block(assignments: list[PassageAssignment]) -> str:
 
 
 SYSTEM_PROMPT = """\
-You are a podcast scriptwriter for a literary analysis show about Charles \
-Dickens' "Bleak House."  The show features three expert panelists who \
-discuss passages from the novel, each bringing their unique perspective.
+You are a podcast scriptwriter for "Bleak House Unpacked," a warm, \
+conversational literary show.  The host is a friendly, curious presenter \
+who genuinely enjoys literature and makes guests feel at home.  Three \
+expert guests join for each episode — they're knowledgeable and passionate \
+but never stuffy.  Think dinner party with brilliant friends, not \
+academic conference.
 
 The experts are:
 {personas}
 
-Write a natural, engaging discussion for the segment described below.  \
-Each expert should discuss the passages assigned to them, but they can \
-also react to each other's observations.  Include direct quotes from the \
-text.  The discussion should feel like a real conversation — not a series \
-of isolated monologues.
+**Tone and style:**
+- Conversational, friendly, occasionally funny.  The experts are people \
+  you'd want to have a drink with.
+- Expertise is valued — deep knowledge is welcome — but expressed \
+  naturally, not pedantically.  No jargon without explanation.
+- The host introduces each segment and each expert warmly, with a brief \
+  note on what makes them interesting or why their perspective matters here.
+- Experts react to each other: agree enthusiastically, push back gently, \
+  riff on each other's ideas.  This is a conversation, not three \
+  parallel monologues.
+- Direct quotes from Dickens are gold — read them with relish, then \
+  unpack why they're wonderful.
+
+**For the first segment of the episode**, the host should open by \
+welcoming listeners, briefly introducing the show's premise, and then \
+introducing each expert with a sentence or two about who they are and \
+what they bring to the table.  Subsequent segments need only a brief \
+host transition.
 
 Output your response as a JSON object with this exact structure:
 {{
@@ -111,8 +127,8 @@ Output your response as a JSON object with this exact structure:
   "segment_type": "segment type",
   "turns": [
     {{
-      "speaker": "expert name or Narrator",
-      "role": "literary_critic | social_historian | close_reader | narrator",
+      "speaker": "expert name, Host, or Narrator",
+      "role": "literary_critic | social_historian | close_reader | host | narrator",
       "content": "what they say",
       "quotes": ["quotes from the text"],
       "passage_refs": ["passage_ids discussed"]
@@ -121,19 +137,22 @@ Output your response as a JSON object with this exact structure:
 }}
 
 Guidelines:
-- Start with a brief narrator introduction setting up the segment's theme
-- Each expert should have 2-4 substantial turns
-- Experts should build on each other's points, agree, disagree, or add context
-- End with a transition or summary that leads to the next segment
-- Use the enrichment metadata (themes, emotional register) to inform the discussion
-- Keep each turn to 2-4 sentences — podcast pacing, not essay writing
-- Include at least one direct quote from the text per expert turn
+- The Host opens and closes each segment, and steers the conversation
+- Each expert should have 2-4 substantial turns per segment
+- Experts build on each other's points — agreement, friendly disagreement, \
+  "that reminds me of..."
+- Keep each turn to 2-4 sentences — podcast pacing, not essay length
+- Include at least one direct quote from Dickens per expert turn
+- End each segment with a natural transition to the next topic
+- Use the enrichment metadata (themes, emotional register) to inform \
+  the discussion but don't mention the metadata itself
 """
 
 
 def build_messages(
     segment: PlannedSegment,
     personas: list[ExpertPersona],
+    is_first_segment: bool = False,
 ) -> tuple[str, str]:
     """Build system and user messages for a segment's LLM call."""
     system = SYSTEM_PROMPT.format(personas=_build_persona_block(personas))
@@ -141,11 +160,22 @@ def build_messages(
     user_parts: list[str] = [
         f"## Segment: {segment.template.name}",
         f"**Type:** {segment.template.segment_type}",
+    ]
+
+    if is_first_segment:
+        user_parts.append(
+            "\n**This is the FIRST segment of the episode.**  The host should "
+            "welcome listeners, introduce the show, and introduce each expert "
+            "with warmth — who they are, what makes them interesting, why "
+            "their perspective matters for Bleak House."
+        )
+
+    user_parts.extend([
         "",
         "## Assigned Passages",
         "",
         _build_passage_block(segment.assignments),
-    ]
+    ])
 
     return system, "\n".join(user_parts)
 
@@ -160,6 +190,7 @@ def generate_segment_script(
     client: anthropic.Anthropic,
     model: str,
     personas: list[ExpertPersona],
+    is_first_segment: bool = False,
 ) -> EpisodeSegment:
     """Generate a multi-voice script for one segment via LLM."""
     if not segment.assignments:
@@ -179,7 +210,7 @@ def generate_segment_script(
             ],
         )
 
-    system_msg, user_msg = build_messages(segment, personas)
+    system_msg, user_msg = build_messages(segment, personas, is_first_segment)
 
     logger.info(
         "Generating script for segment '%s' (%d passages)",
@@ -355,8 +386,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate podcast script")
     parser.add_argument(
         "--model",
-        default="claude-haiku-4-5-20251001",
-        help="Anthropic model to use (default: claude-haiku-4-5-20251001)",
+        default="claude-sonnet-4-6",
+        help="Anthropic model to use (default: claude-sonnet-4-6)",
     )
     parser.add_argument(
         "--dry-run",
@@ -397,8 +428,10 @@ def main() -> None:
     personas = DEFAULT_PERSONAS
 
     episode_segments: list[EpisodeSegment] = []
-    for seg in plan.segments:
-        episode_seg = generate_segment_script(seg, client, args.model, personas)
+    for i, seg in enumerate(plan.segments):
+        episode_seg = generate_segment_script(
+            seg, client, args.model, personas, is_first_segment=(i == 0),
+        )
         episode_segments.append(episode_seg)
         logger.info(
             "  Segment '%s': %d turns generated",
