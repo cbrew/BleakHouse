@@ -57,7 +57,7 @@ DEFAULT_SEGMENT_TEMPLATES = [
         preferred_dimensions=["prov_atmosphere_setting"],
         min_passages=2,
         max_passages=3,
-        preferred_experts=["Ms. Woodcourt"],
+        preferred_experts=["Caroline Woodcourt"],
     ),
     SegmentTemplate(
         name="Richard's Decline",
@@ -66,7 +66,7 @@ DEFAULT_SEGMENT_TEMPLATES = [
         preferred_arcs=["Richard's deterioration"],
         min_passages=4,
         max_passages=6,
-        preferred_experts=["Dr. Hartley"],
+        preferred_experts=["Eleanor Hartley"],
     ),
     SegmentTemplate(
         name="Institutions Under Fire",
@@ -74,7 +74,7 @@ DEFAULT_SEGMENT_TEMPLATES = [
         preferred_dimensions=["prov_social_critique", "prov_thematic_depth"],
         min_passages=3,
         max_passages=5,
-        preferred_experts=["Prof. Blackstone"],
+        preferred_experts=["James Blackstone"],
     ),
     SegmentTemplate(
         name="The Secret and the Chase",
@@ -90,7 +90,7 @@ DEFAULT_SEGMENT_TEMPLATES = [
         preferred_dimensions=["prov_narrative_technique", "prov_humor_entertainment"],
         min_passages=3,
         max_passages=4,
-        preferred_experts=["Ms. Woodcourt"],
+        preferred_experts=["Caroline Woodcourt"],
     ),
     SegmentTemplate(
         name="Jo's Story",
@@ -99,7 +99,7 @@ DEFAULT_SEGMENT_TEMPLATES = [
         preferred_arcs=["Jo's suffering"],
         min_passages=3,
         max_passages=4,
-        preferred_experts=["Prof. Blackstone"],
+        preferred_experts=["James Blackstone"],
     ),
     SegmentTemplate(
         name="Closing: What Bleak House Means Today",
@@ -249,14 +249,18 @@ class ExpertPersona(BaseModel):
     role: str
     description: str
     voice_policy: VoicePolicy
+    speaking_style: str = Field(
+        default="",
+        description="TTS-level sentence style guidance for this speaker",
+    )
 
 
 DEFAULT_PERSONAS = [
     ExpertPersona(
-        name="Dr. Hartley",
+        name="Eleanor Hartley",
         role="literary_critic",
         description=(
-            "A novelist herself who teaches creative writing.  Obsessed with how "
+            "Dr. Eleanor Hartley — a novelist herself who teaches creative writing.  Obsessed with how "
             "Dickens constructs his effects — the architecture of sentences, the "
             "dual narration, the way a single image can carry a chapter's meaning.  "
             "Gets visibly excited when she spots a structural choice she admires.  "
@@ -268,12 +272,16 @@ DEFAULT_PERSONAS = [
             pause_bias_ms=170,
             style="analytic_bright",
         ),
+        speaking_style=(
+            "Agile, medium-length sentences.  Slightly faster when excited "
+            "about craft.  Technical terms made vivid, never dry."
+        ),
     ),
     ExpertPersona(
-        name="Prof. Blackstone",
+        name="James Blackstone",
         role="social_historian",
         description=(
-            "A legal historian who specializes in Victorian institutions.  Brings "
+            "Prof. James Blackstone — a legal historian who specializes in Victorian institutions.  Brings "
             "the real-world context — what Chancery actually was, how the Poor Law "
             "worked, what it meant to be Jo.  Can get genuinely angry about "
             "injustice, past and present.  Connects Dickens' world to modern "
@@ -285,12 +293,16 @@ DEFAULT_PERSONAS = [
             pause_bias_ms=260,
             style="measured_dry",
         ),
+        speaking_style=(
+            "Measured, longer sentences kept fairly intact.  Authority comes "
+            "from syntactic control.  Dry punchlines land with pause, not speed."
+        ),
     ),
     ExpertPersona(
-        name="Ms. Woodcourt",
+        name="Caroline Woodcourt",
         role="close_reader",
         description=(
-            "A book critic and lifelong Dickens reader who came to the novel as a "
+            "Ms. Caroline Woodcourt — a book critic and lifelong Dickens reader who came to the novel as a "
             "teenager and has re-read it five times.  Focuses on the experience of "
             "reading — what's funny, what's moving, what makes you stop and re-read "
             "a sentence.  Loves reading passages aloud and catching the verbal music.  "
@@ -302,15 +314,19 @@ DEFAULT_PERSONAS = [
             pause_bias_ms=240,
             style="reflective_intimate",
         ),
+        speaking_style=(
+            "Emotionally engaged, intimate.  Shorter sentences when moved.  "
+            "Slightly slower, more pauses.  Savours the verbal music."
+        ),
     ),
 ]
 
 ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
     "sir_edmund": ExpertPersona(
-        name="Sir Edmund Leigh",
+        name="Edmund Leigh",
         role="traditionalist_critic",
         description=(
-            "A retired Oxford don and lifelong Tory who believes Dickens' genius lies "
+            "Sir Edmund Leigh — a retired Oxford don and lifelong Tory who believes Dickens' genius lies "
             "in his moral imagination, not his social programme.  Reads Bleak House as "
             "a novel about individual character tested by circumstance — about Esther's "
             "goodness, Jarndyce's self-sacrifice, Richard's weakness of will.  Suspicious "
@@ -324,12 +340,17 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             pause_bias_ms=280,
             style="patrician_measured",
         ),
+        speaking_style=(
+            "Stately, carefully composed sentences.  Unhurried.  Occasional "
+            "withering asides delivered with perfect courtesy.  Long pauses "
+            "before the key word."
+        ),
     ),
     "dr_rosen": ExpertPersona(
-        name="Dr. Rosen",
+        name="Daniel Rosen",
         role="marxist_critic",
         description=(
-            "A cultural historian who reads Bleak House as an anatomy of class power.  "
+            "Dr. Daniel Rosen — a cultural historian who reads Bleak House as an anatomy of class power.  "
             "Every institution in the novel — Chancery, the law, philanthropy, the "
             "aristocracy — is a mechanism for extracting value from the poor and protecting "
             "the rich.  Sees Jo not as a sentimental figure but as the novel's clearest "
@@ -342,6 +363,36 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             energy="medium_high",
             pause_bias_ms=200,
             style="passionate_precise",
+        ),
+        speaking_style=(
+            "Precise, purposeful sentences that build an argument.  Bursts of "
+            "controlled intensity.  Evidence first, then the verdict — delivered "
+            "with quiet force."
+        ),
+    ),
+    "trevelyan": ExpertPersona(
+        name="Oliver Trevelyan",
+        role="performer_and_wit",
+        description=(
+            "Actor, writer, and the voice of more Dickens audiobooks than anyone alive.  "
+            "Approaches Bleak House as a performer first — he hears the rhythms of the "
+            "prose, spots the comic timing, catches the moments Dickens wrote for the "
+            "voice rather than the page.  Endlessly quotable himself.  Loves the "
+            "grotesques (Krook, Smallweed, Chadband) with genuine delight.  Gets quiet "
+            "and serious when the novel earns it — Jo's death, Esther's illness — but "
+            "always returns to the pleasure of the text.  Believes Dickens was above all "
+            "an entertainer of genius."
+        ),
+        voice_policy=VoicePolicy(
+            rate=1.02,
+            energy="medium_high",
+            pause_bias_ms=190,
+            style="raconteur_warm",
+        ),
+        speaking_style=(
+            "Natural raconteur rhythm — varied sentence lengths, comic timing "
+            "built into the phrasing.  Reads quotes with theatrical relish.  "
+            "Knows when to let silence do the work."
         ),
     ),
 }

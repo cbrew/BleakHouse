@@ -67,6 +67,16 @@ def _build_persona_block(personas: list[ExpertPersona]) -> str:
     return "\n\n".join(lines)
 
 
+def _build_speaker_styles(personas: list[ExpertPersona]) -> str:
+    """Build per-speaker sentence style guidance from persona data."""
+    lines = ["**Per-speaker sentence style:**"]
+    for p in personas:
+        if p.speaking_style:
+            lines.append(f"- {p.name}: {p.speaking_style}")
+    lines.append("- Host: adaptive clause segmentation for intros.  Clear, guiding.")
+    return "\n".join(lines)
+
+
 def _build_passage_block(assignments: list[PassageAssignment]) -> str:
     """Format passage assignments for the user prompt."""
     blocks: list[str] = []
@@ -107,7 +117,7 @@ careful pauses — especially around quotations from the novel.
 
 The host is an articulate, warmly curious presenter who steers the \
 conversation with confidence and genuine affection for the material.  \
-Three expert guests join, each bringing a distinct perspective and voice.
+{num_experts} expert guests join, each bringing a distinct perspective and voice.
 
 The experts are:
 {personas}
@@ -143,8 +153,8 @@ the listener's experience.
 For each utterance, you MUST set:
 
 - **text**: One sentence or short clause.  Max ~25 words.  Split long \
-  compound sentences into two utterances.  Preserve abbreviations like \
-  Dr. and Prof.  Treat em dashes as possible clause boundaries.
+  compound sentences into two utterances.  Treat em dashes as possible \
+  clause boundaries.
 - **sentence_type**: The functional role — one of: intro, question, \
   quote_setup, quote_reading, analysis, punchline, transition, closing.
 - **is_quote**: True only when the utterance IS a direct quote from the \
@@ -184,15 +194,7 @@ Dickens quote, use this pattern:
    rate=0.93, pause_before_ms=150, pause_after_ms=400)
 3. quote_commentary utterance (quote_mode="commentary", rate=1.0)
 
-**Per-speaker sentence style:**
-- Dr. Hartley: agile, medium-length sentences.  Slightly faster when \
-  excited about craft.
-- Prof. Blackstone: measured, longer sentences kept fairly intact.  His \
-  authority comes from syntactic control.  Dry punchlines land with \
-  pause, not speed.
-- Ms. Woodcourt: emotionally engaged, intimate.  Shorter sentences \
-  when moved.  Slightly slower, more pauses.
-- Host: adaptive clause segmentation for intros.  Clear, guiding.
+{speaker_styles}
 
 **Turn structure:**
 - The Host opens and closes each segment, steering the conversation.
@@ -218,7 +220,11 @@ def build_messages(
     is_first_segment: bool = False,
 ) -> tuple[str, str]:
     """Build system and user messages for a segment's LLM call."""
-    system = SYSTEM_PROMPT.format(personas=_build_persona_block(personas))
+    system = SYSTEM_PROMPT.format(
+        personas=_build_persona_block(personas),
+        num_experts=len(personas),
+        speaker_styles=_build_speaker_styles(personas),
+    )
 
     user_parts: list[str] = [
         f"## Segment: {segment.template.name}",
@@ -255,7 +261,7 @@ def generate_segment_script(
     personas: list[ExpertPersona],
     is_first_segment: bool = False,
 ) -> EpisodeSegment:
-    """Generate a multi-voice script for one segment via structured tool use."""
+    """Generate a multi-voice script for one segment via structured output."""
     if not segment.assignments:
         return EpisodeSegment(
             title=segment.template.name,
@@ -284,37 +290,25 @@ def generate_segment_script(
         len(segment.assignments),
     )
 
-    # Use tool_use for guaranteed structured output matching our schema
-    segment_tool: anthropic.types.ToolParam = {
-        "name": "write_segment",
-        "description": "Write the podcast segment script with sentence-level TTS annotations",
-        "input_schema": EpisodeSegment.model_json_schema(),
-    }
-
-    response = client.messages.create(
+    response = client.messages.parse(
         model=model,
         max_tokens=16384,
         system=system_msg,
         messages=[{"role": "user", "content": user_msg}],
-        tools=[segment_tool],
-        tool_choice={"type": "tool", "name": "write_segment"},
+        output_format=EpisodeSegment,
     )
 
-    # Extract the tool use result
-    for block in response.content:
-        if block.type == "tool_use":
-            return EpisodeSegment.model_validate(block.input)
+    logger.info(
+        "  Response: stop_reason=%s, input_tokens=%d, output_tokens=%d",
+        response.stop_reason,
+        response.usage.input_tokens,
+        response.usage.output_tokens,
+    )
 
-    # Fallback: should not reach here with tool_choice forced
-    logger.warning(
-        "No tool_use block in response for segment '%s'",
-        segment.template.name,
+    assert response.parsed_output is not None, (
+        f"Structured output parsing failed for segment '{segment.template.name}'"
     )
-    return EpisodeSegment(
-        title=segment.template.name,
-        segment_type=segment.template.segment_type,
-        turns=[],
-    )
+    return response.parsed_output
 
 
 # ---------------------------------------------------------------------------

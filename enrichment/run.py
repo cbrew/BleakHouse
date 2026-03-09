@@ -18,6 +18,10 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
+from enrichment.design_segments import (  # pyright: ignore[reportMissingImports]
+    compute_supplementary_demand,
+    design_segments,
+)
 from enrichment.generate_podcast import (  # pyright: ignore[reportMissingImports]
     assemble_episode,
     generate_segment_script,
@@ -49,12 +53,16 @@ REPORTS_DIR = BASE_DIR / "reports"
 # ---------------------------------------------------------------------------
 
 
-def run_phase1(config: RunConfig) -> dict:
+def run_phase1(
+    config: RunConfig,
+    supplementary_demand: dict[str, int] | None = None,
+) -> dict:
     """Phase 1: passage selection. Returns serializable assignments."""
     result = run_pipeline(
         experts=config.experts,
         arcs=config.arcs,
         config=config.producer,
+        supplementary_demand=supplementary_demand,
     )
     passages = load_passages()
     assignments = build_passage_assignments(result, passages)
@@ -191,7 +199,7 @@ def main() -> None:
         help="Override arc demand: 'Arc Name=N'",
     )
 
-    # Expert demand overrides: --expert-demand "Dr. Hartley:prov_narrative_technique=4"
+    # Expert demand overrides: --expert-demand "Eleanor Hartley:prov_narrative_technique=4"
     parser.add_argument(
         "--expert-demand",
         action="append",
@@ -199,12 +207,33 @@ def main() -> None:
         help="Override expert dimension demand: 'Expert Name:dimension=N'",
     )
 
-    # Expert replacement: --replace-expert "Prof. Blackstone=sir_edmund"
+    # Expert replacement: --replace-expert "James Blackstone=sir_edmund"
     parser.add_argument(
         "--replace-expert",
         action="append",
         default=[],
         help="Replace an expert with an alternative: 'Old Name=preset_key'",
+    )
+
+    # Segment design
+    parser.add_argument(
+        "--no-design-segments",
+        action="store_true",
+        help="Skip LLM segment design; use default templates",
+    )
+    parser.add_argument(
+        "--segment-model",
+        default=None,
+        help="Model for segment design (default: haiku)",
+    )
+
+    # Resume from existing phase outputs
+    parser.add_argument(
+        "--resume-from",
+        type=int,
+        default=None,
+        choices=[1, 2, 3],
+        help="Resume from this phase using existing outputs (skips earlier phases)",
     )
 
     # Phase 3 overrides
@@ -282,7 +311,7 @@ def main() -> None:
     if args.expert_demand:
         experts = deepcopy(config.experts)
         for spec in args.expert_demand:
-            # "Dr. Hartley:prov_narrative_technique=4"
+            # "Eleanor Hartley:prov_narrative_technique=4"
             expert_part, _, dim_val = spec.rpartition(":")
             dim_name, _, val = dim_val.rpartition("=")
             for exp in experts:
@@ -313,28 +342,82 @@ def main() -> None:
     if args.model:
         config.model = args.model
 
-    # Save config
-    config.save()
+    # Save initial config
     run_dir = config.run_dir()
+    run_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Run '%s' → %s", config.name, run_dir)
 
-    # Phase 1
-    logger.info("Phase 1: passage selection")
-    phase1 = run_phase1(config)
-    with open(run_dir / "phase1_assignments.json", "w") as f:
-        json.dump(phase1, f, indent=2)
-    logger.info("  %d passages selected", phase1["count"])
+    resume_from = args.resume_from
+
+    # --- Resume: load existing phase outputs ---
+    if resume_from is not None:
+        config = RunConfig.load(args.name)
+        if args.model:
+            config.model = args.model
+
+    phase1: dict = {}
+    if resume_from and resume_from >= 2:
+        # Load Phase 1 from disk
+        with open(run_dir / "phase1_assignments.json") as f:
+            phase1 = json.load(f)
+        logger.info("Resumed Phase 1: %d passages", phase1["count"])
+    elif resume_from and resume_from >= 1:
+        # Phase 1 needs re-running with existing Phase 0 segments
+        logger.info("Phase 1: passage selection (resumed)")
+        supp0 = compute_supplementary_demand(config.segment_templates, config.experts)
+        phase1 = run_phase1(config, supplementary_demand=supp0.dimension_boost if supp0.total_boost > 0 else None)
+        with open(run_dir / "phase1_assignments.json", "w") as f:
+            json.dump(phase1, f, indent=2)
+        logger.info("  %d passages selected", phase1["count"])
+    else:
+        # Phase 0: LLM segment design (before passage selection)
+        supp_demand_val: dict[str, int] | None = None
+        if not args.no_design_segments:
+            segment_model = args.segment_model or "claude-haiku-4-5-20251001"
+            logger.info("Phase 0: designing segments with %s", segment_model)
+            templates = design_segments(
+                config.experts, config.arcs,
+                model=segment_model,
+            )
+            config.segment_templates = templates
+            with open(run_dir / "phase0_segments.json", "w") as f:
+                json.dump([t.model_dump() for t in templates], f, indent=2)
+            for t in templates:
+                logger.info(
+                    "  %s (%s, %d-%d)", t.name, t.segment_type,
+                    t.min_passages, t.max_passages,
+                )
+
+            # Compute supplementary demand
+            supp = compute_supplementary_demand(templates, config.experts)
+            if supp.total_boost > 0:
+                supp_demand_val = supp.dimension_boost
+
+        config.save()
+
+        # Phase 1: passage selection
+        logger.info("Phase 1: passage selection")
+        phase1 = run_phase1(config, supplementary_demand=supp_demand_val)
+        with open(run_dir / "phase1_assignments.json", "w") as f:
+            json.dump(phase1, f, indent=2)
+        logger.info("  %d passages selected", phase1["count"])
 
     if args.phase < 2:
         logger.info("Stopping after Phase 1")
         return
 
-    # Phase 2
-    logger.info("Phase 2: segment assignment")
-    phase2 = run_phase2(config, phase1)
-    with open(run_dir / "phase2_plan.json", "w") as f:
-        json.dump(phase2, f, indent=2)
-    print(phase2["report"])
+    if resume_from and resume_from >= 3:
+        # Load Phase 2 from disk
+        with open(run_dir / "phase2_plan.json") as f:
+            phase2 = json.load(f)
+        logger.info("Resumed Phase 2")
+    else:
+        # Phase 2
+        logger.info("Phase 2: segment assignment")
+        phase2 = run_phase2(config, phase1)
+        with open(run_dir / "phase2_plan.json", "w") as f:
+            json.dump(phase2, f, indent=2)
+        print(phase2["report"])
 
     if args.phase < 3:
         logger.info("Stopping after Phase 2")

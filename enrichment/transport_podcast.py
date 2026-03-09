@@ -112,7 +112,7 @@ class GapReport:
 
 DEFAULT_EXPERTS = [
     ExpertProfile(
-        name="Dr. Hartley",
+        name="Eleanor Hartley",
         role="literary_critic",
         demands={
             "prov_narrative_technique": 2,
@@ -121,7 +121,7 @@ DEFAULT_EXPERTS = [
         },
     ),
     ExpertProfile(
-        name="Prof. Blackstone",
+        name="James Blackstone",
         role="social_historian",
         demands={
             "prov_social_critique": 2,
@@ -130,7 +130,7 @@ DEFAULT_EXPERTS = [
         },
     ),
     ExpertProfile(
-        name="Ms. Woodcourt",
+        name="Caroline Woodcourt",
         role="close_reader",
         demands={
             "prov_humor_entertainment": 2,
@@ -145,13 +145,13 @@ DEFAULT_EXPERTS = [
 # ---------------------------------------------------------------------------
 
 ALTERNATIVE_EXPERTS: dict[str, ExpertProfile] = {
-    # Sir Edmund Leigh — traditionalist conservative critic.
+    # Edmund Leigh — traditionalist conservative critic.
     # Values moral seriousness, individual character, the primacy of literary
     # form.  Suspicious of readings that reduce literature to politics.
     # Thinks Dickens' greatness lies in his moral imagination, not his
     # social messaging.
     "sir_edmund": ExpertProfile(
-        name="Sir Edmund Leigh",
+        name="Edmund Leigh",
         role="traditionalist_critic",
         demands={
             "prov_character_development": 3,
@@ -159,19 +159,34 @@ ALTERNATIVE_EXPERTS: dict[str, ExpertProfile] = {
             "prov_narrative_technique": 1,
         },
     ),
-    # Dr. Rosen — materialist Marxist critic.
+    # Daniel Rosen — materialist Marxist critic.
     # Reads Bleak House as an anatomy of class power and institutional
     # violence.  Every fog is ideology, every institution is a class
     # instrument, every character is shaped by their material conditions.
     # Thinks the novel's greatness lies in its unflinching depiction of
     # systemic oppression.
     "dr_rosen": ExpertProfile(
-        name="Dr. Rosen",
+        name="Daniel Rosen",
         role="marxist_critic",
         demands={
             "prov_social_critique": 3,
             "prov_atmosphere_setting": 2,
             "prov_character_development": 1,
+        },
+    ),
+    # Oliver Trevelyan — performer, wit, and Dickens devotee.
+    # Has narrated the complete Dickens audiobooks.  Brings a performer's
+    # eye: what's funny, what's theatrical, what makes prose sing aloud.
+    # Cares about the experience of reading — humor, atmosphere, the
+    # music of sentences.  A wildcard who pulls the episode toward
+    # entertainment and craft rather than academic analysis.
+    "trevelyan": ExpertProfile(
+        name="Oliver Trevelyan",
+        role="performer_and_wit",
+        demands={
+            "prov_humor_entertainment": 3,
+            "prov_atmosphere_setting": 2,
+            "prov_narrative_technique": 2,
         },
     ),
 }
@@ -922,12 +937,24 @@ def save_assignments_json(
 # ---------------------------------------------------------------------------
 
 
+STRUCTURE_EXPERT_NAME = "_episode_structure"
+
+
 def run_pipeline(
     experts: list[ExpertProfile] | None = None,
     arcs: list[ArcDemand] | None = None,
     config: ProducerConfig | None = None,
+    supplementary_demand: dict[str, int] | None = None,
 ) -> AggregatedResult:
-    """Run the full podcast assignment pipeline."""
+    """Run the full podcast assignment pipeline.
+
+    Args:
+        supplementary_demand: Extra dimension demand from segment design
+            (Phase 0).  For each dimension with a positive value, a synthetic
+            expert is added to ensure Phase 1 selects enough passages.
+            Passages assigned to the synthetic expert are available in Phase 2
+            for any segment.
+    """
     if experts is None:
         experts = DEFAULT_EXPERTS
     if arcs is None:
@@ -937,10 +964,31 @@ def run_pipeline(
 
     passages = load_passages()
 
+    # Build augmented expert list with supplementary demand from segment design
+    augmented_experts = list(experts)
+    if supplementary_demand:
+        structure_demands = {
+            dim: boost
+            for dim, boost in supplementary_demand.items()
+            if boost > 0
+        }
+        if structure_demands:
+            augmented_experts.append(
+                ExpertProfile(
+                    name=STRUCTURE_EXPERT_NAME,
+                    role="episode_structure",
+                    demands=structure_demands,
+                )
+            )
+            logger.info(
+                "Added episode structure demand: %s",
+                structure_demands,
+            )
+
     # -- Solve per-dimension flow problems --
     dim_results: list[DimensionResult] = []
     for dimension in PROVISION_DIMENSIONS:
-        dr = solve_dimension(dimension, passages, experts, config)
+        dr = solve_dimension(dimension, passages, augmented_experts, config)
         dim_results.append(dr)
         logger.info(
             "Dimension %-30s demand=%3d supplied=%3d null=%3d",

@@ -1,0 +1,224 @@
+{
+  "name": "v13_fry_for_blackstone",
+  "producer": {
+    "total_budget": 60,
+    "per_expert_max": 25,
+    "per_expert_min": 8,
+    "cluster_lambda": 5,
+    "null_cost": 100,
+    "strong_cost": 1,
+    "weak_cost": 3
+  },
+  "experts": [
+    {
+      "name": "Dr. Hartley",
+      "role": "literary_critic",
+      "demands": {
+        "prov_narrative_technique": 2,
+        "prov_character_development": 2,
+        "prov_thematic_depth": 1
+      }
+    },
+    {
+      "name": "Stephen Fry",
+      "role": "performer_and_wit",
+      "demands": {
+        "prov_humor_entertainment": 3,
+        "prov_atmosphere_setting": 2,
+        "prov_narrative_technique": 2
+      }
+    },
+    {
+      "name": "Ms. Woodcourt",
+      "role": "close_reader",
+      "demands": {
+        "prov_humor_entertainment": 2,
+        "prov_character_development": 1,
+        "prov_atmosphere_setting": 1
+      }
+    }
+  ],
+  "arcs": [
+    {
+      "name": "Richard's deterioration",
+      "character": "Richard Carstone",
+      "demand": 6,
+      "require_field": "prov_character_development",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Lady Dedlock's secret",
+      "character": "Lady Dedlock",
+      "demand": 5,
+      "require_field": "prov_plot_advancement",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Jo's suffering",
+      "character": "Jo",
+      "demand": 4,
+      "require_field": "prov_social_critique",
+      "require_value": "not_none",
+      "prefer_min_interest": 2
+    }
+  ],
+  "segment_templates": [
+    {
+      "name": "Fog and Ruin: Setting the Stage",
+      "segment_type": "opening",
+      "preferred_dimensions": [
+        "prov_atmosphere_setting",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 3,
+      "preferred_experts": [
+        "Stephen Fry"
+      ]
+    },
+    {
+      "name": "The Machinery of Chancery and the Corruption of Innocence",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_social_critique",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [
+        "Jo's suffering"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Dr. Hartley"
+      ]
+    },
+    {
+      "name": "Richard's Labyrinth: Following the Fall",
+      "segment_type": "close_reading",
+      "preferred_dimensions": [
+        "prov_character_development",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Ms. Woodcourt"
+      ]
+    },
+    {
+      "name": "The Weight of Secrets: Lady Dedlock's Unraveling",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_plot_advancement",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [
+        "Lady Dedlock's secret"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Dr. Hartley"
+      ]
+    },
+    {
+      "name": "Comic Relief and Dark Comedy: How Dickens Makes Us Laugh at Despair",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_humor_entertainment",
+        "prov_atmosphere_setting"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration",
+        "Jo's suffering"
+      ],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": [
+        "Stephen Fry",
+        "Ms. Woodcourt"
+      ]
+    },
+    {
+      "name": "The Intertwining of Fates: Themes and Judgement",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_thematic_depth",
+        "prov_plot_advancement"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration",
+        "Lady Dedlock's secret",
+        "Jo's suffering"
+      ],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": []
+    },
+    {
+      "name": "A House Divided Against Itself: Closing Reflections",
+      "segment_type": "closing",
+      "preferred_dimensions": [
+        "prov_thematic_depth",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration",
+        "Lady Dedlock's secret",
+        "Jo's suffering"
+      ],
+      "min_passages": 2,
+      "max_passages": 3,
+      "preferred_experts": [
+        "Dr. Hartley"
+      ]
+    }
+  ],
+  "segment_null_cost": 50,
+  "segment_dimension_mismatch_cost": 5,
+  "segment_arc_mismatch_cost": 3,
+  "segment_expert_mismatch_cost": 2,
+  "model": "claude-sonnet-4-6",
+  "personas": [
+    {
+      "name": "Dr. Hartley",
+      "role": "literary_critic",
+      "description": "A novelist herself who teaches creative writing.  Obsessed with how Dickens constructs his effects \u2014 the architecture of sentences, the dual narration, the way a single image can carry a chapter's meaning.  Gets visibly excited when she spots a structural choice she admires.  Has a gift for making technical craft feel thrilling rather than dry.",
+      "voice_policy": {
+        "rate": 1.01,
+        "energy": "medium_high",
+        "pause_bias_ms": 170,
+        "style": "analytic_bright"
+      }
+    },
+    {
+      "name": "Stephen Fry",
+      "role": "performer_and_wit",
+      "description": "Actor, writer, and the voice of more Dickens audiobooks than anyone alive.  Approaches Bleak House as a performer first \u2014 he hears the rhythms of the prose, spots the comic timing, catches the moments Dickens wrote for the voice rather than the page.  Endlessly quotable himself.  Loves the grotesques (Krook, Smallweed, Chadband) with genuine delight.  Gets quiet and serious when the novel earns it \u2014 Jo's death, Esther's illness \u2014 but always returns to the pleasure of the text.  Believes Dickens was above all an entertainer of genius.",
+      "voice_policy": {
+        "rate": 1.02,
+        "energy": "medium_high",
+        "pause_bias_ms": 190,
+        "style": "raconteur_warm"
+      }
+    },
+    {
+      "name": "Ms. Woodcourt",
+      "role": "close_reader",
+      "description": "A book critic and lifelong Dickens reader who came to the novel as a teenager and has re-read it five times.  Focuses on the experience of reading \u2014 what's funny, what's moving, what makes you stop and re-read a sentence.  Loves reading passages aloud and catching the verbal music.  Has strong opinions about which characters deserve better.",
+      "voice_policy": {
+        "rate": 0.97,
+        "energy": "medium",
+        "pause_bias_ms": 240,
+        "style": "reflective_intimate"
+      }
+    }
+  ],
+  "tts_model": "flash"
+}
