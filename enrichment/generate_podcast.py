@@ -1,10 +1,10 @@
 """Phase 3+4: Generate multi-voice podcast script from segment plan.
 
 For each segment, sends passage text + enrichment + expert persona to an LLM.
-The LLM writes a multi-voice discussion script.  Segments are independent
-and could be parallelized.
+The LLM writes a multi-voice discussion script with sentence-level TTS annotations.
+Segments are independent and could be parallelized.
 
-Usage: uv run python -m enrichment.generate_podcast [--model claude-haiku-4-5-20251001]
+Usage: uv run python -m enrichment.generate_podcast [--model claude-sonnet-4-6]
 """
 
 from __future__ import annotations
@@ -25,7 +25,9 @@ from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     EpisodeSegment,
     ExpertPersona,
     PodcastEpisode,
+    SentenceType,
     Turn,
+    Utterance,
 )
 from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]
     PassageAssignment,
@@ -56,8 +58,13 @@ def _build_persona_block(personas: list[ExpertPersona]) -> str:
     """Format expert personas for the system prompt."""
     lines: list[str] = []
     for p in personas:
-        lines.append(f"**{p.name}** ({p.role}): {p.description}")
-    return "\n".join(lines)
+        vp = p.voice_policy
+        lines.append(
+            f"**{p.name}** ({p.role}): {p.description}\n"
+            f"  Voice: rate={vp.rate}, energy={vp.energy}, "
+            f"pause_bias={vp.pause_bias_ms}ms, style={vp.style}"
+        )
+    return "\n\n".join(lines)
 
 
 def _build_passage_block(assignments: list[PassageAssignment]) -> str:
@@ -92,60 +99,116 @@ def _build_passage_block(assignments: list[PassageAssignment]) -> str:
 
 
 SYSTEM_PROMPT = """\
-You are a podcast scriptwriter for "Bleak House Unpacked," a warm, \
-conversational literary show.  The host is a friendly, curious presenter \
-who genuinely enjoys literature and makes guests feel at home.  Three \
-expert guests join for each episode — they're knowledgeable and passionate \
-but never stuffy.  Think dinner party with brilliant friends, not \
-academic conference.
+You are a podcast scriptwriter for "Bleak House Unpacked," a high-quality \
+literary discussion in the style of BBC Radio 4 or a fine public-radio \
+roundtable.  The tone is restrained expressiveness: warm but not gushing, \
+intellectually rigorous but never pedantic, with strong phrasing and \
+careful pauses — especially around quotations from the novel.
+
+The host is an articulate, warmly curious presenter who steers the \
+conversation with confidence and genuine affection for the material.  \
+Three expert guests join, each bringing a distinct perspective and voice.
 
 The experts are:
 {personas}
 
-**Tone and style:**
-- Conversational, friendly, occasionally funny.  The experts are people \
-  you'd want to have a drink with.
+The host's voice policy: rate=0.98, energy=medium, pause_bias=220ms, \
+style=presenter_warm.
+
+**Style guidelines:**
+- Think literary roundtable with brilliant friends, not academic conference.
 - Expertise is valued — deep knowledge is welcome — but expressed \
-  naturally, not pedantically.  No jargon without explanation.
+  naturally.  No jargon without explanation.
 - The host introduces each segment and each expert warmly, with a brief \
-  note on what makes them interesting or why their perspective matters here.
-- Experts react to each other: agree enthusiastically, push back gently, \
-  riff on each other's ideas.  This is a conversation, not three \
-  parallel monologues.
-- Direct quotes from Dickens are gold — read them with relish, then \
-  unpack why they're wonderful.
+  note on why their perspective matters here.
+- Experts react to each other: agree, push back gently, riff on each \
+  other's ideas.  This is a conversation, not parallel monologues.
+- Direct quotes from Dickens are gold.  Set them up, read them with \
+  relish, then unpack why they're wonderful.
+- No gimmicky filler words.  No "so," "well," "you know" padding.  \
+  Every sentence should earn its place.
 
 **For the first segment of the episode**, the host should open by \
 welcoming listeners, briefly introducing the show's premise, and then \
 introducing each expert with a sentence or two about who they are and \
-what they bring to the table.  Subsequent segments need only a brief \
-host transition.
+what they bring.  Subsequent segments need only a brief host transition.
 
-Output your response as a JSON object with this exact structure:
-{{
-  "title": "segment title",
-  "segment_type": "segment type",
-  "turns": [
-    {{
-      "speaker": "expert name, Host, or Narrator",
-      "role": "literary_critic | social_historian | close_reader | host | narrator",
-      "content": "what they say",
-      "quotes": ["quotes from the text"],
-      "passage_refs": ["passage_ids discussed"]
-    }}
-  ]
-}}
+**Critical: sentence-level structured output for TTS**
 
-Guidelines:
-- The Host opens and closes each segment, and steers the conversation
-- Each expert should have 2-4 substantial turns per segment
-- Experts build on each other's points — agreement, friendly disagreement, \
+Each turn must be broken into individual utterances — one sentence or \
+short clause each.  Every utterance will be rendered separately by a \
+text-to-speech engine, so the annotations you provide directly control \
+the listener's experience.
+
+For each utterance, you MUST set:
+
+- **text**: One sentence or short clause.  Max ~25 words.  Split long \
+  compound sentences into two utterances.  Preserve abbreviations like \
+  Dr. and Prof.  Treat em dashes as possible clause boundaries.
+- **sentence_type**: The functional role — one of: intro, question, \
+  quote_setup, quote_reading, analysis, punchline, transition, closing.
+- **is_quote**: True only when the utterance IS a direct quote from the \
+  novel being read aloud (not paraphrased or discussed).
+- **quote_mode**: Controls quote pacing:
+  - "none" — normal speech
+  - "setup" — text leading into a quote (slightly slower, tiny pause \
+    at end)
+  - "reading" — the quote itself (slow down ~5-8%, more weight)
+  - "commentary" — text immediately after a quote (resume normal pace)
+- **rate**: Speaking rate multiplier relative to speaker's base rate.
+  - 1.0 = speaker's default
+  - 0.92-0.95 = for quote readings and weighty lines
+  - 1.02-1.05 = for excited analysis or quick transitions
+  - Stay within 0.90-1.05 range.  Conservative variation.
+- **pause_before_ms**: Silence before this utterance.
+  - 0 = continuation within a thought
+  - 120-220 = before a quoted passage
+  - 180-260 = after speaker switch (start of turn)
+  - 260-420 = after a joke or sting line from previous speaker
+- **pause_after_ms**: Silence after this utterance.
+  - 300 = normal sentence break
+  - 500 = slight emphasis or new thought
+  - 800 = paragraph-level break between points
+  - 1500 = section break (end of turn before next speaker)
+  - The last utterance of each turn: 800-1500.
+  - After a weighty Dickens quote: 300-500.
+- **emphasis_words**: 0-3 content words deserving slight stress.  Use \
+  sparingly.  Best for key literary terms, character names on first \
+  mention, or the crux of an argument.
+- **passage_ref**: The passage_id being discussed, if any.
+
+**Quote handling is critical.**  When a speaker sets up and reads a \
+Dickens quote, use this pattern:
+1. quote_setup utterance (quote_mode="setup", rate=0.98, pause_after_ms=150)
+2. quote_reading utterance (quote_mode="reading", is_quote=true, \
+   rate=0.93, pause_before_ms=150, pause_after_ms=400)
+3. quote_commentary utterance (quote_mode="commentary", rate=1.0)
+
+**Per-speaker sentence style:**
+- Dr. Hartley: agile, medium-length sentences.  Slightly faster when \
+  excited about craft.
+- Prof. Blackstone: measured, longer sentences kept fairly intact.  His \
+  authority comes from syntactic control.  Dry punchlines land with \
+  pause, not speed.
+- Ms. Woodcourt: emotionally engaged, intimate.  Shorter sentences \
+  when moved.  Slightly slower, more pauses.
+- Host: adaptive clause segmentation for intros.  Clear, guiding.
+
+**Turn structure:**
+- The Host opens and closes each segment, steering the conversation.
+- Each expert: 2-4 turns per segment, 3-8 utterances per turn.
+- Experts build on each other — agreement, friendly disagreement, \
   "that reminds me of..."
-- Keep each turn to 2-4 sentences — podcast pacing, not essay length
-- Include at least one direct quote from Dickens per expert turn
-- End each segment with a natural transition to the next topic
+- Include at least one direct Dickens quote per expert turn.
+- End each segment with a host transition to the next topic.
 - Use the enrichment metadata (themes, emotional register) to inform \
-  the discussion but don't mention the metadata itself
+  the discussion, but never mention the metadata itself.
+
+**Inter-speaker timing (set via pause_before_ms on first utterance of turn):**
+- Same speaker continuation: 120-180 ms
+- Speaker switch after analysis: 180-260 ms
+- Speaker switch after joke/sting: 260-420 ms
+- Before segment pivot or "Welcome back": 500-900 ms
 """
 
 
@@ -192,9 +255,8 @@ def generate_segment_script(
     personas: list[ExpertPersona],
     is_first_segment: bool = False,
 ) -> EpisodeSegment:
-    """Generate a multi-voice script for one segment via LLM."""
+    """Generate a multi-voice script for one segment via structured tool use."""
     if not segment.assignments:
-        # Empty segment — return a narrator-only placeholder
         return EpisodeSegment(
             title=segment.template.name,
             segment_type=segment.template.segment_type,
@@ -202,10 +264,14 @@ def generate_segment_script(
                 Turn(
                     speaker="Narrator",
                     role="narrator",
-                    content=f"[This segment — {segment.template.name} — "
-                    f"has no assigned passages.]",
-                    quotes=[],
-                    passage_refs=[],
+                    utterances=[
+                        Utterance(
+                            text=f"This segment — {segment.template.name} — "
+                            f"has no assigned passages.",
+                            sentence_type=SentenceType.closing,
+                            pause_after_ms=1500,
+                        )
+                    ],
                 )
             ],
         )
@@ -218,68 +284,36 @@ def generate_segment_script(
         len(segment.assignments),
     )
 
+    # Use tool_use for guaranteed structured output matching our schema
+    segment_tool: anthropic.types.ToolParam = {
+        "name": "write_segment",
+        "description": "Write the podcast segment script with sentence-level TTS annotations",
+        "input_schema": EpisodeSegment.model_json_schema(),
+    }
+
     response = client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=16384,
         system=system_msg,
         messages=[{"role": "user", "content": user_msg}],
+        tools=[segment_tool],
+        tool_choice={"type": "tool", "name": "write_segment"},
     )
 
-    # Extract text content
-    raw_text = ""
+    # Extract the tool use result
     for block in response.content:
-        if block.type == "text":
-            raw_text += block.text
+        if block.type == "tool_use":
+            return EpisodeSegment.model_validate(block.input)
 
-    # Parse JSON from response
-    # Strip markdown code fences if present
-    text = raw_text.strip()
-    if text.startswith("```"):
-        # Remove opening fence (possibly with language tag)
-        first_newline = text.index("\n")
-        text = text[first_newline + 1 :]
-    if text.endswith("```"):
-        text = text[:-3]
-    text = text.strip()
-
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        logger.warning(
-            "Failed to parse JSON for segment '%s', returning raw text",
-            segment.template.name,
-        )
-        return EpisodeSegment(
-            title=segment.template.name,
-            segment_type=segment.template.segment_type,
-            turns=[
-                Turn(
-                    speaker="Narrator",
-                    role="narrator",
-                    content=raw_text,
-                    quotes=[],
-                    passage_refs=[],
-                )
-            ],
-        )
-
-    # Build EpisodeSegment from parsed data
-    turns: list[Turn] = []
-    for turn_data in data.get("turns", []):
-        turns.append(
-            Turn(
-                speaker=turn_data.get("speaker", "Unknown"),
-                role=turn_data.get("role", "narrator"),
-                content=turn_data.get("content", ""),
-                quotes=turn_data.get("quotes", []),
-                passage_refs=turn_data.get("passage_refs", []),
-            )
-        )
-
+    # Fallback: should not reach here with tool_choice forced
+    logger.warning(
+        "No tool_use block in response for segment '%s'",
+        segment.template.name,
+    )
     return EpisodeSegment(
-        title=data.get("title", segment.template.name),
-        segment_type=data.get("segment_type", segment.template.segment_type),
-        turns=turns,
+        title=segment.template.name,
+        segment_type=segment.template.segment_type,
+        turns=[],
     )
 
 
@@ -342,7 +376,7 @@ def _make_tag() -> str:
 
 
 def build_script_report(episode: PodcastEpisode) -> str:
-    """Generate a human-readable script report."""
+    """Generate a human-readable script report with TTS annotations."""
     lines: list[str] = []
     lines.append("=" * 72)
     lines.append(f"PODCAST SCRIPT: {episode.title}")
@@ -354,14 +388,26 @@ def build_script_report(episode: PodcastEpisode) -> str:
         lines.append(f"### {seg.title} ({seg.segment_type})")
         lines.append("")
         for turn in seg.turns:
-            speaker_label = f"[{turn.speaker}]"
-            lines.append(f"{speaker_label}")
-            lines.append(turn.content)
-            if turn.quotes:
-                for q in turn.quotes:
-                    lines.append(f'  > "{q}"')
-            if turn.passage_refs:
-                lines.append(f"  (refs: {', '.join(turn.passage_refs)})")
+            lines.append(f"[{turn.speaker}]")
+            for utt in turn.utterances:
+                prefix = "  > " if utt.is_quote else "  "
+                ref = f"  [{utt.passage_ref}]" if utt.passage_ref else ""
+
+                # Timing annotations
+                timing_parts: list[str] = []
+                if utt.pause_before_ms > 0:
+                    timing_parts.append(f"+{utt.pause_before_ms}ms")
+                if utt.pause_after_ms > 500:
+                    timing_parts.append(f"<{utt.pause_after_ms}ms>")
+                if utt.rate != 1.0:
+                    timing_parts.append(f"@{utt.rate:.2f}x")
+                if utt.quote_mode != "none":
+                    timing_parts.append(f"[{utt.quote_mode}]")
+                if utt.emphasis_words:
+                    timing_parts.append(f"*{','.join(utt.emphasis_words)}*")
+
+                timing = f"  ({' '.join(timing_parts)})" if timing_parts else ""
+                lines.append(f"{prefix}{utt.text}{ref}{timing}")
             lines.append("")
         lines.append("-" * 72)
         lines.append("")
@@ -372,6 +418,22 @@ def build_script_report(episode: PodcastEpisode) -> str:
     lines.append(f"  Characters: {', '.join(episode.metadata.characters_featured[:20])}")
     lines.append(f"  Arcs: {', '.join(episode.metadata.arcs_tracked)}")
     lines.append(f"  Total passages: {episode.metadata.total_passages}")
+
+    # Stats
+    total_utterances = sum(
+        len(t.utterances) for s in episode.segments for t in s.turns
+    )
+    total_quotes = sum(
+        1 for s in episode.segments for t in s.turns
+        for u in t.utterances if u.is_quote
+    )
+    quote_setups = sum(
+        1 for s in episode.segments for t in s.turns
+        for u in t.utterances if u.quote_mode == "setup"
+    )
+    lines.append(f"  Total utterances: {total_utterances}")
+    lines.append(f"  Total quotes: {total_quotes}")
+    lines.append(f"  Quote setups: {quote_setups}")
     lines.append("")
 
     return "\n".join(lines)
