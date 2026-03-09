@@ -50,27 +50,27 @@ MODEL_IDS = {
 # Voice assignments — chosen for tonal contrast in a literary roundtable.
 # British accent is directed via prompt, not voice selection.
 SPEAKER_VOICES: dict[str, str] = {
-    "Host": "Sulafat",          # Warm — suited for a presenter
-    "Dr. Hartley": "Zephyr",    # Bright — suits intellectual excitement
-    "Prof. Blackstone": "Gacrux",  # Mature — suits measured authority
-    "Ms. Woodcourt": "Achernar",   # Soft — suits reflective intimacy
-    "Narrator": "Schedar",      # Even — neutral narration
+    "Host": "Sulafat",               # Warm — suited for a presenter
+    "Eleanor Hartley": "Zephyr",     # Bright — suits intellectual excitement
+    "James Blackstone": "Gacrux",    # Mature — suits measured authority
+    "Caroline Woodcourt": "Achernar",  # Soft — suits reflective intimacy
+    "Narrator": "Schedar",           # Even — neutral narration
 }
 
 # Accent directions per speaker, embedded in the prompt
 SPEAKER_ACCENTS: dict[str, str] = {
     "Host": "speaks with a warm Home Counties accent, like a BBC Radio 4 presenter",
-    "Dr. Hartley": "speaks with a lively Cambridge accent, articulate and precise",
-    "Prof. Blackstone": "speaks with a measured Edinburgh accent, dry and authoritative",
-    "Ms. Woodcourt": "speaks with a gentle Bristol accent, warm and intimate",
+    "Eleanor Hartley": "speaks with a lively Cambridge accent, articulate and precise",
+    "James Blackstone": "speaks with a measured Edinburgh accent, dry and authoritative",
+    "Caroline Woodcourt": "speaks with a gentle Bristol accent, warm and intimate",
     "Narrator": "speaks with a clear, neutral British accent",
 }
 
 SPEAKER_VOICE_POLICIES: dict[str, VoicePolicy] = {
     "Host": VoicePolicy(rate=0.98, energy="medium", pause_bias_ms=220, style="presenter_warm"),
-    "Dr. Hartley": VoicePolicy(rate=1.01, energy="medium_high", pause_bias_ms=170, style="analytic_bright"),
-    "Prof. Blackstone": VoicePolicy(rate=0.96, energy="medium_low", pause_bias_ms=260, style="measured_dry"),
-    "Ms. Woodcourt": VoicePolicy(rate=0.97, energy="medium", pause_bias_ms=240, style="reflective_intimate"),
+    "Eleanor Hartley": VoicePolicy(rate=1.01, energy="medium_high", pause_bias_ms=170, style="analytic_bright"),
+    "James Blackstone": VoicePolicy(rate=0.96, energy="medium_low", pause_bias_ms=260, style="measured_dry"),
+    "Caroline Woodcourt": VoicePolicy(rate=0.97, energy="medium", pause_bias_ms=240, style="reflective_intimate"),
     "Narrator": VoicePolicy(rate=1.0, energy="medium", pause_bias_ms=200, style="neutral"),
 }
 

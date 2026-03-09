@@ -62,7 +62,13 @@ A tutorial-style modular RAG app, progressively refined through v1/v2/v3 in `Two
 - `two_layer_app.py` - Burr app wiring ingest and Q&A with Hamilton drivers, OpenTelemetry tracing
 
 **Text-to-speech:**
-- `demotts.py` - Converts podcast script text to audio via OpenAI TTS API (`tts-1`, voice `shimmer`), outputting `speech.mp3`
+- `enrichment/render_audio.py` - Renders structured podcast episodes to audio via Gemini TTS (flash/pro), with per-speaker voice assignment, accent direction, delivery annotations, and disk caching
+
+## Policy: No Guessing About APIs
+
+Do not state API capabilities, limitations, or feature availability as fact without verification. Before making claims about what an API can or cannot do: (1) search the codebase for existing usage patterns, (2) check documentation if the codebase doesn't clarify, (3) if still uncertain, say "I'm not sure." This applies to Anthropic, OpenAI, Google, and all other external APIs.
+
+Anthropic structured output is used in this project via `output_config={"format": {"type": "json_schema", "schema": schema}}`. See `enrichment/test_single.py` for the canonical pattern.
 
 ## Key Dependencies
 

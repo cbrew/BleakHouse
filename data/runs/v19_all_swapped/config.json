@@ -1,0 +1,208 @@
+{
+  "name": "v19_all_swapped",
+  "producer": {
+    "total_budget": 60,
+    "per_expert_max": 25,
+    "per_expert_min": 8,
+    "cluster_lambda": 5,
+    "null_cost": 100,
+    "strong_cost": 1,
+    "weak_cost": 3
+  },
+  "experts": [
+    {
+      "name": "Oliver Trevelyan",
+      "role": "performer_and_wit",
+      "demands": {
+        "prov_humor_entertainment": 3,
+        "prov_atmosphere_setting": 2,
+        "prov_narrative_technique": 2
+      }
+    },
+    {
+      "name": "Edmund Leigh",
+      "role": "traditionalist_critic",
+      "demands": {
+        "prov_character_development": 3,
+        "prov_thematic_depth": 2,
+        "prov_narrative_technique": 1
+      }
+    },
+    {
+      "name": "Daniel Rosen",
+      "role": "marxist_critic",
+      "demands": {
+        "prov_social_critique": 3,
+        "prov_atmosphere_setting": 2,
+        "prov_character_development": 1
+      }
+    }
+  ],
+  "arcs": [
+    {
+      "name": "Richard's deterioration",
+      "character": "Richard Carstone",
+      "demand": 6,
+      "require_field": "prov_character_development",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Lady Dedlock's secret",
+      "character": "Lady Dedlock",
+      "demand": 5,
+      "require_field": "prov_plot_advancement",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Jo's suffering",
+      "character": "Jo",
+      "demand": 4,
+      "require_field": "prov_social_critique",
+      "require_value": "not_none",
+      "prefer_min_interest": 2
+    }
+  ],
+  "segment_templates": [
+    {
+      "name": "The Fog Descends: Welcome to Bleak House",
+      "segment_type": "opening",
+      "preferred_dimensions": [
+        "prov_atmosphere_setting",
+        "prov_humor_entertainment",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 3,
+      "preferred_experts": [
+        "Oliver Trevelyon"
+      ]
+    },
+    {
+      "name": "The Machinery of Injustice: Jo at the Heart of Darkness",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_social_critique",
+        "prov_character_development",
+        "prov_atmosphere_setting"
+      ],
+      "preferred_arcs": [
+        "Jo's suffering"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Daniel Rosen"
+      ]
+    },
+    {
+      "name": "A Suit of Clothes: Richard's Spiral into Ruin",
+      "segment_type": "close_reading",
+      "preferred_dimensions": [
+        "prov_character_development",
+        "prov_thematic_depth",
+        "prov_plot_advancement"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Edmund Leigh"
+      ]
+    },
+    {
+      "name": "The Dead Hand of the Past: Lady Dedlock's Secrets Unraveled",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_plot_advancement",
+        "prov_character_development",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [
+        "Lady Dedlock's secret"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": []
+    },
+    {
+      "name": "Three Voices, One Vision: What Bleak House Reveals",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_thematic_depth",
+        "prov_social_critique",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration",
+        "Lady Dedlock's secret",
+        "Jo's suffering"
+      ],
+      "min_passages": 3,
+      "max_passages": 4,
+      "preferred_experts": []
+    },
+    {
+      "name": "Into the Light: Dickens' Vision of Redemption and Reckoning",
+      "segment_type": "closing",
+      "preferred_dimensions": [
+        "prov_thematic_depth",
+        "prov_humor_entertainment",
+        "prov_social_critique"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration",
+        "Lady Dedlock's secret",
+        "Jo's suffering"
+      ],
+      "min_passages": 2,
+      "max_passages": 3,
+      "preferred_experts": []
+    }
+  ],
+  "segment_null_cost": 50,
+  "segment_dimension_mismatch_cost": 5,
+  "segment_arc_mismatch_cost": 3,
+  "segment_expert_mismatch_cost": 2,
+  "model": "claude-sonnet-4-6",
+  "personas": [
+    {
+      "name": "Oliver Trevelyan",
+      "role": "performer_and_wit",
+      "description": "Actor, writer, and the voice of more Dickens audiobooks than anyone alive.  Approaches Bleak House as a performer first \u2014 he hears the rhythms of the prose, spots the comic timing, catches the moments Dickens wrote for the voice rather than the page.  Endlessly quotable himself.  Loves the grotesques (Krook, Smallweed, Chadband) with genuine delight.  Gets quiet and serious when the novel earns it \u2014 Jo's death, Esther's illness \u2014 but always returns to the pleasure of the text.  Believes Dickens was above all an entertainer of genius.",
+      "voice_policy": {
+        "rate": 1.02,
+        "energy": "medium_high",
+        "pause_bias_ms": 190,
+        "style": "raconteur_warm"
+      }
+    },
+    {
+      "name": "Edmund Leigh",
+      "role": "traditionalist_critic",
+      "description": "Sir Edmund Leigh \u2014 a retired Oxford don and lifelong Tory who believes Dickens' genius lies in his moral imagination, not his social programme.  Reads Bleak House as a novel about individual character tested by circumstance \u2014 about Esther's goodness, Jarndyce's self-sacrifice, Richard's weakness of will.  Suspicious of politicised readings.  Thinks the fog is a literary device, not a metaphor for capitalism.  Beautifully spoken, occasionally withering, always courteous.  Quotes Dr. Johnson and Burke as readily as Dickens.",
+      "voice_policy": {
+        "rate": 0.94,
+        "energy": "medium_low",
+        "pause_bias_ms": 280,
+        "style": "patrician_measured"
+      }
+    },
+    {
+      "name": "Daniel Rosen",
+      "role": "marxist_critic",
+      "description": "Dr. Daniel Rosen \u2014 a cultural historian who reads Bleak House as an anatomy of class power.  Every institution in the novel \u2014 Chancery, the law, philanthropy, the aristocracy \u2014 is a mechanism for extracting value from the poor and protecting the rich.  Sees Jo not as a sentimental figure but as the novel's clearest image of what the system actually produces.  Can be fierce but is never dogmatic in a tiresome way \u2014 he earns his anger with evidence.  Thinks Dickens was more radical than Dickens himself knew.",
+      "voice_policy": {
+        "rate": 0.99,
+        "energy": "medium_high",
+        "pause_bias_ms": 200,
+        "style": "passionate_precise"
+      }
+    }
+  ],
+  "tts_model": "flash"
+}
