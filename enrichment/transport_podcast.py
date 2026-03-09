@@ -140,6 +140,43 @@ DEFAULT_EXPERTS = [
     ),
 ]
 
+# ---------------------------------------------------------------------------
+# Alternative expert profiles (swappable at transport level)
+# ---------------------------------------------------------------------------
+
+ALTERNATIVE_EXPERTS: dict[str, ExpertProfile] = {
+    # Sir Edmund Leigh — traditionalist conservative critic.
+    # Values moral seriousness, individual character, the primacy of literary
+    # form.  Suspicious of readings that reduce literature to politics.
+    # Thinks Dickens' greatness lies in his moral imagination, not his
+    # social messaging.
+    "sir_edmund": ExpertProfile(
+        name="Sir Edmund Leigh",
+        role="traditionalist_critic",
+        demands={
+            "prov_character_development": 3,
+            "prov_thematic_depth": 2,
+            "prov_narrative_technique": 1,
+        },
+    ),
+    # Dr. Rosen — materialist Marxist critic.
+    # Reads Bleak House as an anatomy of class power and institutional
+    # violence.  Every fog is ideology, every institution is a class
+    # instrument, every character is shaped by their material conditions.
+    # Thinks the novel's greatness lies in its unflinching depiction of
+    # systemic oppression.
+    "dr_rosen": ExpertProfile(
+        name="Dr. Rosen",
+        role="marxist_critic",
+        demands={
+            "prov_social_critique": 3,
+            "prov_atmosphere_setting": 2,
+            "prov_character_development": 1,
+        },
+    ),
+}
+
+
 DEFAULT_ARCS = [
     ArcDemand(
         "Richard's deterioration",
