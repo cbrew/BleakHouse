@@ -1,0 +1,196 @@
+==============================================================================
+MATERIAL SIMILARITY: TRANSPORT vs EMBEDDING PER EXPERT
+(32 runs, preliminary)
+==============================================================================
+
+==============================================================================
+TIER 1: METADATA PROFILE COMPARISON
+==============================================================================
+
+--- 1a: Provision Vector Centroid Distance ---
+  Euclidean distance between transport and embedding centroids per expert
+  (7-dim space, scale 0–2 per dim; max possible ~5.3)
+
+  Expert                  Panels  MeanDist   MinDist   MaxDist
+  ---------------------- ------- --------- --------- ---------
+  Eleanor Hartley              5     1.927     1.480     2.290
+  James Blackstone             4     1.215     0.871     1.814
+  Caroline Woodcourt           4     2.132     1.551     3.500
+  Edmund Leigh                 4     1.745     1.192     2.449
+  Daniel Rosen                 4     1.648     1.115     2.769
+  Oliver Trevelyan             3     2.568     2.118     3.109
+
+  Overall mean provision centroid distance: 1.846
+
+
+--- 1b: Character Distribution JSD ---
+  Jensen-Shannon divergence of character frequencies (0=identical, ln2≈0.69=disjoint)
+
+  Expert                  Panels   MeanJSD    MinJSD    MaxJSD
+  ---------------------- ------- --------- --------- ---------
+  Eleanor Hartley              5     0.443     0.249     0.623
+  James Blackstone             4     0.550     0.520     0.576
+  Caroline Woodcourt           3     0.500     0.165     0.693
+  Edmund Leigh                 4     0.400     0.338     0.502
+  Daniel Rosen                 4     0.665     0.582     0.693
+  Oliver Trevelyan             1     0.693     0.693     0.693
+
+  Overall mean character JSD: 0.518
+
+
+--- 1c: Theme Distribution JSD ---
+
+  95 unique themes across all passages
+
+  Expert                  Panels   MeanJSD    MinJSD    MaxJSD
+  ---------------------- ------- --------- --------- ---------
+  Eleanor Hartley              5     0.463     0.314     0.585
+  James Blackstone             4     0.289     0.253     0.318
+  Caroline Woodcourt           4     0.399     0.088     0.693
+  Edmund Leigh                 4     0.550     0.428     0.693
+  Daniel Rosen                 4     0.353     0.307     0.384
+  Oliver Trevelyan             3     0.395     0.316     0.481
+
+  Overall mean theme JSD: 0.411
+
+
+--- 1d: Chapter Overlap (Jaccard) per Expert ---
+
+  Expert                  Panels    MeanJ     MinJ     MaxJ
+  ---------------------- ------- -------- -------- --------
+  Eleanor Hartley              5    0.055    0.000    0.143
+  James Blackstone             4    0.156    0.125    0.200
+  Caroline Woodcourt           4    0.000    0.000    0.000
+  Edmund Leigh                 4    0.000    0.000    0.000
+  Daniel Rosen                 4    0.119    0.000    0.333
+  Oliver Trevelyan             3    0.133    0.000    0.400
+
+  Overall mean chapter Jaccard: 0.074
+
+
+==============================================================================
+TIER 2: TF-IDF NEAREST-NEIGHBOR ANALYSIS
+==============================================================================
+
+  For each transport passage, find most similar embedding passage (same expert).
+  Baselines: (a) nearest from different expert's embedding, (b) within-transport.
+
+  Expert                  Panels  SameExp  DiffExp   Within                         Interp
+  ---------------------- ------- -------- -------- -------- ------------------------------
+  Eleanor Hartley              5    0.046    0.133    0.231                same/diff=0.35x
+  James Blackstone             4    0.148    0.172    0.499                same/diff=0.86x
+  Caroline Woodcourt           3    0.035    0.078    0.219                same/diff=0.44x
+  Edmund Leigh                 3    0.041    0.167    0.042                same/diff=0.25x
+  Daniel Rosen                 3    0.036    0.105    0.037                same/diff=0.34x
+  Oliver Trevelyan             3    0.088    0.082    0.280                same/diff=1.08x
+
+  Overall means: same-expert NN=0.068, diff-expert NN=0.126, within-transport NN=0.233
+  Interpretation: same-expert > diff-expert means embedding selects material
+  that is at least somewhat specific to the expert, not random.
+  same-expert < within-transport means cross-pipeline material is less similar
+  than within-pipeline diversity.
+
+
+==============================================================================
+TIER 3: SCRIPT-LEVEL CONVERGENCE
+==============================================================================
+
+--- 3a: Vocabulary Cosine Similarity (expert's turns: transport vs embedding) ---
+
+  Expert                  Panels  MeanCos   MinCos   MaxCos
+  ---------------------- ------- -------- -------- --------
+  Eleanor Hartley              4    0.592    0.525    0.731
+  James Blackstone             3    0.585    0.491    0.747
+  Caroline Woodcourt           4    0.528    0.451    0.724
+  Edmund Leigh                 4    0.584    0.532    0.610
+  Daniel Rosen                 3    0.473    0.459    0.500
+  Oliver Trevelyan             3    0.516    0.461    0.549
+
+  Overall mean vocabulary cosine: 0.549
+
+
+--- 3b: Character Mention Jaccard (expert's turns: transport vs embedding) ---
+
+  Expert                  Panels    MeanJ     MinJ     MaxJ
+  ---------------------- ------- -------- -------- --------
+  Eleanor Hartley              4    0.449    0.333    0.667
+  James Blackstone             3    0.401    0.381    0.412
+  Caroline Woodcourt           4    0.425    0.348    0.533
+  Edmund Leigh                 4    0.441    0.368    0.526
+  Daniel Rosen                 3    0.466    0.444    0.480
+  Oliver Trevelyan             3    0.385    0.294    0.462
+
+  Overall mean character Jaccard in scripts: 0.430
+
+
+==============================================================================
+TIER 4: EMBEDDING-SPACE COMPARISON
+==============================================================================
+
+  (Complementary to text-level measures; not a substitute.)
+
+  Loaded 6914 passage vectors from LanceDB
+
+--- 4a: Embedding-Space Centroid Distance ---
+
+  Expert                  Panels  MeanDist   MinDist   MaxDist
+  ---------------------- ------- --------- --------- ---------
+  Eleanor Hartley              5    0.1941    0.1187    0.2708
+  James Blackstone             4    0.1470    0.1162    0.1889
+  Caroline Woodcourt           4    0.3106    0.1687    0.4576
+  Edmund Leigh                 4    0.2942    0.1646    0.4897
+  Daniel Rosen                 4    0.3077    0.2452    0.3918
+  Oliver Trevelyan             3    0.3287    0.2086    0.4475
+
+  Overall mean embedding centroid distance (cosine): 0.2581
+
+
+--- 4b: MMD (Maximum Mean Discrepancy) in Embedding Space ---
+  Gaussian kernel, bandwidth = median pairwise distance
+
+  Expert                  Panels   MeanMMD    MinMMD    MaxMMD
+  ---------------------- ------- --------- --------- ---------
+  Eleanor Hartley              5    0.1909    0.0974    0.2794
+  James Blackstone             4    0.1417    0.1176    0.1763
+  Caroline Woodcourt           3    0.2817    0.1471    0.3765
+  Edmund Leigh                 3    0.2518    0.1455    0.4137
+  Daniel Rosen                 3    0.2428    0.1972    0.2822
+  Oliver Trevelyan             3    0.3254    0.1913    0.4503
+
+  Overall mean MMD: 0.2298
+  (MMD > 0 suggests distributional difference; magnitude depends on kernel bandwidth)
+
+
+--- 4c: Null Model — Random Split Within Transport ---
+  Split each expert's transport passages in half, compute same metrics.
+
+  Null centroid distance: 0.2453 (vs cross-pipeline: 0.2581)
+  Null MMD: 0.2454 (vs cross-pipeline: 0.2298)
+  Cross-pipeline / null ratio: centroid=1.1x, MMD=0.9x
+
+
+==============================================================================
+SUMMARY
+==============================================================================
+
+  TIER 1 (metadata): The two pipelines select passages with [see values above]
+  provision profile distance, character distribution divergence, theme divergence,
+  and chapter overlap for each expert. Compare to within-pipeline null to assess
+  whether the metadata-level difference is larger than sampling noise.
+
+  TIER 2 (text): Each transport passage's nearest embedding neighbor (same expert)
+  has cosine similarity [see values above]. Compare same-expert vs diff-expert NN
+  to assess whether expert identity constrains the embedding pipeline's selections
+  toward similar textual territory.
+
+  TIER 3 (scripts): Despite different input passages, the script generator produces
+  vocabulary with cosine similarity [see values above] and mentions overlapping
+  character sets with Jaccard [see values above]. High values here mean the
+  downstream output converges regardless of passage selection method.
+
+  TIER 4 (embedding space): Centroid distance and MMD compared to within-pipeline
+  null model. A ratio > 1 means cross-pipeline difference exceeds within-pipeline
+  sampling variance.
+
+
+Summary chart saved to /Users/brewc/PycharmProjects/BleakHouse/reports/material_similarity/tier_summary.png
