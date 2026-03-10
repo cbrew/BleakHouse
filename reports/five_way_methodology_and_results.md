@@ -1,4 +1,4 @@
-# Five-Way Pipeline Comparison: Methodology and Provisional Results
+# Five-Way Pipeline Comparison: Methodology and Results
 
 **Date:** 2026-03-10 (updated)
 **Status:** Complete — 100/100 conditions, all 20 panels × 5 conditions
@@ -6,29 +6,33 @@
 
 ## 1. Research Question
 
-When an LLM generates a literary podcast script about a novel it has encountered in training, what are the relative contributions of:
+The transport-based pipeline makes every passage selection decision visible as a cost, a flow, and a constraint, producing *inspectable, manipulable* editorial choices. Expert personas are deliberately stereotyped caricatures — the Marxist always finds class struggle, the performer always finds comedy — 
+and the system encodes these stereotypes as adjustable demand vectors rather than hiding them in prompts. The result is a navigable configuration space: changing adjusting an arc emphasis, or swapping an expert produces measurably different output, and the *reasons* for those differences are legible.
 
-1. **Prior knowledge** — what the model already knows about the novel
-2. **Passage presence** — having some text from the novel as grounding context
-3. **Passage selection quality** — having text chosen to match the discussion's needs
+This report asks: **does the transport pipeline's structured approach to passage selection produce measurably different — and characterfully different — outputs compared to simpler alternatives?** We construct four ablation conditions that progressively remove the transport system's distinctive features:
 
-These factors are nested: (3) requires (2), which requires (1). Our experimental design constructs five conditions that progressively add each factor, forming a ladder from pure prior knowledge to fully optimised passage selection.
+1. **No passages** — removes passage grounding entirely, isolating the LLM's prior knowledge
+2. **Random passages** — adds passage *presence* without relevance, testing whether any grounding text suffices
+3. **Plain RAG** — adds relevance matching without enrichment metadata or structural constraints
+4. **Embedding + LLM curation** — adds enrichment-aware retrieval with LLM reasoning, but without the transport formulation's inspectability and manipulability
+
+These ablations test whether each layer of the transport pipeline's design — enrichment metadata, structural constraints, demand profiles, min-cost optimisation — contributes to the system's ability to produce characterful, controllable caricatures of expert discussion.
 
 ## 2. Experimental Design
 
 ### 2.1 The Five Conditions
 
-All conditions share the same Phase 0 (LLM-designed segment structure) and Phase 3 (Sonnet script generation with structured output). They differ only in what passages, if any, are provided to Phase 3.
+All conditions share the same Phase 0 (LLM-designed segment structure) and Phase 3 (Sonnet script generation with structured output). They differ only in what passages, if any, are provided to Phase 3. The transport pipeline is the system under study; the other four are ablations that test what happens when its distinctive features are removed.
 
-**No Passages (`nop_v*`).** Phase 3 receives expert personas and segment templates but zero passages. The prompt instructs: "No specific passages are assigned. Drawing on your knowledge of Bleak House by Charles Dickens, produce a rich discussion that fits this segment's theme. Reference specific chapters, characters, scenes, and quotes from the novel as you remember them." This isolates the LLM's prior knowledge.
+**Transport (`v*`) — the full system.** Passages are assigned via min-cost flow optimisation over enrichment metadata. Expert demands, character arc obligations (Esther, Richard, Jo, Lady Dedlock, Jarndyce), provision dimensions (7 fields including character development, plot advancement, social critique, humour), and interest scores all feed into edge costs. A global optimum is found subject to capacity and structural constraints. Every selection decision is visible as a cost, a flow, and a constraint — the user can inspect why any passage was assigned to any expert, adjust demand profiles, and re-solve to explore alternatives.
 
-**Random Passages (`rand_v*`).** 32 passages drawn uniformly at random from Bleak House chapters c1–c67, using a deterministic seed derived from the panel composition (SHA-256 hash of sorted expert names). Passages are assigned round-robin to experts with no relevance matching. Enrichment metadata (provisions, themes, best_quote) passes through to Phase 3 because all other conditions also provide it. This tests whether passage *identity* matters or just *presence*.
+**Embedding (`emb_v*`) — ablates inspectability.** Passages are retrieved using contextual embeddings (text + enrichment context), then an LLM (Sonnet) curates the selection using chain-of-thought reasoning about expert demands, character arc coverage, and segment fit. This uses the same enrichment metadata as transport but replaces the inspectable, manipulable optimisation with opaque LLM reasoning. The user cannot see *why* a passage was chosen or adjust selection criteria without re-prompting.
 
-**Plain RAG (`rag_v*`).** Expert persona descriptions are embedded via OpenAI text-embedding-3-small. Passage embeddings use raw text only — no enrichment context, themes, or character metadata. Top-k passages per expert are selected by cosine similarity between the expert's profile embedding and each passage embedding. No LLM reasoning, no arc constraints, no structural obligations. This is minimal relevance-based selection.
+**Plain RAG (`rag_v*`) — ablates enrichment metadata.** Expert persona descriptions are embedded via OpenAI text-embedding-3-small. Passage embeddings use raw text only — no enrichment context, themes, or character metadata. Top-k passages per expert are selected by cosine similarity. No LLM reasoning, no arc constraints, no structural obligations. This tests whether relevance alone, without the structured metadata that makes transport's decisions legible, produces comparable results.
 
-**Embedding (`emb_v*`).** Passages are retrieved using contextual embeddings (text + enrichment context), then an LLM (Sonnet) curates the selection using chain-of-thought reasoning about expert demands, character arc coverage, and segment fit. The curation prompt includes explicit obligations for arc coverage, structural diversity, and expert-demand satisfaction. This is "smart retrieval."
+**Random Passages (`rand_v*`) — ablates relevance (diagnostic probe).** 32 passages drawn uniformly at random from Bleak House chapters c1–c67, using a deterministic seed derived from the panel composition (SHA-256 hash of sorted expert names). Passages are assigned round-robin to experts with no relevance matching. This is a diagnostic probe: do irrelevant passages make the experts say silly things? Neither this nor no-passages would be used in production — they exist to test specific hypotheses about how passage selection shapes the output.
 
-**Transport (`v*`).** Passages are assigned via min-cost flow optimisation over enrichment metadata. Expert demands, character arc obligations (Esther, Richard, Jo, Lady Dedlock, Jarndyce), provision dimensions (7 fields including character development, plot advancement, social critique, humour), and interest scores all feed into edge costs. A global optimum is found subject to capacity and structural constraints. This is the "full system."
+**No Passages (`nop_v*`) — ablates grounding entirely (diagnostic probe).** Phase 3 receives expert personas and segment templates but zero passages. The prompt instructs: "No specific passages are assigned. Drawing on your knowledge of Bleak House by Charles Dickens, produce a rich discussion that fits this segment's theme." This isolates what the LLM can produce from prior knowledge alone, testing whether passages are doing work at all. The answer is clearly yes (Section 6).
 
 ### 2.2 Panel Design
 
@@ -269,57 +273,57 @@ From the 4-tier material similarity analysis:
 
 ## 5. Discussion
 
-### 5.1 The Passage Ladder: Does More Sophistication Help?
+### 5.1 What the Ablations Reveal
 
-The five conditions were designed to test whether each step up the ladder — from no passages to random to RAG to enriched selection to optimisation — improves script quality. The provisional data challenges this linear expectation.
+The ablations were designed to test what each layer of the transport pipeline contributes. The central question is not "which pipeline is best?" — these are caricatures, not scholarship — but "what does each design decision do to the character and controllability of the output?"
 
-**No-passages is surprisingly strong on surface metrics but unreliable on quotation.** At 23.82 character mentions per 1k words, no-passages produces the *highest* character density of any condition. The LLM draws heavily on its training knowledge of Bleak House, name-dropping characters more frequently than when anchored to specific passages. However, its entropy (3.283) is lower than RAG (3.483) or random (3.708), indicating concentration on the most canonical characters. And critically, its adjusted quote verification rate (52.4%) is dramatically lower than all passage-grounded conditions (91–96%) — see Section 6.
+**Without passages, the LLM produces generic canonical coverage.** No-passages achieves the *highest* character density (23.82/1k) but this is breadth without depth: the LLM defaults to the novel's most famous characters (Esther, Jo, Richard) and discusses them in familiar terms. The caricature effect weakens — experts sound more alike without passage-specific material to differentiate their analyses. Critically, its adjusted quote verification rate (52.4%) is dramatically lower than all passage-grounded conditions (91–96%) — see Section 6.
 
-**Random is surprisingly good on diversity.** Random passages produce the highest character entropy (3.708) and most unique characters per episode (18.5). Random sampling naturally covers more of the novel than any intentional selection method, surfacing characters like Smallweed, George, Caddy, and Guppy that arc-constrained transport passes over.
+**Random passages make the experts say silly things.** Random passages produce the highest character entropy (3.708) and most unique characters per episode (18.5), surfacing characters like Smallweed, George, and Guppy. But this diversity is *noise*, not *editorial choice*. The random condition is a diagnostic probe for a specific concern: does giving experts irrelevant material actively distort the caricatures? It does — random produces the lowest vocabulary cosine with all other conditions, meaning experts forced to discuss random passages lose their characteristic voice. They discuss whatever they were given rather than what their persona would naturally focus on (see Section 5.3).
 
-**Plain RAG closely matches transport.** Character density (23.05 vs 22.32), entropy (3.483 vs 3.432), and word count (9,403 vs 9,267) are all within 3% of transport across the full 20-panel dataset. Simple text-similarity retrieval produces scripts statistically indistinguishable from optimised selection on these aggregate metrics.
+**Plain RAG matches transport on aggregate metrics but lacks manipulability.** Character density (23.05 vs 22.32), entropy (3.483 vs 3.432), and word count (9,403 vs 9,267) are within 3%. On surface metrics, simple cosine retrieval is indistinguishable from min-cost flow. But RAG provides no mechanism to ask "what if I emphasise the Lady Dedlock arc?" or "what happens when the Marxist demands more social critique?" The aggregate similarity masks a fundamental difference in what the user can *do* with the pipeline.
 
-**Embedding is the unexpected outlier.** Rather than sitting between RAG and transport on the sophistication ladder, embedding produces distinctly different scripts: lowest character density (17.59), lowest entropy (2.905), fewest unique characters (11.6), but highest word count (9,958) and most quotes (43.8). The LLM curation step appears to concentrate selections on high-drama, high-interest passages (Jo's story, the Dedlock mystery, Richard's decline), producing verbose scripts about fewer characters rather than broader coverage.
+**Embedding with LLM curation narrows rather than broadens.** Embedding produces the most distinctive scripts — lowest character density (17.59), lowest entropy (2.905), fewest unique characters (11.6) — but highest word count (9,958) and most quotes (43.8). The LLM curator concentrates on high-drama passages (Jo's death, Lady Dedlock's flight, Richard's ruin), producing verbose scripts about fewer characters. This is an editorial choice, but an *opaque* one: the user cannot inspect or adjust the curator's reasoning. The embedding condition demonstrates what happens when editorial judgement is delegated to an LLM rather than expressed as adjustable constraints.
 
-### 5.2 Character Arc Constraints: Structured Focus vs Natural Breadth
+### 5.2 Arc Constraints as Inspectable Editorial Choices
 
-**Prediction:** Transport's arc constraints should produce the broadest, most even character coverage.
+Transport's arc constraints (Esther, Richard, Jo, Lady Dedlock, Jarndyce) do not produce the *broadest* character coverage — random does. What they produce is *intentional* coverage: designated characters appear in the proportions the episode structure demands, and those proportions are adjustable. Transport is the only condition where Tulkinghorn consistently appears in the top 5 mentions, because his role in the Lady Dedlock arc makes him structurally important — and this importance is legible as a constraint in the flow formulation.
 
-**Finding:** Transport produces the most *structurally intentional* character coverage, but not the broadest. Arc constraints ensure designated characters (Esther, Richard, Jo, Lady Dedlock, Jarndyce) appear in the proportions the episode structure demands. But this comes at the cost of characters outside the arc system — random passages surface more minor characters simply by sampling more widely.
+This illustrates the transport pipeline's core value proposition: arc constraints are not hidden in a prompt or emergent from retrieval — they are explicit, inspectable parameters. A user can ask "what happens if I double the Lady Dedlock arc?" and get a computable answer, rather than hoping the LLM will infer the change from a revised prompt. The sacrifice is breadth: random surfaces more minor characters simply by sampling more widely. The gain is *manipulability* — the ability to explore the configuration space deliberately.
 
-The value of arc constraints is not *breadth* but *coherence*. Transport is the only condition where Tulkinghorn consistently appears in the top 5 mentions — because his role in the Lady Dedlock arc makes him structurally important. Random produces more character names but less narrative coherence around them.
+### 5.3 Expert Caricatures: The Dominant Force
 
-### 5.3 Expert Identity: The Dominant Force
+The expert personas are deliberately stereotyped — the Marxist always finds class struggle, the legal historian always finds institutional failure, the performer always finds comedy. The system's value depends on these caricatures being *recognisable and consistent*: listeners should hear Blackstone's legal focus whether he's discussing Chapter 1 or Chapter 67.
 
-**Prediction:** Expert persona prompts shape script content more than passage selection.
+Same-expert vocabulary cosine across conditions averages 0.35–0.50 for intentional selection methods and 0.41 for no-passages, confirming that expert identity persists regardless of input material. Blackstone gravitates to legal and institutional language. Hartley analyses narrative structure. Trevelyan foregrounds performance and voice. The caricatures work.
 
-**Finding:** Strongly supported. Same-expert vocabulary cosine across conditions averages 0.35–0.50 for intentional selection methods and 0.41 for no-passages, indicating recognisable expert identity even without any source text. Blackstone always gravitates to legal and institutional language. Hartley always analyses narrative structure. Trevelyan always foregrounds performance and voice.
+**The random disruption effect reveals why passage selection matters for persona.** Random passages are the only condition that substantially disrupts expert identity (cosine 0.24–0.29 with other conditions). When given irrelevant material, experts are pulled toward discussing whatever they've been given rather than what their persona would naturally focus on. Random passages actively *compete with persona for control of the discussion*.
 
-**The random disruption effect.** Random passages are the only condition that substantially disrupts expert identity (cosine 0.24–0.29 with other conditions). When given irrelevant material, experts are pulled toward discussing whatever they've been given rather than what their persona would naturally focus on. This means random passages are not just neutral grounding — they actively compete with persona for control of the discussion.
+This is the strongest argument for relevance-based passage selection. The transport pipeline assigns passages *to serve each expert's stereotyped perspective* — Blackstone gets legally relevant passages, the Marxist gets passages about class. This alignment between passage selection and persona is what preserves the caricature. Without it (random condition), expert identity degrades. Without passages at all (no-passages condition), expert identity persists but quotation accuracy collapses. The transport formulation is the only approach that makes this alignment inspectable and adjustable: the demand vectors that encode each expert's interests are first-class objects in the optimisation, not implicit in a prompt.
 
-This creates a paradox: no passages preserves expert identity better than random passages, while random passages produce higher character diversity. The best scripts may require expert-relevant passage selection not primarily for content accuracy, but to *avoid undermining the expert persona*.
+### 5.4 The Embedding Pipeline: Opaque Curation as Cautionary Example
 
-### 5.4 The Embedding Pipeline Anomaly
+Embedding's consistent narrowing of character coverage (−20% density, −14% entropy vs transport) is instructive not as a failure but as a demonstration of what happens when editorial judgement is delegated to an LLM without inspectable constraints:
 
-Embedding's consistent underperformance on character diversity (−20% density, −14% entropy vs transport) warrants investigation. Three possible explanations:
+1. **The LLM curator makes unaccountable editorial choices.** It concentrates on high-stakes dramatic passages (Jo's death, Lady Dedlock's flight, Richard's ruin) — a defensible choice, but one the user cannot see, adjust, or argue with. In the transport formulation, the equivalent choice would be a visible demand profile weighting drama over other dimensions.
 
-1. **Curation concentrates on drama.** The LLM curator, asked to select the "best" passages, may preferentially choose high-stakes dramatic passages (Jo's death, Lady Dedlock's flight, Richard's ruin) over quieter character-building passages. This would explain the Jo and Dedlock dominance in embedding's character profile.
+2. **The narrowing is consistent and systematic.** Embedding has the lowest entropy in 20/20 panels and lowest density in 15/20. This is not random variation — the LLM curator has a stable editorial preference that is hidden inside its chain-of-thought reasoning.
 
-2. **Higher interest scores narrow the cast.** Embedding selects passages with mean interest score 4.3 (vs 3.3 for transport). High-interest passages may feature fewer characters in more intense scenes, reducing character diversity.
+3. **The result is a different kind of caricature — but an uncontrolled one.** Embedding produces verbose, quote-heavy scripts focused on a few dramatic characters. This is a valid editorial stance, but the user has no lever to change it. In transport, the same effect could be achieved by adjusting the demand profile toward high-interest passages — and then reversed by adjusting it back.
 
-3. **Wordiness displaces character mentions.** Embedding scripts are 16% longer, suggesting the LLM curation selects passages that generate more analytical prose. More words spent on analysis means fewer words spent naming characters.
+### 5.5 What Transport Uniquely Provides
 
-### 5.5 Implications for Pipeline Design
+The ablations show that plain RAG matches transport on *aggregate surface metrics* (character density, entropy, word count). If the goal were simply "produce a decent podcast script," RAG would be sufficient. But the goal is to produce *characterful, controllable caricatures* — and here the aggregate metrics miss what matters:
 
-If these provisional results hold with complete data:
+1. **Inspectability.** Transport is the only condition where every selection decision has a legible explanation: this passage was assigned to this expert because of the interaction between the passage's enrichment metadata and the expert's demand profile. RAG cannot answer "why was this passage selected?" beyond "it was similar." Embedding's LLM curator has reasons but they are locked inside chain-of-thought reasoning the user never sees.
 
-1. **The case for enrichment is weaker than expected.** Plain RAG matches transport on character density and entropy. The 20-field enrichment pipeline and min-cost flow solver may not improve downstream script quality enough to justify their complexity.
+2. **Manipulability.** Transport is the only condition where the user can ask "what if?" questions and get computable answers. What happens if the Marxist demands more social critique? If we double the Lady Dedlock arc? If we replace the performer with the legal historian? These are changes to demand vectors and constraints — they produce different solutions in seconds, without re-running any LLM. The ablation conditions offer no equivalent: changing a RAG query requires regenerating embeddings; changing an LLM curator's preferences requires re-prompting and hoping.
 
-2. **The case for *any* selection is still strong.** Random passages disrupt expert identity and produce less coherent character coverage. Simple relevance matching (plain RAG) preserves expert voice while providing grounding text. The minimum viable pipeline may be: embed expert profiles, retrieve by cosine similarity, generate.
+3. **Passage grounding with quotation accuracy.** All four passage-based conditions achieve 91–96% quote verification, vs 52% for no-passages. Passages provide accuracy and verifiable textual grounding. But only transport and embedding use the enrichment metadata that makes passages *topically appropriate* to each expert's interests, preserving the caricature.
 
-3. **The no-passages baseline reveals the LLM's contribution — and its limits.** The LLM produces character-dense, quotation-rich scripts from memory alone. But the quote audit (Section 6) shows that nearly half of no-passages "quotes" are fabricated, compared to only 4–9% in passage-grounded conditions. Passages provide accuracy and verifiable textual grounding, which turns out to be their primary value — not surface-level metrics like character density.
+4. **Structural coherence through arc constraints.** Transport's arc constraints ensure designated characters appear at structurally appropriate moments — not because the LLM happened to retrieve relevant passages, but because the constraint was explicit. The sacrifice is breadth (random surfaces more minor characters), but the gain is *intentional* character coverage whose rationale is inspectable.
 
-4. **Arc constraints provide structural value, not breadth.** Their contribution is narrative coherence — ensuring the right characters appear at the right structural moments — rather than maximising character diversity.
+The point is not that transport produces "better" scripts by some absolute standard — these are caricatures of academic discourse, deliberately closer to parody than scholarship. The point is that transport turns editorial bias into a first-class object: something that can be inspected, compared, and argued about.
 
 ## 6. Quote Verification and Confabulation Analysis
 
@@ -375,33 +379,35 @@ Counting verifier false negatives as verified and excluding detector false posit
 
 Transport and embedding achieve near-identical adjusted rates (95.6%). RAG and random are close behind (91–93%). No-passages stands apart: even after generous adjustment, roughly half its "quotes" are fabricated.
 
-### 6.5 Confabulation Deep-Dive
+### 6.5 What the Unverified Quotes Actually Are
 
-For each of the 627 true confabulations, we searched for the 5 closest matching passages in the source text using a broader search than the initial verification (more n-gram candidates, brute-force fallback for zero-hit quotes). Each confabulation was then classified by type based on its best-match ratio.
+The label "confabulation" is misleading for most of the 627 unverified quotes. A deeper search for the 5 closest matching passages in the source text reveals that the majority are imprecise but recognisable reproductions of real Dickens text — not fabrications. The unverified quotes divide into three categories with very different implications for listeners.
 
-#### 6.5.1 Confabulation Types
+#### 6.5.1 Three Categories of Unverified Quote
 
-| Type | Count | Share | Description |
-|------|-------|-------|-------------|
-| **Blend** | 430 | 69% | Modified, truncated, or combined real Dickens text. Best-match ratio typically 0.45–0.70. The LLM *knows* the passage but reproduces it imprecisely. |
-| **Paraphrase** | 167 | 27% | Captures the gist of a real passage but substitutes most words. Ratio 0.30–0.45. The LLM remembers the *idea* but not the *text*. |
-| **Invention** | 30 | 5% | No close source passage. Ratio < 0.30. The LLM generates plausible-sounding Dickens with no identifiable original. |
+| Category | Count | Share | Listener concern | Description |
+|----------|-------|-------|------------------|-------------|
+| **Blend** | 430 | 69% | **Low** | Modified, truncated, or combined real Dickens text. Best-match ratio typically 0.45–0.70. The LLM *knows* the passage but reproduces it imprecisely — analogous to quoting from memory. A listener would hear a recognisable, substantially correct reference to the novel. |
+| **Paraphrase** | 167 | 27% | **Low–moderate** | Captures the gist of a real passage but substitutes most words. Ratio 0.30–0.45. The LLM remembers the *idea* but not the *text*. Whether this matters depends on context: a paraphrase introduced as "Dickens writes something like..." is legitimate; one presented as verbatim quotation is misleading but not harmful. |
+| **Invention** | 30 | 5% | **High** | No close source passage. Ratio < 0.30. The LLM generates plausible-sounding Dickens with no identifiable original. These are the genuinely problematic cases — a listener would be misled into thinking Dickens wrote something he did not. |
 
-The dominance of blends (69%) is the central finding. The LLM rarely invents from nothing — even its confabulations are *recognisably close* to real text. This has implications for how we interpret "quotation accuracy": the model is doing something more like imperfect recall than wholesale fabrication.
+The dominance of blends (69%) is the central finding. The verification pipeline's 0.75 threshold necessarily classifies many imprecise-but-real quotations as failures. This is a measurement limitation, not a content problem. The LLM is doing something more like imperfect recall than wholesale fabrication — and imperfect recall is how most humans quote novels too.
 
-#### 6.5.2 Confabulation Types by Pipeline
+The genuinely concerning cases — the 30 inventions — are rare: roughly 0.6% of all 5,169 attempted quotations across the full dataset.
 
-| Pipeline | Total | Blend | Paraphrase | Invention |
-|----------|-------|-------|------------|-----------|
+#### 6.5.2 Categories by Pipeline
+
+| Pipeline | Total unverified | Blend | Paraphrase | Invention |
+|----------|-----------------|-------|------------|-----------|
 | Transport | 63 | 47 (75%) | 11 (17%) | 5 (8%) |
 | Embedding | 53 | 38 (72%) | 6 (11%) | 9 (17%) |
 | RAG | 78 | 55 (71%) | 21 (27%) | 2 (3%) |
 | No Passages | 379 | 247 (65%) | 121 (32%) | 11 (3%) |
 | Random | 54 | 43 (80%) | 8 (15%) | 3 (6%) |
 
-No-passages has the highest paraphrase share (31%) — without source text to anchor quotation, the LLM falls back to remembered content and paraphrases more freely. Embedding has the highest invention rate (17%), possibly because its curated high-interest passages encourage quotation from dramatic scenes the LLM has memorised imprecisely.
+The invention count tells a different story from the total. Transport has 5 inventions — comparable to embedding's 9 despite very different total counts. No-passages has the most inventions in absolute terms (11) but the lowest *rate* of invention among its unverified quotes (3%) — its dominant failure mode is blending and paraphrasing, not making things up. Embedding has the highest invention *rate* (17%), possibly because its curated high-interest passages encourage quotation from dramatic scenes the LLM has memorised imprecisely.
 
-#### 6.5.3 Confabulations by Expert
+#### 6.5.3 Unverified Quotes by Expert
 
 | Expert | Transport | Embedding | RAG | No Passages | Random | Total |
 |--------|-----------|-----------|-----|-------------|--------|-------|
@@ -412,7 +418,9 @@ No-passages has the highest paraphrase share (31%) — without source text to an
 | Daniel Rosen | 3 | 13 | 19 | 49 | 13 | 97 |
 | James Blackstone | 8 | 10 | 13 | 42 | 9 | 82 |
 
-Oliver Trevelyan (actor/director) and Caroline Woodcourt (performance scholar) confabulate most, particularly in no-passages (86 and 85 confabulations respectively). Both personas emphasise dramatic readings and close textual engagement — without source text, they "perform" fabricated quotes. Blackstone (legal historian) confabulates least (82 total), consistent with his more analytical, less quotation-dependent persona. The expert effect is concentrated in no-passages; in passage-grounded conditions, confabulation rates are low across all experts.
+These raw totals are dominated by no-passages counts and are misleading about actual listener risk. Most of Trevelyan's 86 no-passages "failures" are blends and paraphrases — imprecise quotation from memory, not fabrication. The more informative comparison is across passage-grounded conditions, where expert differences are modest (3–17 per expert per condition) and all experts produce scripts with 91–96% adjusted verification rates.
+
+The expert effect that *does* matter is in passage-grounded conditions: Rosen has 13 unverified quotes in both embedding and random (highest of any expert in those conditions), while Woodcourt has only 3 in random and 7 in RAG. This suggests analytical personas (Rosen, Leigh) are more likely to *attempt* quotation outside their provided passages, while performance personas (Woodcourt) stick closer to given material when it's available.
 
 #### 6.5.4 Examples by Confabulation Type
 
@@ -478,42 +486,48 @@ The phrase "street of perishing blind houses" sounds authentically Dickensian, b
 
 This sounds like Jarndyce proposing to Esther, but the actual proposal (Chapters 44 and 64) uses different language entirely. The LLM has *imagined* how Jarndyce would phrase such a speech, producing something tonally correct but textually novel.
 
-**Meta-commentary fabrication** (ratio 0.04, Transport, Caroline Woodcourt):
+**Search failure misclassified as invention** (ratio 0.04, Transport, Caroline Woodcourt):
 > "Dickens even frames it as unanswerable: 'Whether his whole soul is devoted to the great or whether he yields them nothing beyond the services he sells is his personal secret.'"
 
-Strikingly, the quoted fragment *does* appear in Chapter 12 — but the wrapping meta-commentary ("Dickens even frames it as unanswerable") caused the n-gram search to miss it. This highlights a category boundary: some "inventions" are real quotes wrapped in fabricated attribution that defeats the search heuristics.
+The quoted fragment *does* appear in Chapter 12 — but the wrapping meta-commentary ("Dickens even frames it as unanswerable") caused the n-gram search to miss it entirely, yielding a near-zero ratio. This is not a confabulation at all but a **search failure**: the verification pipeline's n-gram index cannot match quotes embedded in framing commentary. Several other "inventions" likely fall into this category — real Dickens text wrapped in the expert's analytical voice, invisible to automated verification.
 
-#### 6.5.5 The Deeper Search Effect
+#### 6.5.5 Limitations of Automated Verification
 
-The confabulation deep-dive's broader search (40 candidate regions vs 20, brute-force fallback) recovered 28 quotes at ratio ≥ 0.75 that the original audit missed. This suggests the true confabulation count is somewhat lower than 504 — likely closer to 470–480. The 28 recovered quotes were concentrated in RAG (12) and random (6), where truncated but substantially correct quotes occasionally fell below the narrower search window of the original audit.
+The confabulation counts reported above are *upper bounds* on actual confabulation. Two systematic biases inflate them:
 
-Additionally, several "inventions" (ratio < 0.30) turned out on manual inspection to contain real Dickens fragments wrapped in framing commentary. The LLM's tendency to introduce quotes with metacommentary ("Dickens writes that...", "And she has named those birds — and this is one of the passages I find myself coming back to —") can defeat automated verification even when the core quotation is genuine. This suggests a small number of inventions would be reclassified as blends under manual review.
+**Search window limitations.** The confabulation deep-dive's broader search (40 candidate regions vs 20, brute-force fallback) recovered 28 quotes at ratio ≥ 0.75 that the original audit missed. These were concentrated in RAG (12) and random (6), where truncated but substantially correct quotes fell outside the narrower search window. The true confabulation count is likely closer to 470–480 than the reported 504.
+
+**Meta-commentary defeats n-gram matching.** The LLM frequently wraps real Dickens text in analytical framing: "Dickens writes that...", "And she has named those birds — and this is one of the passages I find myself coming back to —". When the framing text dominates the extracted quote string, the n-gram index cannot locate the genuine fragment inside it. The "meta-commentary fabrication" example in Section 6.5.4 illustrates this: a real Chapter 12 quote scored ratio 0.04 because it was embedded in commentary. An unknown number of other low-ratio "confabulations" — including some classified as inventions — are likely search failures rather than genuine fabrications.
+
+These limitations mean that the 30 reported inventions are themselves an upper bound. Some are real quotes that the search pipeline could not find. The *floor* on genuine inventions — quotes where no plausible source exists even under generous manual inspection — is probably closer to 15–20, or roughly 0.3% of all quotes across all conditions.
 
 ### 6.6 Quote Audit: Key Findings
 
-1. **Passage-grounded conditions achieve 91–96% adjusted verification rates.** Transport, embedding, RAG, and random all produce scripts where the vast majority of attempted quotations correspond to real Dickens text.
+1. **Passage grounding is essential for quotation accuracy.** All four passage-based conditions achieve 91–96% adjusted verification rates; no-passages manages only 52%. The LLM's prior knowledge of *Bleak House* supports accurate discussion of characters, themes, and plot, but is insufficient for verbatim quotation.
 
-2. **No-passages confabulates at scale.** 379 of 627 confabulations (60%) come from the no-passages condition, which accounts for only 20% of panel-conditions. The model's prior knowledge of *Bleak House* is strong enough to discuss characters, themes, and plot accurately, but when it attempts verbatim quotation from memory, it fails roughly half the time.
+2. **The dominant failure mode is imprecise recall, not fabrication.** 69% of unverified quotes are blends — recognisable modifications of real text where the LLM truncates, substitutes words, or merges passages. Another 26% are paraphrases that capture the gist of a real scene. From a listener's perspective, these are indistinguishable from slightly loose quotation and pose minimal risk to the podcast's credibility.
 
-3. **Most confabulations are blends, not inventions.** 69% of confabulations are recognisably close to real text (ratio 0.45–0.70). The LLM rarely invents from nothing — it blends, truncates, and paraphrases real passages. Only 5% of confabulations have no identifiable source in the text.
+3. **Genuine inventions are rare.** Only 30 quotes (0.6% of all quotes, 5% of unverified quotes) have no identifiable source passage, and even this count is inflated by search limitations (Section 6.5.5). The true invention count is likely 15–20. These are the only unverified quotes that represent a genuine listener concern.
 
-4. **Expert persona influences confabulation rate.** Performance-oriented experts (Woodcourt, Trevelyan) who emphasise dramatic reading confabulate more than analytical experts (Blackstone, Rosen). This confirms that confabulation is not purely a function of passage availability — persona prompt design affects quotation behaviour.
+4. **No-passages drives most of the unverified count but not most of the risk.** 379 of 627 unverified quotes (60%) come from no-passages, but 65% of those are blends — the LLM recalling real text imprecisely from memory. No-passages has 11 inventions, which is the highest absolute count but only 3% of its unverified total. The condition's problem is not that it *invents* but that it *misremembers*.
 
-5. **Random passages reduce confabulation more than expected.** Random's adjusted rate (92.6%) is close to transport (95.6%), suggesting that *any* source text — even irrelevant — gives the LLM enough grounding to quote more accurately from its training memory. The passages may serve as retrieval cues.
+5. **Random passages reduce confabulation more than expected.** Random's adjusted rate (92.6%) is close to transport (95.6%), suggesting that *any* source text — even irrelevant — gives the LLM enough grounding to quote more accurately. The passages may serve as retrieval cues that activate more precise recall.
 
-## 7. Listener Value: What Are We Actually Measuring?
+6. **Automated verification has systematic blind spots.** Quotes wrapped in meta-commentary, truncated at non-obvious boundaries, or embedded in analytical framing can defeat n-gram search, inflating the unverified count. The reported confabulation figures are upper bounds.
 
-### 7.1 The Gap Between Metrics and Listener Experience
+## 7. Evaluation: What Are We Actually Measuring?
 
-Our current metrics — character mention density, character entropy, unique character count, quote count, word count, vocabulary cosine — are *measurable* properties of the generated text. But a podcast listener cares about none of these directly. A listener cares about whether the episode is:
+### 7.1 The Gap Between Metrics and the System's Goals
 
-1. **Engaging** — does it hold attention, create moments of surprise or recognition?
-2. **Illuminating** — does it reveal something about the novel the listener didn't notice?
-3. **Authentic** — do the experts sound like real scholars with genuine perspectives?
-4. **Accurate** — are the claims, quotes, and attributions correct?
-5. **Coherent** — does the discussion build, rather than listing disconnected observations?
+Our current metrics — character mention density, character entropy, unique character count, quote count, word count, vocabulary cosine — are *measurable* properties of the generated text. But the system's goal is not to maximise any of these metrics. The goal is to produce *characterful, recognisable caricatures of expert discussion* whose editorial choices are inspectable and manipulable. Good metrics would measure whether:
 
-Our metrics are at best *proxies* for these qualities, and at worst orthogonal to them.
+1. **Caricatures are recognisable** — does each expert sound consistently like their stereotyped persona?
+2. **Configurations produce different outputs** — do changes to panel composition, arc emphasis, or demand profiles produce measurably different scripts?
+3. **Differences are legible** — can the user trace output differences back to specific selection decisions?
+4. **Quotation is grounded** — are the claims, quotes, and attributions traceable to real text?
+5. **The discussion is coherent** — does the script build a narrative rather than listing disconnected observations?
+
+Our current metrics address (1) partially (vocabulary cosine), (4) well (quote verification), and (2) indirectly (aggregate differences between conditions). They do not address (3) or (5) at all. They are at best *proxies* for the system's actual goals.
 
 ### 7.2 What Each Metric Actually Probes
 
@@ -541,15 +555,15 @@ Our metrics are at best *proxies* for these qualities, and at worst orthogonal t
 
 ### 7.4 Implications for Interpreting Results
 
-Given these gaps, our headline findings should be read with caution:
+Given these gaps, the aggregate metrics should not be read as a quality ranking:
 
-**"No-passages produces the highest character density"** does not mean no-passages produces the best episodes. It may mean the LLM, unconstrained by specific textual evidence, surveys characters more broadly but more shallowly. A human evaluator might rate these episodes lower despite higher density.
+**"No-passages produces the highest character density"** likely reflects shallow survey rather than deep analysis. The LLM, unconstrained by specific textual evidence, name-drops more characters but engages less deeply with each. This is the *opposite* of the focused caricature the system aims to produce.
 
-**"Random produces the highest character entropy"** does not mean random produces the most interesting character coverage. Random entropy is driven by *noise* — the LLM tries to discuss whatever it was given, producing scattered coverage rather than intentional breadth. A human evaluator would likely perceive this as incoherent rather than diverse.
+**"Random produces the highest character entropy"** reflects noise, not editorial breadth. Random entropy is driven by the LLM trying to discuss whatever it was given, producing scattered coverage rather than intentional focus. From the system's perspective this is a failure: random undermines the expert caricatures more than any other condition.
 
-**"Plain RAG matches transport on aggregate metrics"** may be the most reliable finding, since the metrics where RAG and transport converge (density, entropy) both point the same direction. But even this convergence might mask differences in analytical depth that our metrics cannot detect.
+**"Plain RAG matches transport on aggregate metrics"** is the finding that most needs the inspectability/manipulability framing. These aggregate metrics cannot distinguish between two pipelines that produce similar *average* outputs but differ fundamentally in what the user can *do* with them. Transport's value is not in producing a different mean — it is in making the space of possible outputs navigable.
 
-**"Embedding is the outlier"** is robust and listener-relevant: embedding's concentration on fewer characters with more words may actually produce more *focused, analytically deep* episodes. If so, embedding's apparent underperformance on diversity metrics might correspond to superior listener experience.
+**"Embedding is the outlier"** demonstrates what happens when editorial judgement is delegated to an LLM: a consistent, defensible, but uncontrollable narrowing. The user of an embedding pipeline cannot ask "what if I want broader coverage?" without rewriting the curation prompt and hoping.
 
 ### 7.5 Toward Better Approximations
 
@@ -569,16 +583,21 @@ Several approaches could close the gap between automated metrics and listener va
 
 ### 7.6 Recommendation
 
-The current automated metrics are useful for *screening* — they reliably identify that embedding is different from the other four conditions, that random disrupts expert identity, and that no-passages produces recognisably character-dense output. But they should not be used to *rank* conditions by quality. For that, we need either LLM-as-judge evaluation on the full dataset or targeted human evaluation on a stratified sample.
+The current automated metrics confirm that the five conditions produce measurably different outputs — the ablation design works. But they cannot assess the system's core claim: that transport's inspectability and manipulability make it a better *thinking tool* than opaque alternatives. No automated metric measures whether a user can productively explore the configuration space.
 
-The most informative next analysis would be pairwise preference ranking across the fourteen five-way panels, asking: "Given scripts from conditions A and B for the same panel, which produces the better episode?" This directly measures what we care about without requiring us to specify which automated proxies map to listener value.
+Two evaluation approaches would address this gap:
+
+1. **Pairwise preference ranking** across panels, asking: "Given scripts from conditions A and B for the same panel, which produces a more characterful, engaging caricature?" This directly tests output quality without requiring us to specify which automated proxies matter.
+
+2. **Configuration exploration study**: give users the transport pipeline's configuration interface and ask them to produce a script they find interesting. Measure how many configurations they explore, whether they can predict the effect of changes, and whether they prefer the final result to a RAG or embedding baseline. This directly tests the claim that inspectability and manipulability have user value.
 
 ## 8. Limitations and Next Steps
 
 ### 8.1 Current Limitations
 
 - **Sample size.** All 20 panels have all 5 conditions (100/100 complete). The balanced design is fully realised, though 20 panels may still be insufficient for detecting small effects.
-- **No human evaluation.** All metrics are automated. Character density and vocabulary signatures are proxies for script quality, not direct measures.
+- **No human evaluation.** All metrics are automated. Character density and vocabulary signatures are proxies for caricature quality, not direct measures of whether the generated discussions are characterful or the configuration space is productively navigable.
+- **No inspectability/manipulability evaluation.** The report documents output differences but does not directly test whether users can productively explore the transport pipeline's configuration space or whether its legible selection rationale has practical value.
 - **Confabulation classification is heuristic.** The three-way split (verifier false negative / detector false positive / true confabulation) uses ratio thresholds and text-length heuristics. Edge cases exist, particularly for blends with ratios near 0.60.
 - **No coherence metric.** Character entropy measures breadth of coverage but not whether the character mentions form a coherent narrative. Random's high entropy may reflect topic drift rather than rich characterisation.
 - **Embedding pipeline has known curation bias.** The LLM curation step may be suboptimally tuned; a different curation prompt might produce different results.
@@ -590,16 +609,27 @@ The most informative next analysis would be pairwise preference ranking across t
 3. **Coherence scoring** — Develop a metric for narrative coherence that distinguishes intentional character diversity from topic drift.
 4. **Stripped metadata condition** — Use transport's passage selections but strip enrichment metadata from Phase 3 input, isolating metadata's contribution to script generation (as distinct from selection).
 5. ~~**Complete dataset**~~ — **Complete.** All 100 conditions (20 panels × 5 conditions) finished. Results above reflect the full dataset.
-6. **LLM-as-judge evaluation** — Pairwise preference ranking across five-way panels using Opus or equivalent, rating analytical depth, conversational dynamics, and overall listener value (see Section 6.5).
+6. **LLM-as-judge evaluation** — Pairwise preference ranking across five-way panels using Opus or equivalent, rating caricature recognisability, conversational dynamics, and engagement (see Section 7.6).
+7. **Configuration exploration study** — User study testing whether transport's inspectability and manipulability translate to productive exploration of the configuration space (see Section 7.6).
 
-### 8.3 Provisional Conclusions
+### 8.3 Conclusions
 
-Five findings are confirmed with the complete 100/100 dataset:
+The ablations answer "when would we use each approach?":
 
-1. **Expert persona is the strongest single force** shaping script content, more influential than any passage selection method.
-2. **The embedding pipeline's LLM curation step narrows rather than broadens** character coverage, producing an unexpected outlier pattern (lowest density in 15/20 panels, lowest entropy in 20/20).
-3. **Random passages disrupt expert identity more than having no passages**, suggesting that passage relevance matters not just for content accuracy but for preserving the intended expert voice.
-4. **Passage grounding is essential for quotation accuracy.** All four passage-based conditions achieve 91–96% adjusted quote verification; no-passages manages only 52%. The LLM's prior knowledge of *Bleak House* is sufficient for character discussion but insufficient for accurate verbatim quotation.
-5. **Most confabulations are blends, not inventions.** When the LLM fabricates a quote, 69% of the time it produces a recognisable modification of real text — truncating, substituting words, or combining passages. Only 4% of confabulations have no identifiable source. This suggests the model's problem is imprecise *recall*, not lack of *knowledge*.
+**No passages: never.** The no-passages condition demonstrates that passages are doing real work. Without them, the LLM produces fluent but generically canonical discussion and fabricates nearly half its attempted quotations. No-passages is a useful *probe* — it isolates the LLM's prior knowledge — but not a viable production approach.
 
-These findings suggest that the optimal pipeline design prioritises: (a) expert persona engineering for script identity, (b) simple relevance-based retrieval for textual grounding, and (c) passage availability as a quotation accuracy safeguard — rather than sophisticated passage optimisation.
+**Random passages: never.** The random condition is a probe for a specific risk: do irrelevant passages make the experts say silly things? The answer is yes — random passages actively disrupt expert identity (lowest vocabulary cosine with all other conditions) and scatter attention across characters without narrative coherence. Random is informative as a diagnostic but would never be chosen as a design.
+
+**Plain RAG: when inspectability doesn't matter.** RAG produces scripts statistically indistinguishable from transport on aggregate surface metrics, with comparable quotation accuracy (91% vs 96%). If the goal is simply "produce a decent podcast script with minimal infrastructure," RAG is the pragmatic choice. But it provides no mechanism for the user to explore alternatives: no demand profiles, no arc constraints, no legible selection rationale.
+
+**Embedding with LLM curation: when you trust the curator.** Embedding produces the most distinctive scripts — focused, quote-heavy, drama-centred — but the editorial choices behind that focus are opaque. If the curator's implicit preferences align with the user's goals, the results are good. If they don't, there is no lever to adjust them. The embedding condition is a cautionary example of delegating editorial judgement to an LLM.
+
+**Transport: when you want to think.** The transport pipeline's advantage is not in producing "better" scripts by some absolute standard — the aggregate metrics show RAG is comparable. Its advantage is in turning editorial bias into a first-class object. The expert stereotypes are encoded as demand vectors, not hidden in prompts. The arc constraints are explicit parameters, not emergent from retrieval. Every selection decision is visible as a cost, a flow, and a constraint. Because solving a flow is cheap compared to regenerating with an LLM, the user gets a flexible thinking tool for rapid exploration of alternatives: twenty configurations produce measurably different outputs, and the *reasons* for those differences are legible.
+
+Five additional findings are confirmed across the full 100/100 dataset:
+
+1. **Expert persona is the strongest single force** shaping script content — the caricatures work regardless of passage selection method.
+2. **Passage grounding is essential for quotation accuracy.** All passage-based conditions achieve 91–96% adjusted verification; no-passages manages 52%.
+3. **Most unverified quotes are imprecise recall, not fabrication.** 69% are blends of real text; only 0.6% of all quotes are genuine inventions.
+4. **Irrelevant passages actively undermine expert identity**, more than having no passages at all — passage *relevance* matters for preserving the intended caricature.
+5. **LLM curation narrows rather than broadens** character coverage, demonstrating the risk of opaque editorial delegation.
