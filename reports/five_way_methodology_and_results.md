@@ -402,21 +402,80 @@ No-passages has the highest paraphrase share (33%) — without source text to an
 
 Caroline Woodcourt (performance scholar) confabulates most, particularly in no-passages (69 confabulations, 26% of all no-passages confabulations). Her persona prompt emphasises dramatic readings and close textual engagement — without source text, she "performs" fabricated quotes. Blackstone (legal historian) confabulates least, consistent with his more analytical, less quotation-dependent persona.
 
-#### 6.5.4 Blend Examples and Analysis
+#### 6.5.4 Examples by Confabulation Type
 
-The highest-ratio blends illustrate how close the LLM comes to the real text:
+##### Blends (69% of confabulations)
 
-**Ratio 0.89** (RAG, Caroline Woodcourt): *"I have been accustomed to study the leaders of my high connexion, sir, and I may tell you without vanity that I can turn them round my finger"* — a near-verbatim quote from Chapter 2 (Mr. Turveydrop) that failed verification only because the surrounding context pushed the fuzzy match below threshold in the original audit's narrower search window.
+Blends are the dominant confabulation mode. The LLM reproduces the most *memorable* portion of a passage accurately, then truncates, substitutes, or continues from memory where its recall becomes uncertain — analogous to how a human might quote from memory.
 
-**Ratio 0.88** (RAG, Oliver Trevelyan): *"In manner, close and dry. In voice, husky and low. In face, watchful behind a blind"* — Tulkinghorn's description from Chapter 27. The LLM truncates after "a blind", dropping "habitually not uncensorious and contemptuous perhaps." This truncation drops the match ratio.
+**Near-verbatim truncation** (ratio 0.88, RAG, Oliver Trevelyan):
+> "In manner, close and dry. In voice, husky and low. In face, watchful behind a blind."
 
-**Ratio 0.84** (Random, Daniel Rosen): *"I will not begin it in the old way now. I have learned a lesson now, sir"* — Richard's speech from Chapter 65. The LLM omits the attribution "said Richard with a sad smile" and continues with a slightly different ending.
+Source (Chapter 27): *"In manner, close and dry. In voice, husky and low. In face, watchful behind a blind; habitually not uncensorious and contemptuous perhaps."* The LLM nails the iconic tricolon but drops the qualifying clause that follows. This pattern recurs: it appears in four separate RAG runs, always truncated at exactly the same point.
 
-These blends share a pattern: the LLM reproduces the most *memorable* portion of a passage accurately, then truncates, substitutes, or continues from memory where its recall becomes uncertain. This is analogous to how a human might quote from memory — getting the iconic phrase right but drifting on the surrounding words.
+**Accurate core, drifting continuation** (ratio 0.84, Random, Daniel Rosen):
+> "I will not begin it in the old way now. I have learned a lesson now, sir. It was a hard one, but you shall be assured, indeed, that I have learned it."
+
+Source (Chapter 65): *"I will not begin it in the old way now," said Richard with a sad smile. "I have learned a lesson now, sir. It was a hard one, but you shall be assured..."* The opening and middle are verbatim. The LLM omits the stage direction ("said Richard with a sad smile") and extends beyond where its recall is reliable.
+
+**Mid-range blend** (ratio 0.54, Transport, Caroline Woodcourt):
+> "He hears Jarndyce say, almost directly to his face, 'if you entertain the supposition that any real success was ever wrested from Fortune by fits and starts, leave that wrong idea here...'"
+
+Source (Chapter 13): *"...any real success, in great things or in small, ever was or could be, ever will or can be, wrested from Fortune by fits and starts, leave that wrong idea here or leave your cousin Ada here."* The distinctive phrase "wrested from Fortune by fits and starts" is preserved; the rhythmic parallelism around it is compressed.
+
+**Low-ratio blend** (ratio 0.45, No Passages, Caroline Woodcourt):
+> "I had a curious sensation of having seen it somewhere before — as though some forgotten dream had come to me."
+
+No single passage matches closely, but the language is a mosaic of Esther's narrative style from multiple chapters — phrases like "curious sensation," "forgotten dream," and the first-person introspective register. The LLM has synthesised a plausible Esther utterance from the *style* of the text rather than any specific passage.
+
+##### Paraphrases (26% of confabulations)
+
+Paraphrases capture the gist of a real scene or speech but substitute most words. They retain meaning, characters, and context while losing verbatim fidelity.
+
+**Scene compression** (ratio 0.45, No Passages, James Blackstone):
+> "not one of Mrs. Pardiggle's Tockahoopo Indians; not a genuine foreign-grown savage; he is the ordinary home-made article."
+
+Source (Chapter 47): *"He is not one of Mrs. Pardiggle's Tockahoopo Indians; he is not one of Mrs. Jellyby's lambs, being wholly unconnected with Borrioboola-Gha; he is not softened by distance and unfamiliarity; he is not a genuine foreign-grown savage."* The LLM preserves the rhetorical structure and key phrases ("Tockahoopo Indians," "genuine foreign-grown savage") but compresses the middle catalogue, dropping Mrs. Jellyby and Borrioboola-Gha.
+
+**Thematic paraphrase** (ratio 0.42, No Passages, Eleanor Hartley):
+> "There was an air about him that was not the air of a man who lived in the light."
+
+No single source sentence matches, but the characterisation echoes Dickens's descriptions of Tulkinghorn (secretive, shadowy) and Nemo (hidden, desolate). The LLM has abstracted a character impression into a Dickensian-sounding sentence.
+
+**Dialogue reconstruction** (ratio 0.45, No Passages, Edmund Leigh):
+> "'Jo,' says Allan. 'I am here.' 'I hear you, sir,' he answers. 'Don't you fret yourself no more about it.'"
+
+This paraphrases Jo's deathbed scene (Chapter 47) but substitutes Allan Woodcourt for the actual speakers and invents specific dialogue that *sounds* right but doesn't appear in the text. The emotional register is correct; the words are fabricated.
+
+**Style pastiche** (ratio 0.34, No Passages, Caroline Woodcourt):
+> "He writes that Vholes had a presence that seemed to consume the very air of the room — that when he put his black gloves on, it was as if he were dressing for a funeral."
+
+Vholes is indeed associated with death imagery and suffocating presence throughout the novel, and "black gloves" is a real Vholes detail. But no passage contains this specific metaphor. The LLM has generated a plausible Dickens sentence about Vholes by combining remembered character traits with its own imagery.
+
+##### Inventions (4% of confabulations)
+
+True inventions have no identifiable source passage. They are rare but instructive.
+
+**Elaborate fabrication with real fragments** (ratio 0.02, RAG, James Blackstone):
+> "It is a street of perishing blind houses, with their eyes stoned out, without a pane of glass, without so much as a window-frame, with the bare blank shutters tumbling from their hinges..."
+
+The phrase "street of perishing blind houses" sounds authentically Dickensian, but no such sentence exists in *Bleak House*. The closest match is Chapter 48's description of Lincoln's Inn: *"half-a-dozen of its greatest mansions seem to have been slowly stared into stone."* The LLM has generated an original passage in Dickens's architectural-decay register, possibly conflating *Bleak House* with other Dickens novels.
+
+**Plausible character speech** (ratio 0.06, No Passages, Oliver Trevelyan):
+> "I have better knowledge of my own heart than to believe that I could, at my time of life, find a young lady so perfectly suited to my happiness as my dear Esther."
+
+This sounds like Jarndyce proposing to Esther, but the actual proposal (Chapters 44 and 64) uses different language entirely. The LLM has *imagined* how Jarndyce would phrase such a speech, producing something tonally correct but textually novel.
+
+**Meta-commentary fabrication** (ratio 0.04, Transport, Caroline Woodcourt):
+> "Dickens even frames it as unanswerable: 'Whether his whole soul is devoted to the great or whether he yields them nothing beyond the services he sells is his personal secret.'"
+
+Strikingly, the quoted fragment *does* appear in Chapter 12 — but the wrapping meta-commentary ("Dickens even frames it as unanswerable") caused the n-gram search to miss it. This highlights a category boundary: some "inventions" are real quotes wrapped in fabricated attribution that defeats the search heuristics.
 
 #### 6.5.5 The Deeper Search Effect
 
 The confabulation deep-dive's broader search (40 candidate regions vs 20, brute-force fallback) recovered 28 quotes at ratio ≥ 0.75 that the original audit missed. This suggests the true confabulation count is somewhat lower than 504 — likely closer to 470–480. The 28 recovered quotes were concentrated in RAG (12) and random (6), where truncated but substantially correct quotes occasionally fell below the narrower search window of the original audit.
+
+Additionally, several "inventions" (ratio < 0.30) turned out on manual inspection to contain real Dickens fragments wrapped in framing commentary. The LLM's tendency to introduce quotes with metacommentary ("Dickens writes that...", "And she has named those birds — and this is one of the passages I find myself coming back to —") can defeat automated verification even when the core quotation is genuine. This suggests a small number of inventions would be reclassified as blends under manual review.
 
 ### 6.6 Quote Audit: Key Findings
 
