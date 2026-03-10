@@ -1,0 +1,180 @@
+======================================================================
+TRANSPORT vs EMBEDDING PIPELINE COMPARISON
+======================================================================
+
+8 of 8 matched pairs available
+
+
+--- 1. Passage Overlap (Jaccard) ---
+
+  Config                 Transport  Embedding  Overlap  Jaccard 
+  ---------------------- ---------- ---------- -------- --------
+  baseline               32         31         2        0.033   
+  more_jo                34         30         3        0.049   
+  craft_v2               33         29         2        0.033   
+  conservative           30         30         3        0.053   
+  radical_panel          34         28         4        0.069   
+  trevelyan_woodcourt    29         31         4        0.071   
+  trevelyan_rosen        32         30         1        0.016   
+  all_swapped            33         29         3        0.051   
+
+  Mean Jaccard: 0.047
+
+
+--- 2. Chapter Coverage ---
+
+  Config                 Transport  Embedding  Shared  
+  ---------------------- ---------- ---------- --------
+  baseline               14         18         5       
+  more_jo                15         20         6       
+  craft_v2               19         19         5       
+  conservative           15         19         7       
+  radical_panel          17         18         6       
+  trevelyan_woodcourt    13         19         4       
+  trevelyan_rosen        16         21         5       
+  all_swapped            13         19         6       
+
+
+--- 3. Mean Provision Strength ---
+
+  Config                 Transport  Embedding  Delta   
+  ---------------------- ---------- ---------- --------
+  baseline               8.03       9.42       -1.39
+  more_jo                8.00       9.07       -1.07
+  craft_v2               7.97       9.03       -1.06
+  conservative           8.00       8.87       -0.87
+  radical_panel          8.38       9.36       -0.97
+  trevelyan_woodcourt    7.72       9.77       -2.05
+  trevelyan_rosen        7.91       9.37       -1.46
+  all_swapped            8.45       9.59       -1.13
+
+
+--- 4. Expert Distribution ---
+
+  baseline:
+                                    transport=15  embedding=11
+    Caroline Woodcourt              transport= 3  embedding= 6
+    Eleanor Hartley                 transport= 5  embedding= 8
+    James Blackstone                transport= 5  embedding= 6
+    _episode_structure              transport= 4  embedding= 0
+
+  more_jo:
+                                    transport=19  embedding=21
+    Caroline Woodcourt              transport= 2  embedding= 2
+    Eleanor Hartley                 transport= 5  embedding= 3
+    James Blackstone                transport= 5  embedding= 4
+    _episode_structure              transport= 3  embedding= 0
+
+  craft_v2:
+                                    transport=15  embedding=15
+    Caroline Woodcourt              transport= 2  embedding= 3
+    Eleanor Hartley                 transport= 9  embedding= 3
+    James Blackstone                transport= 4  embedding= 4
+    _episode_structure              transport= 3  embedding= 4
+
+  conservative:
+                                    transport=15  embedding=24
+    Caroline Woodcourt              transport= 3  embedding= 2
+    Edmund Leigh                    transport= 2  embedding= 2
+    Eleanor Hartley                 transport= 4  embedding= 2
+    _episode_structure              transport= 6  embedding= 0
+
+  radical_panel:
+                                    transport=15  embedding= 8
+    Caroline Woodcourt              transport= 2  embedding= 3
+    Daniel Rosen                    transport= 6  embedding= 7
+    Edmund Leigh                    transport= 6  embedding= 8
+    _episode_structure              transport= 5  embedding= 2
+
+  trevelyan_woodcourt:
+                                    transport=15  embedding=11
+    Eleanor Hartley                 transport= 3  embedding= 4
+    James Blackstone                transport= 5  embedding= 4
+    Oliver Trevelyan                transport= 2  embedding= 3
+    _episode_structure              transport= 4  embedding= 9
+
+  trevelyan_rosen:
+                                    transport=15  embedding=15
+    Caroline Woodcourt              transport= 1  embedding= 2
+    Daniel Rosen                    transport= 4  embedding= 4
+    Oliver Trevelyan                transport= 6  embedding= 3
+    _episode_structure              transport= 6  embedding= 6
+
+  all_swapped:
+                                    transport=15  embedding= 9
+    Daniel Rosen                    transport= 4  embedding= 6
+    Edmund Leigh                    transport= 5  embedding= 8
+    Oliver Trevelyan                transport= 6  embedding= 4
+    _episode_structure              transport= 3  embedding= 2
+
+
+--- 5. Kilgarriff Keywords: Transport vs Embedding ---
+
+  baseline — transport tokens=4289, embedding tokens=5230
+    Transport keywords: mrs, man, handkerchief, room, ada, deserves, tender, afar
+    Embedding keywords: wrong, strange, place, ruin, vholes, reach, always, tom
+
+  more_jo — transport tokens=4622, embedding tokens=4544
+    Transport keywords: suit, little, wos, bucket, jarndyce, dialect, ada, jarndyce's
+    Embedding keywords: builds, move, forty, skimpole, voice, dickens's, connexion, upon
+
+  craft_v2 — transport tokens=3586, embedding tokens=5363
+    Transport keywords: beautiful, kenge, everything, off, late, pace, rouncewell, novel
+    Embedding keywords: story, describing, history, object, described, vholes, legal, still
+
+  conservative — transport tokens=3718, embedding tokens=4749
+    Transport keywords: ada, afar, eighteen, only, jarndyce, power, what's, nemo
+    Embedding keywords: question, final, asks, connexion, social, passage, high, barely
+
+  radical_panel — transport tokens=4587, embedding tokens=4649
+    Transport keywords: esther, guppy, won't, scene, comic, mother, ada, years
+    Embedding keywords: lady, dedlock's, sheep, skimpole, sentence, colours, resist, names
+
+  trevelyan_woodcourt — transport tokens=4723, embedding tokens=5177
+    Transport keywords: ada, she's, structurally, bucket, mrs, thirteen, tenderness, piper
+    Embedding keywords: eyes, ends, cannot, description, thread, actual, glass, innumerable
+
+  trevelyan_rosen — transport tokens=4146, embedding tokens=4412
+    Transport keywords: eighteen, scene, don't, joke, jarndyce, krook, whether, man
+    Embedding keywords: metaphor, cart, phrase, city, cold, passage, he's, high
+
+  all_swapped — transport tokens=4554, embedding tokens=5039
+    Transport keywords: bucket, off, jarndyce, because, little, afar, kenge, never
+    Embedding keywords: chapter, heart, indictment, merely, air, dedlocks, another, view
+
+
+--- 6. Arc Coverage ---
+
+  Config                 Pipeline     Arcs
+  ---------------------- ------------ ----------------------------------------
+  baseline               transport    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+                         embedding    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+
+  more_jo                transport    Jo's suffering=8, Lady Dedlock's secret=5, Richard's deterioration=6
+                         embedding    Jo's suffering=7, Lady Dedlock's secret=5, Richard's deterioration=6
+
+  craft_v2               transport    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+                         embedding    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+
+  conservative           transport    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+                         embedding    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+
+  radical_panel          transport    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+                         embedding    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+
+  trevelyan_woodcourt    transport    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+                         embedding    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+
+  trevelyan_rosen        transport    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+                         embedding    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+
+  all_swapped            transport    Jo's suffering=4, Lady Dedlock's secret=5, Richard's deterioration=6
+                         embedding    Jo's suffering=4, Lady Dedlock's secret=6, Richard's deterioration=7
+
+
+======================================================================
+SUMMARY
+======================================================================
+
+Passage selection overlap is low (mean Jaccard = 0.047)
+The two pipelines select substantially different passages for the same configurations.
