@@ -1,8 +1,8 @@
 # Five-Way Pipeline Comparison: Methodology and Provisional Results
 
-**Date:** 2026-03-10
-**Status:** Provisional — data collection ongoing (65/100 conditions complete)
-**Basis:** 6 panels with all 5 conditions, 12 panels with 3+ conditions, 20 panels with transport
+**Date:** 2026-03-10 (updated)
+**Status:** Near-complete — 90/100 conditions done, 14 five-way panels
+**Basis:** 14 panels with all 5 conditions, all 20 panels with 3+ conditions
 
 ## 1. Research Question
 
@@ -49,16 +49,16 @@ The only experimental manipulation is what appears in the "Assigned Passages" se
 
 ### 2.4 Data Collection Status
 
-| Condition | Complete | In progress | Target |
-|-----------|----------|-------------|--------|
-| Transport | 20/20 | — | 20 |
-| Embedding | 19/20 | 1 | 20 |
-| Plain RAG | 12/20 | 8 | 20 |
-| No Passages | 7/20 | 13 | 20 |
-| Random | 7/20 | 13 | 20 |
-| **Total** | **65/100** | **35** | **100** |
+| Condition | Complete | Target |
+|-----------|----------|--------|
+| Transport | 20/20 | 20 |
+| Embedding | 20/20 | 20 |
+| Plain RAG | 20/20 | 20 |
+| No Passages | 14/20 | 20 |
+| Random | 16/20 | 20 |
+| **Total** | **90/100** | **100** |
 
-Results below are provisional, based on panels where conditions are available. Aggregate statistics use only panels where 3+ conditions are complete (n = 12 panels). Six panels now have all 5 conditions.
+All 20 panels have at least 3 conditions complete. Fourteen panels have all 5 conditions. Aggregate statistics use all available panels per condition.
 
 ## 3. Metrics
 
@@ -98,46 +98,62 @@ From prior two-way analysis (8 matched pairs):
 
 ### 4.1 Aggregate Comparison
 
-Mean values across panels with 3+ conditions complete:
+Mean values across all available panels per condition:
 
 | Metric | Transport | Embedding | Plain RAG | No Passages | Random |
 |--------|-----------|-----------|-----------|-------------|--------|
-| Panels (n) | 12 | 11 | 12 | 7 | 7 |
-| Words per episode | 9,122 | 10,421 | 9,485 | 10,161 | 8,667 |
-| Quotes per episode | 40.3 | 45.8 | 37.8 | 39.7 | 34.3 |
-| Char mentions / 1k words | 22.56 | 18.13 | 23.36 | 25.38 | 23.17 |
-| Unique characters | 14.2 | 11.5 | 16.4 | 15.9 | 18.6 |
-| Character entropy | 3.417 | 2.943 | 3.491 | 3.330 | 3.733 |
+| Panels (n) | 20 | 20 | 20 | 14 | 16 |
+| Words per episode | 9,267 | 9,958 | 9,403 | 10,549 | 8,602 |
+| Quotes per episode | 40.8 | 43.8 | 37.7 | 40.6 | 34.1 |
+| Char mentions / 1k words | 22.32 | 17.59 | 23.05 | 24.91 | 22.03 |
+| Unique characters | 14.4 | 11.6 | 16.2 | 15.9 | 18.4 |
+| Character entropy | 3.432 | 2.905 | 3.483 | 3.317 | 3.714 |
 
 ### 4.2 Pairwise Differences (relative to Transport)
 
 | vs Transport | Char Density | Entropy | Word Count | Quotes |
 |-------------|-------------|---------|------------|--------|
-| Embedding | −20% | −14% | +14% | +14% |
-| Plain RAG | +4% | +2% | +4% | −6% |
-| No Passages | +12% | −3% | +11% | −1% |
-| Random | +3% | +9% | −5% | −15% |
+| Embedding | −21% | −15% | +7% | +7% |
+| Plain RAG | +3% | +1% | +1% | −8% |
+| No Passages | +12% | −3% | +14% | 0% |
+| Random | −1% | +8% | −7% | −16% |
 
-### 4.3 Per-Panel Consistency (5-way panels, n = 6)
+### 4.3 Per-Panel Consistency (5-way panels, n = 14)
 
 | Panel | Transport | Embedding | RAG | No Passages | Random |
 |-------|-----------|-----------|-----|-------------|--------|
 | **Character density / 1k words** |
 | v01_baseline | 19.4 | 15.5 | 20.2 | 28.7 | 25.9 |
 | v10_conservative | 23.6 | 17.9 | 27.6 | 24.3 | 24.7 |
-| v12_radical_panel | 23.3 | 21.5 | 28.3 | 26.7 | 23.6 |
-| v14_trevelyan_for_woodcourt | 20.6 | 18.9 | 18.5 | 24.3 | 22.8 |
+| v11_marxist | 23.8 | 13.0 | 22.9 | 27.1 | 22.1 |
+| v12_radical_panel | 23.2 | 21.5 | 28.3 | 26.7 | 23.6 |
+| v14_trevelyan_for_woodcourt | 20.6 | 18.9 | 18.5 | 24.2 | 22.8 |
 | v15_trevelyan_for_hartley | 21.6 | 21.1 | 22.4 | 23.1 | 20.1 |
 | v16_trevelyan_for_blackstone | 24.4 | 15.9 | 22.4 | 23.6 | 23.0 |
+| v17_trevelyan_edmund | 24.8 | 16.1 | 26.5 | 25.5 | 20.8 |
+| v18_trevelyan_rosen | 25.1 | 19.2 | 23.6 | 25.1 | 19.1 |
+| v19_all_swapped | 20.7 | 17.8 | 25.3 | 21.9 | 25.2 |
+| v21_hartley_blackstone_edmund | 22.8 | 16.3 | 22.3 | 25.5 | 19.4 |
+| v22_hartley_blackstone_rosen | 20.7 | 19.2 | 20.4 | 24.7 | 24.0 |
+| v23_hartley_woodcourt_rosen | 23.6 | 13.8 | 23.7 | 28.3 | 24.1 |
+| v24_hartley_edmund_rosen | 25.0 | 18.5 | 24.1 | 20.1 | 23.1 |
 | **Character entropy** |
 | v01_baseline | 3.33 | 2.92 | 3.33 | 3.09 | 3.99 |
-| v10_conservative | 3.40 | 2.95 | 3.57 | 3.35 | 3.73 |
+| v10_conservative | 3.40 | 2.95 | 3.56 | 3.35 | 3.73 |
+| v11_marxist | 3.55 | 3.13 | 3.40 | 3.33 | 3.85 |
 | v12_radical_panel | 3.40 | 3.17 | 3.41 | 3.39 | 3.62 |
 | v14_trevelyan_for_woodcourt | 3.43 | 2.86 | 3.64 | 3.28 | 3.73 |
 | v15_trevelyan_for_hartley | 3.25 | 2.87 | 3.44 | 3.42 | 3.68 |
-| v16_trevelyan_for_blackstone | 3.41 | 2.87 | 3.45 | 3.45 | 3.54 |
+| v16_trevelyan_for_blackstone | 3.41 | 2.87 | 3.45 | 3.44 | 3.54 |
+| v17_trevelyan_edmund | 3.48 | 2.98 | 3.63 | 3.23 | 3.87 |
+| v18_trevelyan_rosen | 3.53 | 2.96 | 3.55 | 3.53 | 3.97 |
+| v19_all_swapped | 3.32 | 2.97 | 3.47 | 3.51 | 3.56 |
+| v21_hartley_blackstone_edmund | 3.53 | 3.02 | 3.49 | 3.17 | 3.66 |
+| v22_hartley_blackstone_rosen | 3.39 | 2.80 | 3.53 | 3.28 | 3.67 |
+| v23_hartley_woodcourt_rosen | 3.27 | 3.08 | 3.25 | 3.35 | 3.76 |
+| v24_hartley_edmund_rosen | 3.33 | 2.89 | 3.57 | 3.04 | 3.79 |
 
-Embedding's low character density and entropy are consistent across all 6 panels — it is the lowest or near-lowest on both metrics in every case. No-passages' high character density is consistent across all 6 panels (always above transport). Random's high entropy is consistent across all 6 panels (always above transport). These patterns are robust across panel compositions.
+Across all 14 five-way panels, embedding has the lowest character density in 13/14 cases and the lowest entropy in 14/14 cases. No-passages has higher character density than transport in 13/14 cases. Random has higher entropy than transport in 14/14 cases. These patterns are robust across all panel compositions.
 
 ### 4.4 Character Focus by Pipeline
 
@@ -245,13 +261,13 @@ From the 4-tier material similarity analysis:
 
 The five conditions were designed to test whether each step up the ladder — from no passages to random to RAG to enriched selection to optimisation — improves script quality. The provisional data challenges this linear expectation.
 
-**No-passages is surprisingly strong.** At 25.38 character mentions per 1k words, no-passages produces the *highest* character density of any condition. The LLM draws heavily on its training knowledge of Bleak House, name-dropping characters more frequently than when anchored to specific passages. However, its entropy (3.330) is lower than RAG (3.491) or random (3.733), indicating concentration on the most canonical characters.
+**No-passages is surprisingly strong on surface metrics but unreliable on quotation.** At 24.91 character mentions per 1k words, no-passages produces the *highest* character density of any condition. The LLM draws heavily on its training knowledge of Bleak House, name-dropping characters more frequently than when anchored to specific passages. However, its entropy (3.317) is lower than RAG (3.483) or random (3.714), indicating concentration on the most canonical characters. And critically, its adjusted quote verification rate (51.9%) is dramatically lower than all passage-grounded conditions (91–96%) — see Section 6.
 
-**Random is surprisingly good on diversity.** Random passages produce the highest character entropy (3.733) and most unique characters per episode (18.6). Random sampling naturally covers more of the novel than any intentional selection method, surfacing characters like Smallweed, George, Caddy, and Guppy that arc-constrained transport passes over.
+**Random is surprisingly good on diversity.** Random passages produce the highest character entropy (3.714) and most unique characters per episode (18.4). Random sampling naturally covers more of the novel than any intentional selection method, surfacing characters like Smallweed, George, Caddy, and Guppy that arc-constrained transport passes over.
 
-**Plain RAG closely matches transport.** Character density (23.36 vs 22.56), entropy (3.491 vs 3.417), and word count (9,485 vs 9,122) are all within 4% of transport. Simple text-similarity retrieval produces scripts statistically indistinguishable from optimised selection on these aggregate metrics.
+**Plain RAG closely matches transport.** Character density (23.05 vs 22.32), entropy (3.483 vs 3.432), and word count (9,403 vs 9,267) are all within 3% of transport. Simple text-similarity retrieval produces scripts statistically indistinguishable from optimised selection on these aggregate metrics.
 
-**Embedding is the unexpected outlier.** Rather than sitting between RAG and transport on the sophistication ladder, embedding produces distinctly different scripts: lowest character density (18.13), lowest entropy (2.943), fewest unique characters (11.5), but highest word count (10,421) and most quotes (45.8). The LLM curation step appears to concentrate selections on high-drama, high-interest passages (Jo's story, the Dedlock mystery, Richard's decline), producing verbose scripts about fewer characters rather than broader coverage.
+**Embedding is the unexpected outlier.** Rather than sitting between RAG and transport on the sophistication ladder, embedding produces distinctly different scripts: lowest character density (17.59), lowest entropy (2.905), fewest unique characters (11.6), but highest word count (9,958) and most quotes (43.8). The LLM curation step appears to concentrate selections on high-drama, high-interest passages (Jo's story, the Dedlock mystery, Richard's decline), producing verbose scripts about fewer characters rather than broader coverage.
 
 ### 5.2 Character Arc Constraints: Structured Focus vs Natural Breadth
 
@@ -289,13 +305,134 @@ If these provisional results hold with complete data:
 
 2. **The case for *any* selection is still strong.** Random passages disrupt expert identity and produce less coherent character coverage. Simple relevance matching (plain RAG) preserves expert voice while providing grounding text. The minimum viable pipeline may be: embed expert profiles, retrieve by cosine similarity, generate.
 
-3. **The no-passages baseline reveals the LLM's contribution.** The LLM produces character-dense, quotation-rich scripts from memory alone. Passages provide accuracy and specificity (pending quote validity audit) but may not be the primary driver of apparent quality.
+3. **The no-passages baseline reveals the LLM's contribution — and its limits.** The LLM produces character-dense, quotation-rich scripts from memory alone. But the quote audit (Section 6) shows that nearly half of no-passages "quotes" are fabricated, compared to only 4–9% in passage-grounded conditions. Passages provide accuracy and verifiable textual grounding, which turns out to be their primary value — not surface-level metrics like character density.
 
 4. **Arc constraints provide structural value, not breadth.** Their contribution is narrative coherence — ensuring the right characters appear at the right structural moments — rather than maximising character diversity.
 
-## 6. Listener Value: What Are We Actually Measuring?
+## 6. Quote Verification and Confabulation Analysis
 
-### 6.1 The Gap Between Metrics and Listener Experience
+### 6.1 Methodology
+
+Every podcast script contains text presented as direct quotation from *Bleak House*. We audited all such quotes across 102 runs (all five conditions) using a two-phase pipeline (`scripts/quote_audit.py`):
+
+**Phase 1: Quote extraction and intent classification.** Quotes are detected by two methods: (a) structured output tags (`is_quote`, `quote_reading`, `quote_mode="reading"`) and (b) regex extraction of text within quotation marks (minimum 15 characters). For inline quotes, a tiered classifier determines whether the quoted text represents a genuine quotation attempt or analytical/rhetorical use:
+
+- *High-precision features*: repetition patterns ("X... X... X...", 86% precision), topic-as-subject ("'Move on' is cruel", ~90%), emphasis fragments (short + dash, ~80%)
+- *Robust heuristic features*: speech verbs ("Dickens writes"), colons/em-dashes before quotes, intro nouns ("that passage")
+- *spaCy dependency parse*: speech/writing verbs within 80 characters of the quote, intro nouns nearby
+- Categories: "quotation", "topic", "emphasis", "repetition", "uncertain"
+
+**Phase 2: Fuzzy verification against the source text.** A 4-gram inverted index over normalised *Bleak House* text (329,574 unique 4-grams, 1.86M characters across 68 chapters) enables fast candidate region lookup. For each quote, the system tries exact substring match, then n-gram indexed fuzzy matching using `SequenceMatcher` with anchored windowing (threshold: 0.75). Quotes are tested as full text, then cleaned of meta-commentary, then as extracted sub-quotes.
+
+### 6.2 Raw Verification Results
+
+| Pipeline | Runs | Total Quotes | Tagged | Inline | Verified | Rate |
+|----------|------|-------------|--------|--------|----------|------|
+| Transport | 30 | 1,453 | 1,195 | 258 | 1,268 | 87.3% |
+| Embedding | 22 | 1,230 | 930 | 300 | 1,097 | 89.2% |
+| RAG | 20 | 898 | 744 | 154 | 722 | 80.4% |
+| No Passages | 14 | 556 | 536 | 20 | 206 | 37.1% |
+| Random | 16 | 628 | 491 | 137 | 517 | 82.3% |
+
+### 6.3 Three-Way Classification of Unverified Quotes
+
+Not all unverified quotes are confabulations. We classify each unverified quote into three categories:
+
+1. **Verifier false negatives** (match ratio ≥ 0.60): The quote is probably real but the fuzzy matcher couldn't reach the 0.75 threshold. These are near-misses — slight word substitutions, truncations, or normalisation artifacts.
+2. **Detector false positives** (short inline fragments < 50 chars, or metacommentary detected by regex): The classifier flagged analytical or rhetorical text as a quotation attempt. These were never intended as verbatim quotes.
+3. **True confabulations**: Sentence-length text tagged or classified as quotation with a low match ratio. The LLM fabricated text it presented as Dickens's words.
+
+| Category | Count | Share |
+|----------|-------|-------|
+| Verifier false negatives | 345 | 36% |
+| Detector false positives | 106 | 11% |
+| True confabulations | 504 | 53% |
+| **Total unverified** | **955** | |
+
+### 6.4 Adjusted Verification Rates
+
+Counting verifier false negatives as verified and excluding detector false positives from the denominator:
+
+| Pipeline | Total | Verified | Vrfr FN | Det FP | Confab | Raw Rate | Adjusted Rate |
+|----------|-------|----------|---------|--------|--------|----------|---------------|
+| Transport | 1,453 | 1,268 | 99 | 23 | 63 | 87.3% | **95.6%** |
+| Embedding | 1,230 | 1,097 | 46 | 34 | 53 | 89.2% | **95.6%** |
+| RAG | 898 | 722 | 71 | 27 | 78 | 80.4% | **91.0%** |
+| Random | 628 | 517 | 49 | 17 | 45 | 82.3% | **92.6%** |
+| No Passages | 556 | 206 | 80 | 5 | 265 | 37.1% | **51.9%** |
+
+Transport and embedding achieve near-identical adjusted rates (95.6%). RAG and random are close behind (91–93%). No-passages stands apart: even after generous adjustment, roughly half its "quotes" are fabricated.
+
+### 6.5 Confabulation Deep-Dive
+
+For each of the 504 true confabulations, we searched for the 5 closest matching passages in the source text using a broader search than the initial verification (more n-gram candidates, brute-force fallback for zero-hit quotes). Each confabulation was then classified by type based on its best-match ratio.
+
+#### 6.5.1 Confabulation Types
+
+| Type | Count | Share | Description |
+|------|-------|-------|-------------|
+| **Blend** | 349 | 69% | Modified, truncated, or combined real Dickens text. Best-match ratio typically 0.45–0.70. The LLM *knows* the passage but reproduces it imprecisely. |
+| **Paraphrase** | 133 | 26% | Captures the gist of a real passage but substitutes most words. Ratio 0.30–0.45. The LLM remembers the *idea* but not the *text*. |
+| **Invention** | 22 | 4% | No close source passage. Ratio < 0.30. The LLM generates plausible-sounding Dickens with no identifiable original. |
+
+The dominance of blends (69%) is the central finding. The LLM rarely invents from nothing — even its confabulations are *recognisably close* to real text. This has implications for how we interpret "quotation accuracy": the model is doing something more like imperfect recall than wholesale fabrication.
+
+#### 6.5.2 Confabulation Types by Pipeline
+
+| Pipeline | Total | Blend | Paraphrase | Invention |
+|----------|-------|-------|------------|-----------|
+| Transport | 63 | 47 (75%) | 11 (17%) | 5 (8%) |
+| Embedding | 53 | 38 (72%) | 6 (11%) | 9 (17%) |
+| RAG | 78 | 55 (71%) | 21 (27%) | 2 (3%) |
+| No Passages | 265 | 172 (65%) | 88 (33%) | 5 (2%) |
+| Random | 45 | 37 (82%) | 7 (16%) | 1 (2%) |
+
+No-passages has the highest paraphrase share (33%) — without source text to anchor quotation, the LLM falls back to remembered content and paraphrases more freely. Random has the highest blend share (82%) — when given *some* text (even irrelevant), the LLM's blending tendency dominates. Embedding has the highest invention rate (17%), possibly because its curated high-interest passages encourage quotation from dramatic scenes the LLM has memorised imprecisely.
+
+#### 6.5.3 Confabulations by Expert
+
+| Expert | Transport | Embedding | RAG | No Passages | Random | Total |
+|--------|-----------|-----------|-----|-------------|--------|-------|
+| Caroline Woodcourt | 16 | 8 | 7 | 69 | 3 | 103 |
+| Eleanor Hartley | 17 | 5 | 16 | 48 | 9 | 95 |
+| Oliver Trevelyan | 7 | 10 | 8 | 54 | 9 | 88 |
+| Edmund Leigh | 11 | 7 | 15 | 39 | 7 | 79 |
+| Daniel Rosen | 3 | 13 | 19 | 33 | 9 | 77 |
+| James Blackstone | 8 | 10 | 13 | 22 | 8 | 61 |
+
+Caroline Woodcourt (performance scholar) confabulates most, particularly in no-passages (69 confabulations, 26% of all no-passages confabulations). Her persona prompt emphasises dramatic readings and close textual engagement — without source text, she "performs" fabricated quotes. Blackstone (legal historian) confabulates least, consistent with his more analytical, less quotation-dependent persona.
+
+#### 6.5.4 Blend Examples and Analysis
+
+The highest-ratio blends illustrate how close the LLM comes to the real text:
+
+**Ratio 0.89** (RAG, Caroline Woodcourt): *"I have been accustomed to study the leaders of my high connexion, sir, and I may tell you without vanity that I can turn them round my finger"* — a near-verbatim quote from Chapter 2 (Mr. Turveydrop) that failed verification only because the surrounding context pushed the fuzzy match below threshold in the original audit's narrower search window.
+
+**Ratio 0.88** (RAG, Oliver Trevelyan): *"In manner, close and dry. In voice, husky and low. In face, watchful behind a blind"* — Tulkinghorn's description from Chapter 27. The LLM truncates after "a blind", dropping "habitually not uncensorious and contemptuous perhaps." This truncation drops the match ratio.
+
+**Ratio 0.84** (Random, Daniel Rosen): *"I will not begin it in the old way now. I have learned a lesson now, sir"* — Richard's speech from Chapter 65. The LLM omits the attribution "said Richard with a sad smile" and continues with a slightly different ending.
+
+These blends share a pattern: the LLM reproduces the most *memorable* portion of a passage accurately, then truncates, substitutes, or continues from memory where its recall becomes uncertain. This is analogous to how a human might quote from memory — getting the iconic phrase right but drifting on the surrounding words.
+
+#### 6.5.5 The Deeper Search Effect
+
+The confabulation deep-dive's broader search (40 candidate regions vs 20, brute-force fallback) recovered 28 quotes at ratio ≥ 0.75 that the original audit missed. This suggests the true confabulation count is somewhat lower than 504 — likely closer to 470–480. The 28 recovered quotes were concentrated in RAG (12) and random (6), where truncated but substantially correct quotes occasionally fell below the narrower search window of the original audit.
+
+### 6.6 Quote Audit: Key Findings
+
+1. **Passage-grounded conditions achieve 91–96% adjusted verification rates.** Transport, embedding, RAG, and random all produce scripts where the vast majority of attempted quotations correspond to real Dickens text.
+
+2. **No-passages confabulates at scale.** 265 of 504 confabulations (53%) come from the no-passages condition, which has only 14 of 90 completed panel-conditions (16%). The model's prior knowledge of *Bleak House* is strong enough to discuss characters, themes, and plot accurately, but when it attempts verbatim quotation from memory, it fails roughly half the time.
+
+3. **Most confabulations are blends, not inventions.** 69% of confabulations are recognisably close to real text (ratio 0.45–0.70). The LLM rarely invents from nothing — it blends, truncates, and paraphrases real passages. Only 4% of confabulations have no identifiable source in the text.
+
+4. **Expert persona influences confabulation rate.** Performance-oriented experts (Woodcourt, Trevelyan) who emphasise dramatic reading confabulate more than analytical experts (Blackstone, Rosen). This confirms that confabulation is not purely a function of passage availability — persona prompt design affects quotation behaviour.
+
+5. **Random passages reduce confabulation more than expected.** Random's adjusted rate (92.6%) is close to transport (95.6%), suggesting that *any* source text — even irrelevant — gives the LLM enough grounding to quote more accurately from its training memory. The passages may serve as retrieval cues.
+
+## 7. Listener Value: What Are We Actually Measuring?
+
+### 7.1 The Gap Between Metrics and Listener Experience
 
 Our current metrics — character mention density, character entropy, unique character count, quote count, word count, vocabulary cosine — are *measurable* properties of the generated text. But a podcast listener cares about none of these directly. A listener cares about whether the episode is:
 
@@ -307,19 +444,19 @@ Our current metrics — character mention density, character entropy, unique cha
 
 Our metrics are at best *proxies* for these qualities, and at worst orthogonal to them.
 
-### 6.2 What Each Metric Actually Probes
+### 7.2 What Each Metric Actually Probes
 
-**Character mention density** (our primary metric) correlates weakly with engagement. A script that mentions 15 characters per 1,000 words could be a rich tapestry of interwoven character analysis — or it could be a breathless catalogue that name-drops without depth. The metric cannot distinguish "Esther's relationship with Jarndyce evolves through three phases" (deep, 2 mentions) from "Esther, Jarndyce, Ada, Richard, Jo, and Lady Dedlock all appear in Chapter 3" (shallow, 6 mentions). No-passages' high character density (25.38/1k) may partly reflect this shallower mode: the LLM, lacking specific textual anchoring, reverts to surveying characters rather than analysing them.
+**Character mention density** (our primary metric) correlates weakly with engagement. A script that mentions 15 characters per 1,000 words could be a rich tapestry of interwoven character analysis — or it could be a breathless catalogue that name-drops without depth. The metric cannot distinguish "Esther's relationship with Jarndyce evolves through three phases" (deep, 2 mentions) from "Esther, Jarndyce, Ada, Richard, Jo, and Lady Dedlock all appear in Chapter 3" (shallow, 6 mentions). No-passages' high character density (24.91/1k) may partly reflect this shallower mode: the LLM, lacking specific textual anchoring, reverts to surveying characters rather than analysing them.
 
-**Character entropy** probes breadth of coverage but not depth. Random's high entropy (3.733) reflects that random passages scatter attention across many characters — but a listener might prefer focused depth on 5 characters to superficial mention of 18. Entropy penalises the kind of narrative focus that makes good storytelling.
+**Character entropy** probes breadth of coverage but not depth. Random's high entropy (3.714) reflects that random passages scatter attention across many characters — but a listener might prefer focused depth on 5 characters to superficial mention of 18. Entropy penalises the kind of narrative focus that makes good storytelling.
 
-**Quote count** is a weak proxy for textual engagement. More quotes might mean richer textual grounding — or might mean the LLM is padding with block quotations rather than analysing. The embedding pipeline's high quote count (45.8) may reflect either genuine textual richness or a tendency to reproduce passage content rather than discuss it.
+**Quote count** is a weak proxy for textual engagement, and now we know it is also misleading for the no-passages condition. No-passages generates 40.6 quotes per episode — comparable to transport (40.8) — but the quote audit (Section 6) shows that only ~52% of those quotes are real. Raw quote count without verification overstates no-passages' textual engagement. For passage-grounded conditions, quote count is more trustworthy (91–96% verified), but still doesn't distinguish between well-chosen and generic quotations. Embedding's high quote count (43.8) reflects genuine textual richness — its 95.6% verification rate means most of those quotes are real.
 
 **Vocabulary cosine** (cross-condition expert stability) probes expert identity persistence, which maps to *authenticity*. If Blackstone sounds like Blackstone regardless of input, the persona prompt is working. This metric has the strongest connection to listener value — listeners would notice if an expert's voice changed episode to episode.
 
-**Word count** is almost meaningless for quality. Longer is not better; shorter is not better. It matters only insofar as it reveals that some conditions (embedding: +14%, no-passages: +11%) produce wordier scripts, which might indicate either richer analysis or padding.
+**Word count** is almost meaningless for quality. Longer is not better; shorter is not better. It matters only insofar as it reveals that some conditions (embedding: +7%, no-passages: +14%) produce wordier scripts, which might indicate either richer analysis or padding.
 
-### 6.3 What We Cannot Measure But Should
+### 7.3 What We Cannot Measure But Should
 
 **Analytical depth.** The most valuable content in a literary podcast is a specific, non-obvious insight about the text — e.g., "Dickens uses Esther's housekeeping vocabulary to mirror the Court of Chancery's administrative failures." No automated metric captures this. A script could have low character density and high analytical depth, or high character density and no depth at all.
 
@@ -329,9 +466,9 @@ Our metrics are at best *proxies* for these qualities, and at worst orthogonal t
 
 **Conversational dynamics.** A three-expert podcast should have genuine exchange: experts building on, challenging, or reframing each other's observations. Our metrics treat each expert independently. We don't measure whether Expert A's insight provokes a response from Expert B, or whether the experts are simply taking turns delivering monologues.
 
-**Factual accuracy.** No-passages scripts may be rich in character mentions and quotation but wrong in their attributions. Our planned quote validity audit (Section 7.2, item 1) addresses this partially, but factual accuracy extends beyond quotes to include plot descriptions, character attributions, and chapter references.
+**Factual accuracy.** The quote audit (Section 6) confirms that no-passages scripts fabricate nearly half their attempted quotations, while passage-grounded conditions achieve 91–96% accuracy. But factual accuracy extends beyond quotes to include plot descriptions, character attributions, and chapter references — aspects not yet audited.
 
-### 6.4 Implications for Interpreting Results
+### 7.4 Implications for Interpreting Results
 
 Given these gaps, our headline findings should be read with caution:
 
@@ -343,7 +480,7 @@ Given these gaps, our headline findings should be read with caution:
 
 **"Embedding is the outlier"** is robust and listener-relevant: embedding's concentration on fewer characters with more words may actually produce more *focused, analytically deep* episodes. If so, embedding's apparent underperformance on diversity metrics might correspond to superior listener experience.
 
-### 6.5 Toward Better Approximations
+### 7.5 Toward Better Approximations
 
 Several approaches could close the gap between automated metrics and listener value:
 
@@ -359,37 +496,39 @@ Several approaches could close the gap between automated metrics and listener va
 
 6. **Audio quality proxy.** Since these scripts are rendered to audio via Gemini TTS, metrics on the audio output itself — pacing, prosodic variety, natural pause distribution — could capture aspects of listener experience that text metrics miss.
 
-### 6.6 Recommendation
+### 7.6 Recommendation
 
 The current automated metrics are useful for *screening* — they reliably identify that embedding is different from the other four conditions, that random disrupts expert identity, and that no-passages produces recognisably character-dense output. But they should not be used to *rank* conditions by quality. For that, we need either LLM-as-judge evaluation on the full dataset or targeted human evaluation on a stratified sample.
 
-The most informative next analysis would be pairwise preference ranking across the six five-way panels, asking: "Given scripts from conditions A and B for the same panel, which produces the better episode?" This directly measures what we care about without requiring us to specify which automated proxies map to listener value.
+The most informative next analysis would be pairwise preference ranking across the fourteen five-way panels, asking: "Given scripts from conditions A and B for the same panel, which produces the better episode?" This directly measures what we care about without requiring us to specify which automated proxies map to listener value.
 
-## 7. Limitations and Next Steps
+## 8. Limitations and Next Steps
 
-### 7.1 Current Limitations
+### 8.1 Current Limitations
 
-- **Sample size.** Six panels have all 5 conditions. Results for no-passages (n=7) and random (n=7) are stabilising but may still shift as data collection completes to 20 panels each.
+- **Sample size.** Fourteen panels have all 5 conditions; no-passages (n=14) and random (n=16) still need 6 and 4 more runs to reach 20.
 - **No human evaluation.** All metrics are automated. Character density and vocabulary signatures are proxies for script quality, not direct measures.
-- **Quote validity not yet tested.** No-passages scripts may contain confabulated quotes. A cross-reference against the Bleak House corpus is needed before claiming that no-passages quality matches passage-based conditions.
+- **Confabulation classification is heuristic.** The three-way split (verifier false negative / detector false positive / true confabulation) uses ratio thresholds and text-length heuristics. Edge cases exist, particularly for blends with ratios near 0.60.
 - **No coherence metric.** Character entropy measures breadth of coverage but not whether the character mentions form a coherent narrative. Random's high entropy may reflect topic drift rather than rich characterisation.
 - **Embedding pipeline has known curation bias.** The LLM curation step may be suboptimally tuned; a different curation prompt might produce different results.
 
-### 7.2 Planned Additional Analyses
+### 8.2 Planned Additional Analyses
 
-1. **Quote validity audit** — Cross-reference all "quotes" in no-passages scripts against the full Bleak House text to measure confabulation rate.
+1. ~~**Quote validity audit**~~ — **Complete.** See Section 6. Adjusted verification rates: transport/embedding 95.6%, RAG 91.0%, random 92.6%, no-passages 51.9%. Confabulation deep-dive found 69% blends, 26% paraphrases, 4% inventions.
 2. **Passage-script attribution** — For each condition with passages, measure what fraction of script content is traceable to assigned passages vs generated from prior knowledge.
 3. **Coherence scoring** — Develop a metric for narrative coherence that distinguishes intentional character diversity from topic drift.
 4. **Stripped metadata condition** — Use transport's passage selections but strip enrichment metadata from Phase 3 input, isolating metadata's contribution to script generation (as distinct from selection).
 5. **Complete dataset** — Finish all 100 conditions and re-run analysis with full statistical power.
 6. **LLM-as-judge evaluation** — Pairwise preference ranking across five-way panels using Opus or equivalent, rating analytical depth, conversational dynamics, and overall listener value (see Section 6.5).
 
-### 7.3 Provisional Conclusions
+### 8.3 Provisional Conclusions
 
-Three findings appear robust even at this early stage:
+Five findings appear robust with 90/100 conditions complete:
 
 1. **Expert persona is the strongest single force** shaping script content, more influential than any passage selection method.
-2. **The embedding pipeline's LLM curation step narrows rather than broadens** character coverage, producing an unexpected outlier pattern.
+2. **The embedding pipeline's LLM curation step narrows rather than broadens** character coverage, producing an unexpected outlier pattern (lowest density in 13/14 panels, lowest entropy in 14/14).
 3. **Random passages disrupt expert identity more than having no passages**, suggesting that passage relevance matters not just for content accuracy but for preserving the intended expert voice.
+4. **Passage grounding is essential for quotation accuracy.** All four passage-based conditions achieve 91–96% adjusted quote verification; no-passages manages only 52%. The LLM's prior knowledge of *Bleak House* is sufficient for character discussion but insufficient for accurate verbatim quotation.
+5. **Most confabulations are blends, not inventions.** When the LLM fabricates a quote, 69% of the time it produces a recognisable modification of real text — truncating, substituting words, or combining passages. Only 4% of confabulations have no identifiable source. This suggests the model's problem is imprecise *recall*, not lack of *knowledge*.
 
-These findings, if confirmed with complete data, suggest that the optimal pipeline design prioritises expert persona engineering and simple relevance-based retrieval over sophisticated passage optimisation.
+These findings suggest that the optimal pipeline design prioritises: (a) expert persona engineering for script identity, (b) simple relevance-based retrieval for textual grounding, and (c) passage availability as a quotation accuracy safeguard — rather than sophisticated passage optimisation.
