@@ -1,0 +1,724 @@
+================================================================================
+FIVE-WAY PIPELINE COMPARISON: PRELIMINARY ANALYSIS
+================================================================================
+
+COVERAGE SUMMARY
+----------------------------------------
+  v01_baseline: embedding, no_passages, rag, random, transport (5 conditions)
+  v02_more_jo: embedding, transport (2 conditions)
+  v03_strict: transport (1 conditions)
+  v04_craft_focus: transport (1 conditions)
+  v05_craft_v2: embedding, transport (2 conditions)
+  v06_quality: transport (1 conditions)
+  v07_skip_dedlock: transport (1 conditions)
+  v08_tight_budget: transport (1 conditions)
+  v09_diverse: transport (1 conditions)
+  v10_conservative: embedding, no_passages, rag, random, transport (5 conditions)
+  v11_marxist: embedding, no_passages, rag, random, transport (5 conditions)
+  v12_radical_panel: embedding, no_passages, rag, random, transport (5 conditions)
+  v13_rosen_jo: transport (1 conditions)
+  v14_trevelyan_for_woodcourt: embedding, no_passages, rag, random, transport (5 conditions)
+  v15_trevelyan_for_hartley: embedding, no_passages, rag, random, transport (5 conditions)
+  v16_trevelyan_for_blackstone: embedding, no_passages, rag, random, transport (5 conditions)
+  v17_trevelyan_edmund: embedding, no_passages, rag, random, transport (5 conditions)
+  v18_trevelyan_rosen: embedding, no_passages, rag, random, transport (5 conditions)
+  v19_all_swapped: embedding, no_passages, rag, random, transport (5 conditions)
+  v20_trevelyan_jo: transport (1 conditions)
+  v21_hartley_blackstone_edmund: embedding, no_passages, rag, random, transport (5 conditions)
+  v22_hartley_blackstone_rosen: embedding, no_passages, rag, random, transport (5 conditions)
+  v23_hartley_woodcourt_rosen: embedding, no_passages, rag, random, transport (5 conditions)
+  v24_hartley_edmund_rosen: embedding, no_passages, rag, random, transport (5 conditions)
+  v25_hartley_rosen_trevelyan: embedding, rag, random, transport (4 conditions)
+  v26_blackstone_woodcourt_edmund: embedding, rag, random, transport (4 conditions)
+  v27_blackstone_edmund_rosen: embedding, rag, transport (3 conditions)
+  v28_blackstone_edmund_trevelyan: embedding, rag, transport (3 conditions)
+  v29_blackstone_rosen_trevelyan: embedding, rag, transport (3 conditions)
+  v30_woodcourt_edmund_trevelyan: embedding, rag, transport (3 conditions)
+
+AGGREGATE PIPELINE COMPARISON (panels with 3+ conditions)
+----------------------------------------------------------------------
+Pipeline        Panels  Avg Words  Avg Quotes  CharDens/1k  Uniq Chars  Entropy
+----------------------------------------------------------------------
+transport           20       9267        40.8        22.32        14.4    3.432
+embedding           20       9958        43.8        17.59        11.6    2.905
+rag                 20       9403        37.7        23.05        16.2    3.483
+no_passages         14      10549        40.6        24.91        15.9    3.317
+random              16       8602        34.1        22.03        18.4    3.714
+
+TOP CHARACTER MENTIONS BY PIPELINE (total across all matched panels)
+----------------------------------------------------------------------
+  transport: Richard(667), Esther(582), Jarndyce(524), Jo(504), Tulkinghorn(357), Dedlock(301), Lady Dedlock(266), Ada(186), Woodcourt(162), Sir Leicester(124), Bucket(112), Nemo(89), Guppy(81), Skimpole(69), Krook(45)
+  embedding: Jo(753), Richard(727), Dedlock(462), Lady Dedlock(420), Esther(407), Jarndyce(240), Tulkinghorn(196), Woodcourt(131), Sir Leicester(40), Skimpole(37), Jellyby(31), Snagsby(13), Bucket(13), Ada(8), Krook(5)
+  rag: Esther(640), Richard(628), Jarndyce(529), Dedlock(424), Lady Dedlock(348), Sir Leicester(299), Skimpole(298), Tulkinghorn(276), Woodcourt(207), Jo(179), Krook(154), Bucket(109), Ada(61), Caddy(46), Charley(43)
+  no_passages: Esther(652), Jo(594), Richard(555), Jarndyce(413), Dedlock(383), Lady Dedlock(343), Tulkinghorn(138), Woodcourt(90), Skimpole(89), Bucket(87), Ada(74), Krook(58), Nemo(56), Jellyby(45), Sir Leicester(45)
+  random: Esther(558), Richard(371), Jarndyce(219), Dedlock(195), George(174), Jo(167), Lady Dedlock(155), Bucket(142), Woodcourt(133), Smallweed(114), Guppy(113), Tulkinghorn(112), Sir Leicester(107), Skimpole(101), Ada(91)
+
+PANEL-BY-PANEL COMPARISON (5-way panels)
+======================================================================
+
+  Panel: v01_baseline
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          8730      43     19.36      14    3.326
+  embedding         10656      44     15.48      10    2.916
+  rag                9222      31     20.17      16    3.327
+  no_passages       10133      40     28.72      14    3.090
+  random             9744      34     25.86      21    3.985
+
+  Panel: v10_conservative
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          7666      34     23.61      12    3.396
+  embedding          9900      44     17.88      12    2.953
+  rag               10891      34     27.55      18    3.565
+  no_passages       10375      36     24.29      15    3.352
+  random             8596      40     24.66      20    3.731
+
+  Panel: v11_marxist
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          8865      44     23.80      15    3.551
+  embedding          9849      45     13.00      12    3.127
+  rag                8599      40     22.91      15    3.402
+  no_passages       10087      41     27.06      17    3.330
+  random             9451      34     22.11      20    3.850
+
+  Panel: v12_radical_panel
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          9507      34     23.25      15    3.398
+  embedding          9760      41     21.52      14    3.168
+  rag               10225      39     28.26      16    3.412
+  no_passages       11266      50     26.72      16    3.391
+  random             9015      34     23.63      17    3.615
+
+  Panel: v14_trevelyan_for_woodcourt
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          9755      46     20.60      14    3.427
+  embedding         10561      45     18.94      10    2.863
+  rag               10228      40     18.48      15    3.637
+  no_passages       12122      46     24.25      16    3.282
+  random             9633      35     22.84      18    3.729
+
+  Panel: v15_trevelyan_for_hartley
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          9069      46     21.61      13    3.248
+  embedding          9896      51     21.12      12    2.869
+  rag                9900      45     22.42      15    3.438
+  no_passages        7980      27     23.06      16    3.418
+  random             7012      33     20.11      16    3.684
+
+  Panel: v16_trevelyan_for_blackstone
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          7980      40     24.44      14    3.413
+  embedding         12408      48     15.88      11    2.866
+  rag                8676      43     22.36      17    3.448
+  no_passages        9165      38     23.57      17    3.445
+  random             7219      30     22.99      18    3.539
+
+  Panel: v17_trevelyan_edmund
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          9233      39     24.80      16    3.476
+  embedding         10188      45     16.10      11    2.981
+  rag                9281      37     26.51      19    3.626
+  no_passages       12008      38     25.48      15    3.235
+  random             8711      44     20.78      18    3.867
+
+  Panel: v18_trevelyan_rosen
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          8567      41     25.10      14    3.529
+  embedding          9223      45     19.19      13    2.960
+  rag                8582      34     23.65      17    3.548
+  no_passages       11849      55     25.15      19    3.528
+  random             7964      26     19.09      20    3.974
+
+  Panel: v19_all_swapped
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          9472      45     20.69      13    3.322
+  embedding         10715      53     17.83      13    2.973
+  rag                9659      36     25.26      15    3.472
+  no_passages       10259      39     21.93      17    3.512
+  random             6630      29     25.19      17    3.565
+
+  Panel: v21_hartley_blackstone_edmund
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport         11209      39     22.75      16    3.532
+  embedding         11495      50     16.27      11    3.019
+  rag                7932      33     22.31      17    3.491
+  no_passages       10528      45     25.46      14    3.175
+  random             9695      34     19.39      17    3.656
+
+  Panel: v22_hartley_blackstone_rosen
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          9407      33     20.73      14    3.388
+  embedding          9826      38     19.23      10    2.804
+  rag               10623      41     20.43      17    3.528
+  no_passages       11468      37     24.68      16    3.280
+  random             8256      33     23.98      19    3.674
+
+  Panel: v23_hartley_woodcourt_rosen
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          7158      32     23.61      13    3.272
+  embedding         11336      51     13.76      13    3.077
+  rag                8192      34     23.68      16    3.249
+  no_passages        9904      40     28.27      18    3.350
+  random             8144      34     24.07      19    3.764
+
+  Panel: v24_hartley_edmund_rosen
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          9410      33     24.97      13    3.328
+  embedding          9663      38     18.52      12    2.894
+  rag                9969      40     24.07      19    3.568
+  no_passages       10538      37     20.12      13    3.045
+  random            10540      35     23.15      20    3.791
+
+PANEL-BY-PANEL COMPARISON (3+ conditions)
+======================================================================
+
+  Panel: v25_hartley_rosen_trevelyan
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport         10640      40     21.62      18    3.668
+  embedding         10101      40     17.03      12    2.918
+  rag                9392      41     20.34      21    3.769
+  random             8536      34     16.17      19    3.302
+
+  Panel: v26_blackstone_woodcourt_edmund
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          9149      46     20.11      13    3.362
+  embedding          9366      35     20.50      11    3.018
+  rag                8366      29     23.43      13    3.347
+  random             8486      36     18.38      16    3.698
+
+  Panel: v27_blackstone_edmund_rosen
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport         10175      44     21.33      16    3.490
+  embedding         11475      44     17.60      12    2.941
+  rag               10136      38     20.82      14    3.379
+
+  Panel: v28_blackstone_edmund_trevelyan
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport         10484      44     19.55      16    3.633
+  embedding          3341      22     16.76       8    1.868
+  rag               10898      45     22.02      15    3.538
+
+  Panel: v29_blackstone_rosen_trevelyan
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          9530      43     21.83      15    3.356
+  embedding         10072      42     16.28      12    3.055
+  rag                8230      38     18.71      14    3.357
+
+  Panel: v30_woodcourt_edmund_trevelyan
+  Pipeline          Words  Quotes  CharDens  UniqCh  Entropy
+  -------------------------------------------------------
+  transport          9340      49     22.59      15    3.532
+  embedding          9327      55     18.98      12    2.830
+  rag                9054      36     27.61      16    3.564
+
+PER-EXPERT CHARACTER MENTIONS (5-way panels)
+======================================================================
+
+  Panel: v01_baseline
+    [transport]
+      Caroline Woodcourt        words= 1966  quotes= 13  chars: Esther(15), Jarndyce(5), Richard(4), Tulkinghorn(4), Lady Dedlock(3), Dedlock(3), Ada(2), Jo(2)
+      Eleanor Hartley           words= 2384  quotes= 18  chars: Esther(18), Ada(6), Jarndyce(6), Tulkinghorn(4), Woodcourt(4), Jo(4), Richard(3), Sir Leicester(3)
+      James Blackstone          words= 2218  quotes= 12  chars: Jo(7), Jarndyce(6), Dedlock(5), Richard(5), Woodcourt(4), Esther(3), Lady Dedlock(3), Tulkinghorn(3)
+    [embedding]
+      Caroline Woodcourt        words= 2726  quotes= 18  chars: Esther(11), Jo(11), Lady Dedlock(7), Dedlock(7), Richard(5), Tulkinghorn(2), Jarndyce(1)
+      Eleanor Hartley           words= 3128  quotes= 14  chars: Esther(12), Richard(9), Jo(7), Lady Dedlock(4), Dedlock(4), Woodcourt(2), Tulkinghorn(1), Nemo(1)
+      James Blackstone          words= 2887  quotes= 12  chars: Jarndyce(9), Jo(9), Dedlock(6), Lady Dedlock(5), Tulkinghorn(4), Richard(3), Esther(1)
+    [rag]
+      Caroline Woodcourt        words= 2215  quotes= 12  chars: Esther(15), Richard(14), Lady Dedlock(7), Dedlock(7), Jarndyce(7), Woodcourt(4), Skimpole(3), Krook(3)
+      Eleanor Hartley           words= 2444  quotes=  9  chars: Esther(20), Jarndyce(8), Dedlock(5), Richard(5), Lady Dedlock(4), Sir Leicester(3), Bucket(3), Krook(2)
+      James Blackstone          words= 2588  quotes= 10  chars: Richard(7), Jarndyce(5), Sir Leicester(4), Tulkinghorn(4), Esther(3), Ada(2), Krook(2), Lady Dedlock(1)
+    [no_passages]
+      Caroline Woodcourt        words= 2668  quotes= 17  chars: Esther(26), Jo(20), Richard(11), Skimpole(9), Lady Dedlock(7), Dedlock(7), Jarndyce(5), Ada(3)
+      Eleanor Hartley           words= 2903  quotes= 14  chars: Esther(28), Jo(16), Skimpole(14), Richard(10), Dedlock(10), Lady Dedlock(8), Jarndyce(3), Ada(1)
+      James Blackstone          words= 2696  quotes=  9  chars: Jarndyce(16), Skimpole(15), Richard(12), Jo(11), Esther(7), Tulkinghorn(3), Bucket(1), Lady Dedlock(1)
+    [random]
+      Caroline Woodcourt        words= 2155  quotes= 15  chars: Esther(12), Smallweed(8), Skimpole(7), George(5), Lady Dedlock(5), Dedlock(5), Krook(4), Tulkinghorn(3)
+      Eleanor Hartley           words= 2561  quotes= 10  chars: Esther(15), Jarndyce(9), Skimpole(9), Richard(7), Lady Dedlock(6), Dedlock(6), George(5), Tulkinghorn(3)
+      James Blackstone          words= 2675  quotes=  9  chars: Jarndyce(9), Richard(7), Smallweed(7), George(5), Skimpole(5), Tulkinghorn(4), Charley(4), Lady Dedlock(4)
+
+  Panel: v10_conservative
+    [transport]
+      Caroline Woodcourt        words= 2000  quotes= 13  chars: Esther(7), Woodcourt(7), Jarndyce(6), Nemo(4), Richard(3), Lady Dedlock(3), Dedlock(3), Guppy(3)
+      Edmund Leigh              words= 1710  quotes=  6  chars: Richard(9), Tulkinghorn(8), Jarndyce(7), Jo(6), Lady Dedlock(6), Dedlock(6), Ada(5), Esther(2)
+      Eleanor Hartley           words= 2057  quotes= 12  chars: Esther(9), Richard(8), Jo(8), Jarndyce(7), Tulkinghorn(7), Lady Dedlock(4), Dedlock(4), Sir Leicester(3)
+    [embedding]
+      Caroline Woodcourt        words= 2499  quotes= 20  chars: Jo(11), Richard(10), Dedlock(8), Lady Dedlock(7), Esther(5), Jarndyce(2), Woodcourt(1), Tulkinghorn(1)
+      Edmund Leigh              words= 2395  quotes=  8  chars: Richard(13), Jo(5), Lady Dedlock(4), Dedlock(4), Esther(3), Jarndyce(2), Jellyby(2), Tulkinghorn(1)
+      Eleanor Hartley           words= 2786  quotes= 16  chars: Jo(14), Richard(9), Esther(8), Lady Dedlock(7), Dedlock(7), Jarndyce(3), Tulkinghorn(2), George(1)
+    [rag]
+      Caroline Woodcourt        words= 2442  quotes=  9  chars: Esther(21), Richard(12), Woodcourt(9), Dedlock(8), Lady Dedlock(7), Jarndyce(7), Sir Leicester(6), Ada(6)
+      Edmund Leigh              words= 3070  quotes= 11  chars: Sir Leicester(14), Bucket(9), Dedlock(8), Esther(7), Richard(7), Skimpole(7), Lady Dedlock(5), Jarndyce(5)
+      Eleanor Hartley           words= 3023  quotes= 14  chars: Esther(22), Dedlock(11), Sir Leicester(9), Lady Dedlock(9), Richard(8), Jarndyce(6), Caddy(5), Bucket(4)
+    [no_passages]
+      Caroline Woodcourt        words= 2690  quotes= 17  chars: Esther(15), Richard(15), Jo(9), Lady Dedlock(8), Dedlock(8), Jellyby(4), Ada(3), Nemo(3)
+      Edmund Leigh              words= 2899  quotes=  7  chars: Jarndyce(12), Richard(11), Jo(10), Esther(8), Lady Dedlock(6), Dedlock(6), Jellyby(3), Skimpole(3)
+      Eleanor Hartley           words= 2951  quotes= 12  chars: Esther(23), Jo(12), Richard(8), Jarndyce(7), Lady Dedlock(6), Dedlock(6), Tulkinghorn(3), Nemo(2)
+    [random]
+      Caroline Woodcourt        words= 2000  quotes= 13  chars: Esther(13), Jo(7), Guppy(4), Jarndyce(3), Woodcourt(3), Hortense(3), Richard(3), Sir Leicester(2)
+      Edmund Leigh              words= 2338  quotes= 15  chars: Esther(14), Jarndyce(8), Jo(6), Guppy(5), George(4), Tulkinghorn(3), Woodcourt(3), Hortense(2)
+      Eleanor Hartley           words= 2222  quotes= 12  chars: Esther(14), Jo(9), Guppy(6), Jarndyce(6), Lady Dedlock(4), Dedlock(4), George(4), Woodcourt(3)
+
+  Panel: v11_marxist
+    [transport]
+      Caroline Woodcourt        words= 2339  quotes= 21  chars: Esther(13), Jo(6), Jarndyce(5), Tulkinghorn(3), Lady Dedlock(3), Dedlock(3), Ada(2), Woodcourt(2)
+      Daniel Rosen              words= 2322  quotes= 14  chars: Dedlock(12), Lady Dedlock(11), Tulkinghorn(8), Jo(6), Esther(6), Richard(6), Sir Leicester(4), Woodcourt(4)
+      James Blackstone          words= 2149  quotes=  9  chars: Richard(12), Esther(8), Dedlock(7), Jo(6), Lady Dedlock(5), Jarndyce(4), Tulkinghorn(4), Sir Leicester(3)
+    [embedding]
+      Caroline Woodcourt        words= 2813  quotes= 21  chars: Jo(8), Jarndyce(6), Lady Dedlock(6), Dedlock(6), Tulkinghorn(5), Richard(4), Esther(3), Jellyby(2)
+      Daniel Rosen              words= 2430  quotes= 12  chars: Jo(9), Jarndyce(4), Richard(4), Lady Dedlock(2), Dedlock(2), Snagsby(1), Tulkinghorn(1), Sir Leicester(1)
+      James Blackstone          words= 2490  quotes= 12  chars: Jo(8), Dedlock(7), Lady Dedlock(6), Jarndyce(5), Richard(4), Tulkinghorn(2), Sir Leicester(2), Esther(2)
+    [rag]
+      Caroline Woodcourt        words= 2367  quotes= 18  chars: Richard(16), Esther(15), Dedlock(8), Lady Dedlock(7), Woodcourt(6), Skimpole(6), Jarndyce(5), Ada(2)
+      Daniel Rosen              words= 2249  quotes= 14  chars: Jarndyce(11), Richard(9), Lady Dedlock(6), Dedlock(6), Esther(5), Krook(3), Tulkinghorn(2), Sir Leicester(2)
+      James Blackstone          words= 2180  quotes=  8  chars: Jarndyce(8), Richard(8), Krook(5), Tulkinghorn(4), Skimpole(4), Sir Leicester(2), Dedlock(2), Esther(2)
+    [no_passages]
+      Caroline Woodcourt        words= 3140  quotes= 21  chars: Jo(17), Esther(12), Richard(11), Lady Dedlock(7), Dedlock(7), Jarndyce(6), Nemo(4), Woodcourt(2)
+      Daniel Rosen              words= 2532  quotes= 10  chars: Jo(17), Dedlock(16), Richard(14), Lady Dedlock(12), Jarndyce(7), Tulkinghorn(6), Esther(4), Krook(3)
+      James Blackstone          words= 2498  quotes=  9  chars: Esther(13), Jo(12), Jarndyce(11), Dedlock(7), Lady Dedlock(6), Richard(5), Tulkinghorn(5), George(2)
+    [random]
+      Caroline Woodcourt        words= 2289  quotes= 12  chars: Esther(13), Richard(7), Lady Dedlock(4), Dedlock(4), Woodcourt(4), Charley(3), George(3), Jarndyce(3)
+      Daniel Rosen              words= 2639  quotes= 14  chars: George(10), Dedlock(7), Sir Leicester(7), Smallweed(6), Tulkinghorn(5), Esther(5), Jo(4), Lady Dedlock(4)
+      James Blackstone          words= 2197  quotes=  8  chars: George(8), Esther(7), Richard(7), Jarndyce(6), Guppy(5), Dedlock(4), Jo(3), Lady Dedlock(3)
+
+  Panel: v12_radical_panel
+    [transport]
+      Caroline Woodcourt        words= 2408  quotes= 12  chars: Esther(17), Richard(8), Jo(7), Jarndyce(6), Ada(5), Krook(4), Guppy(2), Bucket(2)
+      Daniel Rosen              words= 2565  quotes= 10  chars: Esther(11), Richard(10), Jarndyce(9), Guppy(6), Jo(6), Dedlock(3), Nemo(3), Krook(3)
+      Edmund Leigh              words= 2490  quotes= 12  chars: Esther(14), Richard(11), Jarndyce(7), Jo(6), Ada(3), Sir Leicester(3), Guppy(2), Woodcourt(2)
+    [embedding]
+      Caroline Woodcourt        words= 2538  quotes= 16  chars: Richard(10), Jo(6), Lady Dedlock(6), Dedlock(6), Esther(5), Jarndyce(4), Tulkinghorn(3), Skimpole(3)
+      Daniel Rosen              words= 2579  quotes= 16  chars: Richard(15), Jo(10), Lady Dedlock(7), Dedlock(7), Esther(3), Tulkinghorn(3), Skimpole(2), Jarndyce(1)
+      Edmund Leigh              words= 2530  quotes=  8  chars: Richard(14), Esther(9), Lady Dedlock(7), Dedlock(7), Jarndyce(6), Jo(5), Tulkinghorn(5), Skimpole(3)
+    [rag]
+      Caroline Woodcourt        words= 2538  quotes= 15  chars: Esther(22), Richard(9), Woodcourt(9), Lady Dedlock(9), Dedlock(9), Sir Leicester(5), Jarndyce(4), Skimpole(4)
+      Daniel Rosen              words= 2859  quotes= 13  chars: Richard(19), Jarndyce(10), Esther(9), Skimpole(7), Tulkinghorn(7), Lady Dedlock(7), Dedlock(7), Sir Leicester(6)
+      Edmund Leigh              words= 2743  quotes= 11  chars: Sir Leicester(14), Richard(13), Dedlock(9), Esther(8), Lady Dedlock(8), Jarndyce(7), Skimpole(6), Bucket(3)
+    [no_passages]
+      Caroline Woodcourt        words= 3119  quotes= 20  chars: Esther(24), Richard(14), Dedlock(10), Lady Dedlock(9), Jo(7), Ada(6), Jarndyce(4), Bucket(4)
+      Daniel Rosen              words= 3233  quotes= 14  chars: Richard(20), Jarndyce(19), Jo(16), Dedlock(7), Lady Dedlock(6), Tulkinghorn(6), Esther(4), Sir Leicester(3)
+      Edmund Leigh              words= 2892  quotes= 16  chars: Richard(19), Esther(12), Dedlock(10), Lady Dedlock(9), Jarndyce(8), Sir Leicester(5), Tulkinghorn(5), Bucket(3)
+    [random]
+      Caroline Woodcourt        words= 2167  quotes= 14  chars: Esther(17), Caddy(6), Skimpole(6), Smallweed(5), George(4), Woodcourt(4), Richard(4), Bucket(4)
+      Daniel Rosen              words= 2323  quotes=  8  chars: Esther(11), Richard(7), Jo(6), Jarndyce(6), Jellyby(4), Skimpole(4), Caddy(3), Bucket(3)
+      Edmund Leigh              words= 2348  quotes= 12  chars: Esther(14), Richard(12), Jarndyce(8), Jellyby(5), Guppy(3), Bucket(3), Skimpole(3), Jo(2)
+
+  Panel: v14_trevelyan_for_woodcourt
+    [transport]
+      Eleanor Hartley           words= 2578  quotes= 17  chars: Richard(12), Esther(10), Jo(9), Ada(7), Jarndyce(7), Dedlock(6), Lady Dedlock(5), Tulkinghorn(3)
+      James Blackstone          words= 2530  quotes= 14  chars: Jarndyce(13), Jo(8), Richard(5), Esther(5), Tulkinghorn(4), Woodcourt(4), Ada(3), Guppy(2)
+      Oliver Trevelyan          words= 2532  quotes= 15  chars: Richard(11), Jarndyce(7), Jo(7), Ada(5), Bucket(5), Tulkinghorn(3), Esther(3), Smallweed(3)
+    [embedding]
+      Eleanor Hartley           words= 2778  quotes= 18  chars: Richard(16), Jo(15), Esther(10), Jarndyce(5), Lady Dedlock(4), Dedlock(4), Tulkinghorn(2), Jellyby(1)
+      James Blackstone          words= 2797  quotes= 14  chars: Jo(13), Richard(6), Dedlock(6), Lady Dedlock(5), Jarndyce(4), Tulkinghorn(3), Sir Leicester(3), Esther(2)
+      Oliver Trevelyan          words= 2932  quotes= 13  chars: Jo(15), Richard(12), Jarndyce(9), Tulkinghorn(8), Esther(7), Lady Dedlock(6), Dedlock(6)
+    [rag]
+      Eleanor Hartley           words= 2767  quotes= 12  chars: Esther(12), Jarndyce(7), Tulkinghorn(6), Skimpole(6), Jo(5), Richard(5), Dedlock(4), Krook(4)
+      James Blackstone          words= 2797  quotes= 15  chars: Jarndyce(11), Tulkinghorn(6), Richard(6), Krook(6), Sir Leicester(4), Dedlock(3), Jo(3), Lady Dedlock(2)
+      Oliver Trevelyan          words= 2763  quotes= 13  chars: Krook(10), Esther(9), Jo(7), Tulkinghorn(6), Skimpole(6), Bucket(4), Richard(4), Dedlock(3)
+    [no_passages]
+      Eleanor Hartley           words= 3118  quotes= 11  chars: Esther(28), Jo(16), Lady Dedlock(11), Dedlock(11), Richard(7), Jarndyce(7), Tulkinghorn(4), Bucket(4)
+      James Blackstone          words= 3483  quotes= 12  chars: Jarndyce(27), Jo(19), Dedlock(10), Lady Dedlock(9), Richard(9), Esther(7), Tulkinghorn(6), Sir Leicester(4)
+      Oliver Trevelyan          words= 3303  quotes= 23  chars: Jo(19), Richard(12), Esther(11), Bucket(6), Jarndyce(5), Woodcourt(3), Tulkinghorn(3), Lady Dedlock(3)
+    [random]
+      Eleanor Hartley           words= 2593  quotes= 13  chars: Esther(24), Dedlock(10), Lady Dedlock(9), Guppy(6), George(6), Bucket(4), Skimpole(4), Hortense(3)
+      James Blackstone          words= 2350  quotes=  8  chars: Dedlock(9), Sir Leicester(8), Bucket(7), Lady Dedlock(6), Smallweed(5), Tulkinghorn(4), Richard(4), Jarndyce(4)
+      Oliver Trevelyan          words= 2613  quotes= 14  chars: Esther(9), Guppy(7), Bucket(6), George(5), Richard(4), Jarndyce(4), Sir Leicester(3), Dedlock(3)
+
+  Panel: v15_trevelyan_for_hartley
+    [transport]
+      Caroline Woodcourt        words= 2427  quotes= 22  chars: Esther(19), Richard(13), Jo(10), Ada(7), Tulkinghorn(5), Lady Dedlock(4), Dedlock(4), Jarndyce(4)
+      James Blackstone          words= 2356  quotes=  8  chars: Jarndyce(16), Richard(10), Jo(4), Lady Dedlock(3), Dedlock(3), Tulkinghorn(3), Ada(2), Woodcourt(2)
+      Oliver Trevelyan          words= 2482  quotes= 16  chars: Richard(12), Jarndyce(8), Jo(7), Krook(5), Esther(4), Tulkinghorn(3), Ada(3), Sir Leicester(1)
+    [embedding]
+      Caroline Woodcourt        words= 2503  quotes= 19  chars: Richard(15), Jo(11), Esther(10), Lady Dedlock(4), Dedlock(4), Woodcourt(2), Jarndyce(1)
+      James Blackstone          words= 2624  quotes= 11  chars: Jo(20), Richard(13), Esther(8), Jarndyce(7), Dedlock(7), Woodcourt(5), Lady Dedlock(3), Tulkinghorn(3)
+      Oliver Trevelyan          words= 2810  quotes= 21  chars: Jo(14), Richard(11), Dedlock(5), Esther(4), Lady Dedlock(4), Jellyby(2), Jarndyce(2), Tulkinghorn(1)
+    [rag]
+      Caroline Woodcourt        words= 2346  quotes= 14  chars: Jarndyce(12), Esther(12), Lady Dedlock(9), Dedlock(9), Richard(8), Jo(8), Tulkinghorn(6), Skimpole(6)
+      James Blackstone          words= 2702  quotes= 11  chars: Jarndyce(13), Dedlock(10), Lady Dedlock(8), Tulkinghorn(4), Esther(4), Krook(3), Jo(2), George(1)
+      Oliver Trevelyan          words= 2659  quotes= 20  chars: Esther(7), Skimpole(7), Jarndyce(6), Krook(6), Lady Dedlock(6), Dedlock(6), Richard(6), Tulkinghorn(5)
+    [no_passages]
+      Caroline Woodcourt        words= 2176  quotes= 11  chars: Esther(22), Jarndyce(9), Richard(7), Lady Dedlock(4), Dedlock(4), Tulkinghorn(3), Nemo(2), Jo(2)
+      James Blackstone          words= 1869  quotes=  3  chars: Jarndyce(11), Richard(9), Dedlock(7), Lady Dedlock(6), Esther(3), Tulkinghorn(3), Jo(2), Sir Leicester(2)
+      Oliver Trevelyan          words= 2349  quotes= 13  chars: Richard(11), Tulkinghorn(6), Esther(6), Jarndyce(5), Jo(5), Krook(4), Ada(3), Lady Dedlock(3)
+    [random]
+      Caroline Woodcourt        words= 1883  quotes= 13  chars: Esther(15), Jarndyce(5), Richard(4), Sir Leicester(4), Ada(3), Jo(3), Smallweed(3), Caddy(3)
+      James Blackstone          words= 1781  quotes=  8  chars: Richard(7), Esther(4), Bucket(4), Jo(4), Dedlock(4), Guppy(4), George(3), Jarndyce(3)
+      Oliver Trevelyan          words= 1971  quotes= 12  chars: Esther(7), Smallweed(6), Richard(5), Jo(4), Guppy(4), Jarndyce(3), Caddy(3), George(2)
+
+  Panel: v16_trevelyan_for_blackstone
+    [transport]
+      Caroline Woodcourt        words= 1731  quotes=  9  chars: Richard(11), Jo(8), Esther(7), Ada(5), Jarndyce(5), Lady Dedlock(4), Dedlock(4), Woodcourt(2)
+      Eleanor Hartley           words= 2056  quotes= 13  chars: Esther(14), Richard(9), Jarndyce(9), Woodcourt(3), Tulkinghorn(3), Jo(3), Ada(2), Sir Leicester(2)
+      Oliver Trevelyan          words= 2283  quotes= 18  chars: Richard(10), Jarndyce(8), Esther(6), Tulkinghorn(5), Ada(4), Jo(4), Krook(3), Sir Leicester(3)
+    [embedding]
+      Caroline Woodcourt        words= 2565  quotes= 13  chars: Jo(13), Richard(8), Esther(7), Lady Dedlock(6), Dedlock(6), Jarndyce(3), Tulkinghorn(1), Snagsby(1)
+      Eleanor Hartley           words= 3630  quotes= 20  chars: Jo(18), Richard(10), Dedlock(7), Esther(6), Lady Dedlock(6), Jarndyce(2), Jellyby(1), Tulkinghorn(1)
+      Oliver Trevelyan          words= 3516  quotes= 15  chars: Jo(13), Richard(12), Esther(6), Tulkinghorn(3), Dedlock(3), Jarndyce(2), Lady Dedlock(2), Snagsby(1)
+    [rag]
+      Caroline Woodcourt        words= 1912  quotes= 15  chars: Esther(23), Woodcourt(9), Richard(7), Jarndyce(7), Tulkinghorn(5), Jo(3), Lady Dedlock(3), Dedlock(3)
+      Eleanor Hartley           words= 2466  quotes= 13  chars: Esther(16), Jarndyce(7), Woodcourt(4), Lady Dedlock(3), Dedlock(3), Skimpole(3), Charley(2), Tulkinghorn(1)
+      Oliver Trevelyan          words= 2344  quotes= 15  chars: Skimpole(10), Lady Dedlock(8), Dedlock(8), Tulkinghorn(7), Jo(4), Jarndyce(3), Esther(3), Bucket(2)
+    [no_passages]
+      Caroline Woodcourt        words= 2367  quotes= 13  chars: Esther(21), Jo(7), Richard(5), Krook(5), Ada(3), Jarndyce(3), Skimpole(3), Lady Dedlock(2)
+      Eleanor Hartley           words= 2454  quotes=  7  chars: Esther(20), Richard(10), Jo(8), Lady Dedlock(7), Dedlock(7), Jarndyce(6), Bucket(3), Nemo(2)
+      Oliver Trevelyan          words= 2729  quotes= 18  chars: Jo(12), Richard(7), Jarndyce(7), Esther(6), Tulkinghorn(5), Lady Dedlock(4), Dedlock(4), Ada(3)
+    [random]
+      Caroline Woodcourt        words= 1639  quotes= 11  chars: Esther(17), Dedlock(8), Sir Leicester(7), Lady Dedlock(7), Richard(5), Jarndyce(3), Tulkinghorn(2), Bucket(2)
+      Eleanor Hartley           words= 2023  quotes= 10  chars: Esther(15), Richard(11), Jarndyce(6), Bucket(5), Sir Leicester(4), Tulkinghorn(4), Dedlock(3), Lady Dedlock(2)
+      Oliver Trevelyan          words= 1744  quotes=  9  chars: Bucket(5), Richard(5), Esther(4), Tulkinghorn(3), Smallweed(3), Jarndyce(3), Guppy(3), Charley(2)
+
+  Panel: v17_trevelyan_edmund
+    [transport]
+      Edmund Leigh              words= 2294  quotes= 11  chars: Jo(14), Richard(9), Tulkinghorn(7), Jarndyce(6), Skimpole(6), Lady Dedlock(4), Dedlock(4), Esther(3)
+      Eleanor Hartley           words= 2606  quotes= 13  chars: Esther(14), Richard(10), Jo(10), Skimpole(10), Jarndyce(7), Tulkinghorn(5), Bucket(3), Nemo(3)
+      Oliver Trevelyan          words= 2392  quotes= 15  chars: Jo(9), Richard(7), Jarndyce(6), Skimpole(4), Bucket(3), Smallweed(3), Esther(3), Lady Dedlock(2)
+    [embedding]
+      Edmund Leigh              words= 2868  quotes= 15  chars: Richard(16), Esther(11), Lady Dedlock(7), Dedlock(7), Jo(6), Sir Leicester(3), Skimpole(3), Woodcourt(1)
+      Eleanor Hartley           words= 2576  quotes= 10  chars: Jo(10), Esther(8), Richard(7), Lady Dedlock(7), Dedlock(7), Jarndyce(3), Tulkinghorn(3), Skimpole(2)
+      Oliver Trevelyan          words= 2820  quotes= 20  chars: Jo(9), Richard(7), Esther(4), Tulkinghorn(3), Dedlock(3), Jarndyce(2), Skimpole(2), Lady Dedlock(2)
+    [rag]
+      Edmund Leigh              words= 2303  quotes= 10  chars: Sir Leicester(10), Richard(8), Dedlock(7), Esther(7), Tulkinghorn(6), Skimpole(6), Jarndyce(5), Lady Dedlock(5)
+      Eleanor Hartley           words= 2428  quotes= 14  chars: Esther(19), Dedlock(8), Tulkinghorn(7), Lady Dedlock(7), Skimpole(7), Richard(6), Jarndyce(6), Sir Leicester(5)
+      Oliver Trevelyan          words= 2561  quotes= 13  chars: Skimpole(13), Jarndyce(9), Esther(7), Sir Leicester(6), Richard(6), Jo(6), Dedlock(4), Tulkinghorn(3)
+    [no_passages]
+      Edmund Leigh              words= 3288  quotes= 14  chars: Esther(18), Richard(17), Jo(13), Jarndyce(11), Bucket(10), Dedlock(8), Lady Dedlock(7), Ada(4)
+      Eleanor Hartley           words= 3088  quotes=  8  chars: Esther(24), Jo(17), Dedlock(15), Lady Dedlock(14), Richard(9), Bucket(5), Jarndyce(4), Ada(1)
+      Oliver Trevelyan          words= 3298  quotes= 16  chars: Esther(14), Richard(14), Jarndyce(11), Jo(7), Ada(6), Lady Dedlock(5), Tulkinghorn(5), Dedlock(5)
+    [random]
+      Edmund Leigh              words= 2199  quotes=  8  chars: Richard(9), Sir Leicester(6), Bucket(5), Dedlock(4), Smallweed(4), Jo(4), Jarndyce(4), Esther(3)
+      Eleanor Hartley           words= 2114  quotes= 18  chars: Richard(9), Esther(6), Dedlock(6), Jarndyce(5), Jo(4), Lady Dedlock(4), Charley(3), Sir Leicester(3)
+      Oliver Trevelyan          words= 2344  quotes= 18  chars: Bucket(10), Richard(6), George(5), Krook(3), Smallweed(3), Guppy(3), Esther(2), Sir Leicester(2)
+
+  Panel: v18_trevelyan_rosen
+    [transport]
+      Caroline Woodcourt        words= 1996  quotes= 14  chars: Richard(14), Esther(13), Jo(9), Jarndyce(6), Tulkinghorn(4), Krook(4), Woodcourt(3), Dedlock(3)
+      Daniel Rosen              words= 2182  quotes=  8  chars: Richard(13), Jarndyce(7), Esther(6), Jo(6), Dedlock(5), Tulkinghorn(4), Lady Dedlock(4), Krook(3)
+      Oliver Trevelyan          words= 2559  quotes= 19  chars: Esther(9), Jarndyce(7), Tulkinghorn(5), Jo(5), Krook(4), Ada(4), Richard(3), Sir Leicester(3)
+    [embedding]
+      Caroline Woodcourt        words= 2102  quotes= 16  chars: Richard(11), Esther(8), Jo(6), Lady Dedlock(3), Dedlock(3), Jarndyce(1), Jellyby(1), Tulkinghorn(1)
+      Daniel Rosen              words= 2472  quotes= 15  chars: Jo(19), Richard(12), Dedlock(6), Lady Dedlock(5), Tulkinghorn(4), Jarndyce(3), Esther(2), Snagsby(1)
+      Oliver Trevelyan          words= 2564  quotes= 14  chars: Jo(8), Tulkinghorn(6), Richard(4), Lady Dedlock(3), Dedlock(3), Esther(3), Jarndyce(2), Woodcourt(2)
+    [rag]
+      Caroline Woodcourt        words= 2070  quotes= 12  chars: Esther(13), Richard(10), Dedlock(9), Lady Dedlock(8), Jarndyce(5), Jo(5), Skimpole(4), Woodcourt(3)
+      Daniel Rosen              words= 2397  quotes= 10  chars: Jarndyce(8), Richard(8), Dedlock(8), Tulkinghorn(7), Lady Dedlock(5), Sir Leicester(4), Skimpole(4), Jo(4)
+      Oliver Trevelyan          words= 2343  quotes= 12  chars: Skimpole(13), Tulkinghorn(9), Richard(8), Jo(5), Lady Dedlock(3), Dedlock(3), Krook(2), Jarndyce(2)
+    [no_passages]
+      Caroline Woodcourt        words= 2969  quotes= 19  chars: Esther(24), Jo(20), Richard(12), Ada(7), Lady Dedlock(7), Dedlock(7), Jarndyce(5), Woodcourt(4)
+      Daniel Rosen              words= 3133  quotes= 18  chars: Jo(13), Jarndyce(10), Dedlock(10), Richard(8), Lady Dedlock(7), Tulkinghorn(7), Esther(5), Smallweed(3)
+      Oliver Trevelyan          words= 3547  quotes= 18  chars: Jo(16), Richard(11), Esther(10), Dedlock(9), Lady Dedlock(8), Jarndyce(6), Tulkinghorn(4), Bucket(4)
+    [random]
+      Caroline Woodcourt        words= 1885  quotes=  8  chars: Esther(9), Richard(6), George(5), Guppy(5), Smallweed(3), Snagsby(3), Ada(2), Krook(1)
+      Daniel Rosen              words= 2112  quotes=  7  chars: Richard(9), Jarndyce(7), Jo(6), Skimpole(5), Sir Leicester(4), Tulkinghorn(3), Bucket(3), Guppy(2)
+      Oliver Trevelyan          words= 2143  quotes= 11  chars: Richard(9), Skimpole(5), Esther(4), Bucket(3), Ada(3), Sir Leicester(2), Dedlock(2), George(2)
+
+  Panel: v19_all_swapped
+    [transport]
+      Daniel Rosen              words= 2342  quotes= 14  chars: Jo(13), Jarndyce(9), Tulkinghorn(7), Richard(7), Esther(6), Dedlock(3), Bucket(2), Lady Dedlock(2)
+      Edmund Leigh              words= 2457  quotes= 12  chars: Richard(12), Esther(8), Tulkinghorn(8), Jarndyce(6), Jo(5), Lady Dedlock(4), Dedlock(4), Woodcourt(4)
+      Oliver Trevelyan          words= 2654  quotes= 19  chars: Esther(9), Richard(7), Tulkinghorn(6), Jo(5), Sir Leicester(3), Lady Dedlock(3), Dedlock(3), Jarndyce(3)
+    [embedding]
+      Daniel Rosen              words= 2907  quotes= 18  chars: Richard(14), Jo(10), Lady Dedlock(9), Dedlock(9), Tulkinghorn(7), Esther(5), Woodcourt(3), Sir Leicester(3)
+      Edmund Leigh              words= 2720  quotes= 14  chars: Richard(15), Esther(8), Lady Dedlock(5), Dedlock(5), Jo(2), Jarndyce(2), Jellyby(1), Tulkinghorn(1)
+      Oliver Trevelyan          words= 2914  quotes= 21  chars: Richard(9), Jo(9), Dedlock(8), Lady Dedlock(7), Woodcourt(5), Esther(4), Guppy(1)
+    [rag]
+      Daniel Rosen              words= 2531  quotes= 11  chars: Richard(13), Sir Leicester(11), Jarndyce(10), Skimpole(9), Jo(9), Esther(4), Tulkinghorn(4), Krook(3)
+      Edmund Leigh              words= 2529  quotes= 10  chars: Jarndyce(15), Richard(12), Tulkinghorn(10), Sir Leicester(9), Skimpole(9), Esther(7), Dedlock(4), Krook(3)
+      Oliver Trevelyan          words= 2817  quotes= 15  chars: Skimpole(13), Tulkinghorn(9), Esther(7), Richard(6), Jarndyce(5), Dedlock(4), Krook(4), Sir Leicester(4)
+    [no_passages]
+      Daniel Rosen              words= 2798  quotes= 13  chars: Esther(14), Richard(11), Jo(10), Jarndyce(7), Dedlock(4), Lady Dedlock(3), Woodcourt(2), Charley(2)
+      Edmund Leigh              words= 2710  quotes= 10  chars: Esther(11), Richard(11), Jarndyce(9), Dedlock(8), Lady Dedlock(7), Jo(6), Skimpole(5), Woodcourt(3)
+      Oliver Trevelyan          words= 3088  quotes= 16  chars: Esther(11), Richard(9), Jarndyce(7), Jo(6), Smallweed(6), Krook(5), Tulkinghorn(4), Lady Dedlock(4)
+    [random]
+      Daniel Rosen              words= 1604  quotes=  7  chars: Esther(12), Tulkinghorn(8), Jo(6), Richard(6), Bucket(6), George(5), Smallweed(2), Ada(2)
+      Edmund Leigh              words= 1612  quotes=  8  chars: Richard(12), Jarndyce(11), Esther(9), George(3), Bucket(3), Tulkinghorn(3), Ada(2), Krook(2)
+      Oliver Trevelyan          words= 1940  quotes= 14  chars: Richard(6), Lady Dedlock(5), Dedlock(5), Jarndyce(5), Jo(4), Esther(4), Bucket(4), George(4)
+
+  Panel: v21_hartley_blackstone_edmund
+    [transport]
+      Edmund Leigh              words= 2756  quotes=  7  chars: Richard(11), Jarndyce(10), Esther(9), Dedlock(6), Tulkinghorn(6), Jo(5), Lady Dedlock(5), Skimpole(4)
+      Eleanor Hartley           words= 3245  quotes= 20  chars: Esther(20), Tulkinghorn(8), Jarndyce(8), Richard(8), Dedlock(6), Jo(6), Guppy(5), Skimpole(5)
+      James Blackstone          words= 2884  quotes= 12  chars: Jarndyce(11), Richard(9), Jo(7), Woodcourt(4), Tulkinghorn(4), Esther(4), Lady Dedlock(3), Dedlock(3)
+    [embedding]
+      Edmund Leigh              words= 2850  quotes= 11  chars: Lady Dedlock(9), Dedlock(9), Richard(9), Esther(7), Jo(5), Jarndyce(3), Tulkinghorn(2), Sir Leicester(1)
+      Eleanor Hartley           words= 3302  quotes= 23  chars: Jo(13), Esther(10), Richard(7), Jarndyce(6), Lady Dedlock(6), Dedlock(6), Tulkinghorn(4), Sir Leicester(2)
+      James Blackstone          words= 3024  quotes= 15  chars: Jo(9), Esther(8), Jarndyce(7), Tulkinghorn(5), Richard(5), Dedlock(3), Jellyby(3), Lady Dedlock(2)
+    [rag]
+      Edmund Leigh              words= 2339  quotes= 12  chars: Jarndyce(11), Esther(8), Dedlock(6), Richard(6), Sir Leicester(5), Skimpole(4), Lady Dedlock(4), Tulkinghorn(2)
+      Eleanor Hartley           words= 1953  quotes=  8  chars: Esther(16), Richard(8), Dedlock(8), Jarndyce(6), Lady Dedlock(5), Bucket(3), Charley(3), Sir Leicester(3)
+      James Blackstone          words= 2095  quotes= 13  chars: Jarndyce(7), Sir Leicester(6), Tulkinghorn(6), Dedlock(5), Richard(4), Lady Dedlock(4), Krook(3), Bucket(3)
+    [no_passages]
+      Edmund Leigh              words= 2736  quotes= 15  chars: Richard(23), Jarndyce(16), Jo(15), Lady Dedlock(8), Dedlock(8), Esther(6), Woodcourt(2), Ada(2)
+      Eleanor Hartley           words= 3019  quotes= 16  chars: Esther(24), Jo(14), Dedlock(13), Lady Dedlock(10), Richard(7), Jarndyce(4), Bucket(4), Tulkinghorn(1)
+      James Blackstone          words= 2898  quotes= 14  chars: Richard(13), Jarndyce(12), Jo(11), Tulkinghorn(6), Esther(5), Dedlock(5), Lady Dedlock(4), Bucket(4)
+    [random]
+      Edmund Leigh              words= 2387  quotes=  9  chars: Esther(11), Richard(7), Tulkinghorn(5), Jarndyce(5), George(4), Bucket(3), Ada(3), Lady Dedlock(3)
+      Eleanor Hartley           words= 2640  quotes= 13  chars: Esther(21), Bucket(8), Ada(6), Skimpole(3), Lady Dedlock(3), Dedlock(3), Snagsby(2), Tulkinghorn(2)
+      James Blackstone          words= 2511  quotes= 12  chars: Jarndyce(8), Dedlock(8), Lady Dedlock(6), Richard(6), Snagsby(5), Esther(5), Tulkinghorn(4), Sir Leicester(4)
+
+  Panel: v22_hartley_blackstone_rosen
+    [transport]
+      Daniel Rosen              words= 2260  quotes=  8  chars: Jarndyce(11), Richard(9), Jo(8), Lady Dedlock(4), Dedlock(4), Nemo(4), Esther(4), Tulkinghorn(3)
+      Eleanor Hartley           words= 2740  quotes= 15  chars: Esther(15), Jarndyce(11), Jo(10), Richard(7), Lady Dedlock(5), Dedlock(5), Ada(4), Woodcourt(3)
+      James Blackstone          words= 2217  quotes= 10  chars: Jo(7), Richard(6), Lady Dedlock(4), Dedlock(4), Jarndyce(4), Tulkinghorn(3), Esther(3), Nemo(2)
+    [embedding]
+      Daniel Rosen              words= 2384  quotes=  9  chars: Richard(14), Jo(12), Dedlock(9), Lady Dedlock(8), Tulkinghorn(4), Esther(2), Jellyby(1), Woodcourt(1)
+      Eleanor Hartley           words= 3141  quotes= 20  chars: Esther(14), Richard(12), Jo(11), Lady Dedlock(9), Dedlock(9), Jarndyce(2), Tulkinghorn(2), Woodcourt(1)
+      James Blackstone          words= 2397  quotes=  9  chars: Jo(9), Dedlock(8), Jarndyce(6), Lady Dedlock(6), Tulkinghorn(3), Sir Leicester(2), Esther(1), Richard(1)
+    [rag]
+      Daniel Rosen              words= 2665  quotes= 13  chars: Richard(14), Esther(11), Skimpole(8), Sir Leicester(7), Dedlock(7), Tulkinghorn(6), Lady Dedlock(5), Krook(4)
+      Eleanor Hartley           words= 3145  quotes= 18  chars: Esther(25), Jarndyce(10), Richard(8), Lady Dedlock(7), Dedlock(7), Charley(6), Sir Leicester(3), Tulkinghorn(3)
+      James Blackstone          words= 2611  quotes= 10  chars: Jarndyce(10), Krook(5), Sir Leicester(4), Richard(3), Tulkinghorn(3), Dedlock(2), Bucket(2), Esther(2)
+    [no_passages]
+      Daniel Rosen              words= 3094  quotes= 15  chars: Jo(18), Jarndyce(12), Richard(12), Esther(12), Dedlock(11), Lady Dedlock(8), Bucket(5), Nemo(4)
+      Eleanor Hartley           words= 3387  quotes= 13  chars: Esther(24), Jo(17), Jarndyce(15), Richard(12), Krook(5), Dedlock(4), Skimpole(3), Lady Dedlock(3)
+      James Blackstone          words= 2824  quotes=  9  chars: Jo(13), Jarndyce(12), Richard(10), Esther(9), Dedlock(5), Lady Dedlock(3), Sir Leicester(3), Tulkinghorn(3)
+    [random]
+      Daniel Rosen              words= 2109  quotes= 11  chars: Esther(16), Richard(14), Jarndyce(7), Tulkinghorn(6), Woodcourt(6), Snagsby(5), Smallweed(4), Jo(4)
+      Eleanor Hartley           words= 2236  quotes= 13  chars: Esther(18), Richard(7), Bucket(7), Skimpole(6), Jo(6), Jarndyce(5), Snagsby(4), Smallweed(3)
+      James Blackstone          words= 2007  quotes=  9  chars: Richard(9), Jarndyce(7), George(5), Esther(4), Ada(3), Jo(3), Guppy(3), Bucket(3)
+
+  Panel: v23_hartley_woodcourt_rosen
+    [transport]
+      Caroline Woodcourt        words= 1741  quotes= 10  chars: Esther(13), Jarndyce(7), Richard(6), Jo(5), Ada(4), Lady Dedlock(3), Dedlock(3), Nemo(1)
+      Daniel Rosen              words= 1965  quotes= 12  chars: Richard(11), Jarndyce(9), Jo(5), Tulkinghorn(4), Dedlock(3), Guppy(2), Lady Dedlock(2), Esther(2)
+      Eleanor Hartley           words= 1823  quotes= 10  chars: Richard(12), Jo(9), Esther(6), Dedlock(4), Tulkinghorn(3), Lady Dedlock(3), Jarndyce(3), Woodcourt(2)
+    [embedding]
+      Caroline Woodcourt        words= 2430  quotes= 17  chars: Jo(11), Richard(6), Esther(6), Lady Dedlock(5), Dedlock(5), Krook(2), Tulkinghorn(2), Woodcourt(2)
+      Daniel Rosen              words= 3212  quotes= 20  chars: Jo(18), Jarndyce(8), Dedlock(7), Lady Dedlock(6), Tulkinghorn(5), Richard(3), Esther(2), Jellyby(2)
+      Eleanor Hartley           words= 3330  quotes= 14  chars: Jo(7), Esther(5), Richard(4), Jarndyce(1), Lady Dedlock(1), Tulkinghorn(1), Dedlock(1)
+    [rag]
+      Caroline Woodcourt        words= 1919  quotes= 12  chars: Esther(17), Richard(10), Jarndyce(8), Woodcourt(6), Caddy(3), Lady Dedlock(3), Dedlock(3), Skimpole(3)
+      Daniel Rosen              words= 2125  quotes= 10  chars: Richard(10), Jarndyce(9), Lady Dedlock(5), Dedlock(5), Esther(5), Caddy(3), Tulkinghorn(3), Bucket(3)
+      Eleanor Hartley           words= 2389  quotes= 12  chars: Esther(20), Richard(11), Woodcourt(4), Caddy(2), Jarndyce(2), Charley(2), Bucket(2), Jellyby(1)
+    [no_passages]
+      Caroline Woodcourt        words= 2478  quotes= 15  chars: Jo(18), Esther(14), Richard(12), Lady Dedlock(6), Dedlock(6), Jarndyce(5), Bucket(2), Skimpole(2)
+      Daniel Rosen              words= 2911  quotes= 13  chars: Jo(19), Richard(13), Dedlock(12), Lady Dedlock(9), Jarndyce(8), Esther(5), Tulkinghorn(5), Jellyby(3)
+      Eleanor Hartley           words= 2704  quotes= 12  chars: Esther(26), Richard(13), Lady Dedlock(12), Dedlock(12), Jo(8), Ada(4), Skimpole(3), Charley(2)
+    [random]
+      Caroline Woodcourt        words= 2009  quotes= 14  chars: Esther(20), Ada(7), George(5), Smallweed(5), Skimpole(4), Jellyby(4), Lady Dedlock(3), Dedlock(3)
+      Daniel Rosen              words= 2096  quotes=  9  chars: George(10), Esther(6), Jo(5), Richard(5), Tulkinghorn(4), Guppy(3), Jarndyce(3), Skimpole(3)
+      Eleanor Hartley           words= 2278  quotes= 11  chars: Esther(16), Ada(5), Charley(5), Jo(5), George(4), Richard(4), Bucket(3), Krook(3)
+
+  Panel: v24_hartley_edmund_rosen
+    [transport]
+      Daniel Rosen              words= 2609  quotes= 11  chars: Jo(14), Richard(12), Jarndyce(12), Dedlock(7), Lady Dedlock(6), Tulkinghorn(6), Nemo(4), Esther(4)
+      Edmund Leigh              words= 2261  quotes=  9  chars: Jarndyce(9), Richard(9), Esther(8), Tulkinghorn(6), Guppy(5), Jo(4), Nemo(3), Ada(3)
+      Eleanor Hartley           words= 2468  quotes= 13  chars: Jo(13), Esther(12), Tulkinghorn(8), Richard(8), Jarndyce(7), Lady Dedlock(5), Dedlock(5), Sir Leicester(3)
+    [embedding]
+      Daniel Rosen              words= 2619  quotes= 13  chars: Jo(17), Richard(12), Jarndyce(9), Lady Dedlock(5), Dedlock(5), Tulkinghorn(4), Esther(2), Woodcourt(1)
+      Edmund Leigh              words= 2357  quotes=  6  chars: Richard(11), Esther(5), Jarndyce(5), Jo(4), Lady Dedlock(4), Dedlock(4), Tulkinghorn(3), Skimpole(1)
+      Eleanor Hartley           words= 2544  quotes= 17  chars: Richard(12), Jo(12), Esther(10), Tulkinghorn(5), Dedlock(4), Lady Dedlock(3), Ada(1), Jarndyce(1)
+    [rag]
+      Daniel Rosen              words= 2637  quotes= 11  chars: Jarndyce(15), Richard(14), Skimpole(8), Sir Leicester(7), Esther(6), Tulkinghorn(5), Lady Dedlock(5), Dedlock(5)
+      Edmund Leigh              words= 2736  quotes= 13  chars: Richard(12), Sir Leicester(11), Jarndyce(9), Dedlock(7), Esther(7), Lady Dedlock(5), Skimpole(5), Tulkinghorn(3)
+      Eleanor Hartley           words= 2582  quotes= 16  chars: Esther(15), Jarndyce(11), Richard(10), Dedlock(5), Lady Dedlock(4), Charley(3), Jellyby(3), Woodcourt(2)
+    [no_passages]
+      Daniel Rosen              words= 2877  quotes= 11  chars: Jo(13), Richard(9), Dedlock(8), Esther(6), Jarndyce(6), Tulkinghorn(6), Lady Dedlock(6), Sir Leicester(2)
+      Edmund Leigh              words= 2632  quotes= 12  chars: Richard(14), Esther(12), Jarndyce(9), Lady Dedlock(6), Dedlock(6), Jo(5), Woodcourt(3), Ada(2)
+      Eleanor Hartley           words= 2936  quotes= 14  chars: Esther(18), Richard(15), Jo(12), Jarndyce(9), Dedlock(7), Lady Dedlock(6), Tulkinghorn(2), Krook(1)
+    [random]
+      Daniel Rosen              words= 2797  quotes= 11  chars: Jo(16), Richard(13), Esther(9), Sir Leicester(8), Dedlock(8), Woodcourt(6), Lady Dedlock(5), Bucket(4)
+      Edmund Leigh              words= 2852  quotes= 12  chars: Esther(12), Richard(11), Woodcourt(6), Sir Leicester(6), Skimpole(3), Ada(3), Snagsby(3), Charley(3)
+      Eleanor Hartley           words= 2746  quotes= 12  chars: Esther(10), Richard(8), Woodcourt(7), Sir Leicester(7), Jarndyce(7), Jo(5), Caddy(4), George(3)
+
+EXPERT VOCABULARY ANALYSIS (TF-IDF distinctive words)
+======================================================================
+
+  Expert: Caroline Woodcourt (appears in 5 conditions)
+    embedding      : moonlight(0.298), view(0.240), sheep(0.189), hopefulness(0.181), age(0.175), city(0.172), determination(0.162), cart(0.149), colours(0.131), connexion(0.131)
+    no_passages    : mother(0.334), reverends(0.232), chadband(0.220), nemo(0.205), vholes(0.200), clothes(0.152), dies(0.143), write(0.136), brickmaker(0.135), mud(0.125)
+    rag            : view(0.393), legitimacy(0.262), pedigree(0.250), sincerely(0.237), hour(0.201), indian(0.151), ink(0.151), vholes(0.141), scorned(0.137), mince(0.137)
+    random         : smallweed(0.469), george(0.339), guppy(0.282), bagnet(0.228), caddy(0.188), mother(0.169), judy(0.160), rouncewell(0.135), plain(0.134), jellyby(0.124)
+    transport      : enjoyed(0.246), thou(0.197), broom(0.185), nemo(0.185), afar(0.164), eighteen(0.145), consideration(0.143), irritated(0.131), dawn(0.131), wild(0.131)
+    Cosine similarities:
+      embedding vs no_passages: 0.280
+      embedding vs rag: 0.369
+      embedding vs random: 0.181
+      embedding vs transport: 0.295
+      no_passages vs rag: 0.222
+      no_passages vs random: 0.314
+      no_passages vs transport: 0.319
+      rag vs random: 0.219
+      rag vs transport: 0.197
+      random vs transport: 0.259
+
+  Expert: Daniel Rosen (appears in 5 conditions)
+    embedding      : connexion(0.223), net(0.191), churchyard(0.157), home(0.157), moved(0.157), slipshod(0.139), heels(0.139), lame(0.139), earth(0.135), outlaw(0.135)
+    no_passages    : reverends(0.401), vholes(0.285), tom(0.268), majesty(0.223), lords(0.223), gentlemen(0.192), heavenly(0.163), wrong(0.151), compassion(0.144), river(0.139)
+    rag            : vholes(0.369), rouncewell(0.293), door(0.198), affable(0.182), kenge(0.179), respectable(0.154), ten(0.137), krook(0.137), thinks(0.123), addressed(0.123)
+    random         : george(0.362), bucket(0.298), smallweed(0.297), rouncewell(0.200), vholes(0.155), ada(0.142), destroyed(0.142), speech(0.129), waiting(0.129), perhaps(0.129)
+    transport      : eighteen(0.350), piper(0.262), afar(0.248), vocation(0.233), guppy(0.166), advice(0.165), declaration(0.165), mother(0.148), constancy(0.146), testimony(0.131)
+    Cosine similarities:
+      embedding vs no_passages: 0.312
+      embedding vs rag: 0.308
+      embedding vs random: 0.284
+      embedding vs transport: 0.260
+      no_passages vs rag: 0.290
+      no_passages vs random: 0.344
+      no_passages vs transport: 0.209
+      rag vs random: 0.400
+      rag vs transport: 0.202
+      random vs transport: 0.313
+
+  Expert: Edmund Leigh (appears in 5 conditions)
+    embedding      : injustice(0.155), exhausted(0.148), evermore(0.133), distant(0.133), deity(0.133), youth(0.123), water(0.123), excellent(0.119), hour(0.119), determination(0.119)
+    no_passages    : characters(0.213), mother(0.211), recognition(0.169), centre(0.160), prayer(0.148), gridley(0.142), omniscient(0.142), vholes(0.142), chadband(0.127), jellyby(0.127)
+    rag            : door(0.319), pain(0.201), harold(0.163), mankind(0.151), card(0.138), warmth(0.134), comfort(0.126), hundred(0.126), pictures(0.126), obstinate(0.126)
+    random         : phil(0.333), guppy(0.314), george(0.250), snagsby(0.179), charley(0.179), jellyby(0.149), characters(0.141), bagnet(0.130), authority(0.125), contrast(0.125)
+    transport      : constancy(0.212), afar(0.198), guppy(0.171), steadfastness(0.163), wos(0.153), piper(0.147), mud(0.138), megalosaurus(0.132), evermore(0.132), mask(0.120)
+    Cosine similarities:
+      embedding vs no_passages: 0.385
+      embedding vs rag: 0.318
+      embedding vs random: 0.261
+      embedding vs transport: 0.482
+      no_passages vs rag: 0.275
+      no_passages vs random: 0.315
+      no_passages vs transport: 0.359
+      rag vs random: 0.307
+      rag vs transport: 0.259
+      random vs transport: 0.380
+
+  Expert: Eleanor Hartley (appears in 5 conditions)
+    embedding      : moonlight(0.213), hopefulness(0.200), ray(0.172), homely(0.163), windows(0.163), distant(0.151), deity(0.151), indian(0.150), lincolnshire(0.141), determination(0.138)
+    no_passages    : reverends(0.261), bucket(0.182), defiled(0.162), early(0.162), individual(0.152), handwriting(0.145), begin(0.142), estate(0.132), boredom(0.132), flows(0.132)
+    rag            : stood(0.328), scaled(0.255), caddy(0.215), beside(0.211), charley(0.203), cheerful(0.171), rouncewell(0.166), cherished(0.158), saddle(0.158), donkey(0.158)
+    random         : bucket(0.370), george(0.360), guppy(0.213), charley(0.213), smallweed(0.173), snagsby(0.146), kenge(0.146), bagnet(0.144), funny(0.135), phil(0.112)
+    transport      : evermore(0.352), afar(0.265), piper(0.265), sunlight(0.176), testimony(0.158), waggoner(0.156), hidden(0.149), fragments(0.140), bucket(0.140), constancy(0.140)
+    Cosine similarities:
+      embedding vs no_passages: 0.346
+      embedding vs rag: 0.199
+      embedding vs random: 0.218
+      embedding vs transport: 0.360
+      no_passages vs rag: 0.243
+      no_passages vs random: 0.382
+      no_passages vs transport: 0.283
+      rag vs random: 0.368
+      rag vs transport: 0.174
+      random vs transport: 0.274
+
+  Expert: James Blackstone (appears in 5 conditions)
+    embedding      : flite(0.156), churchyard(0.155), chivied(0.155), description(0.148), dead(0.148), connexion(0.139), leaden(0.139), strange(0.139), net(0.139), headed(0.139)
+    no_passages    : dead(0.316), jennens(0.265), reverends(0.246), vholes(0.202), tom(0.189), scarecrow(0.165), disease(0.164), slum(0.150), graveyard(0.145), infection(0.145)
+    rag            : kenge(0.261), vholes(0.233), krook(0.233), foremost(0.201), gridley(0.200), monument(0.165), trees(0.142), mad(0.140), die(0.134), feet(0.134)
+    random         : smallweed(0.460), guppy(0.390), volumnia(0.207), rouncewell(0.185), snagsby(0.170), bagnet(0.167), krook(0.143), hawdon(0.130), asks(0.117), distance(0.117)
+    transport      : piper(0.182), kenge(0.169), vocation(0.158), autumnal(0.154), badger(0.154), fruits(0.154), outermost(0.154), oath(0.150), description(0.150), woolsack(0.140)
+    Cosine similarities:
+      embedding vs no_passages: 0.428
+      embedding vs rag: 0.308
+      embedding vs random: 0.257
+      embedding vs transport: 0.482
+      no_passages vs rag: 0.264
+      no_passages vs random: 0.218
+      no_passages vs transport: 0.299
+      rag vs random: 0.280
+      rag vs transport: 0.281
+      random vs transport: 0.285
+
+  Expert: Oliver Trevelyan (appears in 5 conditions)
+    embedding      : moonlight(0.294), sheep(0.217), eyes(0.187), city(0.166), churchyard(0.155), hopefulness(0.141), distant(0.137), holborn(0.134), madhouse(0.128), age(0.128)
+    no_passages    : reverends(0.322), ada(0.223), lords(0.223), majesty(0.220), chadband(0.181), terewth(0.180), vholes(0.167), high(0.167), outside(0.149), nemo(0.140)
+    rag            : purse(0.260), fortunatus(0.226), gossip(0.219), chambers(0.205), entangled(0.164), secrets(0.147), fleet(0.146), phil(0.144), squod(0.137), known(0.136)
+    random         : george(0.359), guppy(0.333), smallweed(0.286), phil(0.208), judy(0.182), snagsby(0.170), rouncewell(0.159), trooper(0.159), turveydrop(0.151), soldier(0.132)
+    transport      : ada(0.264), piper(0.221), afar(0.208), crease(0.178), eighteen(0.169), waggoner(0.156), heathen(0.156), secrets(0.154), constancy(0.147), limb(0.147)
+    Cosine similarities:
+      embedding vs no_passages: 0.262
+      embedding vs rag: 0.210
+      embedding vs random: 0.168
+      embedding vs transport: 0.319
+      no_passages vs rag: 0.221
+      no_passages vs random: 0.327
+      no_passages vs transport: 0.333
+      rag vs random: 0.282
+      rag vs transport: 0.275
+      random vs transport: 0.278
+
+QUOTE COUNTS BY EXPERT AND PIPELINE (all 3+ panels)
+----------------------------------------------------------------------
+
+  Caroline Woodcourt:
+    transport      : avg_quotes= 15.1  avg_words=  2109  (n=10)
+    embedding      : avg_quotes= 17.2  avg_words=  2490  (n=10)
+    rag            : avg_quotes= 13.0  avg_words=  2201  (n=10)
+    no_passages    : avg_quotes= 16.6  avg_words=  2701  (n=8)
+    random         : avg_quotes= 12.9  avg_words=  2034  (n=9)
+
+  Daniel Rosen:
+    transport      : avg_quotes= 10.8  avg_words=  2332  (n=10)
+    embedding      : avg_quotes= 14.3  avg_words=  2702  (n=10)
+    rag            : avg_quotes= 11.5  avg_words=  2429  (n=10)
+    no_passages    : avg_quotes= 13.4  avg_words=  2940  (n=7)
+    random         : avg_quotes=  9.2  avg_words=  2236  (n=8)
+
+  Edmund Leigh:
+    transport      : avg_quotes= 11.2  avg_words=  2466  (n=10)
+    embedding      : avg_quotes= 11.0  avg_words=  2493  (n=10)
+    rag            : avg_quotes= 11.6  avg_words=  2637  (n=10)
+    no_passages    : avg_quotes= 12.3  avg_words=  2860  (n=6)
+    random         : avg_quotes= 10.4  avg_words=  2294  (n=7)
+
+  Eleanor Hartley:
+    transport      : avg_quotes= 14.7  avg_words=  2472  (n=10)
+    embedding      : avg_quotes= 16.4  avg_words=  2974  (n=10)
+    rag            : avg_quotes= 12.9  avg_words=  2595  (n=10)
+    no_passages    : avg_quotes= 11.9  avg_words=  2951  (n=9)
+    random         : avg_quotes= 12.1  avg_words=  2365  (n=10)
+
+  James Blackstone:
+    transport      : avg_quotes= 11.2  avg_words=  2397  (n=10)
+    embedding      : avg_quotes= 10.9  avg_words=  2498  (n=10)
+    rag            : avg_quotes= 11.3  avg_words=  2474  (n=10)
+    no_passages    : avg_quotes=  9.3  avg_words=  2711  (n=6)
+    random         : avg_quotes=  9.3  avg_words=  2241  (n=7)
+
+  Oliver Trevelyan:
+    transport      : avg_quotes= 17.9  avg_words=  2589  (n=10)
+    embedding      : avg_quotes= 17.1  avg_words=  2674  (n=10)
+    rag            : avg_quotes= 15.1  avg_words=  2540  (n=10)
+    no_passages    : avg_quotes= 17.3  avg_words=  3052  (n=6)
+    random         : avg_quotes= 13.7  avg_words=  2148  (n=7)
+
+KEY OBSERVATIONS
+======================================================================
+
+  Transport vs embedding:
+    Character density: -21.2%
+    Character entropy: -15.4%
+    Word count:        +7.5%
+    Quote count:       +7.5%
+
+  Transport vs rag:
+    Character density: +3.3%
+    Character entropy: +1.5%
+    Word count:        +1.5%
+    Quote count:       -7.5%
+
+  Transport vs no_passages:
+    Character density: +11.6%
+    Character entropy: -3.4%
+    Word count:        +13.8%
+    Quote count:       -0.3%
+
+  Transport vs random:
+    Character density: -1.3%
+    Character entropy: +8.2%
+    Word count:        -7.2%
+    Quote count:       -16.4%
