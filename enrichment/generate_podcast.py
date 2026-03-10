@@ -25,9 +25,6 @@ from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     EpisodeSegment,
     ExpertPersona,
     PodcastEpisode,
-    SentenceType,
-    Turn,
-    Utterance,
 )
 from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]
     PassageAssignment,
@@ -239,12 +236,27 @@ def build_messages(
             "their perspective matters for Bleak House."
         )
 
-    user_parts.extend([
-        "",
-        "## Assigned Passages",
-        "",
-        _build_passage_block(segment.assignments),
-    ])
+    if segment.assignments:
+        user_parts.extend([
+            "",
+            "## Assigned Passages",
+            "",
+            _build_passage_block(segment.assignments),
+        ])
+    else:
+        user_parts.extend([
+            "",
+            "## No Assigned Passages",
+            "",
+            "No specific passages are assigned for this segment. Drawing on your "
+            "knowledge of *Bleak House* by Charles Dickens, produce a rich discussion "
+            f"that fits this segment's theme: **{segment.template.name}** "
+            f"({segment.template.segment_type}).",
+            "",
+            "Reference specific chapters, characters, scenes, and quotes from the "
+            "novel as you remember them. The discussion should be as detailed and "
+            "grounded as if you had passages in front of you.",
+        ])
 
     return system, "\n".join(user_parts)
 
@@ -262,26 +274,6 @@ def generate_segment_script(
     is_first_segment: bool = False,
 ) -> EpisodeSegment:
     """Generate a multi-voice script for one segment via structured output."""
-    if not segment.assignments:
-        return EpisodeSegment(
-            title=segment.template.name,
-            segment_type=segment.template.segment_type,
-            turns=[
-                Turn(
-                    speaker="Narrator",
-                    role="narrator",
-                    utterances=[
-                        Utterance(
-                            text=f"This segment — {segment.template.name} — "
-                            f"has no assigned passages.",
-                            sentence_type=SentenceType.closing,
-                            pause_after_ms=1500,
-                        )
-                    ],
-                )
-            ],
-        )
-
     system_msg, user_msg = build_messages(segment, personas, is_first_segment)
 
     logger.info(
@@ -290,25 +282,36 @@ def generate_segment_script(
         len(segment.assignments),
     )
 
-    response = client.messages.parse(
-        model=model,
-        max_tokens=16384,
-        system=system_msg,
-        messages=[{"role": "user", "content": user_msg}],
-        output_format=EpisodeSegment,
-    )
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = client.messages.parse(
+                model=model,
+                max_tokens=16384,
+                system=system_msg,
+                messages=[{"role": "user", "content": user_msg}],
+                output_format=EpisodeSegment,
+            )
 
-    logger.info(
-        "  Response: stop_reason=%s, input_tokens=%d, output_tokens=%d",
-        response.stop_reason,
-        response.usage.input_tokens,
-        response.usage.output_tokens,
-    )
+            logger.info(
+                "  Response: stop_reason=%s, input_tokens=%d, output_tokens=%d",
+                response.stop_reason,
+                response.usage.input_tokens,
+                response.usage.output_tokens,
+            )
 
-    assert response.parsed_output is not None, (
-        f"Structured output parsing failed for segment '{segment.template.name}'"
-    )
-    return response.parsed_output
+            assert response.parsed_output is not None, (
+                f"Structured output parsing failed for segment '{segment.template.name}'"
+            )
+            return response.parsed_output
+        except (Exception,) as e:
+            if attempt < max_attempts:
+                logger.warning(
+                    "  Attempt %d/%d failed for '%s': %s. Retrying...",
+                    attempt, max_attempts, segment.template.name, e,
+                )
+            else:
+                raise
 
 
 # ---------------------------------------------------------------------------
