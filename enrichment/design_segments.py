@@ -25,6 +25,7 @@ from enrichment.podcast_types import SegmentTemplate  # pyright: ignore[reportMi
 from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
     ArcDemand,
     ExpertProfile,
+    load_passages,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,83 @@ Available dimensions (prov_* fields from the enrichment schema):
   prov_narrative_technique
 """
 
+# V1 is the original prompt above; V2 adds supply awareness
+SYSTEM_PROMPT_V1 = SYSTEM_PROMPT
+
+SYSTEM_PROMPT_V2 = """\
+You are a podcast producer designing the segment structure for a literary \
+analysis episode about Charles Dickens' *Bleak House*.
+
+You will be given:
+1. The expert panel (names, roles, and the analytical dimensions each cares about)
+2. The character arcs being tracked and their importance
+3. The material supply — how many strong and weak passages exist per dimension
+
+Your job: design 5-8 episode segments that make editorial sense for THIS \
+specific panel.  Each segment needs:
+- A compelling title (e.g. "The Fog and What It Hides", not just "Opening")
+- A segment_type (opening, deep_dive, discussion, close_reading, closing)
+- Which analytical dimensions it should draw from (prov_* field names)
+- Which character arcs it should track (exact arc names from the input, or empty)
+- Which experts should lead (exact expert names from the input, or empty for any)
+- min/max passage counts (2-3 for short segments, 3-6 for deep dives)
+
+Design principles:
+- The opening should set the scene; the closing should synthesise
+- Give each expert at least one segment where they lead
+- Give each tracked arc at least one segment where it features
+- Segment titles should be evocative and specific to Bleak House, not generic
+- Total max_passages across all segments should be 25-35 (a 45-60 minute episode)
+- Exactly one opening and one closing segment
+- Only use dimensions that at least one expert demands or one arc requires — \
+don't create demand for dimensions nobody on the panel cares about
+- Weight segments toward dimensions with abundant strong supply.  \
+A deep_dive on a scarce dimension (e.g. atmosphere_setting with few hundred \
+strong passages) risks thin material.  A deep_dive on a rich dimension \
+(e.g. character_development with 1,000+ strong passages) can draw from the best.
+
+Available dimensions (prov_* fields from the enrichment schema):
+  prov_character_development, prov_plot_advancement, prov_thematic_depth,
+  prov_social_critique, prov_humor_entertainment, prov_atmosphere_setting,
+  prov_narrative_technique
+"""
+
+PROVISION_DIMENSIONS = [
+    "prov_character_development",
+    "prov_plot_advancement",
+    "prov_thematic_depth",
+    "prov_social_critique",
+    "prov_humor_entertainment",
+    "prov_atmosphere_setting",
+    "prov_narrative_technique",
+]
+
+
+def _build_supply_summary() -> str:
+    """Summarise passage supply per provision dimension from enrichment data."""
+    from collections import Counter
+
+    passages = load_passages()
+    lines = ["## Material Supply\n"]
+    lines.append(
+        f"Strong passages available per dimension (of {len(passages):,} total):"
+    )
+    for dim in PROVISION_DIMENSIONS:
+        strengths: Counter[str] = Counter()
+        for p in passages:
+            strengths[p.provisions.get(dim, "none")] += 1
+        lines.append(
+            f"  {dim}: {strengths['strong']:>5,} strong, {strengths['weak']:>5,} weak"
+        )
+
+    interest: Counter[int] = Counter()
+    for p in passages:
+        interest[p.interest_score] += 1
+    high = sum(v for k, v in interest.items() if k >= 4)
+    lines.append(f"\nInterest distribution: {dict(sorted(interest.items()))}")
+    lines.append(f"Only {high} passages score 4+ (genuinely remarkable material).")
+    return "\n".join(lines)
+
 
 def _build_panel_summary(
     experts: list[ExpertProfile],
@@ -103,27 +181,38 @@ def design_segments(
     arcs: list[ArcDemand],
     client: anthropic.Anthropic | None = None,
     model: str = MODEL,
+    prompt_version: int = 2,
 ) -> list[SegmentTemplate]:
     """Design segment templates for this panel configuration.
 
-    Only needs the expert panel and arc demands — no Phase 1 results.
-    This runs BEFORE passage selection so its output can influence Phase 1.
+    prompt_version=1: original prompt (no supply info)
+    prompt_version=2: supply-aware prompt (includes passage supply summary)
     """
     if client is None:
         client = anthropic.Anthropic()
 
     panel_summary = _build_panel_summary(experts, arcs)
-    user_msg = (
-        f"{panel_summary}\n\n"
-        "Design the episode segments for this panel."
-    )
 
-    logger.info("Designing segments with %s ...", model)
+    if prompt_version >= 2:
+        supply_summary = _build_supply_summary()
+        user_msg = (
+            f"{panel_summary}\n\n{supply_summary}\n\n"
+            "Design the episode segments for this panel."
+        )
+        system = SYSTEM_PROMPT_V2
+    else:
+        user_msg = (
+            f"{panel_summary}\n\n"
+            "Design the episode segments for this panel."
+        )
+        system = SYSTEM_PROMPT_V1
+
+    logger.info("Designing segments (v%d) with %s ...", prompt_version, model)
 
     response = client.messages.parse(
         model=model,
         max_tokens=2048,
-        system=SYSTEM_PROMPT,
+        system=system,
         messages=[{"role": "user", "content": user_msg}],
         output_format=SegmentDesignResult,
     )

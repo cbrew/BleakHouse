@@ -154,7 +154,9 @@ def run_phase3(config: RunConfig, phase2_data: dict, phase1_data: dict) -> dict:
     episode_segments = []
     for i, seg in enumerate(plan.segments):
         episode_seg = generate_segment_script(
-            seg, client, config.model, personas, is_first_segment=(i == 0),
+            seg, client, config.model, personas,
+            is_first_segment=(i == 0),
+            prompt_version=config.prompt_version,
         )
         episode_segments.append(episode_seg)
         logger.info(
@@ -236,6 +238,12 @@ def main() -> None:
         help="Resume from this phase using existing outputs (skips earlier phases)",
     )
 
+    # Prompt version
+    parser.add_argument(
+        "--prompt-version", type=int, default=2,
+        help="Prompt version: 1=original, 2=supply-aware+passage-grounded (default: 2)",
+    )
+
     # Phase 3 overrides
     parser.add_argument("--model", default=None)
 
@@ -247,7 +255,7 @@ def main() -> None:
     )
 
     # Build config
-    config = RunConfig(name=args.name)
+    config = RunConfig(name=args.name, prompt_version=args.prompt_version)
 
     # Apply Phase 1 overrides
     producer = ProducerConfig()
@@ -378,6 +386,7 @@ def main() -> None:
             templates = design_segments(
                 config.experts, config.arcs,
                 model=segment_model,
+                prompt_version=config.prompt_version,
             )
             config.segment_templates = templates
             with open(run_dir / "phase0_segments.json", "w") as f:

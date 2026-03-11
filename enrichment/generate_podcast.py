@@ -74,7 +74,10 @@ def _build_speaker_styles(personas: list[ExpertPersona]) -> str:
     return "\n".join(lines)
 
 
-def _build_passage_block(assignments: list[PassageAssignment]) -> str:
+def _build_passage_block(
+    assignments: list[PassageAssignment],
+    prompt_version: int = 2,
+) -> str:
     """Format passage assignments for the user prompt."""
     blocks: list[str] = []
     for pa in assignments:
@@ -96,6 +99,14 @@ def _build_passage_block(assignments: list[PassageAssignment]) -> str:
             meta_lines.append(f"**Narrator:** {pa.narrator}")
         if pa.best_quote:
             meta_lines.append(f"**Best quote:** \"{pa.best_quote}\"")
+            if prompt_version >= 2:
+                meta_lines.append(
+                    "*(Use this quote or extract another verbatim from the text below.)*"
+                )
+        elif prompt_version >= 2:
+            meta_lines.append(
+                "*(No pre-selected quote — extract one verbatim from the text below.)*"
+            )
 
         text_block = f"**Text:**\n{pa.text}" if pa.text else ""
 
@@ -131,7 +142,7 @@ style=presenter_warm.
 - Experts react to each other: agree, push back gently, riff on each \
   other's ideas.  This is a conversation, not parallel monologues.
 - Direct quotes from Dickens are gold.  Set them up, read them with \
-  relish, then unpack why they're wonderful.
+  relish, then unpack why they're wonderful.{quote_sourcing}
 - No gimmicky filler words.  No "so," "well," "you know" padding.  \
   Every sentence should earn its place.
 
@@ -198,7 +209,7 @@ Dickens quote, use this pattern:
 - Each expert: 2-4 turns per segment, 3-8 utterances per turn.
 - Experts build on each other — agreement, friendly disagreement, \
   "that reminds me of..."
-- Include at least one direct Dickens quote per expert turn.
+- Include at least one direct Dickens quote per expert turn{quote_source_turn}.
 - End each segment with a host transition to the next topic.
 - Use the enrichment metadata (themes, emotional register) to inform \
   the discussion, but never mention the metadata itself.
@@ -211,16 +222,41 @@ Dickens quote, use this pattern:
 """
 
 
+_QUOTE_SOURCING_V2 = """
+- **Quote from the assigned passages.**  Each passage includes a \
+best_quote — use it.  If a passage's best_quote is null or you \
+need a second quote, extract one verbatim from the passage text.  \
+Do not invent quotations or quote from memory — every quote \
+must come from a passage provided in this segment.  If an expert \
+wants to reference a passage assigned to another expert, that \
+is encouraged (it makes for better conversation), but the quote \
+must still be verbatim from that passage's text."""
+
+
 def build_messages(
     segment: PlannedSegment,
     personas: list[ExpertPersona],
     is_first_segment: bool = False,
+    prompt_version: int = 2,
 ) -> tuple[str, str]:
-    """Build system and user messages for a segment's LLM call."""
+    """Build system and user messages for a segment's LLM call.
+
+    prompt_version=1: original prompts
+    prompt_version=2: passage-grounded quoting instructions
+    """
+    if prompt_version >= 2:
+        quote_sourcing = _QUOTE_SOURCING_V2
+        quote_source_turn = ",\n  drawn from the assigned passages"
+    else:
+        quote_sourcing = ""
+        quote_source_turn = ""
+
     system = SYSTEM_PROMPT.format(
         personas=_build_persona_block(personas),
         num_experts=len(personas),
         speaker_styles=_build_speaker_styles(personas),
+        quote_sourcing=quote_sourcing,
+        quote_source_turn=quote_source_turn,
     )
 
     user_parts: list[str] = [
@@ -241,7 +277,7 @@ def build_messages(
             "",
             "## Assigned Passages",
             "",
-            _build_passage_block(segment.assignments),
+            _build_passage_block(segment.assignments, prompt_version),
         ])
     else:
         user_parts.extend([
@@ -272,9 +308,12 @@ def generate_segment_script(
     model: str,
     personas: list[ExpertPersona],
     is_first_segment: bool = False,
+    prompt_version: int = 2,
 ) -> EpisodeSegment:
     """Generate a multi-voice script for one segment via structured output."""
-    system_msg, user_msg = build_messages(segment, personas, is_first_segment)
+    system_msg, user_msg = build_messages(
+        segment, personas, is_first_segment, prompt_version,
+    )
 
     logger.info(
         "Generating script for segment '%s' (%d passages)",
