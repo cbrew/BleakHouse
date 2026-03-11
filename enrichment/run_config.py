@@ -50,6 +50,9 @@ class RunConfig:
     segment_arc_mismatch_cost: int = 3
     segment_expert_mismatch_cost: int = 2
 
+    # Prompt version (1 = original, 2 = supply-aware + passage-grounded quoting)
+    prompt_version: int = 2
+
     # Phase 3: script generation
     model: str = "claude-sonnet-4-6"
     personas: list[ExpertPersona] = field(
@@ -77,6 +80,7 @@ class RunConfig:
             "segment_dimension_mismatch_cost": self.segment_dimension_mismatch_cost,
             "segment_arc_mismatch_cost": self.segment_arc_mismatch_cost,
             "segment_expert_mismatch_cost": self.segment_expert_mismatch_cost,
+            "prompt_version": self.prompt_version,
             "model": self.model,
             "personas": [p.model_dump() for p in self.personas],
             "tts_model": self.tts_model,
@@ -104,6 +108,7 @@ class RunConfig:
             ),
             segment_arc_mismatch_cost=data.get("segment_arc_mismatch_cost", 3),
             segment_expert_mismatch_cost=data.get("segment_expert_mismatch_cost", 2),
+            prompt_version=data.get("prompt_version", 1),
             model=data.get("model", "claude-sonnet-4-6"),
             personas=[
                 ExpertPersona.model_validate(p)
