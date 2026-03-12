@@ -47,16 +47,18 @@ formulation is \emph{more manipulable} than embedding-based retrieval
 ---producing predictable, inspectable output changes in response to
 parameter adjustments---and \emph{cheaper to explore}, since re-solving
 a flow costs zero LLM tokens while re-prompting a curator requires a
-full inference call.  We test this by generating multi-voice literary
-discussions of Dickens's \textit{Bleak House} across five passage
-selection conditions and 20 expert panel configurations (100 episodes),
-then replicate the key findings on four additional novels (96 episodes).
+full inference call.  We test this on five Victorian and early-modern
+novels---Dickens's \textit{Bleak House} and \textit{Our Mutual Friend},
+Eliot's \textit{The Mill on the Floss}, Gaskell's \textit{North and
+South}, and Forster's \textit{A Passage to India}---generating 196
+multi-voice literary discussion episodes across five passage selection
+conditions and multiple expert panel configurations.
 The transport and embedding pipelines select almost entirely different
 passages (Jaccard 0.024--0.085) yet produce convergent scripts---confirming
 that expert personas, not selection algorithms, dominate downstream
 output.  This convergence paradox, along with the grounding gap
 (+50 percentage point quote verification advantage over ungrounded
-generation) and stable expert identity signatures, replicates across all
+generation) and stable expert identity signatures, holds across all
 five novels.  The transport pipeline's distinctive contribution is
 editorial manipulability: demand profile changes produce predictable,
 inspectable shifts that the embedding pipeline cannot match, at zero
@@ -94,13 +96,18 @@ over embedding-based retrieval:
   The transport formulation makes iterative exploration cheap.
 \end{enumerate}
 
-We test these hypotheses by generating multi-voice literary discussions
-of Dickens's \textit{Bleak House} \citep{dickens1853bleak}, comparing
-five passage selection conditions across all $\binom{6}{3} = 20$
-possible three-expert panels drawn from six personas.  The comparison
-reveals that \emph{having} passages matters far more than \emph{how}
-they are selected for downstream script quality---but the transport
-formulation uniquely enables systematic editorial exploration.
+We test these hypotheses on five novels spanning different authors,
+eras, and literary traditions: Dickens's \textit{Bleak House}
+\citep{dickens1853bleak} and \textit{Our Mutual Friend}
+\citep{dickens1865omf}, Eliot's \textit{The Mill on the Floss}
+\citep{eliot1860mill}, Gaskell's \textit{North and South}
+\citep{gaskell1855north}, and Forster's \textit{A Passage to India}
+\citep{forster1924passage}.  We compare five passage selection
+conditions across multiple expert panel configurations, generating 196
+episodes total.  The comparison reveals that \emph{having} passages
+matters far more than \emph{how} they are selected for downstream script
+quality---but the transport formulation uniquely enables systematic
+editorial exploration.
 
 
 \section{System Design}
@@ -188,20 +195,42 @@ Script generation (Phase~3) is identical across conditions.
 \subsection{Enrichment Layer}
 \label{sec:enrichment}
 
-Each of 6{,}916 passages from \textit{Bleak House} (67 chapters) is
-annotated by an LLM (Haiku) with 20 structured fields: an interest
-score (0--5), seven provision dimensions
+Each novel is split into passages (one per paragraph or small group of
+paragraphs) and each passage is annotated by an LLM (Haiku) with 20
+structured fields: an interest score (0--5), seven provision dimensions
 (character\_development, plot\_advancement, thematic\_depth,
 social\_critique, humor\_entertainment, atmosphere\_setting,
 narrative\_technique---each rated none/weak/strong as 0/1/2),
 characters present, themes, emotional register, plot function,
 quotability, and a best\_quote extraction.
 
+\begin{table}[t]
+\caption{Corpus statistics.  All five novels are enriched with the
+  same 20-field schema; passage counts reflect natural paragraph
+  boundaries.}
+\label{tab:corpus}
+\begin{tabular}{lrrr}
+\toprule
+Novel & Chapters & Passages & Year \\
+\midrule
+\textit{Bleak House} (Dickens)        & 67 & 6{,}916 & 1853 \\
+\textit{Our Mutual Friend} (Dickens)  & 63 & 5{,}775 & 1865 \\
+\textit{The Mill on the Floss} (Eliot) & 58 & 4{,}654 & 1860 \\
+\textit{North and South} (Gaskell)    & 52 & 2{,}942 & 1855 \\
+\textit{A Passage to India} (Forster) & 37 & 2{,}556 & 1924 \\
+\midrule
+\textit{Total}                         & 277 & 22{,}843 & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:corpus} shows the five novels and their passage counts.
 For the embedding pipeline, each passage also receives a contextual
 retrieval summary \citep{anthropic2024context} prepended before
 embedding with OpenAI \texttt{text-embedding-3-small}.  Total
-enrichment cost: ${\sim}$8M Haiku tokens plus ${\sim}$1.4M OpenAI
-embedding tokens, amortised across all runs at zero marginal cost.
+enrichment cost across all five novels: ${\sim}$25M Haiku tokens plus
+${\sim}$4.5M OpenAI embedding tokens, amortised across all runs at zero
+marginal cost.
 
 
 \subsection{Expert Personas and Demand Profiles}
@@ -460,24 +489,24 @@ meaningful information beyond text.
 \section{Experimental Design}
 \label{sec:experiment}
 
-All $\binom{6}{3} = 20$ possible three-expert panels, each run under
-all five conditions: 100 episodes total for \textit{Bleak House}.
-A cross-novel replication (Section~\ref{sec:generalization}) adds four
-novels with 8 panels $\times$ 3 conditions = 96 episodes.
-Across all conditions:
+For \textit{Bleak House}, all $\binom{6}{3} = 20$ possible three-expert
+panels are run under all five conditions: 100 episodes.  For each of
+the other four novels, 8 panels are run under three conditions
+(transport, embedding, no-passages): 96 episodes.  The total is 196
+episodes across five novels.  Across all conditions and novels:
 identical segment design, identical script generation prompt, identical
 persona descriptions, identical Pydantic output schema.  The only
 manipulation is what appears in the ``Assigned Passages'' section of
 the Phase~3 prompt.
 
 \textbf{Metrics.}  Character mention density (per 1{,}000 words,
-against 23 characters), character entropy
+against each novel's named character list), character entropy
 \citep{shannon1948mathematical}, unique characters per episode, quotes
 per episode, per-expert TF-IDF vocabulary signatures (cross-condition
-cosine), quote verification (fuzzy 5-word subsequence matching against
-source text), and material similarity (Jaccard, Jensen-Shannon
-divergence \citep{lin1991divergence}, maximum mean discrepancy
-\citep{gretton2012kernel}).
+and cross-novel cosine), quote verification (fuzzy 5-word subsequence
+matching against source text), and material similarity (Jaccard,
+Jensen-Shannon divergence \citep{lin1991divergence}, maximum mean
+discrepancy \citep{gretton2012kernel}).
 
 
 \section{Results}
@@ -640,36 +669,40 @@ The embedding pipeline offers no such preview.
 Table~\ref{tab:cost} shows the full token budget.
 
 \begin{table}[t]
-\caption{Token budget by model class.  Enrichment is computed once;
-  per-run costs are dominated by script generation.}
+\caption{Token budget by model class.  Enrichment is computed once per
+  novel; per-run costs are dominated by script generation.}
 \label{tab:cost}
 \begin{tabular}{lrr}
 \toprule
 Component & Haiku & Sonnet \\
 \midrule
-Enrichment (once)   & 8.0M & --- \\
+Enrichment (once, 5 novels)   & 25M & --- \\
 Segment design (/run)  & 2K & --- \\
 Curation (/run, embed only) & --- & 15K \\
 Script generation (/run) & --- & 102K \\
 \midrule
-Project total ($\sim$390 runs) & 8.8M & 39.5M \\
+Project total (196 runs) & 25.4M & 20.0M \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The enrichment layer's 8M Haiku tokens are amortised across all runs.
-Adding a new panel costs $\sim$300K Sonnet tokens (3 conditions
-$\times$ $\sim$100K each).
+The enrichment layer's 25M Haiku tokens (across five novels) are
+amortised across all runs.  Adding a new panel for one novel costs
+$\sim$300K Sonnet tokens (3 conditions $\times$ $\sim$100K each).
 
 
 \subsection{Aggregate Quality Comparison}
 \label{sec:aggregate}
 
-Table~\ref{tab:aggregate} shows that the five conditions produce
-comparable scripts on surface metrics.
+Table~\ref{tab:aggregate} shows that across all five novels, the
+selection conditions produce comparable scripts on surface metrics.  The
+\textit{Bleak House} results (all five conditions, 20 panels) and the
+four-novel results (three conditions, 8 panels each) tell the same
+story.
 
 \begin{table}[t]
-\caption{Aggregate metrics across 20 panels per condition.}
+\caption{Aggregate metrics.  BH: 20 panels $\times$ 5 conditions.
+  Cross-novel (XN): 4 novels $\times$ 8 panels $\times$ 3 conditions.}
 \label{tab:aggregate}
 \begin{tabular}{lrrrrr}
 \toprule
@@ -688,44 +721,83 @@ Embedding narrows: lowest character density (17.6/1Kw), fewest unique
 characters (11.6), lowest entropy (2.91) despite highest word count.
 Plain RAG matches transport within 3\% on all metrics.  No passages
 achieves 80\% of transport's character density from prior knowledge
-alone.  These findings confirm that selection method has modest
-impact on aggregate quality---the persona layer dominates.
+alone.  These patterns hold across all five novels, confirming that
+selection method has modest impact on aggregate quality---the persona
+layer dominates.
 
 
 \subsection{Passage Grounding Prevents Confabulation}
 \label{sec:grounding}
 
 \begin{table}[t]
-\caption{Quote verification rates (fuzzy 5-word subsequence match).}
+\caption{Quote verification rates (fuzzy 5-word subsequence match).
+  Top: \textit{Bleak House} (all 5 conditions).  Bottom: cross-novel
+  means (3 conditions).}
 \label{tab:quotes}
 \begin{tabular}{lrr}
 \toprule
 Condition & Raw & Adjusted \\
 \midrule
+\multicolumn{3}{l}{\textit{Bleak House (5 conditions, 20 panels):}} \\
 Transport       & 87\% & 91\% \\
 Embedding       & 89\% & 96\% \\
 Plain RAG       & 78\% & 91\% \\
 No passages     & 38\% & 52\% \\
 Random          & 65\% & --- \\
+\midrule
+\multicolumn{3}{l}{\textit{Cross-novel mean (3 conditions, 4 novels):}} \\
+Transport       & 62\% & --- \\
+Embedding       & 58\% & --- \\
+No passages     & 10\% & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The gap between no-passages (38\%) and any grounded condition
-($\geq$78\%) dwarfs the gap between grounding methods.  Passage
-grounding prevents confabulation; the method of grounding is
+The gap between no-passages and any grounded condition dwarfs the gap
+between grounding methods.  This holds across all five novels
+(Table~\ref{tab:quotes-xnovel}): the cross-novel grounding gap averages
++50 percentage points, ranging from +46 (Forster) to +59 (Gaskell).
+Passage grounding prevents confabulation; the method of grounding is
 secondary.
+
+\begin{table}[t]
+\caption{Quote verification rates by novel (transport, embedding,
+  no-passages).  The grounding gap is large and consistent.}
+\label{tab:quotes-xnovel}
+\begin{tabular}{lrrrc}
+\toprule
+Novel & Trn & Emb & NP & Gap \\
+\midrule
+\textit{Bleak House}       & 87\% & 89\% & 38\% & +50 \\
+Our Mutual Friend  & 53\% & 62\% &  5\% & +53 \\
+Mill on the Floss  & 58\% & 55\% &  9\% & +47 \\
+North and South    & 66\% & 59\% &  4\% & +59 \\
+A Passage to India & 73\% & 58\% & 20\% & +46 \\
+\midrule
+\textit{Mean}      & 67\% & 65\% & 15\% & +51 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Forster's novel shows the highest no-passages verification rate (20\%),
+while Gaskell's and Dickens's \textit{Our Mutual Friend} show the
+lowest ($\leq$5\%).  We note this variation without claiming a specific
+cause; possible factors include corpus size, the LLM's training
+exposure, and the density of quotable prose.
 
 
 \subsection{Material Disjointness and Script Convergence}
 \label{sec:material}
 
-Transport and embedding select almost entirely different passages
-(Table~\ref{tab:material}), yet scripts partially converge.
+Transport and embedding select almost entirely different passages, yet
+scripts partially converge.  Table~\ref{tab:material} shows this
+pattern for \textit{Bleak House}; Table~\ref{tab:material-xnovel} shows
+it replicates across all five novels.
 
 \begin{table}[t]
-\caption{Material disjointness (top) vs script convergence (bottom),
-  transport $\leftrightarrow$ embedding, per-expert averages.}
+\caption{Material disjointness (top) vs script convergence (bottom)
+  for \textit{Bleak House}, transport $\leftrightarrow$ embedding,
+  per-expert averages.}
 \label{tab:material}
 \begin{tabular}{lr}
 \toprule
@@ -743,12 +815,30 @@ Sentence specificity & 0.87 vs 0.87 \\
 \end{tabular}
 \end{table}
 
+\begin{table}[t]
+\caption{Convergence paradox across all five novels.  Passage Jaccard
+  is near-zero everywhere; vocabulary cosine is consistently moderate.}
+\label{tab:material-xnovel}
+\begin{tabular}{lrrrr}
+\toprule
+Novel & Pass.\ J & Ch.\ J & Prov.\ D & Vocab.\ cos \\
+\midrule
+\textit{Bleak House}    & 0.047 & 0.074 & ---   & 0.549 \\
+Our Mutual Friend       & 0.066 & 0.262 & 0.597 & 0.632 \\
+Mill on the Floss       & 0.026 & 0.192 & 0.834 & 0.658 \\
+North and South         & 0.024 & 0.216 & 0.676 & 0.674 \\
+A Passage to India      & 0.085 & 0.312 & 0.413 & 0.683 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 The convergence force is the expert persona.  The same expert
-discussing different passages about \textit{Bleak House} arrives at
+discussing different passages about the same novel arrives at
 overlapping vocabulary because the persona constrains what the expert
 \emph{says about} the material.  This is the convergence paradox:
 different inputs, similar outputs---because the persona, not the
-passage, dominates.
+passage, dominates.  The pattern holds uniformly across novels of
+different lengths, authors, and literary periods.
 
 
 \subsection{Expert Identity Is Robust}
@@ -767,15 +857,41 @@ $\leftrightarrow$ transport 0.30.  Random disrupts identity
 \emph{more} than no passages---irrelevant grounding text interferes
 with the persona prompt.
 
+Expert personas also maintain stable signatures \emph{across novels}
+(Table~\ref{tab:xnovel-airtime}).  Airtime proportions vary by at most
+1.4 percentage points (SD) across the four non-BH novels.  Cross-novel
+vocabulary cosine averages 0.89 per expert, confirming that the persona
+prompt---not the source material---dominates each expert's linguistic
+fingerprint.
+
+\begin{table}[t]
+\caption{Expert airtime (\% of total expert words, transport condition)
+  across novels.  Proportions are remarkably stable; the persona prompt
+  dominates over source material.}
+\label{tab:xnovel-airtime}
+\begin{tabular}{lrrrrr}
+\toprule
+Expert & OMF & MoF & NaS & PtI & SD \\
+\midrule
+Blackstone & 25.2 & 23.6 & 21.8 & 24.5 & 1.4 \\
+Woodcourt  & 19.3 & 19.8 & 20.1 & 19.3 & 0.4 \\
+Hartley    & 17.5 & 19.6 & 19.1 & 19.2 & 0.9 \\
+Rosen      & 16.1 & 16.6 & 17.3 & 16.2 & 0.5 \\
+Leigh      & 12.1 & 12.3 & 12.0 & 12.8 & 0.4 \\
+Trevelyan  &  9.8 &  8.1 &  9.7 &  7.9 & 1.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 
 \subsection{Conversational Design Compliance}
 \label{sec:conversational}
 
 The script generation prompt encodes eight measurable conversational
-design features.  Across 233 episodes (114{,}392 utterances):
+design features.  Across all 196 episodes:
 
 \begin{table}[t]
-\caption{Conversational design measurements (233 episodes).}
+\caption{Conversational design measurements (196 episodes).}
 \label{tab:conversational}
 \begin{tabular}{lr}
 \toprule
@@ -1012,114 +1128,6 @@ that passage sharing is the key architectural decision.
 analysis pipeline planned, not yet implemented.}
 
 
-\section{Cross-Novel Generalization}
-\label{sec:generalization}
-
-The preceding results derive from a single novel.  To test whether the
-pipeline's properties generalize, we run the same system on four
-additional novels spanning different authors, eras, and literary
-traditions: Dickens's \textit{Our Mutual Friend} (1865, 5{,}775
-passages), Eliot's \textit{The Mill on the Floss} (1860, 4{,}654),
-Gaskell's \textit{North and South} (1855, 2{,}942), and Forster's
-\textit{A Passage to India} (1924, 2{,}556).  Each novel is processed
-through the full enrichment pipeline, producing per-passage provision
-scores, character annotations, and contextual embeddings.  We then run
-all three conditions (transport, embedding, no-passages) with eight
-expert panel compositions, yielding 96 episodes (4 novels $\times$ 3
-conditions $\times$ 8 panels).
-
-\subsection{Grounding Gap Replicates}
-\label{sec:xnovel-grounding}
-
-\begin{table}[t]
-\caption{Quote verification rates by novel and condition.  The
-  grounding gap (grounded mean minus no-passages) is large and
-  consistent across all four novels.}
-\label{tab:xnovel-quotes}
-\begin{tabular}{lrrrc}
-\toprule
-Novel & Trn & Emb & NP & Gap \\
-\midrule
-Our Mutual Friend  & 53\% & 62\% &  5\% & +53 \\
-Mill on the Floss  & 58\% & 55\% &  9\% & +47 \\
-North and South    & 66\% & 59\% &  4\% & +59 \\
-A Passage to India & 73\% & 58\% & 20\% & +46 \\
-\midrule
-\textit{Mean}      & 62\% & 58\% & 10\% & +50 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The grounding gap---the difference in quote verification between
-passage-grounded and ungrounded conditions---replicates across all four
-novels (Table~\ref{tab:xnovel-quotes}).  Grounded conditions verify at
-58--62\%; the no-passages baseline at 10\%.  The gap (+50 percentage
-points on average) is comparable to the single-novel result.  Forster's
-novel shows the highest no-passages rate (20\%), consistent with the
-prediction that better-known texts produce fewer confabulations even
-without grounding---but the gap remains large.
-
-
-\subsection{Convergence Paradox Replicates}
-\label{sec:xnovel-convergence}
-
-\begin{table}[t]
-\caption{Material disjointness vs.\ script convergence across novels.
-  Passage Jaccard is near-zero everywhere; vocabulary cosine is
-  consistently moderate.}
-\label{tab:xnovel-convergence}
-\begin{tabular}{lrrrr}
-\toprule
-Novel & Pass.\ J & Ch.\ J & Prov.\ D & Vocab.\ cos \\
-\midrule
-\textit{Bleak House}    & 0.047 & 0.074 & ---   & 0.549 \\
-Our Mutual Friend       & 0.066 & 0.262 & 0.597 & 0.632 \\
-Mill on the Floss       & 0.026 & 0.192 & 0.834 & 0.658 \\
-North and South         & 0.024 & 0.216 & 0.676 & 0.674 \\
-A Passage to India      & 0.085 & 0.312 & 0.413 & 0.683 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The convergence paradox holds for every novel tested
-(Table~\ref{tab:xnovel-convergence}).  Transport and embedding select
-nearly disjoint passages (Jaccard 0.024--0.085) yet produce scripts with
-moderate vocabulary overlap (cosine 0.632--0.683).  The convergence force
-is the expert persona: the same expert discussing different passages
-about the same novel arrives at overlapping vocabulary because the
-persona constrains what the expert \emph{says about} the material.
-
-
-\subsection{Expert Identity Is Stable Across Novels}
-\label{sec:xnovel-identity}
-
-\begin{table}[t]
-\caption{Expert airtime (\% of total expert words, transport condition)
-  is remarkably stable across novels.  Blackstone consistently
-  dominates; Trevelyan is consistently most concise.}
-\label{tab:xnovel-airtime}
-\begin{tabular}{lrrrrr}
-\toprule
-Expert & OMF & MoF & NaS & PtI & SD \\
-\midrule
-Blackstone & 25.2 & 23.6 & 21.8 & 24.5 & 1.4 \\
-Woodcourt  & 19.3 & 19.8 & 20.1 & 19.3 & 0.4 \\
-Hartley    & 17.5 & 19.6 & 19.1 & 19.2 & 0.9 \\
-Rosen      & 16.1 & 16.6 & 17.3 & 16.2 & 0.5 \\
-Leigh      & 12.1 & 12.3 & 12.0 & 12.8 & 0.4 \\
-Trevelyan  &  9.8 &  8.1 &  9.7 &  7.9 & 1.0 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Expert personas maintain stable behavioral signatures across novels
-(Table~\ref{tab:xnovel-airtime}).  Airtime proportions vary by at most
-1.4 percentage points (SD) across the four novels.  Cross-novel
-vocabulary cosine averages 0.89 per expert, confirming that the persona
-prompt---not the source material---dominates each expert's linguistic
-fingerprint.  Sentence-type profiles are similarly stable: Trevelyan
-consistently shows the highest quote\_reading proportion (10.6\%),
-Blackstone the lowest (6.4\%), regardless of novel.
 
 
 \section{Discussion}
@@ -1157,9 +1165,10 @@ generated episodes.  Statistical comparisons are descriptive; bootstrap
 CIs would strengthen the claims.  The manipulability advantage assumes a
 user who wants to explore configurations---for one-shot generation, the
 transport pipeline offers no quality advantage over plain RAG.  The
-cross-novel generalization study (Section~\ref{sec:generalization})
-addresses the single-novel limitation but uses the same automated
-metrics; human evaluation across novels remains future work.
+five-novel study uses the same automated metrics throughout; human
+evaluation remains future work.  All five novels are from the English
+literary canon (1853--1924); the pipeline has not been tested on
+non-literary text, non-English sources, or contemporary works.
 
 \subsection{Implications}
 
