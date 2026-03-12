@@ -255,15 +255,15 @@ These are the primary editorial control surface
 
   % --- Baseline ---
   \node[font=\small\bfseries, anchor=west] at (-0.3, 2.8) {Baseline demands};
-  % Rosen baseline: social=3, atmos=2, char=1
+  % Rosen baseline: char=6, social=14, atmos=10
   \node[anchor=east, font=\scriptsize] at (-0.2, 2.0) {Rosen};
-  \foreach \v/\i in {1/0, 0/1, 0/2, 3/3, 0/4, 2/5, 0/6} {
-    \fill[blue!50] (\i*\dw, 1.6) rectangle +(\dw-0.05, \v*0.22);
+  \foreach \v/\i in {6/0, 0/1, 0/2, 14/3, 0/4, 10/5, 0/6} {
+    \fill[blue!50] (\i*\dw, 1.6) rectangle +(\dw-0.05, \v*0.048);
   }
-  % Trevelyan baseline: humor=3, atmos=2, narr=2
+  % Trevelyan baseline: humor=14, atmos=10, narr=10
   \node[anchor=east, font=\scriptsize] at (-0.2, 0.7) {Trevelyan};
-  \foreach \v/\i in {0/0, 0/1, 0/2, 0/3, 3/4, 2/5, 2/6} {
-    \fill[blue!50] (\i*\dw, 0.3) rectangle +(\dw-0.05, \v*0.22);
+  \foreach \v/\i in {0/0, 0/1, 0/2, 0/3, 14/4, 10/5, 10/6} {
+    \fill[blue!50] (\i*\dw, 0.3) rectangle +(\dw-0.05, \v*0.048);
   }
   % Dimension labels (manual to avoid pgfmathparse string issues)
   \foreach \lab/\i in {chr/0, plt/1, thm/2, soc/3, hum/4, atm/5, nar/6} {
@@ -273,15 +273,15 @@ These are the primary editorial control surface
   % --- Peaked ---
   \node[font=\small\bfseries, anchor=west] at (4.8, 2.8) {Peaked demands};
   \def\ox{5.0}
-  % Rosen peaked: social=8
+  % Rosen peaked: social=30
   \node[anchor=east, font=\scriptsize] at (\ox-0.2, 2.0) {Rosen};
-  \foreach \v/\i in {0/0, 0/1, 0/2, 8/3, 0/4, 0/5, 0/6} {
-    \fill[red!50] (\ox+\i*\dw, 1.6) rectangle +(\dw-0.05, \v*0.082);
+  \foreach \v/\i in {0/0, 0/1, 0/2, 30/3, 0/4, 0/5, 0/6} {
+    \fill[red!50] (\ox+\i*\dw, 1.6) rectangle +(\dw-0.05, \v*0.022);
   }
-  % Trevelyan peaked: humor=8
+  % Trevelyan peaked: humor=34
   \node[anchor=east, font=\scriptsize] at (\ox-0.2, 0.7) {Trevelyan};
-  \foreach \v/\i in {0/0, 0/1, 0/2, 0/3, 8/4, 0/5, 0/6} {
-    \fill[red!50] (\ox+\i*\dw, 0.3) rectangle +(\dw-0.05, \v*0.082);
+  \foreach \v/\i in {0/0, 0/1, 0/2, 0/3, 34/4, 0/5, 0/6} {
+    \fill[red!50] (\ox+\i*\dw, 0.3) rectangle +(\dw-0.05, \v*0.019);
   }
   % Dimension labels
   \foreach \lab/\i in {chr/0, plt/1, thm/2, soc/3, hum/4, atm/5, nar/6} {
@@ -291,12 +291,12 @@ These are the primary editorial control surface
   % Arrow between
   \draw[->, very thick, black!50] (4.2, 1.5) -- (4.7, 1.5);
 \end{tikzpicture}
+% TODO UPDATE AND CHECK: Jaccard number from old demands.
 \caption{Demand profile manipulation.  Left: baseline demands are
-  spread across dimensions.  Right: peaked demands concentrate each
-  expert on their defining dimension (Rosen $\to$ 100\%
-  social\_critique, Trevelyan $\to$ 100\% humor).  The transport solver
-  responds by selecting qualitatively different passages (Jaccard 0.490
-  with baseline).}
+  spread across dimensions (e.g.\ Rosen: social${}={}$14,
+  atmosphere${}={}$10, character${}={}$6).  Right: peaked demands
+  concentrate each expert on their defining dimension.  The transport
+  solver responds by selecting qualitatively different passages.}
 \label{fig:demand}
 \end{figure}
 
@@ -304,74 +304,135 @@ These are the primary editorial control surface
 \subsection{Min-Cost Flow Formulation}
 \label{sec:transport}
 
-Passage selection is a min-cost flow problem on a bipartite graph
-(Figure~\ref{fig:flow}).  Supply nodes represent passages; demand
-nodes represent expert--dimension pairs.  Edge costs encode quality
-preference (strong provisions cost 1, weak cost 3), interest bonus
-(passages scoring 4--5 get a cost reduction), a cluster penalty
-$\lambda \cdot (k - 1)$ for chapter-level diversity, and a null cost
-of 100 for unmet demand.
+Passage selection is a min-cost flow problem solved independently per
+provision dimension (Figure~\ref{fig:flow}).  Each eligible passage is
+a supply node whose supply equals its provision strength (strong${}={}$2,
+weak${}={}$1).  Each expert with positive demand for the dimension is a
+demand node.  A single null sink absorbs all supply that the solver
+does not route to experts, at zero cost---discarding a passage is
+free.  The OR-Tools \texttt{SimpleMinCostFlow} solver requires exact
+balance (total supply $=$ total demand $+$ null sink demand) and
+raises an error otherwise.
 
-\begin{figure}[t]
+Costs encode editorial preferences.  On passage-to-cluster arcs,
+strong provisions cost~1 and weak cost~3; an interest penalty
+($\max(0, 5 - \text{score})$) further discourages dull passages.
+Cluster-to-expert arcs are $k$ parallel arcs of capacity~1 with costs
+$0, \lambda, 2\lambda, \ldots$, creating a convex diversity penalty
+that discourages loading one expert with passages from the same
+chapter cluster.  The solver minimises total cost, naturally preferring
+strong, interesting, diverse passages.
+
+A passage is \emph{selected} if it wins a competition in any dimension
+for any expert.  The same passage may be assigned to multiple experts
+(each can discuss it).  Results across all seven dimensions are merged;
+when the same passage--expert pair appears in multiple dimensions, the
+lowest-cost assignment is kept.
+
+\begin{figure*}[t]
 \centering
 \begin{tikzpicture}[
     >=Stealth,
-    node distance=0.5cm,
+    node distance=0.6cm,
     supply/.style={circle, draw=blue!60, fill=blue!10,
+      minimum size=0.55cm, font=\tiny, inner sep=0pt},
+    cluster/.style={circle, draw=purple!60, fill=purple!10,
       minimum size=0.55cm, font=\tiny, inner sep=0pt},
     demand/.style={circle, draw=red!60, fill=red!10,
       minimum size=0.55cm, font=\tiny, inner sep=0pt},
-    null/.style={circle, draw=gray!60, fill=gray!10,
-      minimum size=0.4cm, font=\tiny, inner sep=0pt},
-    every edge/.style={->, thin, black!40},
-    costlabel/.style={font=\tiny, text=black!60, midway},
+    null/.style={circle, draw=gray!60, fill=gray!15,
+      minimum size=0.6cm, font=\tiny, inner sep=0pt},
+    costlabel/.style={font=\tiny, text=black!60, pos=0.45},
   ]
-  % Supply nodes (passages)
-  \foreach \i/\lab in {1/P\textsubscript{1},2/P\textsubscript{2},
-    3/P\textsubscript{3},4/P\textsubscript{k}} {
-    \node[supply] (s\i) at (0, -\i*0.85+0.85) {\lab};
+  % Passage nodes (supply)
+  \foreach \i/\lab/\s in {1/P\textsubscript{1}/+2,
+    2/P\textsubscript{2}/+1, 3/P\textsubscript{3}/+2} {
+    \node[supply] (p\i) at (0, -\i*1.0+0.5) {\lab};
+    \node[font=\tiny, text=blue!60, anchor=east] at (-0.45, -\i*1.0+0.5) {\s};
   }
-  \node[font=\tiny, text=black!40] at (0, -2.7) {$\vdots$};
-  \node[supply] (s5) at (0, -3.3) {P\textsubscript{n}};
+  \node[font=\tiny, text=black!40] at (0, -2.8) {$\vdots$};
+  \node[supply] (p4) at (0, -3.3) {P\textsubscript{n}};
+  \node[font=\tiny, text=blue!60, anchor=east] at (-0.45, -3.3) {+1};
 
-  % Demand nodes (expert x dimension)
-  \foreach \i/\lab in {1/{H$\times$chr},2/{H$\times$nar},
-    3/{R$\times$soc},4/{T$\times$hum}} {
-    \node[demand] (d\i) at (3.5, -\i*0.85+0.85) {\lab};
+  % Cluster nodes (transit)
+  \foreach \i/\lab in {1/C\textsubscript{1},2/C\textsubscript{2}} {
+    \node[cluster] (c\i) at (3.5, -\i*1.3+0.3) {\lab};
   }
-  \node[font=\tiny, text=black!40] at (3.5, -2.7) {$\vdots$};
+  \node[font=\tiny, text=black!40] at (3.5, -2.4) {$\vdots$};
 
-  % Null node
-  \node[null] (nulln) at (3.5, -3.3) {$\varnothing$};
+  % Expert nodes (demand)
+  \foreach \i/\lab/\d in {1/H/$-$12, 2/B/$-$10, 3/W/$-$6} {
+    \node[demand] (e\i) at (7.0, -\i*1.2+0.5) {\lab};
+    \node[font=\tiny, text=red!60, anchor=west] at (7.45, -\i*1.2+0.5) {\d};
+  }
 
-  % Edges with cost labels
-  \draw[->] (s1) -- node[costlabel, above, sloped] {1} (d1);
-  \draw[->] (s1) -- node[costlabel, above, sloped] {3} (d2);
-  \draw[->] (s2) -- node[costlabel, above, sloped] {1} (d3);
-  \draw[->] (s3) -- node[costlabel, above, sloped] {1} (d4);
-  \draw[->] (s3) -- node[costlabel, below, sloped] {3} (d1);
-  \draw[->] (s4) -- (d2);
-  \draw[->] (s5) -- (d3);
-  \draw[->, dashed, gray] (nulln) -- (d1);
-  \draw[->, dashed, gray] (nulln) -- (d4);
+  % Null sink (demand = total supply - total demand)
+  \node[null] (N) at (3.5, -4.2) {$\varnothing$};
+  \node[font=\tiny, text=gray!70, anchor=north] at (3.5, -4.7)
+    {demand $= \Sigma\text{supply} - \Sigma\text{demand}$};
 
-  % Labels
-  \node[font=\small, above=0.3cm of s1, text=blue!70] {Passages};
-  \node[font=\small, above=0.3cm of d1, text=red!70] {Expert $\times$ Dim};
-  \node[font=\tiny, right=0.15cm of nulln, text=gray] {cost=100};
+  % --- Edges ---
+
+  % Passages -> clusters (cap=supply, cost=strength+interest)
+  \draw[->, black!50] (p1) -- node[costlabel, above, sloped] {1} (c1);
+  \draw[->, black!50] (p2) -- node[costlabel, above, sloped] {3} (c1);
+  \draw[->, black!50] (p3) -- node[costlabel, above, sloped] {1} (c2);
+  \draw[->, black!50] (p4) -- node[costlabel, below, sloped] {4} (c2);
+  \node[font=\tiny, text=black!50, anchor=west, align=left] at (1.2, 0.5)
+    {cost $=$ strength $+$ interest penalty};
+
+  % Passages -> null (cap=supply, cost=0)
+  \draw[->, gray, dashed] (p1) to[bend right=15] (N);
+  \draw[->, gray, dashed] (p4) -- (N);
+  \node[font=\tiny, text=gray, anchor=east] at (-0.1, -4.2)
+    {cost${}={}$0};
+
+  % Clusters -> experts (parallel arcs, convex penalty)
+  \draw[->, purple!60] (c1) to[bend left=12]
+    node[costlabel, above, sloped] {0} (e1);
+  \draw[->, purple!60] (c1) to[bend right=12]
+    node[costlabel, below, sloped] {$\lambda$} (e1);
+  \draw[->, purple!60] (c1) -- node[costlabel, above, sloped] {0} (e2);
+  \draw[->, purple!60] (c2) -- node[costlabel, above, sloped] {0} (e2);
+  \draw[->, purple!60] (c2) to[bend left=12]
+    node[costlabel, above, sloped] {0} (e3);
+  \draw[->, purple!60] (c2) to[bend right=12]
+    node[costlabel, below, sloped] {$\lambda$} (e3);
+  \node[font=\tiny, text=purple!60, anchor=west, align=left] at (4.6, 0.5)
+    {$k$ parallel arcs, cap${}={}$1\\cost $= i\lambda$ (diversity)};
+
+  % Column labels
+  \node[font=\scriptsize\bfseries, text=blue!70] at (0, 1.0)
+    {Passages (supply)};
+  \node[font=\scriptsize\bfseries, text=purple!70] at (3.5, 1.0)
+    {Clusters (transit)};
+  \node[font=\scriptsize\bfseries, text=red!70] at (7.0, 1.0)
+    {Experts (demand)};
 \end{tikzpicture}
-\caption{Bipartite flow graph.  Passages (left) supply flow to
-  expert--dimension demand nodes (right).  Edge costs reflect provision
-  strength and interest.  The null node (bottom right, cost=100) absorbs
-  unmet demand.  The solver finds the minimum-cost assignment.}
+\caption{Per-dimension min-cost flow graph.  Each eligible passage is
+  a \textbf{supply node} (strong${}={}$2, weak${}={}$1 units).  Each
+  expert with demand for this dimension is a \textbf{demand node}.
+  \textbf{Passage$\to$cluster} arcs carry provision costs
+  (strong${}={}$1, weak${}={}$3) plus an interest penalty
+  ($\max(0, 5 - \text{score})$).  \textbf{Cluster$\to$expert} arcs
+  are $k$ parallel arcs of capacity~1 with costs $0, \lambda,
+  2\lambda, \ldots$, creating a convex penalty that discourages
+  selecting multiple passages from the same chapter cluster.
+  \textbf{Passage$\to$null} arcs (dashed, cost${}={}$0) let the
+  solver discard passages freely; the null sink absorbs all supply
+  not routed to experts.  OR-Tools requires exact balance: total
+  passage supply $=$ total expert demand $+$ null sink demand.  The
+  code verifies this and raises an error on any non-optimal status.}
 \label{fig:flow}
-\end{figure}
+\end{figure*}
 
-The solver (SciPy \texttt{min\_cost\_flow}) finds a global optimum
-subject to capacity constraints.  A second min-cost flow assigns
-selected passages to episode segments.  Because solving a flow is cheap
-($<$1 second, zero LLM tokens), the user can adjust demand profiles and
-re-solve interactively---the core of our manipulability hypothesis.
+One flow is solved per provision dimension; results are merged into
+per-expert passage assignments via a survival rule: a passage is
+selected if it wins in any dimension for any expert.  A second
+min-cost flow assigns selected passages to episode segments.  Because
+solving a flow is cheap ($<$1 second, zero LLM tokens), the user can
+adjust demand profiles and re-solve interactively---the core of our
+manipulability hypothesis.
 
 \subsection{Five Selection Conditions}
 \label{sec:conditions}
@@ -489,6 +550,7 @@ meaningful information beyond text.
 \section{Experimental Design}
 \label{sec:experiment}
 
+% TODO UPDATE AND CHECK: episode counts will change with new demands/architecture.
 For \textit{Bleak House}, all $\binom{6}{3} = 20$ possible three-expert
 panels are run under all five conditions: 100 episodes.  For each of
 the other four novels, 8 panels are run under three conditions
@@ -565,6 +627,8 @@ with two manipulation strategies applied to the transport pipeline
 \label{fig:manipulability}
 \end{figure}
 
+% TODO UPDATE AND CHECK: all manipulability numbers are from old demands (1-3).
+% Re-run peaked and high-arc experiments with new demands (6-12) and update.
 \textbf{Additive (high-arc).}  Doubling character arc demands adds
 exactly 15 passages per panel (matching the extra demand units),
 producing Jaccard overlap 0.555 with the baseline.  Character mentions
@@ -669,6 +733,7 @@ The embedding pipeline offers no such preview.
 Table~\ref{tab:cost} shows the full token budget.
 
 \begin{table}[t]
+% TODO UPDATE AND CHECK: token totals will change with new run counts.
 \caption{Token budget by model class.  Enrichment is computed once per
   novel; per-run costs are dominated by script generation.}
 \label{tab:cost}
@@ -694,6 +759,7 @@ $\sim$300K Sonnet tokens (3 conditions $\times$ $\sim$100K each).
 \subsection{Aggregate Quality Comparison}
 \label{sec:aggregate}
 
+% TODO UPDATE AND CHECK: all numbers in Table 3 are from old demands/architecture.
 Table~\ref{tab:aggregate} shows that across all five novels, the
 selection conditions produce comparable scripts on surface metrics.  The
 \textit{Bleak House} results (all five conditions, 20 panels) and the
@@ -728,6 +794,7 @@ layer dominates.
 
 \subsection{Passage Grounding Prevents Confabulation}
 \label{sec:grounding}
+% TODO UPDATE AND CHECK: quote verification rates from old demands/architecture.
 
 \begin{table}[t]
 \caption{Quote verification rates (fuzzy 5-word subsequence match).
@@ -789,6 +856,7 @@ exposure, and the density of quotable prose.
 \subsection{Material Disjointness and Script Convergence}
 \label{sec:material}
 
+% TODO UPDATE AND CHECK: Jaccard and convergence numbers from old demands/architecture.
 Transport and embedding select almost entirely different passages, yet
 scripts partially converge.  Table~\ref{tab:material} shows this
 pattern for \textit{Bleak House}; Table~\ref{tab:material-xnovel} shows
@@ -844,6 +912,7 @@ different lengths, authors, and literary periods.
 \subsection{Expert Identity Is Robust}
 \label{sec:identity}
 
+% TODO UPDATE AND CHECK: identity metrics and airtime table from old demands/architecture.
 G2 log-likelihood keywords \citep{dunning1993accurate} are stable
 across conditions: Blackstone's vocabulary centres on \emph{legal,
 chancery, victorian}; Rosen's on \emph{system, class, power};
@@ -887,6 +956,7 @@ Trevelyan  &  9.8 &  8.1 &  9.7 &  7.9 & 1.0 \\
 \subsection{Conversational Design Compliance}
 \label{sec:conversational}
 
+% TODO UPDATE AND CHECK: conversational metrics from old demands/architecture.
 The script generation prompt encodes eight measurable conversational
 design features.  Across all 196 episodes:
 
@@ -1135,6 +1205,7 @@ analysis pipeline planned, not yet implemented.}
 
 \subsection{Support for the Hypotheses}
 
+% TODO UPDATE AND CHECK: Jaccard and percentage numbers from old demands/architecture.
 \textbf{H1 (manipulability)}: confirmed.  Peaked demand vectors
 produce Jaccard 0.490 with baseline, Rosen's dimension profile shifts
 from 56\% to 100\% social\_critique, and Hartley's dominant dimension
