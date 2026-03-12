@@ -40,6 +40,25 @@ CONDITIONS = ["transport", "embedding", "no-passages"]
 # Panel definitions: name -> list of --replace-expert args
 PANELS: dict[str, list[str]] = {
     "v01_baseline": [],
+    "v11_rosen_blackstone_woodcourt": [
+        "Eleanor Hartley=dr_rosen",
+    ],
+    "v21_hartley_blackstone_edmund": [
+        "Caroline Woodcourt=sir_edmund",
+    ],
+    "v22_hartley_blackstone_rosen": [
+        "Caroline Woodcourt=dr_rosen",
+    ],
+    "v23_hartley_rosen_woodcourt": [
+        "James Blackstone=dr_rosen",
+    ],
+    "v26_blackstone_woodcourt_edmund": [
+        "Eleanor Hartley=sir_edmund",
+    ],
+    "v29_rosen_blackstone_trevelyan": [
+        "Eleanor Hartley=dr_rosen",
+        "Caroline Woodcourt=trevelyan",
+    ],
     "v30_woodcourt_edmund_trevelyan": [
         "Eleanor Hartley=trevelyan",
         "James Blackstone=sir_edmund",
@@ -128,7 +147,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--all", action="store_true",
-        help="Run all 6 conditions (3 conditions × 2 panels)",
+        help="Run all conditions × panels",
+    )
+    parser.add_argument(
+        "--panels", nargs="+", choices=list(PANELS.keys()),
+        help="Subset of panels to run with --all (default: all panels)",
     )
     parser.add_argument(
         "--skip-embedding", action="store_true",
@@ -145,7 +168,8 @@ def main() -> None:
         conditions = CONDITIONS
         if args.skip_embedding:
             conditions = [c for c in conditions if c != "embedding"]
-        for panel in PANELS:
+        panels = args.panels or list(PANELS.keys())
+        for panel in panels:
             for condition in conditions:
                 try:
                     run_condition(args.novel, condition, panel, args.prompt_version)
