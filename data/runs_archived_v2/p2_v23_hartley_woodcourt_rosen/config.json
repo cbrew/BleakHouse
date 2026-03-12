@@ -1,0 +1,225 @@
+{
+  "name": "p2_v23_hartley_woodcourt_rosen",
+  "producer": {
+    "total_budget": 60,
+    "per_expert_max": 25,
+    "per_expert_min": 8,
+    "cluster_lambda": 5,
+    "null_cost": 100,
+    "strong_cost": 1,
+    "weak_cost": 3
+  },
+  "experts": [
+    {
+      "name": "Eleanor Hartley",
+      "role": "literary_critic",
+      "demands": {
+        "prov_narrative_technique": 2,
+        "prov_character_development": 2,
+        "prov_thematic_depth": 1
+      }
+    },
+    {
+      "name": "Daniel Rosen",
+      "role": "marxist_critic",
+      "demands": {
+        "prov_social_critique": 3,
+        "prov_atmosphere_setting": 2,
+        "prov_character_development": 1
+      }
+    },
+    {
+      "name": "Caroline Woodcourt",
+      "role": "close_reader",
+      "demands": {
+        "prov_humor_entertainment": 2,
+        "prov_character_development": 1,
+        "prov_atmosphere_setting": 1
+      }
+    }
+  ],
+  "arcs": [
+    {
+      "name": "Richard's deterioration",
+      "character": "Richard Carstone",
+      "demand": 6,
+      "require_field": "prov_character_development",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Lady Dedlock's secret",
+      "character": "Lady Dedlock",
+      "demand": 5,
+      "require_field": "prov_plot_advancement",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Jo's suffering",
+      "character": "Jo",
+      "demand": 4,
+      "require_field": "prov_social_critique",
+      "require_value": "not_none",
+      "prefer_min_interest": 2
+    }
+  ],
+  "segment_templates": [
+    {
+      "name": "The Fog and What It Hides: Opening into Bleak House",
+      "segment_type": "opening",
+      "preferred_dimensions": [
+        "prov_atmosphere_setting",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 3,
+      "preferred_experts": [
+        "Eleanor Hartley"
+      ]
+    },
+    {
+      "name": "A System Broken: Social Critique and the Law's Machinery",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_social_critique",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [
+        "Jo's suffering"
+      ],
+      "min_passages": 4,
+      "max_passages": 6,
+      "preferred_experts": [
+        "Daniel Rosen"
+      ]
+    },
+    {
+      "name": "Richard's Slow Unraveling: Ambition and Ruin",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_character_development",
+        "prov_thematic_depth"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration"
+      ],
+      "min_passages": 4,
+      "max_passages": 6,
+      "preferred_experts": [
+        "Eleanor Hartley"
+      ]
+    },
+    {
+      "name": "The Secret of Chesney Wold: Plot, Paternity, and Shame",
+      "segment_type": "close_reading",
+      "preferred_dimensions": [
+        "prov_plot_advancement",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [
+        "Lady Dedlock's secret"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Caroline Woodcourt"
+      ]
+    },
+    {
+      "name": "Humour in the Midst of Chaos: Dickens' Comic Voice",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_humor_entertainment",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": [
+        "Caroline Woodcourt"
+      ]
+    },
+    {
+      "name": "All Three Threads: Class, Character, and Convergence",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_social_critique",
+        "prov_character_development",
+        "prov_thematic_depth"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration",
+        "Lady Dedlock's secret",
+        "Jo's suffering"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": []
+    },
+    {
+      "name": "A World Held Accountable: Synthesis and Legacy",
+      "segment_type": "closing",
+      "preferred_dimensions": [
+        "prov_thematic_depth",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration",
+        "Lady Dedlock's secret",
+        "Jo's suffering"
+      ],
+      "min_passages": 2,
+      "max_passages": 3,
+      "preferred_experts": [
+        "Eleanor Hartley"
+      ]
+    }
+  ],
+  "segment_null_cost": 50,
+  "segment_dimension_mismatch_cost": 5,
+  "segment_arc_mismatch_cost": 3,
+  "segment_expert_mismatch_cost": 2,
+  "prompt_version": 2,
+  "model": "claude-sonnet-4-6",
+  "personas": [
+    {
+      "name": "Eleanor Hartley",
+      "role": "literary_critic",
+      "description": "Dr. Eleanor Hartley \u2014 a novelist herself who teaches creative writing.  Obsessed with how Dickens constructs his effects \u2014 the architecture of sentences, the dual narration, the way a single image can carry a chapter's meaning.  Gets visibly excited when she spots a structural choice she admires.  Has a gift for making technical craft feel thrilling rather than dry.",
+      "voice_policy": {
+        "rate": 1.01,
+        "energy": "medium_high",
+        "pause_bias_ms": 170,
+        "style": "analytic_bright"
+      },
+      "speaking_style": "Agile, medium-length sentences.  Slightly faster when excited about craft.  Technical terms made vivid, never dry."
+    },
+    {
+      "name": "Daniel Rosen",
+      "role": "marxist_critic",
+      "description": "Dr. Daniel Rosen \u2014 a cultural historian who reads Bleak House as an anatomy of class power.  Every institution in the novel \u2014 Chancery, the law, philanthropy, the aristocracy \u2014 is a mechanism for extracting value from the poor and protecting the rich.  Sees Jo not as a sentimental figure but as the novel's clearest image of what the system actually produces.  Can be fierce but is never dogmatic in a tiresome way \u2014 he earns his anger with evidence.  Thinks Dickens was more radical than Dickens himself knew.",
+      "voice_policy": {
+        "rate": 0.99,
+        "energy": "medium_high",
+        "pause_bias_ms": 200,
+        "style": "passionate_precise"
+      },
+      "speaking_style": "Precise, purposeful sentences that build an argument.  Bursts of controlled intensity.  Evidence first, then the verdict \u2014 delivered with quiet force."
+    },
+    {
+      "name": "Caroline Woodcourt",
+      "role": "close_reader",
+      "description": "Ms. Caroline Woodcourt \u2014 a book critic and lifelong Dickens reader who came to the novel as a teenager and has re-read it five times.  Focuses on the experience of reading \u2014 what's funny, what's moving, what makes you stop and re-read a sentence.  Loves reading passages aloud and catching the verbal music.  Has strong opinions about which characters deserve better.",
+      "voice_policy": {
+        "rate": 0.97,
+        "energy": "medium",
+        "pause_bias_ms": 240,
+        "style": "reflective_intimate"
+      },
+      "speaking_style": "Emotionally engaged, intimate.  Shorter sentences when moved.  Slightly slower, more pauses.  Savours the verbal music."
+    }
+  ],
+  "tts_model": "flash"
+}
