@@ -1,8 +1,15 @@
 
-"""Podcast expert assignment via min-cost flow (optimal transport).
+"""Podcast passage selection via min-cost flow.
 
-Solves per-dimension flow problems to assign enriched passages to podcast
-experts, then aggregates results.  Character arcs get separate flow problems.
+Selects passages for podcast experts by solving one min-cost flow per
+provision dimension.  Each flow has passage supply nodes (strong=2,
+weak=1 units), cluster transit nodes with convex diversity penalty,
+expert demand nodes, and a NULL sink that absorbs excess supply at
+zero cost.  A passage is selected if it wins in any dimension for any
+expert.  The same passage may be assigned to multiple experts.
+
+Character arcs get separate flow problems to ensure key narrative
+threads receive adequate coverage.
 
 Usage: uv run python -m enrichment.transport_podcast
 """
@@ -139,27 +146,27 @@ DEFAULT_EXPERTS = [
         name="Eleanor Hartley",
         role="literary_critic",
         demands={
-            "prov_narrative_technique": 2,
-            "prov_character_development": 2,
-            "prov_thematic_depth": 1,
+            "prov_narrative_technique": 12,
+            "prov_character_development": 10,
+            "prov_thematic_depth": 6,
         },
     ),
     ExpertProfile(
         name="James Blackstone",
         role="social_historian",
         demands={
-            "prov_social_critique": 2,
-            "prov_atmosphere_setting": 2,
-            "prov_thematic_depth": 1,
+            "prov_social_critique": 12,
+            "prov_atmosphere_setting": 10,
+            "prov_thematic_depth": 6,
         },
     ),
     ExpertProfile(
         name="Caroline Woodcourt",
         role="close_reader",
         demands={
-            "prov_humor_entertainment": 2,
-            "prov_character_development": 1,
-            "prov_atmosphere_setting": 1,
+            "prov_humor_entertainment": 12,
+            "prov_character_development": 8,
+            "prov_atmosphere_setting": 6,
         },
     ),
 ]
@@ -178,9 +185,9 @@ ALTERNATIVE_EXPERTS: dict[str, ExpertProfile] = {
         name="Edmund Leigh",
         role="traditionalist_critic",
         demands={
-            "prov_character_development": 3,
-            "prov_thematic_depth": 2,
-            "prov_narrative_technique": 1,
+            "prov_character_development": 14,
+            "prov_thematic_depth": 10,
+            "prov_narrative_technique": 6,
         },
     ),
     # Daniel Rosen — materialist Marxist critic.
@@ -193,9 +200,9 @@ ALTERNATIVE_EXPERTS: dict[str, ExpertProfile] = {
         name="Daniel Rosen",
         role="marxist_critic",
         demands={
-            "prov_social_critique": 3,
-            "prov_atmosphere_setting": 2,
-            "prov_character_development": 1,
+            "prov_social_critique": 14,
+            "prov_atmosphere_setting": 10,
+            "prov_character_development": 6,
         },
     ),
     # Oliver Trevelyan — performer, wit, and Dickens devotee.
@@ -208,9 +215,9 @@ ALTERNATIVE_EXPERTS: dict[str, ExpertProfile] = {
         name="Oliver Trevelyan",
         role="performer_and_wit",
         demands={
-            "prov_humor_entertainment": 3,
-            "prov_atmosphere_setting": 2,
-            "prov_narrative_technique": 2,
+            "prov_humor_entertainment": 14,
+            "prov_atmosphere_setting": 10,
+            "prov_narrative_technique": 10,
         },
     ),
 }
@@ -370,6 +377,13 @@ class DimensionResult:
     total_demand: int
     total_supplied: int
     total_null_flow: int
+    optimal_cost: int = 0
+    total_supply: int = 0
+    num_eligible: int = 0
+    num_clusters: int = 0
+    strong_count: int = 0
+    weak_count: int = 0
+    solver_status: str = "NOT_RUN"
 
 
 def solve_dimension(
@@ -380,21 +394,21 @@ def solve_dimension(
 ) -> DimensionResult:
     """Build and solve the min-cost flow network for one provision dimension.
 
-    Redundancy is controlled via intermediate cluster nodes with convex
-    (linearly increasing) penalties.  Each passage belongs to a literary
-    cluster.  The cluster→expert link uses parallel arcs of capacity 1 with
-    costs 0, λ, 2λ, …, so the first passage from a cluster is free but each
-    additional one is progressively more expensive.  The number of parallel
-    arcs equals the cluster's total supply (strong passages contribute 2,
-    weak passages contribute 1), so strong/weak naturally sets capacity.
+    Each eligible passage is a supply node (strong=2, weak=1 units).
+    Each demanding expert is a demand node.  A NULL sink absorbs all
+    supply that the solver does not route to experts.
 
-    Network structure (5 layers):
-        SUPER_SOURCE -> passage nodes         (cap=supply, cost=0)
-        SUPER_SOURCE -> NULL node             (cap=total_demand, cost=0)
-        passage nodes -> cluster nodes        (cap=supply, cost=base_cost)
-        cluster nodes -> expert nodes         (k parallel arcs, cap=1, cost=i*λ)
-        NULL -> expert nodes                  (cap=expert demand, cost=null_cost)
-        expert nodes -> SUPER_SINK            (cap=demand, cost=0)
+    Costs on passage→cluster arcs encode provision strength and interest
+    score, so the solver prefers strong, interesting passages.  Cluster→expert
+    arcs use parallel capacity-1 arcs with costs 0, λ, 2λ, … to create a
+    convex diversity penalty discouraging multiple passages from the same
+    chapter cluster.
+
+    Network structure:
+        passage nodes (supply=strength)
+            → cluster nodes (transit)
+                → expert nodes (demand=expert_demand)
+            → NULL_SINK (demand=total_supply − total_demand)
     """
     # Identify demanding experts for this dimension
     demanding_experts = [
@@ -403,41 +417,65 @@ def solve_dimension(
         if exp.demands.get(dimension, 0) > 0
     ]
     if not demanding_experts:
-        return DimensionResult(dimension, [], [], 0, 0, 0)
+        return DimensionResult(dimension, [], [], 0, 0, 0,
+                               solver_status="SKIPPED_NO_DEMAND")
 
     total_demand = sum(d for _, d in demanding_experts)
 
     # Identify eligible passages: those with provision != "none"
-    eligible = [
-        p for p in passages if p.provisions.get(dimension, "none") != "none"
-    ]
+    # Deduplicate by passage_id (rare duplicates cause supply imbalance)
+    seen_ids: set[str] = set()
+    eligible: list[PassageRecord] = []
+    for p in passages:
+        if p.provisions.get(dimension, "none") != "none" and p.passage_id not in seen_ids:
+            eligible.append(p)
+            seen_ids.add(p.passage_id)
     if not eligible:
         gaps = [
             GapReport(dimension, exp.name, d, 0, d)
             for exp, d in demanding_experts
         ]
-        return DimensionResult(dimension, [], gaps, total_demand, 0, total_demand)
+        return DimensionResult(dimension, [], gaps, total_demand, 0, total_demand,
+                               solver_status="SKIPPED_NO_ELIGIBLE")
 
     # Group eligible passages by literary cluster
     cluster_members: dict[int, list[PassageRecord]] = {}
     for p in eligible:
         cluster_members.setdefault(p.literary_cluster, []).append(p)
 
+    # Compute total passage supply
+    total_supply = sum(
+        STRENGTH_TO_SUPPLY[p.provisions[dimension]] for p in eligible
+    )
+
+    # The NULL sink absorbs all supply not routed to experts.
+    # If supply < demand, the problem is infeasible (experts can't all
+    # be satisfied); we report the gap but null_sink gets 0.
+    if total_supply >= total_demand:
+        null_sink_demand = total_supply - total_demand
+    else:
+        # Not enough passages — solver will fail.  Caller should ensure
+        # demands are reasonable relative to corpus size.
+        raise RuntimeError(
+            f"Dimension {dimension}: insufficient supply ({total_supply}) "
+            f"for demand ({total_demand}).  Reduce expert demands or enrich "
+            f"more passages."
+        )
+
     logger.debug(
         "Dimension %s: %d eligible passages in %d clusters, "
-        "%d demanding experts, total_demand=%d",
+        "total_supply=%d, total_demand=%d, null_sink=%d",
         dimension,
         len(eligible),
         len(cluster_members),
-        len(demanding_experts),
+        total_supply,
         total_demand,
+        null_sink_demand,
     )
 
     # -- Node assignment --
-    SUPER_SOURCE = 0
-    SUPER_SINK = 1
-    NULL_NODE = 2
-    next_id = 3
+    NULL_SINK = 0
+    next_id = 1
 
     passage_node: dict[str, int] = {}
     for p in eligible:
@@ -466,35 +504,31 @@ def solve_dimension(
         smcf.add_arc_with_capacity_and_unit_cost(tail, head, capacity, unit_cost)
         arc_meta.append((tail_type, tail_id, head_type, head_id, unit_cost))
 
-    # SUPER_SOURCE -> each passage (capacity = supply, cost = 0)
-    for p in eligible:
-        supply = STRENGTH_TO_SUPPLY[p.provisions[dimension]]
-        add_arc(
-            SUPER_SOURCE, passage_node[p.passage_id], supply, 0,
-            "source", "SUPER_SOURCE", "passage", p.passage_id,
-        )
-
-    # SUPER_SOURCE -> NULL (capacity = total_demand, cost = 0)
-    add_arc(
-        SUPER_SOURCE, NULL_NODE, total_demand, 0,
-        "source", "SUPER_SOURCE", "null", "NULL",
-    )
-
-    # Passage -> Cluster (capacity = supply, cost = base provision cost)
+    # Passage -> Cluster (capacity = supply, cost = provision + interest)
     for cid, members in cluster_members.items():
         for p in members:
             strength = p.provisions[dimension]
             base_cost = config.strong_cost if strength == "strong" else config.weak_cost
+            # Interest bonus: score 5→0, score 0→5 (prefer interesting passages)
+            interest_penalty = max(0, 5 - p.interest_score)
             supply = STRENGTH_TO_SUPPLY[strength]
             add_arc(
-                passage_node[p.passage_id], cluster_node[cid], supply, base_cost,
+                passage_node[p.passage_id], cluster_node[cid], supply,
+                base_cost + interest_penalty,
                 "passage", p.passage_id, "cluster", str(cid),
             )
 
+    # Passage -> NULL_SINK (capacity = supply, cost = 0)
+    # Discarding a passage is free; the solver only routes to experts
+    # when it's cheaper than the alternative.
+    for p in eligible:
+        supply = STRENGTH_TO_SUPPLY[p.provisions[dimension]]
+        add_arc(
+            passage_node[p.passage_id], NULL_SINK, supply, 0,
+            "passage", p.passage_id, "null_sink", "NULL_SINK",
+        )
+
     # Cluster -> Expert (parallel arcs with convex penalty)
-    # For each (cluster, expert) pair, create k parallel arcs of capacity 1
-    # with costs 0, λ, 2λ, ..., (k-1)*λ.  k = total supply from the
-    # cluster's eligible passages (strong=2, weak=1 per passage).
     cluster_supply: dict[int, int] = {}
     for cid, members in cluster_members.items():
         cluster_supply[cid] = sum(
@@ -512,58 +546,47 @@ def solve_dimension(
                     "cluster", str(cid), "expert", exp.name,
                 )
 
-    # NULL -> each expert (capacity = expert's demand, cost = null_cost)
-    for exp, demand in demanding_experts:
-        add_arc(
-            NULL_NODE, expert_node[exp.name], demand, config.null_cost,
-            "null", "NULL", "expert", exp.name,
-        )
+    # -- Set supply on passage nodes (positive = produces flow) --
+    for p in eligible:
+        supply = STRENGTH_TO_SUPPLY[p.provisions[dimension]]
+        smcf.set_node_supply(passage_node[p.passage_id], supply)
 
-    # Expert -> SUPER_SINK (capacity = demand, cost = 0)
+    # -- Set demand on expert nodes (negative = consumes flow) --
     for exp, demand in demanding_experts:
-        add_arc(
-            expert_node[exp.name], SUPER_SINK, demand, 0,
-            "expert", exp.name, "sink", "SUPER_SINK",
-        )
+        smcf.set_node_supply(expert_node[exp.name], -demand)
 
-    # Set supply/demand on source and sink
-    smcf.set_node_supply(SUPER_SOURCE, total_demand)
-    smcf.set_node_supply(SUPER_SINK, -total_demand)
+    # -- Set demand on NULL sink (absorbs excess supply) --
+    smcf.set_node_supply(NULL_SINK, -null_sink_demand)
+
+    # Verify balance: passage supply = expert demand + null sink demand
+    balance = total_supply - total_demand - null_sink_demand
+    assert balance == 0, (
+        f"Supply/demand imbalance: supply={total_supply}, "
+        f"demand={total_demand}, null_sink={null_sink_demand}, "
+        f"balance={balance}"
+    )
 
     # -- Solve --
     status = smcf.solve()
 
     if status != smcf.OPTIMAL:
-        logger.warning(
-            "Dimension %s: solver returned status %d (not optimal)", dimension, status
+        raise RuntimeError(
+            f"Dimension {dimension}: solver returned {status} (expected OPTIMAL). "
+            f"total_supply={total_supply}, total_demand={total_demand}, "
+            f"null_sink={null_sink_demand}, eligible={len(eligible)}, "
+            f"clusters={len(cluster_members)}, "
+            f"experts={[e.name for e, _ in demanding_experts]}"
         )
-        gaps = [
-            GapReport(dimension, exp.name, d, 0, d)
-            for exp, d in demanding_experts
-        ]
-        return DimensionResult(dimension, [], gaps, total_demand, 0, total_demand)
 
     logger.debug(
         "Dimension %s: optimal cost = %d", dimension, smcf.optimal_cost()
     )
 
     # -- Extract assignments and null flows --
-    # We need passage→expert assignments.  The flow goes
-    # passage→cluster→expert, so we trace passage→cluster arcs with flow,
-    # then cluster→expert arcs with flow, and attribute each passage-unit
-    # to the expert(s) its cluster feeds.
-    #
-    # Simpler approach: for each passage→cluster arc with flow, record
-    # which passages contribute to each cluster.  For each cluster→expert
-    # arc with flow, distribute the flow back to contributing passages
-    # (by passage order, deterministic).
-
-    # Collect passage contributions to clusters
-    cluster_passage_flow: dict[int, list[tuple[str, int, int]]] = {}  # cid -> [(pid, flow, cost)]
-    # Collect cluster flow to experts: accumulate total flow and total penalty
-    cluster_expert_flow: dict[tuple[int, str], int] = {}  # (cid, expert) -> total flow
-    cluster_expert_penalty: dict[tuple[int, str], int] = {}  # (cid, expert) -> sum of slot penalties
-    null_flows_by_expert: dict[str, int] = {exp.name: 0 for exp, _ in demanding_experts}
+    cluster_passage_flow: dict[int, list[tuple[str, int, int]]] = {}
+    cluster_expert_flow: dict[tuple[int, str], int] = {}
+    cluster_expert_penalty: dict[tuple[int, str], int] = {}
+    null_flow_total = 0
 
     for arc_idx in range(smcf.num_arcs()):
         flow = smcf.flow(arc_idx)
@@ -578,15 +601,13 @@ def solve_dimension(
             cid = int(tail_id)
             key = (cid, head_id)
             cluster_expert_flow[key] = cluster_expert_flow.get(key, 0) + flow
-            # Each parallel arc has flow 0 or 1; unit_cost is the slot penalty
             cluster_expert_penalty[key] = cluster_expert_penalty.get(key, 0) + unit_cost
-        elif tail_type == "null" and head_type == "expert":
-            null_flows_by_expert[head_id] += flow
+        elif tail_type == "passage" and head_type == "null_sink":
+            null_flow_total += flow
 
     # Attribute passage→expert assignments through clusters
     assignments: list[Assignment] = []
     for (cid, expert_name), expert_flow in cluster_expert_flow.items():
-        # Average cluster penalty across the slots used
         total_penalty = cluster_expert_penalty.get((cid, expert_name), 0)
         avg_penalty = total_penalty // max(expert_flow, 1)
         remaining = expert_flow
@@ -605,19 +626,17 @@ def solve_dimension(
                 )
             remaining -= assigned
 
-    # Build gap reports
-    demand_by_expert = {exp.name: d for exp, d in demanding_experts}
+    # No gaps possible: we raise if supply < demand above
     gaps: list[GapReport] = []
-    total_null = sum(null_flows_by_expert.values())
+    total_supplied = total_demand
 
-    for exp_name, null_flow in null_flows_by_expert.items():
-        if null_flow > 0:
-            d = demand_by_expert[exp_name]
-            gaps.append(
-                GapReport(dimension, exp_name, d, d - null_flow, null_flow)
-            )
+    logger.debug(
+        "Dimension %s: %d passages selected, %d discarded to null sink",
+        dimension, len(assignments), null_flow_total,
+    )
 
-    total_supplied = total_demand - total_null
+    strong_count = sum(1 for p in eligible if p.provisions[dimension] == "strong")
+    weak_count = len(eligible) - strong_count
 
     return DimensionResult(
         dimension=dimension,
@@ -625,7 +644,14 @@ def solve_dimension(
         gaps=gaps,
         total_demand=total_demand,
         total_supplied=total_supplied,
-        total_null_flow=total_null,
+        total_null_flow=null_flow_total,
+        optimal_cost=smcf.optimal_cost(),
+        total_supply=total_supply,
+        num_eligible=len(eligible),
+        num_clusters=len(cluster_members),
+        strong_count=strong_count,
+        weak_count=weak_count,
+        solver_status="OPTIMAL",
     )
 
 
@@ -751,8 +777,11 @@ def solve_arc(
     status = smcf.solve()
 
     if status != smcf.OPTIMAL:
-        logger.warning("Arc '%s': solver status %d (not optimal)", arc.name, status)
-        return ArcResult(arc, [], arc.demand)
+        raise RuntimeError(
+            f"Arc '{arc.name}': solver returned {status} (expected OPTIMAL). "
+            f"demand={arc.demand}, eligible_passages={len(eligible)}, "
+            f"character='{arc.character}'"
+        )
 
     # Extract
     assignments: list[Assignment] = []
@@ -919,20 +948,51 @@ def build_report(result: AggregatedResult, passages: list[PassageRecord]) -> str
 
     lines.append("")
 
-    # -- Budget utilization --
+    # -- Solver diagnostics per dimension --
     lines.append("-" * 72)
-    lines.append("BUDGET UTILIZATION")
+    lines.append("SOLVER DIAGNOSTICS (per dimension)")
     lines.append("-" * 72)
+    lines.append(
+        f"  {'dimension':30s} {'status':8s} {'demand':>6s} {'supply':>6s} "
+        f"{'null':>5s} {'cost':>6s} {'elig':>5s} {'clust':>5s} "
+        f"{'strong':>6s} {'weak':>6s}"
+    )
+    lines.append("  " + "-" * 100)
 
+    total_optimal_cost = 0
     for dr in result.dimension_results:
-        if dr.total_demand > 0:
-            pct = 100 * dr.total_supplied / dr.total_demand if dr.total_demand else 0
+        total_optimal_cost += dr.optimal_cost
+        if dr.total_demand > 0 or dr.solver_status != "NOT_RUN":
             lines.append(
-                f"  {dr.dimension:30s} demand={dr.total_demand:3d} "
-                f"supplied={dr.total_supplied:3d} ({pct:5.1f}%)"
+                f"  {dr.dimension:30s} {dr.solver_status:8s} "
+                f"{dr.total_demand:6d} {dr.total_supply:6d} "
+                f"{dr.total_null_flow:5d} {dr.optimal_cost:6d} "
+                f"{dr.num_eligible:5d} {dr.num_clusters:5d} "
+                f"{dr.strong_count:6d} {dr.weak_count:6d}"
             )
     lines.append("")
-    lines.append(f"Total unique passages assigned: {len(assigned_ids)}")
+
+    # -- Summary --
+    lines.append("-" * 72)
+    lines.append("SUMMARY")
+    lines.append("-" * 72)
+    lines.append(f"  Total unique passages assigned: {len(assigned_ids)}")
+    lines.append(f"  Total dimension optimal cost:   {total_optimal_cost}")
+    total_dim_demand = sum(dr.total_demand for dr in result.dimension_results)
+    total_dim_supplied = sum(dr.total_supplied for dr in result.dimension_results)
+    lines.append(f"  Total dimension demand:         {total_dim_demand}")
+    lines.append(f"  Total dimension supplied:       {total_dim_supplied}")
+    all_statuses = {dr.solver_status for dr in result.dimension_results
+                    if dr.solver_status not in ("NOT_RUN", "SKIPPED_NO_DEMAND")}
+    lines.append(f"  Solver statuses:                {', '.join(sorted(all_statuses)) or 'none'}")
+
+    # Per-expert passage counts
+    expert_counts: dict[str, int] = {}
+    for a in result.assignments:
+        if a.expert:
+            expert_counts[a.expert] = expert_counts.get(a.expert, 0) + 1
+    for name in sorted(expert_counts):
+        lines.append(f"  {name:30s} {expert_counts[name]:3d} assignments")
     lines.append("")
 
     return "\n".join(lines)

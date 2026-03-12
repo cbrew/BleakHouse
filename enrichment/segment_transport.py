@@ -295,11 +295,10 @@ def solve_segment_assignment(
     status = smcf.solve()
 
     if status != smcf.OPTIMAL:
-        logger.warning("Segment transport: solver status %d (not optimal)", status)
-        return SegmentPlan(
-            segments=[PlannedSegment(t, []) for t in resolved_templates],
-            unassigned=list(assignments),
-            total_null_flow=total_demand,
+        raise RuntimeError(
+            f"Segment transport: solver returned {status} (expected OPTIMAL). "
+            f"total_demand={total_demand}, assignments={len(assignments)}, "
+            f"segments={len(resolved_templates)}"
         )
 
     logger.info("Segment transport: optimal cost = %d", smcf.optimal_cost())
