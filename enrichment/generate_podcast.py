@@ -116,12 +116,27 @@ def _build_passage_block(
     return "\n\n---\n\n".join(blocks)
 
 
+def _novel_info() -> tuple[str, str, str]:
+    """Return (title, author, show_name) for the active novel."""
+    from enrichment.novel_prompts import get_active_novel  # pyright: ignore[reportMissingImports]
+    cfg = get_active_novel()
+    show_name = f"{cfg.title} Unpacked"
+    return cfg.title, cfg.author, show_name
+
+
 SYSTEM_PROMPT = """\
-You are a podcast scriptwriter for "Bleak House Unpacked," a high-quality \
-literary discussion in the style of BBC Radio 4 or a fine public-radio \
-roundtable.  The tone is restrained expressiveness: warm but not gushing, \
-intellectually rigorous but never pedantic, with strong phrasing and \
-careful pauses — especially around quotations from the novel.
+You are a podcast scriptwriter for "{show_name}," a high-quality \
+literary discussion about **{novel_title}** by **{novel_author}** in the \
+style of BBC Radio 4 or a fine public-radio roundtable.  The tone is \
+restrained expressiveness: warm but not gushing, intellectually rigorous \
+but never pedantic, with strong phrasing and careful pauses — especially \
+around quotations from the novel.
+
+**CRITICAL: This episode discusses {novel_title} by {novel_author} ONLY.  \
+All discussion, quotes, characters, and references must be from \
+{novel_title}.  Do not reference, quote from, or discuss any other novel \
+— not even other novels by the same author.  Every quote must come \
+verbatim from the passage text provided below, never from memory.**
 
 The host is an articulate, warmly curious presenter who steers the \
 conversation with confidence and genuine affection for the material.  \
@@ -141,7 +156,7 @@ style=presenter_warm.
   note on why their perspective matters here.
 - Experts react to each other: agree, push back gently, riff on each \
   other's ideas.  This is a conversation, not parallel monologues.
-- Direct quotes from Dickens are gold.  Set them up, read them with \
+- Direct quotes from the novel are gold.  Set them up, read them with \
   relish, then unpack why they're wonderful.{quote_sourcing}
 - No gimmicky filler words.  No "so," "well," "you know" padding.  \
   Every sentence should earn its place.
@@ -189,14 +204,14 @@ For each utterance, you MUST set:
   - 800 = paragraph-level break between points
   - 1500 = section break (end of turn before next speaker)
   - The last utterance of each turn: 800-1500.
-  - After a weighty Dickens quote: 300-500.
+  - After a weighty quote from the novel: 300-500.
 - **emphasis_words**: 0-3 content words deserving slight stress.  Use \
   sparingly.  Best for key literary terms, character names on first \
   mention, or the crux of an argument.
 - **passage_ref**: The passage_id being discussed, if any.
 
 **Quote handling is critical.**  When a speaker sets up and reads a \
-Dickens quote, use this pattern:
+quote from the novel, use this pattern:
 1. quote_setup utterance (quote_mode="setup", rate=0.98, pause_after_ms=150)
 2. quote_reading utterance (quote_mode="reading", is_quote=true, \
    rate=0.93, pause_before_ms=150, pause_after_ms=400)
@@ -209,7 +224,7 @@ Dickens quote, use this pattern:
 - Each expert: 2-4 turns per segment, 3-8 utterances per turn.
 - Experts build on each other — agreement, friendly disagreement, \
   "that reminds me of..."
-- Include at least one direct Dickens quote per expert turn{quote_source_turn}.
+- Include at least one direct quote from the novel per expert turn{quote_source_turn}.
 - End each segment with a host transition to the next topic.
 - Use the enrichment metadata (themes, emotional register) to inform \
   the discussion, but never mention the metadata itself.
@@ -251,12 +266,17 @@ def build_messages(
         quote_sourcing = ""
         quote_source_turn = ""
 
+    title, author, show_name = _novel_info()
+
     system = SYSTEM_PROMPT.format(
         personas=_build_persona_block(personas),
         num_experts=len(personas),
         speaker_styles=_build_speaker_styles(personas),
         quote_sourcing=quote_sourcing,
         quote_source_turn=quote_source_turn,
+        show_name=show_name,
+        novel_title=title,
+        novel_author=author,
     )
 
     user_parts: list[str] = [
@@ -269,7 +289,7 @@ def build_messages(
             "\n**This is the FIRST segment of the episode.**  The host should "
             "welcome listeners, introduce the show, and introduce each expert "
             "with warmth — who they are, what makes them interesting, why "
-            "their perspective matters for Bleak House."
+            f"their perspective matters for *{title}*."
         )
 
     if segment.assignments:
@@ -285,7 +305,7 @@ def build_messages(
             "## No Assigned Passages",
             "",
             "No specific passages are assigned for this segment. Drawing on your "
-            "knowledge of *Bleak House* by Charles Dickens, produce a rich discussion "
+            f"knowledge of *{title}* by {author}, produce a rich discussion "
             f"that fits this segment's theme: **{segment.template.name}** "
             f"({segment.template.segment_type}).",
             "",
@@ -379,7 +399,7 @@ def assemble_episode(
     tag = _make_tag()
 
     return PodcastEpisode(
-        title="Bleak House: A Literary Discussion",
+        title=f"{_novel_info()[0]}: A Literary Discussion",
         segments=segments,
         metadata=EpisodeMetadata(
             chapters_covered=sorted(all_chapters),

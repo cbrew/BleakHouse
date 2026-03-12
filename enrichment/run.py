@@ -387,6 +387,7 @@ def main() -> None:
                 config.experts, config.arcs,
                 model=segment_model,
                 prompt_version=config.prompt_version,
+                personas=config.personas if config.prompt_version >= 3 else None,
             )
             config.segment_templates = templates
             with open(run_dir / "phase0_segments.json", "w") as f:

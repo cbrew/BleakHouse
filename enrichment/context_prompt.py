@@ -23,9 +23,13 @@ def build_context_messages(
             cache_control={"type": "ephemeral"},
         )
     ]
+    from enrichment.novel_prompts import get_active_novel  # pyright: ignore[reportMissingImports]
+    cfg = get_active_novel()
+    novel_ref = f"{cfg.title} by {cfg.author}"
+
     user_msg = (
         "Here is the chunk we want to situate within this chapter of "
-        "Bleak House by Charles Dickens:\n"
+        f"{novel_ref}:\n"
         f"<chunk>{chunk_text}</chunk>\n"
         "Please give a short succinct context to situate this chunk within "
         "the overall chapter for the purposes of improving search retrieval "

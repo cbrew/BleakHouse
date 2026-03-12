@@ -297,6 +297,15 @@ def plot_umap_clusters(
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Cluster passages by character presence")
+    parser.add_argument(
+        "--novel", type=str, default=None,
+        help="Novel key (reads from data/novels/<key>/)",
+    )
+    args = parser.parse_args()
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -307,8 +316,19 @@ def main() -> None:
     REPORTS_DIR.mkdir(exist_ok=True)
     tag = make_tag()
 
+    # Resolve paths based on --novel
+    if args.novel:
+        novel_dir = DATA_DIR / "novels" / args.novel
+        passages_path = novel_dir / "passages_enriched.json"
+        clusters_path = novel_dir / "clusters_characters.json"
+        arcs_path = novel_dir / "character_arcs.json"
+    else:
+        passages_path = PASSAGES_PATH
+        clusters_path = CLUSTERS_PATH
+        arcs_path = ARCS_PATH
+
     # Step 1: Load passages
-    passages = load_passages(PASSAGES_PATH)
+    passages = load_passages(passages_path)
 
     # Step 2: Build character presence matrix
     matrix, passage_ids, characters = build_character_matrix(passages)
@@ -318,10 +338,10 @@ def main() -> None:
 
     # Step 5: Print summary and save assignments
     print_cluster_summary(labels, passages, characters, matrix)
-    save_cluster_assignments(labels, passage_ids, CLUSTERS_PATH)
+    save_cluster_assignments(labels, passage_ids, clusters_path)
 
     # Step 6: Character arcs
-    extract_character_arcs(passages, ARCS_PATH)
+    extract_character_arcs(passages, arcs_path)
 
     # Step 7: UMAP visualization
     plot_path = REPORTS_DIR / f"clusters_characters_{tag}.png"

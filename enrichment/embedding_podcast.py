@@ -32,6 +32,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "bleak_house_vectors"
 
+# Novel data override: set via BLEAKHOUSE_NOVEL env var
+def _db_path() -> Path:
+    import os
+    novel = os.environ.get("BLEAKHOUSE_NOVEL")
+    if novel:
+        return DATA_DIR / "novels" / novel / "vectors"
+    return DB_PATH
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -47,16 +55,16 @@ DIMENSION_DESCRIPTIONS: dict[str, str] = {
         "thematic resonance with justice, identity, class, and institutional failure"
     ),
     "prov_social_critique": (
-        "social critique of Victorian institutions, law, poverty, and class"
+        "social critique of institutions, law, poverty, and class"
     ),
     "prov_humor_entertainment": (
         "humor, comedy, satire, and dramatic entertainment"
     ),
     "prov_atmosphere_setting": (
-        "atmosphere, mood, setting — fog, Gothic elements, London, Chesney Wold"
+        "atmosphere, mood, setting, and sense of place"
     ),
     "prov_narrative_technique": (
-        "literary technique — irony, foreshadowing, imagery, dual narration, symbolism"
+        "literary technique — irony, foreshadowing, imagery, symbolism"
     ),
 }
 
@@ -142,7 +150,9 @@ def _compose_query_text(
         )
 
     if not parts:
-        parts.append("Interesting and quotable passages from Bleak House.")
+        from enrichment.novel_prompts import get_active_novel  # pyright: ignore[reportMissingImports]
+        cfg = get_active_novel()
+        parts.append(f"Interesting and quotable passages from {cfg.title}.")
 
     return " ".join(parts)
 
@@ -204,7 +214,7 @@ def retrieve_candidate_pool(
     config: RetrievalConfig,
 ) -> list[CandidatePassage]:
     """Execute all queries against LanceDB and build a deduplicated candidate pool."""
-    db = lancedb.connect(str(DB_PATH))
+    db = lancedb.connect(str(_db_path()))
     table = db.open_table("passages")
 
     enr_map: dict[str, dict] = {}
@@ -315,7 +325,7 @@ class CurationResult(BaseModel):
 
 
 CURATION_SYSTEM_PROMPT = """\
-You are a podcast producer selecting and assigning passages from Bleak House \
+You are a podcast producer selecting and assigning passages from {novel_title} \
 for a literary discussion episode.  You must choose approximately {target} \
 passages from the {pool_size} candidates below.
 
@@ -511,9 +521,13 @@ def curate_passages(
     min_per = max(1, expert_budget // (n_experts + 1))
     max_per = max(min_per + 1, expert_budget - (n_experts - 1) * min_per)
 
+    from enrichment.novel_prompts import get_active_novel  # pyright: ignore[reportMissingImports]
+    novel_cfg = get_active_novel()
+
     system = CURATION_SYSTEM_PROMPT.format(
         target=target,
         pool_size=len(candidates),
+        novel_title=novel_cfg.title,
         expert_profiles="\n\n".join(_format_expert_profile(e) for e in experts),
         segment_profiles="\n\n".join(_format_segment_profile(s) for s in templates),
         arc_profiles="\n\n".join(_format_arc_profile(a) for a in arcs),

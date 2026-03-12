@@ -7,7 +7,7 @@
 ## 1. Research Question
 
 The transport-based pipeline makes every passage selection decision visible as a cost, a flow, and a constraint, producing *inspectable, manipulable* editorial choices. Expert personas are deliberately stereotyped caricatures — the Marxist always finds class struggle, the performer always finds comedy — 
-and the system encodes these stereotypes as adjustable demand vectors rather than hiding them in prompts. The result is a navigable configuration space: changing adjusting an arc emphasis, or swapping an expert produces measurably different output, and the *reasons* for those differences are legible.
+and the system encodes these stereotypes as adjustable demand vectors rather than hiding them in prompts. The result is a navigable configuration space: changing , eadjusting an arc emphasis, or swapping an expert produces measurably different output, and the *reasons* for those differences are legible.
 
 This report asks: **does the transport pipeline's structured approach to passage selection produce measurably different — and characterfully different — outputs compared to simpler alternatives?** We construct four ablation conditions that progressively remove the transport system's distinctive features:
 

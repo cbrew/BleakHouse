@@ -35,6 +35,13 @@ PASSAGES_PATH = DATA_DIR / "passages_enriched.json"
 CONTEXTS_PATH = DATA_DIR / "contexts.json"
 OUTPUT_PATH = DATA_DIR / "passages_contextual.json"
 
+NOVEL_KEYS = [
+    "our_mutual_friend",
+    "mill_on_the_floss",
+    "north_and_south",
+    "passage_to_india",
+]
+
 MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 300
 
@@ -70,12 +77,30 @@ def main() -> None:
         action="store_true",
         help="Skip chapters already in contexts.json",
     )
+    parser.add_argument(
+        "--novel",
+        type=str,
+        choices=NOVEL_KEYS,
+        default=None,
+        help="Novel key (reads from data/novels/<key>/)",
+    )
     args = parser.parse_args()
+
+    # Resolve paths based on --novel
+    if args.novel:
+        novel_dir = DATA_DIR / "novels" / args.novel
+        passages_path = novel_dir / "passages_enriched.json"
+        contexts_path = novel_dir / "contexts.json"
+        output_path = novel_dir / "passages_contextual.json"
+    else:
+        passages_path = PASSAGES_PATH
+        contexts_path = CONTEXTS_PATH
+        output_path = OUTPUT_PATH
 
     load_dotenv()
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-    raw = json.loads(PASSAGES_PATH.read_text())
+    raw = json.loads(passages_path.read_text())
 
     # Group by chapter
     by_chapter: dict[str, list[dict]] = {}
@@ -86,7 +111,15 @@ def main() -> None:
         selected = set(args.chapters.split(","))
         by_chapter = {k: v for k, v in by_chapter.items() if k in selected}
 
-    contexts = load_existing_contexts() if args.resume else {}
+    def _load_ctx() -> dict[str, str]:
+        if contexts_path.exists():
+            return json.loads(contexts_path.read_text())
+        return {}
+
+    def _save_ctx(ctx: dict[str, str]) -> None:
+        contexts_path.write_text(json.dumps(ctx, indent=2))
+
+    contexts = _load_ctx() if args.resume else {}
     logger.info(
         "Processing %d chapters (%d existing contexts)",
         len(by_chapter),
@@ -150,7 +183,7 @@ def main() -> None:
                 )
 
         # Save after each chapter for resumability
-        save_contexts(contexts)
+        _save_ctx(contexts)
         logger.info("  Saved %d total contexts", len(contexts))
 
     # Merge contexts into passages and write output
@@ -160,8 +193,8 @@ def main() -> None:
         if pid in contexts:
             p["context"] = contexts[pid]
 
-    OUTPUT_PATH.write_text(json.dumps(raw, indent=2))
-    logger.info("Wrote %d passages to %s", len(raw), OUTPUT_PATH)
+    output_path.write_text(json.dumps(raw, indent=2))
+    logger.info("Wrote %d passages to %s", len(raw), output_path)
 
 
 def _chapter_sort_key(chapter_id: str) -> tuple[int, int]:

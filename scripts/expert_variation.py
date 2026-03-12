@@ -58,6 +58,8 @@ CONDITION_PREFIXES = {
     "rag": "rag_",
     "no_passages": "nop_",
     "random": "rand_",
+    "high_arc": "arc_",
+    "extreme": "ext_",
 }
 
 CONDITIONS = list(CONDITION_PREFIXES.keys())

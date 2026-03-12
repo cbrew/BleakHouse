@@ -38,6 +38,8 @@ PIPELINE_PREFIXES = {
     "rag_v": "rag",
     "nop_v": "no_passages",
     "rand_v": "random",
+    "arc_v": "high_arc",
+    "ext_v": "extreme",
 }
 
 # Characters to track (case-insensitive matching)

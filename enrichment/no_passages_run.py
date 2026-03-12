@@ -65,6 +65,10 @@ def main() -> None:
         help="Skip LLM segment design; use default templates",
     )
     parser.add_argument(
+        "--prompt-version", type=int, default=2,
+        help="Prompt version: 1=original, 2=supply-aware+passage-grounded (default: 2)",
+    )
+    parser.add_argument(
         "--resume-from", type=int, default=None, choices=[3],
         help="Resume from Phase 3 using existing Phase 0 output",
     )
@@ -116,7 +120,11 @@ def main() -> None:
         templates = list(DEFAULT_SEGMENT_TEMPLATES)
     else:
         logger.info("Phase 0: designing segments")
-        templates = design_segments(experts, arcs)
+        templates = design_segments(
+            experts, arcs,
+            prompt_version=args.prompt_version,
+            personas=personas if args.prompt_version >= 3 else None,
+        )
         with open(run_dir / "phase0_segments.json", "w") as f:
             json.dump([t.model_dump() for t in templates], f, indent=2)
         for t in templates:
@@ -130,6 +138,7 @@ def main() -> None:
             {"name": e.name, "role": e.role, "demands": e.demands} for e in experts
         ],
         "model": args.model,
+        "prompt_version": args.prompt_version,
         "passage_target": 0,
     }
     with open(run_dir / "config.json", "w") as f:
@@ -164,7 +173,7 @@ def main() -> None:
 
     # Phase 3: script generation
     logger.info("Phase 3: script generation (model=%s)", args.model)
-    phase3 = run_phase3(phase2, phase1, args.model, personas)
+    phase3 = run_phase3(phase2, phase1, args.model, personas, prompt_version=args.prompt_version)
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
 

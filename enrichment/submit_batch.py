@@ -1,6 +1,8 @@
 """Build and submit Anthropic batch requests for passage enrichment.
 
-Usage: uv run python -m enrichment.submit_batch [--chapters c1,c2,c3]
+Usage:
+  uv run python -m enrichment.submit_batch [--chapters c1,c2,c3]
+  uv run python -m enrichment.submit_batch --novel our_mutual_friend
 """
 
 import argparse
@@ -24,6 +26,13 @@ DATA_DIR = Path("data")
 PASSAGES_PATH = DATA_DIR / "passages_raw.json"
 MANIFEST_PATH = DATA_DIR / "batch_manifest.json"
 
+NOVEL_KEYS = [
+    "our_mutual_friend",
+    "mill_on_the_floss",
+    "north_and_south",
+    "passage_to_india",
+]
+
 MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 60000
 MAX_PARAGRAPHS_PER_REQUEST = 200
@@ -39,6 +48,7 @@ def format_chapter_text(passages: list[dict]) -> str:
 
 def build_requests(
     passages_by_chapter: dict[str, list[dict]],
+    system_prompt: str = ENRICHMENT_SYSTEM_PROMPT,
 ) -> list[Request]:
     """Build batch request objects, splitting large chapters."""
     schema = ChapterEnrichmentResult.model_json_schema()
@@ -76,7 +86,7 @@ def build_requests(
                                 "schema": schema,
                             }
                         },
-                        system=ENRICHMENT_SYSTEM_PROMPT,
+                        system=system_prompt,
                         messages=[
                             {"role": "user", "content": user_message}
                         ],
@@ -97,12 +107,33 @@ def main() -> None:
         default=None,
         help="Comma-separated chapter IDs to submit (default: all)",
     )
+    parser.add_argument(
+        "--novel",
+        type=str,
+        choices=NOVEL_KEYS,
+        default=None,
+        help="Novel key (reads from data/novels/<key>/passages_raw.json)",
+    )
     args = parser.parse_args()
+
+    # Resolve paths and prompt based on --novel flag
+    if args.novel:
+        novel_dir = DATA_DIR / "novels" / args.novel
+        passages_path = novel_dir / "passages_raw.json"
+        manifest_path = novel_dir / "batch_manifest.json"
+        from enrichment.novel_prompts import build_enrichment_prompt
+
+        system_prompt = build_enrichment_prompt(args.novel)
+        logger.info("Using novel-specific prompt for %s", args.novel)
+    else:
+        passages_path = PASSAGES_PATH
+        manifest_path = MANIFEST_PATH
+        system_prompt = ENRICHMENT_SYSTEM_PROMPT
 
     load_dotenv()
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-    raw = json.loads(PASSAGES_PATH.read_text())
+    raw = json.loads(passages_path.read_text())
     passages_by_chapter: dict[str, list[dict]] = {}
     for p in raw:
         passages_by_chapter.setdefault(p["chapter_id"], []).append(p)
@@ -114,22 +145,23 @@ def main() -> None:
         }
         logger.info("Filtered to chapters: %s", sorted(passages_by_chapter))
 
-    requests = build_requests(passages_by_chapter)
+    requests = build_requests(passages_by_chapter, system_prompt=system_prompt)
     logger.info("Built %d batch requests", len(requests))
 
     batch = client.messages.batches.create(requests=requests)
 
     manifest = {
         "batch_id": batch.id,
+        "novel": args.novel or "bleak_house",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "request_count": len(requests),
         "chapter_ids": sorted(passages_by_chapter.keys()),
         "model": MODEL,
         "status": "submitted",
     }
-    MANIFEST_PATH.write_text(json.dumps(manifest, indent=2))
+    manifest_path.write_text(json.dumps(manifest, indent=2))
     logger.info("Batch %s submitted (%d requests)", batch.id, len(requests))
-    logger.info("Manifest saved to %s", MANIFEST_PATH)
+    logger.info("Manifest saved to %s", manifest_path)
 
 
 if __name__ == "__main__":

@@ -107,7 +107,12 @@ def build_passage_assignments(
     # Load full enrichment for text, summary, best_quote, themes
     enr_map: dict[str, dict] = {}  # type: ignore[type-arg]
     if enrichment_data is None:
-        enr_path = DATA_DIR / "passages_enriched.json"
+        import os
+        novel = os.environ.get("BLEAKHOUSE_NOVEL")
+        if novel:
+            enr_path = DATA_DIR / "novels" / novel / "passages_enriched.json"
+        else:
+            enr_path = DATA_DIR / "passages_enriched.json"
         if enr_path.exists():
             with open(enr_path) as f:
                 enrichment_data = json.load(f)
