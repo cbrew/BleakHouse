@@ -518,13 +518,14 @@ def solve_dimension(
                 "passage", p.passage_id, "cluster", str(cid),
             )
 
-    # Passage -> NULL_SINK (capacity = supply, cost = 0)
-    # Discarding a passage is free; the solver only routes to experts
-    # when it's cheaper than the alternative.
+    # Passage -> NULL_SINK (capacity = supply, cost = interest_score)
+    # Discarding interesting passages is expensive; the solver prefers
+    # to route high-interest passages to experts rather than waste them.
     for p in eligible:
         supply = STRENGTH_TO_SUPPLY[p.provisions[dimension]]
+        discard_cost = p.interest_score  # 5-star → costs 5, 0-star → free
         add_arc(
-            passage_node[p.passage_id], NULL_SINK, supply, 0,
+            passage_node[p.passage_id], NULL_SINK, supply, discard_cost,
             "passage", p.passage_id, "null_sink", "NULL_SINK",
         )
 
