@@ -20,6 +20,13 @@ DATA_DIR = Path("data")
 INPUT_PATH = DATA_DIR / "passages_contextual.json"
 DEFAULT_DB_PATH = DATA_DIR / "bleak_house_vectors"
 
+NOVEL_KEYS = [
+    "our_mutual_friend",
+    "mill_on_the_floss",
+    "north_and_south",
+    "passage_to_india",
+]
+
 BATCH_SIZE = 500
 
 
@@ -77,15 +84,30 @@ def main() -> None:
     parser.add_argument(
         "--db-path",
         type=str,
-        default=str(DEFAULT_DB_PATH),
+        default=None,
         help=f"LanceDB database path (default: {DEFAULT_DB_PATH})",
+    )
+    parser.add_argument(
+        "--novel",
+        type=str,
+        choices=NOVEL_KEYS,
+        default=None,
+        help="Novel key (reads from data/novels/<key>/)",
     )
     args = parser.parse_args()
 
     load_dotenv()
 
-    raw = json.loads(INPUT_PATH.read_text())
-    logger.info("Loaded %d passages from %s", len(raw), INPUT_PATH)
+    if args.novel:
+        novel_dir = DATA_DIR / "novels" / args.novel
+        input_path = novel_dir / "passages_contextual.json"
+        db_path = args.db_path or str(novel_dir / "vectors")
+    else:
+        input_path = INPUT_PATH
+        db_path = args.db_path or str(DEFAULT_DB_PATH)
+
+    raw = json.loads(input_path.read_text())
+    logger.info("Loaded %d passages from %s", len(raw), input_path)
 
     # Filter to passages that have both enrichment and context
     passages = [p for p in raw if p.get("enrichment") and p.get("context")]
@@ -93,7 +115,7 @@ def main() -> None:
 
     records = [passage_to_record(p) for p in passages]
 
-    db = lancedb.connect(args.db_path)
+    db = lancedb.connect(db_path)
     table = db.create_table("passages", exist_ok=True, schema=ContextualPassage)
 
     for start in range(0, len(records), BATCH_SIZE):
@@ -109,7 +131,7 @@ def main() -> None:
     logger.info(
         "Done: %d passages embedded into %s (table 'passages')",
         len(records),
-        args.db_path,
+        db_path,
     )
 
 

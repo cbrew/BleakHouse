@@ -41,6 +41,8 @@ PIPELINE_MAP = {
     "rag_v": "rag",
     "nop_v": "no_passages",
     "rand_v": "random",
+    "arc_v": "high_arc",
+    "ext_v": "extreme",
 }
 
 
@@ -783,7 +785,7 @@ def main() -> None:
             "pipeline", "runs", "total_quotes", "tagged", "inline",
             "verified", "unverified", "verification_rate",
         ])
-        for pipeline in ["transport", "embedding", "rag", "no_passages", "random"]:
+        for pipeline in sorted(pipeline_stats.keys()):
             if pipeline not in pipeline_stats:
                 continue
             ps = pipeline_stats[pipeline]
@@ -902,7 +904,7 @@ def main() -> None:
         adj_header = f"{'Pipeline':<15} {'Total':>7} {'Verified':>9} {'Vrfr FN':>8} {'Det FP':>7} {'Confab':>7} {'Raw%':>6} {'Adj%':>6}"
         print(adj_header)
         print("-" * len(adj_header))
-        for pipeline in ["transport", "embedding", "rag", "no_passages", "random"]:
+        for pipeline in sorted(pipeline_stats.keys()):
             pq = [vq for vq in all_verified if vq.pipeline == pipeline]
             if not pq:
                 continue

@@ -72,7 +72,12 @@ REPORTS_DIR = BASE_DIR / "reports"
 
 
 def _load_enrichment_data() -> list[dict]:
-    path = DATA_DIR / "passages_enriched.json"
+    import os
+    novel = os.environ.get("BLEAKHOUSE_NOVEL")
+    if novel:
+        path = DATA_DIR / "novels" / novel / "passages_enriched.json"
+    else:
+        path = DATA_DIR / "passages_enriched.json"
     with open(path) as f:
         return json.load(f)
 
@@ -132,6 +137,7 @@ def run_phase3(
     phase1_data: dict,
     model: str,
     personas: list[ExpertPersona],
+    prompt_version: int = 2,
 ) -> dict:
     """Phase 3: script generation (identical to transport pipeline)."""
     import anthropic
@@ -157,6 +163,7 @@ def run_phase3(
     for i, seg in enumerate(plan.segments):
         episode_seg = generate_segment_script(
             seg, client, model, personas, is_first_segment=(i == 0),
+            prompt_version=prompt_version,
         )
         episode_segments.append(episode_seg)
         logger.info(
@@ -218,6 +225,12 @@ def main() -> None:
     parser.add_argument(
         "--no-design-segments", action="store_true",
         help="Skip LLM segment design; use default templates",
+    )
+
+    # Prompt version
+    parser.add_argument(
+        "--prompt-version", type=int, default=2,
+        help="Prompt version: 1=original, 2=supply-aware+passage-grounded (default: 2)",
     )
 
     # Resume
@@ -306,7 +319,11 @@ def main() -> None:
         templates = list(DEFAULT_SEGMENT_TEMPLATES)
     else:
         logger.info("Phase 0: designing segments")
-        templates = design_segments(experts, arcs)
+        templates = design_segments(
+            experts, arcs,
+            prompt_version=args.prompt_version,
+            personas=personas if args.prompt_version >= 3 else None,
+        )
         with open(run_dir / "phase0_segments.json", "w") as f:
             json.dump([t.model_dump() for t in templates], f, indent=2)
         for t in templates:
@@ -330,6 +347,7 @@ def main() -> None:
             "curation_model": retrieval_config.curation_model,
         },
         "model": args.model,
+        "prompt_version": args.prompt_version,
     }
     with open(run_dir / "config.json", "w") as f:
         json.dump(config_data, f, indent=2)
@@ -364,7 +382,7 @@ def main() -> None:
 
     # Phase 3: script generation (identical to transport pipeline)
     logger.info("Phase 3: script generation (model=%s)", args.model)
-    phase3 = run_phase3(phase2, phase1, args.model, personas)
+    phase3 = run_phase3(phase2, phase1, args.model, personas, prompt_version=args.prompt_version)
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
 

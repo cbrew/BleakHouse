@@ -97,19 +97,19 @@ def expert_panel_key(config: dict) -> tuple[str, ...]:
 variants = sorted(d.name for d in RUNS_DIR.iterdir() if d.is_dir())
 
 # Per (expert, panel) -> pipeline -> list of assignment dicts
-epp_assigns: dict[tuple[str, tuple], dict[str, list[dict]]] = defaultdict(
-    lambda: {"transport": [], "embedding": []}
+epp_assigns: dict[tuple[str, tuple], dict[str, list]] = defaultdict(
+    lambda: defaultdict(list)
 )
 # Per (expert, panel) -> pipeline -> list of turn texts
-epp_turns: dict[tuple[str, tuple], dict[str, list[str]]] = defaultdict(
-    lambda: {"transport": [], "embedding": []}
+epp_turns: dict[tuple[str, tuple], dict[str, list]] = defaultdict(
+    lambda: defaultdict(list)
 )
 # Also flat: expert -> pipeline -> list of assignments
-expert_assigns: dict[str, dict[str, list[dict]]] = {
-    e: {"transport": [], "embedding": []} for e in ALL_EXPERTS
+expert_assigns: dict[str, dict[str, list]] = {
+    e: defaultdict(list) for e in ALL_EXPERTS
 }
-expert_turns: dict[str, dict[str, list[str]]] = {
-    e: {"transport": [], "embedding": []} for e in ALL_EXPERTS
+expert_turns: dict[str, dict[str, list]] = {
+    e: defaultdict(list) for e in ALL_EXPERTS
 }
 
 run_count = 0

@@ -1,8 +1,12 @@
+
 """Poll a batch and collect enrichment results.
 
-Usage: uv run python -m enrichment.collect_results
+Usage:
+  uv run python -m enrichment.collect_results
+  uv run python -m enrichment.collect_results --novel our_mutual_friend
 """
 
+import argparse
 import json
 import logging
 import os
@@ -21,6 +25,13 @@ MANIFEST_PATH = DATA_DIR / "batch_manifest.json"
 PASSAGES_PATH = DATA_DIR / "passages_raw.json"
 OUTPUT_PATH = DATA_DIR / "passages_enriched.json"
 
+NOVEL_KEYS = [
+    "our_mutual_friend",
+    "mill_on_the_floss",
+    "north_and_south",
+    "passage_to_india",
+]
+
 POLL_INTERVAL_SECONDS = 30
 POLL_TIMEOUT_SECONDS = 3600
 
@@ -28,8 +39,28 @@ POLL_TIMEOUT_SECONDS = 3600
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--novel",
+        type=str,
+        choices=NOVEL_KEYS,
+        default=None,
+        help="Novel key (reads from data/novels/<key>/)",
+    )
+    args = parser.parse_args()
+
+    if args.novel:
+        novel_dir = DATA_DIR / "novels" / args.novel
+        manifest_path = novel_dir / "batch_manifest.json"
+        passages_path = novel_dir / "passages_raw.json"
+        output_path = novel_dir / "passages_enriched.json"
+    else:
+        manifest_path = MANIFEST_PATH
+        passages_path = PASSAGES_PATH
+        output_path = OUTPUT_PATH
+
     load_dotenv()
-    manifest = json.loads(MANIFEST_PATH.read_text())
+    manifest = json.loads(manifest_path.read_text())
     batch_id = manifest["batch_id"]
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -47,7 +78,7 @@ def main() -> None:
         return
 
     # Load raw passages for merging
-    raw_passages = json.loads(PASSAGES_PATH.read_text())
+    raw_passages = json.loads(passages_path.read_text())
     passages_by_key: dict[tuple[str, int], dict] = {}
     for p in raw_passages:
         passages_by_key[(p["chapter_id"], p["paragraph_index"])] = p
@@ -111,7 +142,7 @@ def main() -> None:
             passage = Passage(**{**raw, "enrichment": pe.enrichment})
             enriched.append(passage.model_dump())
 
-    OUTPUT_PATH.write_text(json.dumps(enriched, indent=2))
+    output_path.write_text(json.dumps(enriched, indent=2))
     logger.info(
         "Collected %d enriched passages from %d succeeded requests",
         len(enriched),
@@ -124,7 +155,7 @@ def main() -> None:
     manifest["status"] = "collected"
     manifest["succeeded"] = succeeded
     manifest["failed_ids"] = failed_ids
-    MANIFEST_PATH.write_text(json.dumps(manifest, indent=2))
+    manifest_path.write_text(json.dumps(manifest, indent=2))
 
 
 if __name__ == "__main__":

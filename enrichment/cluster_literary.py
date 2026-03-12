@@ -371,6 +371,15 @@ def experiment_2_alignment(
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Cluster passages by literary features")
+    parser.add_argument(
+        "--novel", type=str, default=None,
+        help="Novel key (reads from data/novels/<key>/)",
+    )
+    args = parser.parse_args()
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -380,11 +389,20 @@ def main() -> None:
     REPORTS_DIR.mkdir(exist_ok=True)
     timestamp = f"{make_timestamp()}_{git_short_hash()}"
 
+    # Resolve paths based on --novel
+    global OUTPUT_PATH  # noqa: PLW0603
+    if args.novel:
+        novel_dir = DATA_DIR / "novels" / args.novel
+        input_path = novel_dir / "passages_enriched.json"
+        OUTPUT_PATH = novel_dir / "clusters_literary.json"
+    else:
+        input_path = INPUT_PATH
+
     # Load passages
-    raw = json.loads(INPUT_PATH.read_text())
+    raw = json.loads(input_path.read_text())
     # Keep only passages with enrichment data
     passages = [p for p in raw if p.get("enrichment")]
-    logger.info("Loaded %d passages with enrichment from %s", len(passages), INPUT_PATH)
+    logger.info("Loaded %d passages with enrichment from %s", len(passages), input_path)
 
     experiment_1_clustering(passages, timestamp)
     experiment_2_alignment(passages)

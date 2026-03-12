@@ -21,7 +21,7 @@ from dataclasses import dataclass
 import anthropic
 from pydantic import BaseModel, Field
 
-from enrichment.podcast_types import SegmentTemplate  # pyright: ignore[reportMissingImports]
+from enrichment.podcast_types import ExpertPersona, SegmentTemplate  # pyright: ignore[reportMissingImports]
 from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
     ArcDemand,
     ExpertProfile,
@@ -36,9 +36,16 @@ MODEL = "claude-haiku-4-5-20251001"
 # Prompt construction
 # ---------------------------------------------------------------------------
 
+def _novel_ref() -> str:
+    """Return 'Author's *Title*' for the active novel."""
+    from enrichment.novel_prompts import get_active_novel  # pyright: ignore[reportMissingImports]
+    cfg = get_active_novel()
+    return f"{cfg.author}'s *{cfg.title}*"
+
+
 SYSTEM_PROMPT = """\
 You are a podcast producer designing the segment structure for a literary \
-analysis episode about Charles Dickens' *Bleak House*.
+analysis episode about {novel_ref}.
 
 You will be given:
 1. The expert panel (names, roles, and the analytical dimensions each cares about)
@@ -57,7 +64,7 @@ Design principles:
 - The opening should set the scene; the closing should synthesise
 - Give each expert at least one segment where they lead
 - Give each tracked arc at least one segment where it features
-- Segment titles should be evocative and specific to Bleak House, not generic
+- Segment titles should be evocative and specific to the novel, not generic
 - Total max_passages across all segments should be 25-35 (a 45-60 minute episode)
 - Exactly one opening and one closing segment
 - Only use dimensions that at least one expert demands or one arc requires — \
@@ -74,7 +81,7 @@ SYSTEM_PROMPT_V1 = SYSTEM_PROMPT
 
 SYSTEM_PROMPT_V2 = """\
 You are a podcast producer designing the segment structure for a literary \
-analysis episode about Charles Dickens' *Bleak House*.
+analysis episode about {novel_ref}.
 
 You will be given:
 1. The expert panel (names, roles, and the analytical dimensions each cares about)
@@ -94,7 +101,7 @@ Design principles:
 - The opening should set the scene; the closing should synthesise
 - Give each expert at least one segment where they lead
 - Give each tracked arc at least one segment where it features
-- Segment titles should be evocative and specific to Bleak House, not generic
+- Segment titles should be evocative and specific to the novel, not generic
 - Total max_passages across all segments should be 25-35 (a 45-60 minute episode)
 - Exactly one opening and one closing segment
 - Only use dimensions that at least one expert demands or one arc requires — \
@@ -103,6 +110,51 @@ don't create demand for dimensions nobody on the panel cares about
 A deep_dive on a scarce dimension (e.g. atmosphere_setting with few hundred \
 strong passages) risks thin material.  A deep_dive on a rich dimension \
 (e.g. character_development with 1,000+ strong passages) can draw from the best.
+
+Available dimensions (prov_* fields from the enrichment schema):
+  prov_character_development, prov_plot_advancement, prov_thematic_depth,
+  prov_social_critique, prov_humor_entertainment, prov_atmosphere_setting,
+  prov_narrative_technique
+"""
+
+SYSTEM_PROMPT_V3 = """\
+You are a podcast producer designing the segment structure for a literary \
+analysis episode about {novel_ref}.
+
+You will be given:
+1. The expert panel — names, roles, analytical dimensions, AND full \
+personality/perspective descriptions
+2. The character arcs being tracked and their importance
+3. The material supply — how many strong and weak passages exist per dimension
+
+Your job: design 5-8 episode segments that make editorial sense for THIS \
+specific panel.  Each segment needs:
+- A compelling title (e.g. "The Fog and What It Hides", not just "Opening")
+- A segment_type (opening, deep_dive, discussion, close_reading, closing)
+- Which analytical dimensions it should draw from (prov_* field names)
+- Which character arcs it should track (exact arc names from the input, or empty)
+- Which experts should lead (exact expert names from the input, or empty for any)
+- min/max passage counts (2-3 for short segments, 3-6 for deep dives)
+
+Design principles:
+- The opening should set the scene; the closing should synthesise
+- Give each expert at least one segment where they lead
+- Give each tracked arc at least one segment where it features
+- Segment titles should be evocative and specific to the novel, not generic
+- Total max_passages across all segments should be 25-35 (a 45-60 minute episode)
+- Exactly one opening and one closing segment
+- Only use dimensions that at least one expert demands or one arc requires — \
+don't create demand for dimensions nobody on the panel cares about
+- Weight segments toward dimensions with abundant strong supply.  \
+A deep_dive on a scarce dimension (e.g. atmosphere_setting with few hundred \
+strong passages) risks thin material.  A deep_dive on a rich dimension \
+(e.g. character_development with 1,000+ strong passages) can draw from the best.
+- **Design segments that play to each expert's personality.**  A performer \
+who hears rhythms should lead close_reading segments.  A historian who \
+connects past to present should lead discussion segments on institutional \
+themes.  A craft-obsessed writer should lead deep_dives on structure.  \
+Match the segment type and topic to the expert's perspective, not just \
+their demand dimensions.
 
 Available dimensions (prov_* fields from the enrichment schema):
   prov_character_development, prov_plot_advancement, prov_thematic_depth,
@@ -150,11 +202,18 @@ def _build_supply_summary() -> str:
 def _build_panel_summary(
     experts: list[ExpertProfile],
     arcs: list[ArcDemand],
+    personas: list[ExpertPersona] | None = None,
 ) -> str:
+    persona_lookup = {p.name: p for p in personas} if personas else {}
     lines = ["## Expert Panel\n"]
     for exp in experts:
         demands = ", ".join(f"{k}={v}" for k, v in exp.demands.items() if v > 0)
-        lines.append(f"- **{exp.name}** ({exp.role}): demands {demands}")
+        persona = persona_lookup.get(exp.name)
+        if persona:
+            lines.append(f"- **{exp.name}** ({exp.role}): {persona.description}")
+            lines.append(f"  Demands: {demands}")
+        else:
+            lines.append(f"- **{exp.name}** ({exp.role}): demands {demands}")
     lines.append("\n## Character Arcs\n")
     for arc in arcs:
         lines.append(
@@ -182,30 +241,42 @@ def design_segments(
     client: anthropic.Anthropic | None = None,
     model: str = MODEL,
     prompt_version: int = 2,
+    personas: list[ExpertPersona] | None = None,
 ) -> list[SegmentTemplate]:
     """Design segment templates for this panel configuration.
 
     prompt_version=1: original prompt (no supply info)
     prompt_version=2: supply-aware prompt (includes passage supply summary)
+    prompt_version=3: v2 + expert persona descriptions for personality-aware design
     """
     if client is None:
         client = anthropic.Anthropic()
 
-    panel_summary = _build_panel_summary(experts, arcs)
+    novel_ref = _novel_ref()
 
-    if prompt_version >= 2:
+    if prompt_version >= 3:
+        panel_summary = _build_panel_summary(experts, arcs, personas=personas)
         supply_summary = _build_supply_summary()
         user_msg = (
             f"{panel_summary}\n\n{supply_summary}\n\n"
             "Design the episode segments for this panel."
         )
-        system = SYSTEM_PROMPT_V2
+        system = SYSTEM_PROMPT_V3.format(novel_ref=novel_ref)
+    elif prompt_version >= 2:
+        panel_summary = _build_panel_summary(experts, arcs)
+        supply_summary = _build_supply_summary()
+        user_msg = (
+            f"{panel_summary}\n\n{supply_summary}\n\n"
+            "Design the episode segments for this panel."
+        )
+        system = SYSTEM_PROMPT_V2.format(novel_ref=novel_ref)
     else:
+        panel_summary = _build_panel_summary(experts, arcs)
         user_msg = (
             f"{panel_summary}\n\n"
             "Design the episode segments for this panel."
         )
-        system = SYSTEM_PROMPT_V1
+        system = SYSTEM_PROMPT_V1.format(novel_ref=novel_ref)
 
     logger.info("Designing segments (v%d) with %s ...", prompt_version, model)
 

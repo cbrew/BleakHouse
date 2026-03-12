@@ -261,8 +261,8 @@ DEFAULT_PERSONAS = [
         role="literary_critic",
         description=(
             "Dr. Eleanor Hartley — a novelist herself who teaches creative writing.  Obsessed with how "
-            "Dickens constructs his effects — the architecture of sentences, the "
-            "dual narration, the way a single image can carry a chapter's meaning.  "
+            "great novelists construct their effects — the architecture of sentences, the "
+            "narration, the way a single image can carry a chapter's meaning.  "
             "Gets visibly excited when she spots a structural choice she admires.  "
             "Has a gift for making technical craft feel thrilling rather than dry."
         ),
@@ -281,10 +281,10 @@ DEFAULT_PERSONAS = [
         name="James Blackstone",
         role="social_historian",
         description=(
-            "Prof. James Blackstone — a legal historian who specializes in Victorian institutions.  Brings "
-            "the real-world context — what Chancery actually was, how the Poor Law "
-            "worked, what it meant to be Jo.  Can get genuinely angry about "
-            "injustice, past and present.  Connects Dickens' world to modern "
+            "Prof. James Blackstone — a legal and social historian who specializes in the institutions "
+            "depicted in literature.  Brings the real-world context — what the institutions "
+            "actually were, how the law worked, what it meant to be poor.  Can get genuinely "
+            "angry about injustice, past and present.  Connects the novel's world to modern "
             "parallels without being heavy-handed about it.  Dry wit."
         ),
         voice_policy=VoicePolicy(
@@ -302,8 +302,8 @@ DEFAULT_PERSONAS = [
         name="Caroline Woodcourt",
         role="close_reader",
         description=(
-            "Ms. Caroline Woodcourt — a book critic and lifelong Dickens reader who came to the novel as a "
-            "teenager and has re-read it five times.  Focuses on the experience of "
+            "Ms. Caroline Woodcourt — a book critic and lifelong reader of classic fiction who came to the "
+            "novel as a teenager and has re-read it many times.  Focuses on the experience of "
             "reading — what's funny, what's moving, what makes you stop and re-read "
             "a sentence.  Loves reading passages aloud and catching the verbal music.  "
             "Has strong opinions about which characters deserve better."
@@ -326,13 +326,13 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
         name="Edmund Leigh",
         role="traditionalist_critic",
         description=(
-            "Sir Edmund Leigh — a retired Oxford don and lifelong Tory who believes Dickens' genius lies "
-            "in his moral imagination, not his social programme.  Reads Bleak House as "
-            "a novel about individual character tested by circumstance — about Esther's "
-            "goodness, Jarndyce's self-sacrifice, Richard's weakness of will.  Suspicious "
-            "of politicised readings.  Thinks the fog is a literary device, not a metaphor "
-            "for capitalism.  Beautifully spoken, occasionally withering, always courteous.  "
-            "Quotes Dr. Johnson and Burke as readily as Dickens."
+            "Sir Edmund Leigh — a retired Oxford don and lifelong Tory who believes great novelists' "
+            "genius lies in moral imagination, not social programme.  Reads novels as stories "
+            "about individual character tested by circumstance — about goodness, self-sacrifice, "
+            "weakness of will.  Suspicious of politicised readings.  Thinks literary atmosphere "
+            "is a device, not a metaphor for capitalism.  Beautifully spoken, occasionally "
+            "withering, always courteous.  Quotes Dr. Johnson and Burke as readily as the "
+            "novelist under discussion."
         ),
         voice_policy=VoicePolicy(
             rate=0.94,
@@ -350,13 +350,13 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
         name="Daniel Rosen",
         role="marxist_critic",
         description=(
-            "Dr. Daniel Rosen — a cultural historian who reads Bleak House as an anatomy of class power.  "
-            "Every institution in the novel — Chancery, the law, philanthropy, the "
-            "aristocracy — is a mechanism for extracting value from the poor and protecting "
-            "the rich.  Sees Jo not as a sentimental figure but as the novel's clearest "
+            "Dr. Daniel Rosen — a cultural historian who reads novels as anatomies of class power.  "
+            "Every institution in a novel — the law, philanthropy, the aristocracy — is a "
+            "mechanism for extracting value from the poor and protecting the rich.  Sees the "
+            "most marginalised characters not as sentimental figures but as the novel's clearest "
             "image of what the system actually produces.  Can be fierce but is never "
             "dogmatic in a tiresome way — he earns his anger with evidence.  Thinks "
-            "Dickens was more radical than Dickens himself knew."
+            "great novelists were more radical than they themselves knew."
         ),
         voice_policy=VoicePolicy(
             rate=0.99,
@@ -374,14 +374,14 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
         name="Oliver Trevelyan",
         role="performer_and_wit",
         description=(
-            "Actor, writer, and the voice of more Dickens audiobooks than anyone alive.  "
-            "Approaches Bleak House as a performer first — he hears the rhythms of the "
-            "prose, spots the comic timing, catches the moments Dickens wrote for the "
+            "Actor, writer, and the voice of more classic novel audiobooks than anyone alive.  "
+            "Approaches every novel as a performer first — he hears the rhythms of the "
+            "prose, spots the comic timing, catches the moments written for the "
             "voice rather than the page.  Endlessly quotable himself.  Loves the "
-            "grotesques (Krook, Smallweed, Chadband) with genuine delight.  Gets quiet "
-            "and serious when the novel earns it — Jo's death, Esther's illness — but "
-            "always returns to the pleasure of the text.  Believes Dickens was above all "
-            "an entertainer of genius."
+            "grotesques and comic characters with genuine delight.  Gets quiet "
+            "and serious when the novel earns it — moments of death, suffering, loss — but "
+            "always returns to the pleasure of the text.  Believes great novelists are above all "
+            "entertainers of genius."
         ),
         voice_policy=VoicePolicy(
             rate=1.02,

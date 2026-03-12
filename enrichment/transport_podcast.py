@@ -1,3 +1,4 @@
+
 """Podcast expert assignment via min-cost flow (optimal transport).
 
 Solves per-dimension flow problems to assign enriched passages to podcast
@@ -34,6 +35,29 @@ PASSAGES_FILE = DATA_DIR / "passages_enriched.json"
 CLUSTERS_LITERARY_FILE = DATA_DIR / "clusters_literary.json"
 CLUSTERS_CHARACTERS_FILE = DATA_DIR / "clusters_characters.json"
 OUTPUT_FILE = DATA_DIR / "transport_assignments.json"
+
+# Novel data override: set via BLEAKHOUSE_NOVEL env var
+def _novel_data_dir() -> Path | None:
+    import os
+    novel = os.environ.get("BLEAKHOUSE_NOVEL")
+    if novel:
+        return DATA_DIR / "novels" / novel
+    return None
+
+
+def _passages_file() -> Path:
+    d = _novel_data_dir()
+    return d / "passages_enriched.json" if d else PASSAGES_FILE
+
+
+def _clusters_literary_file() -> Path:
+    d = _novel_data_dir()
+    return d / "clusters_literary.json" if d else CLUSTERS_LITERARY_FILE
+
+
+def _clusters_characters_file() -> Path:
+    d = _novel_data_dir()
+    return d / "clusters_characters.json" if d else CLUSTERS_CHARACTERS_FILE
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -192,7 +216,7 @@ ALTERNATIVE_EXPERTS: dict[str, ExpertProfile] = {
 }
 
 
-DEFAULT_ARCS = [
+_BLEAK_HOUSE_ARCS = [
     ArcDemand(
         "Richard's deterioration",
         "Richard Carstone",
@@ -218,6 +242,21 @@ DEFAULT_ARCS = [
         2,
     ),
 ]
+
+
+def _get_default_arcs() -> list[ArcDemand]:
+    """Return novel-appropriate arcs based on BLEAKHOUSE_NOVEL env var."""
+    from enrichment.novel_prompts import get_novel_arcs  # pyright: ignore[reportMissingImports]
+    novel_arcs = get_novel_arcs()
+    if not novel_arcs:
+        return list(_BLEAK_HOUSE_ARCS)
+    return [
+        ArcDemand(name, character, demand, req_field, req_value, min_interest)
+        for name, character, demand, req_field, req_value, min_interest in novel_arcs
+    ]
+
+
+DEFAULT_ARCS = _get_default_arcs()
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -266,19 +305,30 @@ class PassageRecord:
 
 def load_passages() -> list[PassageRecord]:
     """Load passages_enriched.json and cluster assignments."""
-    logger.info("Loading passages from %s", PASSAGES_FILE)
-    with open(PASSAGES_FILE) as f:
+    pf = _passages_file()
+    logger.info("Loading passages from %s", pf)
+    with open(pf) as f:
         raw_passages: list[dict] = json.load(f)  # type: ignore[type-arg]
 
     # Load cluster assignments (passage_id -> cluster_id)
     clusters_lit: dict[str, int] = {}
     clusters_char: dict[str, int] = {}
-    if CLUSTERS_LITERARY_FILE.exists():
-        with open(CLUSTERS_LITERARY_FILE) as f:
-            clusters_lit = json.load(f)
-    if CLUSTERS_CHARACTERS_FILE.exists():
-        with open(CLUSTERS_CHARACTERS_FILE) as f:
-            clusters_char = json.load(f)
+    clf = _clusters_literary_file()
+    ccf = _clusters_characters_file()
+    if not clf.exists():
+        raise FileNotFoundError(
+            f"Literary cluster file not found: {clf}. "
+            f"Run: uv run python -m enrichment.cluster_literary"
+        )
+    if not ccf.exists():
+        raise FileNotFoundError(
+            f"Character cluster file not found: {ccf}. "
+            f"Run: uv run python -m enrichment.cluster_characters"
+        )
+    with open(clf) as f:
+        clusters_lit = json.load(f)
+    with open(ccf) as f:
+        clusters_char = json.load(f)
 
     records: list[PassageRecord] = []
     for p in raw_passages:

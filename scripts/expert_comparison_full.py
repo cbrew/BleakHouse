@@ -136,25 +136,25 @@ print(f"Loaded {len(runs)} runs ({sum(1 for _,_,_,p,_ in runs if p=='transport')
 # ---------------------------------------------------------------------------
 
 # passage-level: expert -> pipeline -> list of assignment dicts
-expert_assigns: dict[str, dict[str, list[dict]]] = {
-    e: {"transport": [], "embedding": []} for e in ALL_EXPERTS
+expert_assigns: dict[str, dict[str, list]] = {
+    e: defaultdict(list) for e in ALL_EXPERTS
 }
 # track which panels each expert appears in, and which passages per (expert, panel, pipeline)
 expert_panel_passages: dict[str, dict[str, dict[tuple, set[str]]]] = {
-    e: {"transport": defaultdict(set), "embedding": defaultdict(set)} for e in ALL_EXPERTS
+    e: defaultdict(lambda: defaultdict(set)) for e in ALL_EXPERTS
 }
 
 # script-level: expert -> pipeline -> list of turn texts
 expert_turns: dict[str, dict[str, list[str]]] = {
-    e: {"transport": [], "embedding": []} for e in ALL_EXPERTS
+    e: defaultdict(list) for e in ALL_EXPERTS
 }
 # per-run turn counts and word counts
-expert_airtime: dict[str, dict[str, list[tuple[int, int]]]] = {
-    e: {"transport": [], "embedding": []} for e in ALL_EXPERTS
+expert_airtime: dict[str, dict[str, list]] = {
+    e: defaultdict(list) for e in ALL_EXPERTS
 }
 # per-run: expert -> pipeline -> list of (variant, assigned_quotes, turn_texts)
-expert_quote_data: dict[str, dict[str, list[tuple[str, list[str], list[str]]]]] = {
-    e: {"transport": [], "embedding": []} for e in ALL_EXPERTS
+expert_quote_data: dict[str, dict[str, list]] = {
+    e: defaultdict(list) for e in ALL_EXPERTS
 }
 
 # Map expert persona names to config expert names for speaker matching
