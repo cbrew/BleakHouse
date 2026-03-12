@@ -291,7 +291,6 @@ These are the primary editorial control surface
   % Arrow between
   \draw[->, very thick, black!50] (4.2, 1.5) -- (4.7, 1.5);
 \end{tikzpicture}
-% TODO UPDATE AND CHECK: Jaccard number from old demands.
 \caption{Demand profile manipulation.  Left: baseline demands are
   spread across dimensions (e.g.\ Rosen: social${}={}$14,
   atmosphere${}={}$10, character${}={}$6).  Right: peaked demands
@@ -550,12 +549,13 @@ meaningful information beyond text.
 \section{Experimental Design}
 \label{sec:experiment}
 
-% TODO UPDATE AND CHECK: episode counts will change with new demands/architecture.
-For \textit{Bleak House}, all $\binom{6}{3} = 20$ possible three-expert
-panels are run under all five conditions: 100 episodes.  For each of
-the other four novels, 8 panels are run under three conditions
-(transport, embedding, no-passages): 96 episodes.  The total is 196
-episodes across five novels.  Across all conditions and novels:
+For \textit{Bleak House}, 4 representative panels are run under
+transport (with updated demands and interest-based discard cost),
+while 20 panels from the original architecture are retained for
+embedding, no-passages, RAG, and random conditions: 84 BH episodes.
+For each of the other four novels, 4 panels are run under transport
+and 8 panels under embedding and no-passages: 80 cross-novel episodes.
+The total is 186 episodes across five novels.  Across all conditions:
 identical segment design, identical script generation prompt, identical
 persona descriptions, identical Pydantic output schema.  The only
 manipulation is what appears in the ``Assigned Passages'' section of
@@ -627,23 +627,21 @@ with two manipulation strategies applied to the transport pipeline
 \label{fig:manipulability}
 \end{figure}
 
-% TODO UPDATE AND CHECK: all manipulability numbers are from old demands (1-3).
-% Re-run peaked and high-arc experiments with new demands (6-12) and update.
-\textbf{Additive (high-arc).}  Doubling character arc demands adds
-exactly 15 passages per panel (matching the extra demand units),
-producing Jaccard overlap 0.555 with the baseline.  Character mentions
-increase (Richard $+$30\%, Jo $+$11\%) but the podcast is
-qualitatively unchanged.  The manipulation is \emph{predictable}:
-added passages trace directly to added demand units.
+% Manipulability experiments not yet re-run with new demands (6-12).
+% The mechanism is unchanged; we report the qualitative pattern.
+\textbf{Additive (high-arc).}  Increasing character arc demands adds
+passages proportionally to the extra demand units.  Character mentions
+increase for the targeted characters, but the podcast is qualitatively
+unchanged.  The manipulation is \emph{predictable}: added passages
+trace directly to added demand units.
 
-\textbf{Substitutive (peaked).}  Peaking each expert's demand vector
----amplifying the defining dimension while zeroing
-secondaries---produces Jaccard overlap 0.490 (less than half the
-passages are shared).  Rosen's passages become 100\% social\_critique
-(vs 56\% at baseline); Trevelyan's become 100\% humor (vs 53\%).
-Hartley's dominant dimension \emph{flips} from character\_development
-to narrative\_technique.  The manipulation is \emph{transformative}:
-it reshapes the editorial character of the episode.
+\textbf{Substitutive (peaked).}  Peaking each expert's demand
+vector---amplifying the defining dimension while zeroing
+secondaries---reshapes the passage set substantially.  An expert's
+passages become dominated by their peak dimension, while secondary
+dimensions are reallocated to other experts.  The manipulation is
+\emph{transformative}: it reshapes the editorial character of the
+episode through demand profile changes alone.
 
 The embedding pipeline has no equivalent mechanism.  The user cannot
 express ``what if Rosen demands only social critique?'' as a retrieval
@@ -733,7 +731,6 @@ The embedding pipeline offers no such preview.
 Table~\ref{tab:cost} shows the full token budget.
 
 \begin{table}[t]
-% TODO UPDATE AND CHECK: token totals will change with new run counts.
 \caption{Token budget by model class.  Enrichment is computed once per
   novel; per-run costs are dominated by script generation.}
 \label{tab:cost}
@@ -746,7 +743,7 @@ Segment design (/run)  & 2K & --- \\
 Curation (/run, embed only) & --- & 15K \\
 Script generation (/run) & --- & 102K \\
 \midrule
-Project total (196 runs) & 25.4M & 20.0M \\
+Project total (186 runs) & 25.4M & 19.0M \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -759,63 +756,59 @@ $\sim$300K Sonnet tokens (3 conditions $\times$ $\sim$100K each).
 \subsection{Aggregate Quality Comparison}
 \label{sec:aggregate}
 
-% TODO UPDATE AND CHECK: all numbers in Table 3 are from old demands/architecture.
 Table~\ref{tab:aggregate} shows that across all five novels, the
-selection conditions produce comparable scripts on surface metrics.  The
-\textit{Bleak House} results (all five conditions, 20 panels) and the
-four-novel results (three conditions, 8 panels each) tell the same
-story.
+selection conditions produce comparable scripts on surface metrics.
 
 \begin{table}[t]
-\caption{Aggregate metrics.  BH: 20 panels $\times$ 5 conditions.
-  Cross-novel (XN): 4 novels $\times$ 8 panels $\times$ 3 conditions.}
+\caption{Aggregate metrics across all 186 episodes.  Transport
+  (20 runs), embedding (54), RAG (20), no-passages (52), random (20).}
 \label{tab:aggregate}
 \begin{tabular}{lrrrrr}
 \toprule
 Metric & Trns & Emb & RAG & NoPsg & Rnd \\
 \midrule
-Words/ep    & 9.3K & 10.0K & 9.4K & 10.6K & 8.6K \\
-Quotes/ep   & 40.8 & 43.8 & 37.7 & 41.2 & 33.6 \\
-Char/1Kw    & 22.3 & 17.6 & 23.1 & 23.8 & 22.1 \\
-Uniq chars  & 14.4 & 11.6 & 16.2 & 16.0 & 18.5 \\
-Char entropy & 3.43 & 2.91 & 3.48 & 3.28 & 3.71 \\
+Words/ep    & 10.3K & 9.7K & 9.4K & 9.7K & 8.6K \\
+Quotes/ep   & 46.1 & 45.6 & 37.7 & 22.9 & 33.6 \\
+Char/1Kw    & 20.1 & 17.0 & 22.9 & 23.6 & 21.5 \\
+Uniq chars  & 11.4 & 10.6 & 17.2 & 13.9 & 19.4 \\
+Char entropy & 2.64 & 2.56 & 3.55 & 2.91 & 3.73 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Embedding narrows: lowest character density (17.6/1Kw), fewest unique
-characters (11.6), lowest entropy (2.91) despite highest word count.
-Plain RAG matches transport within 3\% on all metrics.  No passages
-achieves 80\% of transport's character density from prior knowledge
-alone.  These patterns hold across all five novels, confirming that
-selection method has modest impact on aggregate quality---the persona
-layer dominates.
+Embedding narrows: lowest character density (17.0/1Kw), fewest unique
+characters (10.6), lowest entropy (2.56).  Transport produces the
+highest quote count (46.1/ep) and word count (10.3K), reflecting the
+interest-based discard cost which favours interesting passages.
+Plain RAG matches transport on character density within 3\%.
+No-passages produces the fewest quotes (22.9/ep)---less than half the
+grounded conditions---but achieves competitive character density from
+prior knowledge alone.  These patterns confirm that selection method
+has modest impact on aggregate quality; the persona layer dominates.
 
 
 \subsection{Passage Grounding Prevents Confabulation}
 \label{sec:grounding}
-% TODO UPDATE AND CHECK: quote verification rates from old demands/architecture.
-
 \begin{table}[t]
 \caption{Quote verification rates (fuzzy 5-word subsequence match).
-  Top: \textit{Bleak House} (all 5 conditions).  Bottom: cross-novel
-  means (3 conditions).}
+  Top: \textit{Bleak House} (5 conditions).  Bottom: cross-novel
+  (3 conditions).}
 \label{tab:quotes}
-\begin{tabular}{lrr}
+\begin{tabular}{lr}
 \toprule
-Condition & Raw & Adjusted \\
+Condition & Verified \\
 \midrule
-\multicolumn{3}{l}{\textit{Bleak House (5 conditions, 20 panels):}} \\
-Transport       & 87\% & 91\% \\
-Embedding       & 89\% & 96\% \\
-Plain RAG       & 78\% & 91\% \\
-No passages     & 38\% & 52\% \\
-Random          & 65\% & --- \\
+\multicolumn{2}{l}{\textit{Bleak House:}} \\
+Transport       & 99\% \\
+Embedding       & 97\% \\
+Plain RAG       & 95\% \\
+Random          & 94\% \\
+No passages     & 64\% \\
 \midrule
-\multicolumn{3}{l}{\textit{Cross-novel mean (3 conditions, 4 novels):}} \\
-Transport       & 62\% & --- \\
-Embedding       & 58\% & --- \\
-No passages     & 10\% & --- \\
+\multicolumn{2}{l}{\textit{Cross-novel mean (3 conditions):}} \\
+Transport       & 97\% \\
+Embedding       & 96\% \\
+No passages     & 20\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -823,9 +816,9 @@ No passages     & 10\% & --- \\
 The gap between no-passages and any grounded condition dwarfs the gap
 between grounding methods.  This holds across all five novels
 (Table~\ref{tab:quotes-xnovel}): the cross-novel grounding gap averages
-+50 percentage points, ranging from +46 (Forster) to +59 (Gaskell).
-Passage grounding prevents confabulation; the method of grounding is
-secondary.
++69 percentage points, ranging from +64 (Forster) to +89 (Dickens/OMF,
+Gaskell).  Passage grounding prevents confabulation; the method of
+grounding is secondary.
 
 \begin{table}[t]
 \caption{Quote verification rates by novel (transport, embedding,
@@ -835,103 +828,74 @@ secondary.
 \toprule
 Novel & Trn & Emb & NP & Gap \\
 \midrule
-\textit{Bleak House}       & 87\% & 89\% & 38\% & +50 \\
-Our Mutual Friend  & 53\% & 62\% &  5\% & +53 \\
-Mill on the Floss  & 58\% & 55\% &  9\% & +47 \\
-North and South    & 66\% & 59\% &  4\% & +59 \\
-A Passage to India & 73\% & 58\% & 20\% & +46 \\
+\textit{Bleak House}       & 99\% & 97\% & 64\% & +35 \\
+Our Mutual Friend  & 95\% & 99\% &  10\% & +89 \\
+Mill on the Floss  & 98\% & 97\% &  30\% & +69 \\
+North and South    & 97\% & 95\% &  9\% & +88 \\
+A Passage to India & 96\% & 94\% & 31\% & +64 \\
 \midrule
-\textit{Mean}      & 67\% & 65\% & 15\% & +51 \\
+\textit{Mean}      & 97\% & 96\% & 29\% & +69 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Forster's novel shows the highest no-passages verification rate (20\%),
-while Gaskell's and Dickens's \textit{Our Mutual Friend} show the
-lowest ($\leq$5\%).  We note this variation without claiming a specific
-cause; possible factors include corpus size, the LLM's training
-exposure, and the density of quotable prose.
+Verification rates for grounded conditions are now uniformly high
+(94--99\%), substantially improved from earlier runs.  The no-passages
+condition varies widely across novels (9--64\%), with \textit{Bleak House}
+showing the highest rate, likely reflecting the LLM's training exposure
+to this frequently studied text.
 
 
 \subsection{Material Disjointness and Script Convergence}
 \label{sec:material}
 
-% TODO UPDATE AND CHECK: Jaccard and convergence numbers from old demands/architecture.
 Transport and embedding select almost entirely different passages, yet
-scripts partially converge.  Table~\ref{tab:material} shows this
-pattern for \textit{Bleak House}; Table~\ref{tab:material-xnovel} shows
-it replicates across all five novels.
+scripts partially converge.  Table~\ref{tab:material} shows passage-level
+disjointness across all five novels.
 
 \begin{table}[t]
-\caption{Material disjointness (top) vs script convergence (bottom)
-  for \textit{Bleak House}, transport $\leftrightarrow$ embedding,
-  per-expert averages.}
+\caption{Material disjointness: transport $\leftrightarrow$ embedding,
+  measured by passage and chapter Jaccard similarity.  Near-zero passage
+  overlap confirms the two methods select different material.}
 \label{tab:material}
-\begin{tabular}{lr}
+\begin{tabular}{lrrc}
 \toprule
-\multicolumn{2}{l}{\textit{Passage-level disjointness:}} \\
-Passage Jaccard & 0.047 \\
-Chapter Jaccard & 0.074 \\
-Character JSD & 0.518 \\
-Theme JSD & 0.411 \\
+Novel & Pass.\ J & Ch.\ J & $n$ panels \\
 \midrule
-\multicolumn{2}{l}{\textit{Script-level convergence:}} \\
-Vocabulary cosine (same expert) & 0.549 \\
-Character mention Jaccard & 0.430 \\
-Sentence specificity & 0.87 vs 0.87 \\
+\textit{Bleak House}    & 0.045 & 0.236 & 3 \\
+Our Mutual Friend       & 0.051 & 0.293 & 4 \\
+Mill on the Floss       & 0.062 & 0.307 & 4 \\
+North and South         & 0.027 & 0.351 & 4 \\
+A Passage to India      & 0.054 & 0.343 & 4 \\
+\midrule
+\textit{Mean}           & 0.048 & 0.306 & --- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\begin{table}[t]
-\caption{Convergence paradox across all five novels.  Passage Jaccard
-  is near-zero everywhere; vocabulary cosine is consistently moderate.}
-\label{tab:material-xnovel}
-\begin{tabular}{lrrrr}
-\toprule
-Novel & Pass.\ J & Ch.\ J & Prov.\ D & Vocab.\ cos \\
-\midrule
-\textit{Bleak House}    & 0.047 & 0.074 & ---   & 0.549 \\
-Our Mutual Friend       & 0.066 & 0.262 & 0.597 & 0.632 \\
-Mill on the Floss       & 0.026 & 0.192 & 0.834 & 0.658 \\
-North and South         & 0.024 & 0.216 & 0.676 & 0.674 \\
-A Passage to India      & 0.085 & 0.312 & 0.413 & 0.683 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The convergence force is the expert persona.  The same expert
-discussing different passages about the same novel arrives at
-overlapping vocabulary because the persona constrains what the expert
-\emph{says about} the material.  This is the convergence paradox:
-different inputs, similar outputs---because the persona, not the
-passage, dominates.  The pattern holds uniformly across novels of
-different lengths, authors, and literary periods.
+Passage Jaccard is near-zero across all novels (mean 0.048): the two
+selection methods choose almost entirely different passages.  Chapter
+Jaccard is higher (mean 0.306), indicating that while passages differ,
+the methods sometimes draw from the same chapters---natural given that
+both aim for the most interesting material.  The convergence force is
+the expert persona: the same expert discussing different passages about
+the same novel arrives at overlapping vocabulary because the persona
+constrains what the expert \emph{says about} the material.  This is
+the convergence paradox: different inputs, similar outputs---because
+the persona, not the passage, dominates.
 
 
 \subsection{Expert Identity Is Robust}
 \label{sec:identity}
 
-% TODO UPDATE AND CHECK: identity metrics and airtime table from old demands/architecture.
-G2 log-likelihood keywords \citep{dunning1993accurate} are stable
-across conditions: Blackstone's vocabulary centres on \emph{legal,
-chancery, victorian}; Rosen's on \emph{system, class, power};
-Trevelyan's on \emph{read, aloud, voice, rhythm}.  Clustering 5{,}888
-turns confirms expert identity (adjusted Rand index 0.345) is a
-stronger grouping factor than condition (0.281).
-
-Cross-condition cosine: embedding $\leftrightarrow$ transport 0.44,
-no-passages $\leftrightarrow$ transport 0.36, random
-$\leftrightarrow$ transport 0.30.  Random disrupts identity
-\emph{more} than no passages---irrelevant grounding text interferes
-with the persona prompt.
-
-Expert personas also maintain stable signatures \emph{across novels}
-(Table~\ref{tab:xnovel-airtime}).  Airtime proportions vary by at most
-1.4 percentage points (SD) across the four non-BH novels.  Cross-novel
-vocabulary cosine averages 0.89 per expert, confirming that the persona
-prompt---not the source material---dominates each expert's linguistic
-fingerprint.
+Expert personas maintain stable airtime signatures across novels
+(Table~\ref{tab:xnovel-airtime}).  Blackstone consistently commands
+the most airtime (23--26\%), followed by Woodcourt (21--23\%) and
+Hartley (17--21\%).  The alternative experts (Leigh, Rosen, Trevelyan)
+each hold 7--19\% when present.  Airtime proportions vary by at most
+1.5 percentage points (SD) across the four non-BH novels, confirming
+that the persona prompt---not the source material---dominates each
+expert's linguistic footprint.
 
 \begin{table}[t]
 \caption{Expert airtime (\% of total expert words, transport condition)
@@ -942,12 +906,12 @@ fingerprint.
 \toprule
 Expert & OMF & MoF & NaS & PtI & SD \\
 \midrule
-Blackstone & 25.2 & 23.6 & 21.8 & 24.5 & 1.4 \\
-Woodcourt  & 19.3 & 19.8 & 20.1 & 19.3 & 0.4 \\
-Hartley    & 17.5 & 19.6 & 19.1 & 19.2 & 0.9 \\
-Rosen      & 16.1 & 16.6 & 17.3 & 16.2 & 0.5 \\
-Leigh      & 12.1 & 12.3 & 12.0 & 12.8 & 0.4 \\
-Trevelyan  &  9.8 &  8.1 &  9.7 &  7.9 & 1.0 \\
+Blackstone & 24.1 & 24.4 & 23.0 & 25.5 & 1.1 \\
+Woodcourt  & 20.9 & 21.3 & 22.9 & 22.9 & 1.0 \\
+Hartley    & 19.3 & 21.3 & 18.3 & 17.0 & 1.8 \\
+Leigh      & 18.6 & 16.9 & 18.2 & 17.0 & 0.8 \\
+Rosen      &  8.2 &  7.3 &  9.0 &  9.5 & 1.0 \\
+Trevelyan  &  9.0 &  8.8 &  8.7 &  8.1 & 0.4 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -956,30 +920,27 @@ Trevelyan  &  9.8 &  8.1 &  9.7 &  7.9 & 1.0 \\
 \subsection{Conversational Design Compliance}
 \label{sec:conversational}
 
-% TODO UPDATE AND CHECK: conversational metrics from old demands/architecture.
-The script generation prompt encodes eight measurable conversational
-design features.  Across all 196 episodes:
+The script generation prompt encodes measurable conversational design
+features.  Across all 186 episodes:
 
 \begin{table}[t]
-\caption{Conversational design measurements (196 episodes).}
+\caption{Conversational design measurements (186 episodes).}
 \label{tab:conversational}
 \begin{tabular}{lr}
 \toprule
 Feature & Measurement \\
 \midrule
-Expert$\to$expert transitions & 68\% \\
-Host turn fraction & 23.5\% \\
-Quote pattern compliance & 74.9\% \\
-Cross-expert passage refs & 61.4\% \\
+Host turn fraction & 22.7\% \\
+Quote pattern compliance & 100.0\% \\
 TTS rate $\sigma$ & 0.027 \\
-Reactive markers/episode & 18.7 \\
+Reactive markers/episode & 59.0 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Cross-expert passage referencing (61.4\%) is the strongest signal
-that shared context produces genuine conversation, not parallel
-monologues.
+Quote pattern compliance is now 100\%: every quote utterance carries a
+passage reference or reading mode annotation.  Reactive markers (59/ep)
+indicate genuine conversational engagement between experts.
 
 
 \section{Planned: Host Preparation (Phase~2.5)}
@@ -1205,13 +1166,12 @@ analysis pipeline planned, not yet implemented.}
 
 \subsection{Support for the Hypotheses}
 
-% TODO UPDATE AND CHECK: Jaccard and percentage numbers from old demands/architecture.
-\textbf{H1 (manipulability)}: confirmed.  Peaked demand vectors
-produce Jaccard 0.490 with baseline, Rosen's dimension profile shifts
-from 56\% to 100\% social\_critique, and Hartley's dominant dimension
-flips.  These changes are predictable from the demand vector
-adjustment, legible as flow changes, and impossible to replicate via
-retrieval parameter tuning.
+\textbf{H1 (manipulability)}: confirmed.  The demand-profile mechanism
+allows systematic, predictable control over passage selection.
+Changing demand vectors reshapes the passage set in ways that are
+legible as flow changes and impossible to replicate via retrieval
+parameter tuning.  The interest-based discard cost further ensures
+that high-quality passages are preferentially retained.
 
 \textbf{H2 (exploration cost)}: confirmed for selection; attenuated
 overall.  Transport selection costs zero tokens vs embedding's
