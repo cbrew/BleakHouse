@@ -1,0 +1,705 @@
+F401 [*] `hamilton.io.materialization.from_` imported but unused
+ --> BleakHouse.ipynb:cell 1:2:41
+  |
+1 | import pandas as pd
+2 | from hamilton.io.materialization import from_, to
+  |                                         ^^^^^
+3 | import logging
+4 | from hamilton import driver,base
+  |
+help: Remove unused import: `hamilton.io.materialization.from_`
+
+F401 [*] `logging` imported but unused
+ --> BleakHouse.ipynb:cell 1:3:8
+  |
+1 | import pandas as pd
+2 | from hamilton.io.materialization import from_, to
+3 | import logging
+  |        ^^^^^^^
+4 | from hamilton import driver,base
+5 | import bleak_house.download
+  |
+help: Remove unused import: `logging`
+
+F401 [*] `hamilton.base` imported but unused
+ --> BleakHouse.ipynb:cell 1:4:29
+  |
+2 | from hamilton.io.materialization import from_, to
+3 | import logging
+4 | from hamilton import driver,base
+  |                             ^^^^
+5 | import bleak_house.download
+6 | import bleak_house.metrics
+  |
+help: Remove unused import: `hamilton.base`
+
+F401 [*] `bleak_house.literary_elements.NarrativeStructure` imported but unused
+ --> BleakHouse.ipynb:cell 6:1:152
+  |
+1 | …BehindTheScenesInsight, CrossReferences, ModernRelevance, NarrativeStructure, LiteraryStyle
+  |                                                            ^^^^^^^^^^^^^^^^^^
+  |
+help: Remove unused import: `bleak_house.literary_elements.NarrativeStructure`
+
+F821 Undefined name `example_segment`
+ --> BleakHouse.ipynb:cell 8:3:7
+  |
+3 | print(example_segment.model_dump_json(indent=4))
+  |       ^^^^^^^^^^^^^^^
+4 |
+  |
+
+F821 Undefined name `json`
+  --> BleakHouse.ipynb:cell 14:10:2
+   |
+ 8 | Use the following JSON schema to structure your output:
+ 9 |
+10 | {json.dumps(PodcastScript.model_json_schema(),indent=2)}
+   |  ^^^^
+11 |
+12 | Example:
+   |
+
+F401 [*] `burr.core.when` imported but unused
+ --> BleakHouse.ipynb:cell 19:1:58
+  |
+1 | from burr.core import action, State, ApplicationBuilder, when, expr
+  |                                                          ^^^^
+2 | from typing import List
+3 | import openai
+  |
+help: Remove unused import: `burr.core.when`
+
+F401 [*] `json` imported but unused
+ --> BleakHouse.ipynb:cell 19:4:8
+  |
+2 | from typing import List
+3 | import openai
+4 | import json
+  |        ^^^^
+5 |
+6 | MAX_COMPLETION_TOKENS = 12000
+  |
+help: Remove unused import: `json`
+
+F821 Undefined name `ChapterSchema`
+  --> BleakHouse.ipynb:cell 19:27:25
+   |
+25 |         model="gpt-4o-mini",
+26 |         max_completion_tokens=MAX_COMPLETION_TOKENS,
+27 |         response_format=ChapterSchema,
+   |                         ^^^^^^^^^^^^^
+28 |         messages=[
+29 |             {"role": "system", "content": PROMPT},
+   |
+
+F821 Undefined name `ChapterSchema`
+  --> BleakHouse.ipynb:cell 19:35:32
+   |
+33 |     ).choices[0].message.parsed
+34 |
+35 |     assert isinstance(content, ChapterSchema)
+   |                                ^^^^^^^^^^^^^
+36 |
+37 |     return state.update(chapter=chapter + 1,
+   |
+
+F821 Undefined name `ChapterSchema`
+  --> BleakHouse.ipynb:cell 19:56:41
+   |
+54 |     note1 = notes[-2]
+55 |     note2 = notes[-1]
+56 |     assert isinstance(note1['content'], ChapterSchema)
+   |                                         ^^^^^^^^^^^^^
+57 |     assert isinstance(note2['content'], ChapterSchema)
+58 |     print("Merging ",note1['title'],note2['title'])
+   |
+
+F821 Undefined name `ChapterSchema`
+  --> BleakHouse.ipynb:cell 19:57:41
+   |
+55 |     note2 = notes[-1]
+56 |     assert isinstance(note1['content'], ChapterSchema)
+57 |     assert isinstance(note2['content'], ChapterSchema)
+   |                                         ^^^^^^^^^^^^^
+58 |     print("Merging ",note1['title'],note2['title'])
+   |
+
+F821 Undefined name `ChapterSchema`
+  --> BleakHouse.ipynb:cell 19:96:45
+   |
+94 |     assert isinstance(scripts[-1]['content'], PodcastScript)
+95 |     notes = state["notes"]
+96 |     assert isinstance(notes[-1]['content'], ChapterSchema)
+   |                                             ^^^^^^^^^^^^^
+97 |
+98 |     print("Merging ",scripts[-1]['title'],"with notes from",notes[-1]['title'])
+   |
+
+F821 Undefined name `scripts`
+ --> BleakHouse.ipynb:cell 27:1:1
+  |
+1 | scripts[0]['content'].Title
+  | ^^^^^^^
+  |
+
+F821 Undefined name `scripts`
+ --> BleakHouse.ipynb:cell 28:1:1
+  |
+1 | scripts[-2]['content'].Segments[-1]
+  | ^^^^^^^
+  |
+
+F821 Undefined name `ChapterSchema`
+ --> BleakHouse.ipynb:cell 29:4:43
+  |
+3 | @action(reads=[], writes=["scripts"])
+4 | def get_scripts(state: State,scripts:List[ChapterSchema]) -> State:
+  |                                           ^^^^^^^^^^^^^
+5 |     return state.update(scripts=scripts)
+  |
+
+F821 Undefined name `scripts`
+ --> BleakHouse.ipynb:cell 31:3:23
+  |
+1 | my_action, result, state = app.run(
+2 |     halt_after=["finished"],
+3 |     inputs={"scripts":scripts}
+  |                       ^^^^^^^
+4 | )
+  |
+
+F841 Local variable `history` is assigned to but never used
+  --> TwoLayer.ipynb:cell 3:14:5
+   |
+12 | def ask_question(state: State, user_query: str) -> State:
+13 |     """Reply to the user's query using the blog's content."""
+14 |     history = state["history"]
+   |     ^^^^^^^
+15 |     blog_content = state["blog_content"]
+16 |     response = ...
+   |
+help: Remove assignment to unused variable `history`
+
+F841 Local variable `blog_content` is assigned to but never used
+  --> TwoLayer.ipynb:cell 3:15:5
+   |
+13 |     """Reply to the user's query using the blog's content."""
+14 |     history = state["history"]
+15 |     blog_content = state["blog_content"]
+   |     ^^^^^^^^^^^^
+16 |     response = ...
+17 |     return state.append(history=response)
+   |
+help: Remove assignment to unused variable `blog_content`
+
+F811 [*] Redefinition of unused `requests` from cell 4, line 1
+ --> TwoLayer.ipynb:cell 8:2:8
+  |
+1 | import anthropic
+2 | import requests
+  |        ^^^^^^^^ `requests` redefined here
+3 | from bs4 import BeautifulSoup
+4 | from burr.core import action, State, ApplicationBuilder
+  |
+ ::: TwoLayer.ipynb:cell 4:1:8
+  |
+1 | import requests
+  |        -------- previous definition of `requests` here
+2 | import openai
+3 | from bs4 import BeautifulSoup
+  |
+help: Remove definition: `requests`
+
+F811 [*] Redefinition of unused `BeautifulSoup` from cell 4, line 3
+ --> TwoLayer.ipynb:cell 8:3:17
+  |
+1 | import anthropic
+2 | import requests
+3 | from bs4 import BeautifulSoup
+  |                 ^^^^^^^^^^^^^ `BeautifulSoup` redefined here
+4 | from burr.core import action, State, ApplicationBuilder
+  |
+ ::: TwoLayer.ipynb:cell 4:3:17
+  |
+1 | import requests
+2 | import openai
+3 | from bs4 import BeautifulSoup
+  |                 ------------- previous definition of `BeautifulSoup` here
+4 | from burr.core import action, State, ApplicationBuilder
+  |
+help: Remove definition: `BeautifulSoup`
+
+F811 [*] Redefinition of unused `requests` from cell 8, line 2
+ --> TwoLayer.ipynb:cell 11:2:8
+  |
+1 | import re
+2 | import requests
+  |        ^^^^^^^^ `requests` redefined here
+3 | import openai
+4 | import lancedb
+  |
+ ::: TwoLayer.ipynb:cell 8:2:8
+  |
+1 | import anthropic
+2 | import requests
+  |        -------- previous definition of `requests` here
+3 | from bs4 import BeautifulSoup
+4 | from burr.core import action, State, ApplicationBuilder
+  |
+help: Remove definition: `requests`
+
+F811 [*] Redefinition of unused `openai` from cell 4, line 2
+ --> TwoLayer.ipynb:cell 11:3:8
+  |
+1 | import re
+2 | import requests
+3 | import openai
+  |        ^^^^^^ `openai` redefined here
+4 | import lancedb
+5 | from bs4 import BeautifulSoup
+  |
+ ::: TwoLayer.ipynb:cell 4:2:8
+  |
+1 | import requests
+2 | import openai
+  |        ------ previous definition of `openai` here
+3 | from bs4 import BeautifulSoup
+4 | from burr.core import action, State, ApplicationBuilder
+  |
+help: Remove definition: `openai`
+
+F811 [*] Redefinition of unused `BeautifulSoup` from cell 8, line 3
+ --> TwoLayer.ipynb:cell 11:5:17
+  |
+3 | import openai
+4 | import lancedb
+5 | from bs4 import BeautifulSoup
+  |                 ^^^^^^^^^^^^^ `BeautifulSoup` redefined here
+6 | from burr.core import action, State, ApplicationBuilder
+7 | from lancedb.pydantic import LanceModel, Vector
+  |
+ ::: TwoLayer.ipynb:cell 8:3:17
+  |
+1 | import anthropic
+2 | import requests
+3 | from bs4 import BeautifulSoup
+  |                 ------------- previous definition of `BeautifulSoup` here
+4 | from burr.core import action, State, ApplicationBuilder
+  |
+help: Remove definition: `BeautifulSoup`
+
+F401 [*] `hamilton.function_modifiers.cache` imported but unused
+ --> bleak_house/download.py:8:41
+  |
+6 | import zipfile
+7 | import lxml.etree as etree
+8 | from hamilton.function_modifiers import cache
+  |                                         ^^^^^
+  |
+help: Remove unused import: `hamilton.function_modifiers.cache`
+
+F841 Local variable `response` is assigned to but never used
+  --> bleak_house/download.py:24:5
+   |
+23 | def html_paths(url: str = HTML_ZIP_URL) -> Dict[str, Path]:
+24 |     response = requests.get(url)
+   |     ^^^^^^^^
+25 |     r = requests.get(url)
+26 |     z = zipfile.ZipFile(io.BytesIO(r.content))
+   |
+help: Remove assignment to unused variable `response`
+
+F401 [*] `typing.Union` imported but unused
+ --> bleak_house/literary_elements.py:1:26
+  |
+1 | from typing import List, Union
+  |                          ^^^^^
+2 | from pydantic import BaseModel, Field
+  |
+help: Remove unused import: `typing.Union`
+
+F401 [*] `literary_elements.NarrativeStructure` imported but unused
+  --> bleak_house/podcast_prompt.py:9:5
+   |
+ 7 |     CrossReferences,
+ 8 |     ModernRelevance,
+ 9 |     NarrativeStructure,
+   |     ^^^^^^^^^^^^^^^^^^
+10 |     LiteraryStyle,
+11 | )
+   |
+help: Remove unused import: `literary_elements.NarrativeStructure`
+
+F401 [*] `logging` imported but unused
+ --> driver.py:1:8
+  |
+1 | import logging
+  |        ^^^^^^^
+2 | from hamilton import driver,base
+3 | import bleak_house.download
+  |
+help: Remove unused import: `logging`
+
+F401 [*] `hamilton.base` imported but unused
+ --> driver.py:2:29
+  |
+1 | import logging
+2 | from hamilton import driver,base
+  |                             ^^^^
+3 | import bleak_house.download
+  |
+help: Remove unused import: `hamilton.base`
+
+F401 [*] `pandas` imported but unused
+ --> run_download.py:1:18
+  |
+1 | import pandas as pd
+  |                  ^^
+2 | from hamilton.io.materialization import from_, to
+3 | import logging
+  |
+help: Remove unused import: `pandas`
+
+F401 [*] `hamilton.io.materialization.from_` imported but unused
+ --> run_download.py:2:41
+  |
+1 | import pandas as pd
+2 | from hamilton.io.materialization import from_, to
+  |                                         ^^^^^
+3 | import logging
+4 | from hamilton import driver, base
+  |
+help: Remove unused import: `hamilton.io.materialization.from_`
+
+F401 [*] `logging` imported but unused
+ --> run_download.py:3:8
+  |
+1 | import pandas as pd
+2 | from hamilton.io.materialization import from_, to
+3 | import logging
+  |        ^^^^^^^
+4 | from hamilton import driver, base
+5 | import bleak_house.download
+  |
+help: Remove unused import: `logging`
+
+F401 [*] `hamilton.base` imported but unused
+ --> run_download.py:4:30
+  |
+2 | from hamilton.io.materialization import from_, to
+3 | import logging
+4 | from hamilton import driver, base
+  |                              ^^^^
+5 | import bleak_house.download
+6 | import bleak_house.metrics
+  |
+help: Remove unused import: `hamilton.base`
+
+F401 [*] `cross_novel_loader.PANEL_IDS` imported but unused
+  --> scripts/cross_novel_convergence.py:25:5
+   |
+23 |     ALL_EXPERTS,
+24 |     NOVEL_TITLES,
+25 |     PANEL_IDS,
+   |     ^^^^^^^^^
+26 |     PROVISION_DIMS,
+27 |     discover_runs,
+   |
+help: Remove unused import: `cross_novel_loader.PANEL_IDS`
+
+F841 Local variable `turns` is assigned to but never used
+  --> scripts/cross_novel_expert_identity.py:70:9
+   |
+68 |     for key, run_dir in runs.items():
+69 |         episode = load_episode(run_dir)
+70 |         turns = extract_turns(episode)
+   |         ^^^^^
+71 |         expert_text: dict[str, list[str]] = defaultdict(list)
+72 |         expert_utts: dict[str, list[dict]] = defaultdict(list)
+   |
+help: Remove assignment to unused variable `turns`
+
+F401 [*] `dataclasses.field` imported but unused
+  --> scripts/cross_novel_quote_audit.py:25:36
+   |
+23 | import unicodedata
+24 | from collections import defaultdict
+25 | from dataclasses import dataclass, field
+   |                                    ^^^^^
+26 | from difflib import SequenceMatcher
+27 | from pathlib import Path
+   |
+help: Remove unused import: `dataclasses.field`
+
+F401 [*] `cross_novel_loader.COND_PREFIXES` imported but unused
+  --> scripts/cross_novel_quote_audit.py:30:5
+   |
+29 | from cross_novel_loader import (
+30 |     COND_PREFIXES,
+   |     ^^^^^^^^^^^^^
+31 |     NOVELS_DIR,
+32 |     NOVEL_TITLES,
+   |
+help: Remove unused import
+
+F401 [*] `cross_novel_loader.parse_run_name` imported but unused
+  --> scripts/cross_novel_quote_audit.py:35:5
+   |
+33 |     discover_runs,
+34 |     load_episode,
+35 |     parse_run_name,
+   |     ^^^^^^^^^^^^^^
+36 | )
+   |
+help: Remove unused import
+
+F541 [*] f-string without any placeholders
+   --> scripts/expert_comparison_full.py:554:9
+    |
+552 |     # Show a few examples
+553 |     pair_details.sort(key=lambda x: -x[3])
+554 |     out(f"\n  Highest agreement:")
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+555 |     for pid, e1, e2, j in pair_details[:3]:
+556 |         out(f"    {pid}: {e1.split()[0]} & {e2.split()[0]} → Jaccard={j:.2f}")
+    |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+   --> scripts/expert_comparison_full.py:558:9
+    |
+556 |         out(f"    {pid}: {e1.split()[0]} & {e2.split()[0]} → Jaccard={j:.2f}")
+557 |     pair_details.sort(key=lambda x: x[3])
+558 |     out(f"  Lowest agreement:")
+    |         ^^^^^^^^^^^^^^^^^^^^^^
+559 |     for pid, e1, e2, j in pair_details[:3]:
+560 |         out(f"    {pid}: {e1.split()[0]} & {e2.split()[0]} → Jaccard={j:.2f}")
+    |
+help: Remove extraneous `f` prefix
+
+F401 [*] `sys` imported but unused
+  --> scripts/five_way_preliminary.py:14:8
+   |
+12 | import os
+13 | import re
+14 | import sys
+   |        ^^^
+15 | from collections import Counter, defaultdict
+16 | from pathlib import Path
+   |
+help: Remove unused import: `sys`
+
+F841 Local variable `multi_panels` is assigned to but never used
+   --> scripts/five_way_preliminary.py:206:5
+    |
+205 |     # Identify panels with multiple conditions
+206 |     multi_panels = {pid: pipes for pid, pipes in panels.items() if len(pipes) >= 2}
+    |     ^^^^^^^^^^^^
+207 |     five_way = {pid: pipes for pid, pipes in panels.items() if len(pipes) >= 5}
+208 |     three_plus = {pid: pipes for pid, pipes in panels.items() if len(pipes) >= 3}
+    |
+help: Remove assignment to unused variable `multi_panels`
+
+F541 [*] f-string without any placeholders
+   --> scripts/five_way_preliminary.py:453:30
+    |
+451 |             if len(pipe_names) >= 2:
+452 |                 sim_matrix = cosine_similarity(tfidf_matrix)
+453 |                 lines.append(f"    Cosine similarities:")
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+454 |                 for i in range(len(pipe_names)):
+455 |                     for j in range(i + 1, len(pipe_names)):
+    |
+help: Remove extraneous `f` prefix
+
+F401 [*] `math` imported but unused
+  --> scripts/material_similarity.py:10:8
+   |
+ 9 | import json
+10 | import math
+   |        ^^^^
+11 | import re
+12 | from collections import Counter, defaultdict
+   |
+help: Remove unused import: `math`
+
+F401 [*] `collections.Counter` imported but unused
+  --> scripts/material_similarity.py:12:25
+   |
+10 | import math
+11 | import re
+12 | from collections import Counter, defaultdict
+   |                         ^^^^^^^
+13 | from pathlib import Path
+   |
+help: Remove unused import: `collections.Counter`
+
+F541 [*] f-string without any placeholders
+   --> scripts/material_similarity.py:460:9
+    |
+458 |         f"diff-expert NN={sum(all_diff)/len(all_diff):.3f}, "
+459 |         f"within-transport NN={sum(all_within)/len(all_within):.3f}")
+460 |     out(f"  Interpretation: same-expert > diff-expert means embedding selects material")
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+461 |     out(f"  that is at least somewhat specific to the expert, not random.")
+462 |     out(f"  same-expert < within-transport means cross-pipeline material is less similar")
+    |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+   --> scripts/material_similarity.py:461:9
+    |
+459 |         f"within-transport NN={sum(all_within)/len(all_within):.3f}")
+460 |     out(f"  Interpretation: same-expert > diff-expert means embedding selects material")
+461 |     out(f"  that is at least somewhat specific to the expert, not random.")
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+462 |     out(f"  same-expert < within-transport means cross-pipeline material is less similar")
+463 |     out(f"  than within-pipeline diversity.")
+    |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+   --> scripts/material_similarity.py:462:9
+    |
+460 |     out(f"  Interpretation: same-expert > diff-expert means embedding selects material")
+461 |     out(f"  that is at least somewhat specific to the expert, not random.")
+462 |     out(f"  same-expert < within-transport means cross-pipeline material is less similar")
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+463 |     out(f"  than within-pipeline diversity.")
+    |
+help: Remove extraneous `f` prefix
+
+F541 [*] f-string without any placeholders
+   --> scripts/material_similarity.py:463:9
+    |
+461 |     out(f"  that is at least somewhat specific to the expert, not random.")
+462 |     out(f"  same-expert < within-transport means cross-pipeline material is less similar")
+463 |     out(f"  than within-pipeline diversity.")
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: Remove extraneous `f` prefix
+
+F401 [*] `scipy.spatial.distance.squareform` imported but unused
+   --> scripts/material_similarity.py:609:47
+    |
+607 |     XY = np.vstack([X, Y])
+608 |     # Compute pairwise distances for bandwidth
+609 |     from scipy.spatial.distance import pdist, squareform
+    |                                               ^^^^^^^^^^
+610 |     dists = pdist(XY, metric="euclidean")
+611 |     sigma = float(np.median(dists)) + 1e-8
+    |
+help: Remove unused import: `scipy.spatial.distance.squareform`
+
+F541 [*] f-string without any placeholders
+   --> scripts/material_similarity.py:651:9
+    |
+649 | if mmd_all:
+650 |     out(f"\n  Overall mean MMD: {sum(mmd_all)/len(mmd_all):.4f}")
+651 |     out(f"  (MMD > 0 suggests distributional difference; magnitude depends on kernel bandwidth)")
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+652 |
+653 | # --- 4c: Null comparison: same expert, random split within transport ---
+    |
+help: Remove extraneous `f` prefix
+
+E702 Multiple statements on one line (semicolon)
+   --> scripts/measure_specificity.py:205:33
+    |
+204 |     # Accumulate
+205 |     t_totals["qr_found"] += t_qf; t_totals["qr_total"] += t_qt
+    |                                 ^
+206 |     e_totals["qr_found"] += e_qf; e_totals["qr_total"] += e_qt
+207 |     t_totals["char_mentions"] += t_cm; t_totals["words"] += t_wc
+    |
+
+E702 Multiple statements on one line (semicolon)
+   --> scripts/measure_specificity.py:206:33
+    |
+204 |     # Accumulate
+205 |     t_totals["qr_found"] += t_qf; t_totals["qr_total"] += t_qt
+206 |     e_totals["qr_found"] += e_qf; e_totals["qr_total"] += e_qt
+    |                                 ^
+207 |     t_totals["char_mentions"] += t_cm; t_totals["words"] += t_wc
+208 |     e_totals["char_mentions"] += e_cm; e_totals["words"] += e_wc
+    |
+
+E702 Multiple statements on one line (semicolon)
+   --> scripts/measure_specificity.py:207:38
+    |
+205 |     t_totals["qr_found"] += t_qf; t_totals["qr_total"] += t_qt
+206 |     e_totals["qr_found"] += e_qf; e_totals["qr_total"] += e_qt
+207 |     t_totals["char_mentions"] += t_cm; t_totals["words"] += t_wc
+    |                                      ^
+208 |     e_totals["char_mentions"] += e_cm; e_totals["words"] += e_wc
+209 |     t_totals["unique_chars"].append(len(t_cu))
+    |
+
+E702 Multiple statements on one line (semicolon)
+   --> scripts/measure_specificity.py:208:38
+    |
+206 |     e_totals["qr_found"] += e_qf; e_totals["qr_total"] += e_qt
+207 |     t_totals["char_mentions"] += t_cm; t_totals["words"] += t_wc
+208 |     e_totals["char_mentions"] += e_cm; e_totals["words"] += e_wc
+    |                                      ^
+209 |     t_totals["unique_chars"].append(len(t_cu))
+210 |     e_totals["unique_chars"].append(len(e_cu))
+    |
+
+E702 Multiple statements on one line (semicolon)
+   --> scripts/measure_specificity.py:211:37
+    |
+209 |     t_totals["unique_chars"].append(len(t_cu))
+210 |     e_totals["unique_chars"].append(len(e_cu))
+211 |     t_totals["chapter_refs"] += t_cr; e_totals["chapter_refs"] += e_cr
+    |                                     ^
+212 |     t_totals["specificity"].append(t_ss); e_totals["specificity"].append(e_ss)
+213 |     t_totals["deixis"] += t_dx; e_totals["deixis"] += e_dx
+    |
+
+E702 Multiple statements on one line (semicolon)
+   --> scripts/measure_specificity.py:212:41
+    |
+210 |     e_totals["unique_chars"].append(len(e_cu))
+211 |     t_totals["chapter_refs"] += t_cr; e_totals["chapter_refs"] += e_cr
+212 |     t_totals["specificity"].append(t_ss); e_totals["specificity"].append(e_ss)
+    |                                         ^
+213 |     t_totals["deixis"] += t_dx; e_totals["deixis"] += e_dx
+    |
+
+E702 Multiple statements on one line (semicolon)
+   --> scripts/measure_specificity.py:213:31
+    |
+211 |     t_totals["chapter_refs"] += t_cr; e_totals["chapter_refs"] += e_cr
+212 |     t_totals["specificity"].append(t_ss); e_totals["specificity"].append(e_ss)
+213 |     t_totals["deixis"] += t_dx; e_totals["deixis"] += e_dx
+    |                               ^
+214 |
+215 |     print(f"\n  --- {label} (T:{t_wc} words, E:{e_wc} words) ---")
+    |
+
+F401 [*] `re` imported but unused
+  --> scripts/sketch_constellation.py:9:8
+   |
+ 7 | import json
+ 8 | import math
+ 9 | import re
+   |        ^^
+10 | from collections import Counter
+11 | from pathlib import Path
+   |
+help: Remove unused import: `re`
+
+E402 Module level import not at top of file
+   --> scripts/word_sketches.py:300:1
+    |
+299 | # Legend
+300 | from matplotlib.patches import Patch
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+301 | legend_elements = [
+302 |     Patch(facecolor="#e41a1c", label="ADJ+NOUN"),
+    |
+
+Found 61 errors.
+[*] 37 fixable with the `--fix` option (5 hidden fixes can be enabled with the `--unsafe-fixes` option).
