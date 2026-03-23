@@ -38,10 +38,25 @@ def _discover_runs() -> dict[str, list[dict]]:
                 manifest = json.load(f)
             title = manifest.get("title", run_dir.name)
             novel = title.replace(": A Literary Discussion", "")
+            # Determine pipeline condition from run name
+            name = run_dir.name
+            if "_nop_" in name or name.startswith("nop_"):
+                condition = "no passages"
+            elif "_emb_" in name or name.startswith("emb_"):
+                condition = "embedding"
+            elif "_rag_" in name or name.startswith("rag_"):
+                condition = "RAG"
+            elif "_rand_" in name or name.startswith("rand_"):
+                condition = "random"
+            else:
+                condition = "transport"
+
             run_info = {
                 "run_id": run_dir.name,
                 "title": title,
                 "novel": novel,
+                "condition": condition,
+                "passage_source": manifest.get("passage_source", "unknown"),
                 "experts": manifest.get("experts", []),
                 "total_duration_ms": manifest.get("total_duration_ms", 0),
             }
