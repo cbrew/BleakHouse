@@ -28,6 +28,114 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
+# Novel key lookup by episode title prefix
+_NOVEL_DIRS: dict[str, str] = {
+    "Bleak House": "",  # passages_enriched.json is in data/ directly
+    "Our Mutual Friend": "novels/our_mutual_friend",
+    "The Mill on the Floss": "novels/mill_on_the_floss",
+    "North and South": "novels/north_and_south",
+    "A Passage to India": "novels/passage_to_india",
+}
+
+
+def _load_enriched_passages(novel_title: str) -> list[dict]:
+    """Load all enriched passages for a novel."""
+    novel_key = novel_title.replace(": A Literary Discussion", "")
+    subdir = _NOVEL_DIRS.get(novel_key, "")
+    if subdir:
+        path = DATA_DIR / subdir / "passages_enriched.json"
+    else:
+        path = DATA_DIR / "passages_enriched.json"
+    if not path.exists():
+        return []
+    with open(path) as f:
+        raw = json.load(f)
+    return raw
+
+
+def _extract_segment_keywords(turns: list[dict]) -> set[str]:
+    """Extract character names and thematic keywords from a segment's turns."""
+    words: set[str] = set()
+    for turn in turns:
+        for utt in turn["utterances"]:
+            text = utt["text"].lower()
+            # Extract capitalised words as potential character/place names
+            for word in utt["text"].split():
+                cleaned = word.strip(".,;:!?\"'—()[]")
+                if cleaned and cleaned[0].isupper() and len(cleaned) > 2:
+                    words.add(cleaned.lower())
+    return words
+
+
+def _score_passage_relevance(passage: dict, segment_keywords: set[str]) -> float:
+    """Score how relevant an enriched passage is to a segment's discussion."""
+    enrichment = passage.get("enrichment", {})
+    if not enrichment:
+        return 0.0
+
+    score = 0.0
+
+    # Interest score (0-5) contributes directly
+    interest = enrichment.get("interest_score") or 0
+    score += interest * 2
+
+    # Character overlap
+    chars = {c.lower() for c in (enrichment.get("characters_present") or [])}
+    char_overlap = len(chars & segment_keywords)
+    score += char_overlap * 3
+
+    # Theme overlap
+    themes = {t.lower() for t in (enrichment.get("themes") or [])}
+    theme_overlap = len(themes & segment_keywords)
+    score += theme_overlap * 2
+
+    return score
+
+
+def find_suggested_passages(
+    manifest_segments: list[dict],
+    novel_title: str,
+    max_per_segment: int = 3,
+) -> dict[str, dict]:
+    """For no-passages runs, find closest enriched passages per segment."""
+    enriched = _load_enriched_passages(novel_title)
+    if not enriched:
+        return {}
+
+    suggested: dict[str, dict] = {}
+
+    for seg in manifest_segments:
+        keywords = _extract_segment_keywords(seg["turns"])
+        if not keywords:
+            continue
+
+        scored = []
+        for p in enriched:
+            rel = _score_passage_relevance(p, keywords)
+            if rel > 0:
+                scored.append((rel, p))
+        scored.sort(key=lambda x: -x[0])
+
+        for rel_score, p in scored[:max_per_segment]:
+            pid = p["passage_id"]
+            if pid in suggested:
+                continue
+            e = p.get("enrichment", {})
+            suggested[pid] = {
+                "text": p.get("text", ""),
+                "summary": e.get("summary", ""),
+                "best_quote": e.get("best_quote", ""),
+                "chapter_id": p.get("chapter_id", ""),
+                "characters_present": e.get("characters_present", []),
+                "themes": e.get("themes", []),
+                "emotional_register": e.get("emotional_register", []),
+                "narrator": e.get("narrator", ""),
+                "suggested": True,
+                "relevance_score": round(rel_score, 1),
+            }
+
+    return suggested
+
 
 def measure_turn_duration_ms(turn: Turn, model_id: str) -> int:
     """Get duration of a turn's audio from the TTS cache."""
@@ -166,12 +274,44 @@ def build_manifest(run_id: str, model_key: str = "flash") -> dict | None:
                 if ref and ref in passages_lookup and ref not in referenced_passages:
                     referenced_passages[ref] = passages_lookup[ref]
 
+    # Determine passage source type
+    has_refs = any(
+        utt.get("passage_ref")
+        for seg in manifest_segments for turn in seg["turns"] for utt in turn["utterances"]
+    )
+    if passages_lookup and has_refs:
+        passage_source = "grounded"
+    elif passages_lookup:
+        passage_source = "grounded"  # has assignments but refs may be sparse
+    else:
+        passage_source = "ungrounded"
+
+    # For ungrounded runs, find suggested passages from the enriched corpus
+    if not referenced_passages:
+        suggested = find_suggested_passages(
+            manifest_segments, episode.title,
+        )
+        if suggested:
+            referenced_passages.update(suggested)
+            # Tag segments with their suggested passage IDs
+            for seg in manifest_segments:
+                keywords = _extract_segment_keywords(seg["turns"])
+                enriched = _load_enriched_passages(episode.title)
+                best_for_seg = []
+                for p in enriched:
+                    rel = _score_passage_relevance(p, keywords)
+                    if rel > 0 and p["passage_id"] in suggested:
+                        best_for_seg.append((rel, p["passage_id"]))
+                best_for_seg.sort(key=lambda x: -x[0])
+                seg["suggested_passages"] = [pid for _, pid in best_for_seg[:3]]
+
     manifest = {
         "run_id": run_id,
         "title": episode.title,
         "experts": experts,
         "segments": manifest_segments,
         "passages": referenced_passages,
+        "passage_source": passage_source,
         "total_duration_ms": cursor_ms,
     }
 

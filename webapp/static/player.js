@@ -161,6 +161,14 @@ function buildPassageRevealHTML(refs) {
     for (const ref of refs) {
         const p = manifest.passages && manifest.passages[ref];
         if (!p) continue;
+
+        // Warning banner for suggested (ungrounded) passages
+        let warning = "";
+        if (p.suggested) {
+            const score = p.relevance_score ? ` (relevance: ${p.relevance_score})` : "";
+            warning = `<div class="passage-reveal-warning">Closest match from the novel — not a source passage for this discussion${score}</div>`;
+        }
+
         const chNum = (p.chapter_id || "").replace("c", "");
         const chapter = chNum ? `<div class="passage-reveal-chapter">Chapter ${chNum}</div>` : "";
         const text = `<div class="passage-reveal-text">${escapeHTML(p.text)}</div>`;
@@ -177,7 +185,7 @@ function buildPassageRevealHTML(refs) {
             chips += `<span class="passage-chip emotion">${escapeHTML(e)}</span>`;
         }
         const meta = chips ? `<div class="passage-reveal-meta">${chips}</div>` : "";
-        parts.push(chapter + text + summary + meta);
+        parts.push(warning + chapter + text + summary + meta);
     }
     return parts.join("");
 }
@@ -225,7 +233,39 @@ function renderTranscript() {
         header.className = "segment-header";
         header.id = `seg-${si}`;
         header.textContent = seg.title;
+
+        // For ungrounded runs, add a segment-level suggested passages handle
+        const suggestedRefs = seg.suggested_passages || [];
+        if (suggestedRefs.length > 0 && manifest.passages) {
+            const validRefs = suggestedRefs.filter(r => manifest.passages[r]);
+            if (validRefs.length > 0) {
+                const segHandleId = `seg-handle-${si}`;
+                const handle = document.createElement("span");
+                handle.className = "passage-handle suggested";
+                handle.id = segHandleId;
+                handle.innerHTML = `&#9736; ${validRefs.length} related passage${validRefs.length > 1 ? "s" : ""}`;
+                handle.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    togglePassage(segHandleId, validRefs, e);
+                });
+                header.appendChild(document.createTextNode(" "));
+                header.appendChild(handle);
+
+            }
+        }
+
         transcript.appendChild(header);
+
+        // Reveal container for segment-level suggested passages (after header in DOM)
+        if (suggestedRefs.length > 0 && manifest.passages) {
+            const validRefs = suggestedRefs.filter(r => manifest.passages[r]);
+            if (validRefs.length > 0) {
+                const revealEl = document.createElement("div");
+                revealEl.className = "passage-reveal";
+                revealEl.id = `passage-seg-handle-${si}`;
+                transcript.appendChild(revealEl);
+            }
+        }
 
         for (let ti = 0; ti < seg.turns.length; ti++) {
             const turn = seg.turns[ti];
