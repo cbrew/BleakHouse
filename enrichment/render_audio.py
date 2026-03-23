@@ -16,6 +16,7 @@ import hashlib
 import io
 import json
 import logging
+import time
 import wave
 from pathlib import Path
 
@@ -50,11 +51,15 @@ MODEL_IDS = {
 # Voice assignments — chosen for tonal contrast in a literary roundtable.
 # British accent is directed via prompt, not voice selection.
 SPEAKER_VOICES: dict[str, str] = {
-    "Host": "Sulafat",               # Warm — suited for a presenter
-    "Eleanor Hartley": "Zephyr",     # Bright — suits intellectual excitement
-    "James Blackstone": "Gacrux",    # Mature — suits measured authority
-    "Caroline Woodcourt": "Achernar",  # Soft — suits reflective intimacy
-    "Narrator": "Schedar",           # Even — neutral narration
+    "Host": "Sulafat",               # Warm female — suited for a presenter
+    "Eleanor Hartley": "Zephyr",     # Bright female — suits intellectual excitement
+    "James Blackstone": "Sadaltager",  # Knowledgeable male — suits measured authority
+    "Caroline Woodcourt": "Achernar",  # Soft female — suits reflective intimacy
+    "Narrator": "Schedar",           # Even male — neutral narration
+    # Alternative experts (all male)
+    "Edmund Leigh": "Algenib",       # Gravelly male — suits patrician gravitas
+    "Daniel Rosen": "Alnilam",       # Firm male — suits passionate precision
+    "Oliver Trevelyan": "Achird",    # Friendly male — suits warm raconteur
 }
 
 # Accent directions per speaker, embedded in the prompt
@@ -64,6 +69,10 @@ SPEAKER_ACCENTS: dict[str, str] = {
     "James Blackstone": "speaks with a measured Edinburgh accent, dry and authoritative",
     "Caroline Woodcourt": "speaks with a gentle Bristol accent, warm and intimate",
     "Narrator": "speaks with a clear, neutral British accent",
+    # Alternative experts
+    "Edmund Leigh": "speaks with a patrician Oxford accent, unhurried and precise",
+    "Daniel Rosen": "speaks with a clear London accent, purposeful and direct",
+    "Oliver Trevelyan": "speaks with a warm, theatrical Home Counties accent, varied and lively",
 }
 
 SPEAKER_VOICE_POLICIES: dict[str, VoicePolicy] = {
@@ -72,6 +81,10 @@ SPEAKER_VOICE_POLICIES: dict[str, VoicePolicy] = {
     "James Blackstone": VoicePolicy(rate=0.96, energy="medium_low", pause_bias_ms=260, style="measured_dry"),
     "Caroline Woodcourt": VoicePolicy(rate=0.97, energy="medium", pause_bias_ms=240, style="reflective_intimate"),
     "Narrator": VoicePolicy(rate=1.0, energy="medium", pause_bias_ms=200, style="neutral"),
+    # Alternative experts
+    "Edmund Leigh": VoicePolicy(rate=0.94, energy="medium_low", pause_bias_ms=280, style="patrician_measured"),
+    "Daniel Rosen": VoicePolicy(rate=0.99, energy="medium_high", pause_bias_ms=200, style="passionate_precise"),
+    "Oliver Trevelyan": VoicePolicy(rate=1.02, energy="medium_high", pause_bias_ms=190, style="raconteur_warm"),
 }
 
 
@@ -234,30 +247,49 @@ def render_turn(
         len(prompt),
     )
 
-    response = client.models.generate_content(
-        model=model_id,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_modalities=["AUDIO"],
-            speech_config=types.SpeechConfig(
-                voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                        voice_name=voice_name,
-                    )
-                )
-            ),
-        ),
-    )
+    audio: AudioSegment | None = None
+    for attempt in range(4):
+        try:
+            response = client.models.generate_content(
+                model=model_id,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name=voice_name,
+                            )
+                        )
+                    ),
+                ),
+            )
+        except Exception as exc:
+            logger.warning("TTS attempt %d failed for %s: %s", attempt + 1, speaker, exc)
+            if attempt < 3:
+                time.sleep(2 ** attempt)
+                continue
+            return silence_ms(500)
 
-    candidate = response.candidates[0] if response.candidates else None
-    if candidate is None or candidate.content is None:
-        logger.warning("No audio returned for %s turn", speaker)
+        candidate = response.candidates[0] if response.candidates else None
+        if candidate is None or candidate.content is None:
+            logger.warning("No audio returned for %s turn (attempt %d)", speaker, attempt + 1)
+            if attempt < 3:
+                time.sleep(2 ** attempt)
+                continue
+            return silence_ms(500)
+        part = candidate.content.parts[0] if candidate.content.parts else None
+        if part is None or part.inline_data is None or part.inline_data.data is None:
+            logger.warning("No audio data for %s turn (attempt %d)", speaker, attempt + 1)
+            if attempt < 3:
+                time.sleep(2 ** attempt)
+                continue
+            return silence_ms(500)
+        audio = pcm_to_segment(part.inline_data.data)
+        break
+
+    if audio is None:
         return silence_ms(500)
-    part = candidate.content.parts[0] if candidate.content.parts else None
-    if part is None or part.inline_data is None or part.inline_data.data is None:
-        logger.warning("No audio data in response for %s turn", speaker)
-        return silence_ms(500)
-    audio = pcm_to_segment(part.inline_data.data)
 
     _save_cache(cache_key, audio)
 
