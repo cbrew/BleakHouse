@@ -286,24 +286,35 @@ def build_manifest(run_id: str, model_key: str = "flash") -> dict | None:
     else:
         passage_source = "ungrounded"
 
-    # For ungrounded runs, find suggested passages from the enriched corpus
-    if not referenced_passages:
-        suggested = find_suggested_passages(
-            manifest_segments, episode.title,
-        )
-        if suggested:
-            referenced_passages.update(suggested)
-            # Tag segments with their suggested passage IDs
-            for seg in manifest_segments:
-                keywords = _extract_segment_keywords(seg["turns"])
-                enriched = _load_enriched_passages(episode.title)
-                best_for_seg = []
-                for p in enriched:
-                    rel = _score_passage_relevance(p, keywords)
-                    if rel > 0 and p["passage_id"] in suggested:
-                        best_for_seg.append((rel, p["passage_id"]))
-                best_for_seg.sort(key=lambda x: -x[0])
-                seg["suggested_passages"] = [pid for _, pid in best_for_seg[:3]]
+    # For ungrounded runs, match quotes against the novel's passages
+    if passage_source == "ungrounded":
+        from webapp.match_passages import load_enriched_passages, match_episode_quotes
+
+        enriched = load_enriched_passages(episode.title)
+        if enriched:
+            # Build episode dict from manifest segments (which have the utterances)
+            ep_dict = {"segments": manifest_segments}
+            results = match_episode_quotes(ep_dict, enriched)
+
+            # Add matched passages to the lookup
+            referenced_passages.update(results["matched_passages"])
+
+            # Attach passage_ref and match info to utterances
+            for si, ti, ui, pid, ratio, category in results["utterance_matches"]:
+                utt = manifest_segments[si]["turns"][ti]["utterances"][ui]
+                if pid:
+                    utt["passage_ref"] = pid
+                utt["match_ratio"] = round(ratio, 3)
+                utt["match_category"] = category
+
+            verified = sum(1 for _, _, _, _, _, c in results["utterance_matches"] if c == "verified")
+            paraphrase = sum(1 for _, _, _, _, _, c in results["utterance_matches"] if c == "paraphrase")
+            confab = sum(1 for _, _, _, _, _, c in results["utterance_matches"] if c == "confabulation")
+            total = len(results["utterance_matches"])
+            logger.info(
+                "  Quote matching for %s: %d verified, %d paraphrase, %d confabulation (of %d quotes)",
+                run_id, verified, paraphrase, confab, total,
+            )
 
     manifest = {
         "run_id": run_id,

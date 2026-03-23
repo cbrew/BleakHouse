@@ -163,11 +163,20 @@ function buildPassageRevealHTML(refs) {
         const p = manifest.passages && manifest.passages[ref];
         if (!p) continue;
 
-        // Warning banner for suggested (ungrounded) passages
+        // Match quality badge for ungrounded passages
         let warning = "";
-        if (p.suggested) {
-            const score = p.relevance_score ? ` (relevance: ${p.relevance_score})` : "";
-            warning = `<div class="passage-reveal-warning">Closest match from the novel — not a source passage for this discussion${score}</div>`;
+        if (p.match_category) {
+            const cat = p.match_category;
+            const ratio = p.match_ratio !== undefined ? Math.round(p.match_ratio * 100) : 0;
+            if (cat === "verified") {
+                warning = `<div class="passage-match-badge verified">Verified quote (${ratio}% match)</div>`;
+            } else if (cat === "paraphrase") {
+                warning = `<div class="passage-match-badge paraphrase">Likely paraphrase (${ratio}% match) — wording altered from source</div>`;
+            } else {
+                warning = `<div class="passage-match-badge confabulation">Probable confabulation (${ratio}% match) — no close source found</div>`;
+            }
+        } else if (p.suggested) {
+            warning = `<div class="passage-reveal-warning">Closest match from the novel — not a source passage for this discussion</div>`;
         }
 
         const chNum = (p.chapter_id || "").replace("c", "");
@@ -288,8 +297,18 @@ function renderTranscript() {
             if (refs.length > 0 && manifest.passages) {
                 const hasData = refs.some(r => manifest.passages[r]);
                 if (hasData) {
+                    // Determine worst match category in this turn's passages
+                    let worstCat = "verified";
+                    for (const r of refs) {
+                        const p = manifest.passages[r];
+                        if (p && p.match_category) {
+                            if (p.match_category === "confabulation") worstCat = "confabulation";
+                            else if (p.match_category === "paraphrase" && worstCat !== "confabulation") worstCat = "paraphrase";
+                        }
+                    }
+                    const catClass = manifest.passage_source === "ungrounded" && worstCat ? ` ${worstCat}` : "";
                     const label = refs.length === 1 ? "passage" : `${refs.length} passages`;
-                    speakerHTML += `<span class="passage-handle" id="handle-${turnId}"` +
+                    speakerHTML += `<span class="passage-handle${catClass}" id="handle-${turnId}"` +
                         ` data-turn-id="${turnId}">&#9736; ${label}</span>`;
                 }
             }
