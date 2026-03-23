@@ -1,0 +1,351 @@
+:root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --surface-alt: #0f3460;
+    --text: #e8e8e8;
+    --text-dim: #8888aa;
+    --accent: #e94560;
+    --passage-warm: #d4c5a0;
+    --passage-bg: #1e1a14;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    background: var(--surface);
+    padding: 1rem 2rem;
+    border-bottom: 2px solid var(--surface-alt);
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+header h1 {
+    font-size: 1.3rem;
+    font-weight: normal;
+    color: var(--accent);
+    white-space: nowrap;
+}
+
+#run-select {
+    font-family: inherit;
+    font-size: 0.9rem;
+    padding: 0.4rem 0.8rem;
+    background: var(--surface-alt);
+    color: var(--text);
+    border: 1px solid #334;
+    border-radius: 4px;
+    cursor: pointer;
+    max-width: 400px;
+}
+
+#expert-chips {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.expert-chip {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 12px;
+    background: var(--surface-alt);
+    border: 1px solid #445;
+    white-space: nowrap;
+}
+
+/* Audio controls */
+#player-bar {
+    background: var(--surface);
+    padding: 0.8rem 2rem;
+    border-bottom: 1px solid var(--surface-alt);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+#play-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+#play-btn:hover { opacity: 0.85; }
+
+#seek-bar {
+    flex: 1;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--surface-alt);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+
+#seek-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+}
+
+#time-display {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    min-width: 100px;
+    text-align: right;
+}
+
+#speed-btn {
+    background: var(--surface-alt);
+    color: var(--text);
+    border: 1px solid #445;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+/* Segment nav */
+#segment-nav {
+    background: var(--surface);
+    padding: 0.5rem 2rem;
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--surface-alt);
+}
+
+.seg-tab {
+    font-family: inherit;
+    font-size: 0.8rem;
+    padding: 0.3rem 0.8rem;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.seg-tab:hover { color: var(--text); border-color: #445; }
+.seg-tab.active { color: var(--accent); border-color: var(--accent); }
+
+/* Transcript */
+#transcript {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.segment-header {
+    font-size: 1.1rem;
+    color: var(--accent);
+    margin: 2rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--surface-alt);
+}
+
+.segment-header:first-child { margin-top: 0; }
+
+.turn {
+    margin-bottom: 1.2rem;
+    padding: 0.8rem 1rem;
+    border-radius: 6px;
+    border-left: 3px solid transparent;
+    transition: background 0.2s, border-color 0.2s;
+    cursor: pointer;
+}
+
+.turn.active {
+    background: var(--surface);
+    border-left-color: var(--accent);
+}
+
+.turn.past {
+    opacity: 0.5;
+}
+
+.turn-speaker {
+    font-size: 0.85rem;
+    font-weight: bold;
+    margin-bottom: 0.3rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.speaker-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.turn-text {
+    line-height: 1.7;
+    font-size: 1rem;
+}
+
+.utterance {
+    display: inline;
+}
+
+.utterance.is-quote {
+    font-style: italic;
+    color: #ccbbdd;
+}
+
+.utterance.quote-reading {
+    display: block;
+    margin: 0.4rem 0 0.4rem 1.5rem;
+    font-style: italic;
+    color: #ccbbdd;
+    border-left: 2px solid #554466;
+    padding-left: 0.8rem;
+}
+
+/* Passage handle — small clickable indicator on turns that discuss a passage */
+.passage-handle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-left: 0.5rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    background: rgba(212, 197, 160, 0.1);
+    border: 1px solid rgba(212, 197, 160, 0.25);
+    color: var(--passage-warm);
+    font-size: 0.75rem;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s, background 0.2s;
+    vertical-align: middle;
+}
+
+.passage-handle:hover {
+    opacity: 1;
+    background: rgba(212, 197, 160, 0.2);
+}
+
+.passage-handle.open {
+    opacity: 1;
+    background: rgba(212, 197, 160, 0.2);
+    border-color: rgba(212, 197, 160, 0.5);
+}
+
+/* Inline passage reveal */
+.passage-reveal {
+    display: none;
+    margin-top: 0.8rem;
+    padding: 1rem;
+    background: var(--passage-bg);
+    border-radius: 6px;
+    border: 1px solid #2a2520;
+    animation: passageFadeIn 0.25s ease;
+}
+
+.passage-reveal.open {
+    display: block;
+}
+
+@keyframes passageFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.passage-reveal-chapter {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.6rem;
+}
+
+.passage-reveal-text {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 0.9rem;
+    line-height: 1.75;
+    color: var(--passage-warm);
+    margin: 0 0 0.8rem 0;
+    padding: 0.6rem 0.8rem;
+    border-left: 3px solid #5a4a30;
+    background: rgba(90, 74, 48, 0.08);
+    border-radius: 0 4px 4px 0;
+}
+
+.passage-reveal-summary {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    font-style: italic;
+    line-height: 1.5;
+    margin-bottom: 0.6rem;
+}
+
+.passage-reveal-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+.passage-chip {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 8px;
+    background: var(--surface-alt);
+    color: var(--text-dim);
+    border: 1px solid #334;
+}
+
+.passage-chip.character { color: #9ecbce; border-color: #3a5a5c; }
+.passage-chip.theme     { color: #c9a0dc; border-color: #5a3a6c; }
+.passage-chip.emotion   { color: #dcb08a; border-color: #6c5030; }
+
+/* Loading state */
+#loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 60vh;
+    color: var(--text-dim);
+    font-size: 1.1rem;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    header { padding: 0.8rem 1rem; }
+    #player-bar { padding: 0.6rem 1rem; }
+    #transcript { padding: 1rem; }
+    #segment-nav { padding: 0.4rem 1rem; }
+}
