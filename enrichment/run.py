@@ -153,10 +153,14 @@ def run_phase3(config: RunConfig, phase2_data: dict, phase1_data: dict) -> dict:
 
     episode_segments = []
     for i, seg in enumerate(plan.segments):
+        prev_title = plan.segments[i - 1].template.name if i > 0 else None
+        next_title = plan.segments[i + 1].template.name if i < len(plan.segments) - 1 else None
         episode_seg = generate_segment_script(
             seg, client, config.model, personas,
             is_first_segment=(i == 0),
             prompt_version=config.prompt_version,
+            previous_segment_title=prev_title,
+            next_segment_title=next_title,
         )
         episode_segments.append(episode_seg)
         logger.info(

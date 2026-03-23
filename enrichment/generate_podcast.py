@@ -152,8 +152,6 @@ style=presenter_warm.
 - Think literary roundtable with brilliant friends, not academic conference.
 - Expertise is valued — deep knowledge is welcome — but expressed \
   naturally.  No jargon without explanation.
-- The host introduces each segment and each expert warmly, with a brief \
-  note on why their perspective matters here.
 - Experts react to each other: agree, push back gently, riff on each \
   other's ideas.  This is a conversation, not parallel monologues.
 - Direct quotes from the novel are gold.  Set them up, read them with \
@@ -225,7 +223,12 @@ quote from the novel, use this pattern:
 - Experts build on each other — agreement, friendly disagreement, \
   "that reminds me of..."
 - Include at least one direct quote from the novel per expert turn{quote_source_turn}.
-- End each segment with a host transition to the next topic.
+- **Do NOT re-welcome listeners or re-introduce the show after the first \
+  segment.**  Subsequent segments should flow naturally from the previous \
+  one, with only a brief host bridge (1-2 sentences).
+- End each segment with a host line that bridges to the next segment's \
+  topic.  If this is the **final segment**, end with a warm sign-off \
+  thanking the experts and listeners — no forward tease.
 - Use the enrichment metadata (themes, emotional register) to inform \
   the discussion, but never mention the metadata itself.
 
@@ -253,6 +256,8 @@ def build_messages(
     personas: list[ExpertPersona],
     is_first_segment: bool = False,
     prompt_version: int = 2,
+    previous_segment_title: str | None = None,
+    next_segment_title: str | None = None,
 ) -> tuple[str, str]:
     """Build system and user messages for a segment's LLM call.
 
@@ -287,9 +292,30 @@ def build_messages(
     if is_first_segment:
         user_parts.append(
             "\n**This is the FIRST segment of the episode.**  The host should "
-            "welcome listeners, introduce the show, and introduce each expert "
-            "with warmth — who they are, what makes them interesting, why "
-            f"their perspective matters for *{title}*."
+            "welcome listeners, briefly introduce the show's premise, and then "
+            "introduce each expert with warmth — who they are, what makes them "
+            f"interesting, why their perspective matters for *{title}*."
+        )
+    elif previous_segment_title:
+        user_parts.append(
+            f"\n**This is a CONTINUATION of the episode** (not the first segment).  "
+            f"Do NOT welcome listeners or re-introduce the show or experts.  "
+            f"The previous segment was: \"{previous_segment_title}\".  "
+            f"The host should open with a brief 1-2 sentence bridge that connects "
+            f"what was just discussed to this segment's topic."
+        )
+
+    if next_segment_title:
+        user_parts.append(
+            f"\n**Next segment preview:** The segment after this one is called "
+            f"\"{next_segment_title}\".  End with a host line that naturally "
+            f"bridges to that topic — a brief tease, not a full introduction."
+        )
+    elif not is_first_segment:
+        user_parts.append(
+            "\n**This is the FINAL segment of the episode.**  End with a warm "
+            "sign-off: the host thanks the experts by name, reflects briefly on "
+            "what was covered, and thanks the listeners.  No forward tease."
         )
 
     if segment.assignments:
@@ -329,10 +355,14 @@ def generate_segment_script(
     personas: list[ExpertPersona],
     is_first_segment: bool = False,
     prompt_version: int = 2,
+    previous_segment_title: str | None = None,
+    next_segment_title: str | None = None,
 ) -> EpisodeSegment:
     """Generate a multi-voice script for one segment via structured output."""
     system_msg, user_msg = build_messages(
         segment, personas, is_first_segment, prompt_version,
+        previous_segment_title=previous_segment_title,
+        next_segment_title=next_segment_title,
     )
 
     logger.info(
@@ -547,8 +577,12 @@ def main() -> None:
 
     episode_segments: list[EpisodeSegment] = []
     for i, seg in enumerate(plan.segments):
+        prev_title = plan.segments[i - 1].template.name if i > 0 else None
+        next_title = plan.segments[i + 1].template.name if i < len(plan.segments) - 1 else None
         episode_seg = generate_segment_script(
             seg, client, args.model, personas, is_first_segment=(i == 0),
+            previous_segment_title=prev_title,
+            next_segment_title=next_title,
         )
         episode_segments.append(episode_seg)
         logger.info(

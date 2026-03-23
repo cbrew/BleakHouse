@@ -17,14 +17,13 @@
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,fit,calc,backgrounds,shapes.geometric,decorations.pathreplacing}
 
-\runningtitle{Transport-Based Content Selection for LLM-Generated Podcast Scripts}
+\runningtitle{Conversational Coherence in LLM-Generated Literary Podcasts}
 \runningauthor{Brew}
 
 \begin{document}
 
-\title{Transport-Based Content Selection as an Inspectable,\\
-Manipulable Alternative to RAG for LLM-Generated\\
-Literary Podcast Scripts}
+\title{What Holds an LLM-Generated Conversation Together?\\
+Manipulable Levers for Multi-Voice Literary Podcasts}
 
 \author{Chris Brew$^{1,2}$}
 
@@ -35,79 +34,97 @@ Literary Podcast Scripts}
 \maketitle
 
 \begin{abstract}
-Retrieval-Augmented Generation as typically deployed retrieves by
-embedding similarity and feeds results to an LLM.  This is effective but
-opaque: the user cannot see why a passage was selected, cannot adjust
-selection criteria without re-prompting, and cannot explore how
-different editorial priorities reshape the output.  We present a system
-in which passage selection for LLM-generated podcast scripts is
-formulated as a min-cost flow problem, making every selection decision
-visible as a cost, a flow, and a constraint.  We hypothesise that this
-formulation is \emph{more manipulable} than embedding-based retrieval
----producing predictable, inspectable output changes in response to
-parameter adjustments---and \emph{cheaper to explore}, since re-solving
-a flow costs zero LLM tokens while re-prompting a curator requires a
-full inference call.  We test this on five Victorian and early-modern
-novels---Dickens's \textit{Bleak House} and \textit{Our Mutual Friend},
-Eliot's \textit{The Mill on the Floss}, Gaskell's \textit{North and
-South}, and Forster's \textit{A Passage to India}---generating 196
-multi-voice literary discussion episodes across five passage selection
-conditions and multiple expert panel configurations.
-The transport and embedding pipelines select almost entirely different
-passages (Jaccard 0.024--0.085) yet produce convergent scripts---confirming
-that expert personas, not selection algorithms, dominate downstream
-output.  This convergence paradox, along with the grounding gap
-(+50 percentage point quote verification advantage over ungrounded
-generation) and stable expert identity signatures, holds across all
-five novels.  The transport pipeline's distinctive contribution is
-editorial manipulability: demand profile changes produce predictable,
-inspectable shifts that the embedding pipeline cannot match, at zero
-marginal selection cost.
+What holds an LLM-generated multi-voice conversation together, and what
+can a designer manipulate to reshape it?  We investigate these questions
+through a system that generates literary discussion podcasts about
+novels, identifying four levers that independently shape conversational
+coherence: (1)~\emph{expert personas}---stereotyped perspectives whose
+demand profiles control what each speaker seeks in the source material;
+(2)~\emph{passage grounding}---the selected passages that anchor
+quotation, prevent confabulation, and create material for cross-expert
+engagement; (3)~\emph{conversational design instructions}---prompt-level
+specifications for quote handling, reactive language, turn structure, and
+prosodic annotation; and (4)~\emph{segment continuity}---the mechanisms
+by which individually generated segments cohere into a single episode.
+We test the system on five novels---Dickens's \textit{Bleak House} and
+\textit{Our Mutual Friend}, Eliot's \textit{The Mill on the Floss},
+Gaskell's \textit{North and South}, and Forster's \textit{A Passage to
+India}---generating 196 multi-voice episodes across five passage
+selection conditions and multiple expert panel configurations.  Key
+findings: expert personas dominate script character so strongly that
+\emph{different} passage selection algorithms (transport vs.\
+embedding; Jaccard~0.048) produce \emph{convergent} scripts; passage
+grounding of any kind prevents confabulation (+69 percentage point
+quote verification advantage over ungrounded generation); and
+conversational design instructions produce measurable, stable
+effects---100\% quote pattern compliance, 59 reactive markers per
+episode, stable expert airtime proportions across novels.  Where the
+passage selection method does matter is in \emph{manipulability}:
+formulating selection as min-cost flow makes every editorial choice
+visible as a cost and a constraint, enabling systematic exploration at
+zero marginal LLM cost.  A planned prompt ablation study will isolate
+which conversational design instructions are necessary vs.\ emergent
+from the shared-passage architecture.
 \end{abstract}
 
 
 \section{Introduction}
 \label{sec:intro}
 
-Google's NotebookLM \citep{notebooklm2024} popularised the idea of
-LLM-generated podcast conversations grounded in user-supplied
-documents.  The underlying architecture is a form of
-Retrieval-Augmented Generation \citep{lewis2020rag,gao2024rag}: embed
-the source material, retrieve relevant passages, and feed them to an
-LLM for script generation.  This works---but the user has no visibility
-into \emph{why} particular passages were selected, no mechanism to
-adjust selection criteria, and no way to explore how different
-editorial priorities would reshape the conversation.
+Google's NotebookLM \citep{notebooklm2024} popularised LLM-generated
+podcast conversations, but the conversational design behind such
+systems is largely unexamined.  What makes a multi-voice
+LLM-generated discussion \emph{cohere}---sound like a genuine
+conversation rather than parallel monologues?  What levers does a
+designer have, and which ones actually matter?
 
-We hypothesise that for content selection over a fixed, pre-annotated
-corpus, a combinatorial optimisation formulation offers two advantages
-over embedding-based retrieval:
+We investigate these questions through a system that generates literary
+discussion podcasts about novels.  The system exposes four
+independently manipulable levers:
 
 \begin{enumerate}
-\item \textbf{Greater manipulability.}  Adjusting demand
-  profiles---the editorial parameters that specify what each expert
-  needs---produces predictable, inspectable changes in passage
-  selection.  Embedding-based retrieval has no equivalent control
-  surface: the user cannot express ``what if the Marxist demands only
-  social critique?''\ as a retrieval query.
-\item \textbf{Lower exploration cost.}  Re-solving a min-cost flow
-  takes $<$1 second and zero LLM tokens.  Re-prompting an LLM curator
-  requires a full inference call ($\sim$15K Sonnet tokens per run).
-  The transport formulation makes iterative exploration cheap.
+\item \textbf{Expert personas.}  Stereotyped perspectives (literary
+  critic, social historian, close reader, etc.)\ with demand profiles
+  that control what each speaker seeks in the source material.
+  Swapping panels or adjusting demands reshapes the conversation's
+  intellectual character.
+\item \textbf{Passage grounding.}  The selected passages that anchor
+  quotation, prevent confabulation, and create shared material for
+  cross-expert engagement.  We compare five selection methods including
+  a min-cost flow formulation that makes every editorial choice visible
+  as a cost and a constraint.
+\item \textbf{Conversational design instructions.}  Prompt-level
+  specifications for quote handling, reactive language, turn structure,
+  and utterance-level prosodic annotation.  These are the instructions
+  that tell the LLM to produce a \emph{conversation}, not an essay.
+\item \textbf{Segment continuity.}  The mechanisms by which
+  independently generated segments cohere into a single episode:
+  bridging from the previous topic, previewing the next, avoiding
+  redundant introductions.
 \end{enumerate}
 
-We test these hypotheses on five novels spanning different authors,
-eras, and literary traditions: Dickens's \textit{Bleak House}
+We test the system on five novels spanning different authors, eras, and
+literary traditions: Dickens's \textit{Bleak House}
 \citep{dickens1853bleak} and \textit{Our Mutual Friend}
 \citep{dickens1865omf}, Eliot's \textit{The Mill on the Floss}
 \citep{eliot1860mill}, Gaskell's \textit{North and South}
 \citep{gaskell1855north}, and Forster's \textit{A Passage to India}
-\citep{forster1924passage}.  We compare five passage selection
-conditions across multiple expert panel configurations, generating 196
-episodes total.  The comparison reveals that \emph{having} passages
-matters far more than \emph{how} they are selected for downstream script
-quality---but the transport formulation uniquely enables systematic
-editorial exploration.
+\citep{forster1924passage}, generating 196 multi-voice episodes across
+five passage selection conditions and multiple expert panel
+configurations.
+
+The central finding is a \emph{dominance hierarchy} among levers.
+Expert personas dominate script character so strongly that different
+passage selection algorithms (transport vs.\ embedding; passage
+Jaccard~0.048) produce convergent scripts.  Passage grounding of any
+kind prevents confabulation (+69 pp quote verification).
+Conversational design instructions produce stable, measurable
+effects---but a planned ablation study (\S\ref{sec:ablation}) will
+determine which are prompt-driven vs.\ emergent from the shared-passage
+architecture.  Where the passage selection \emph{method} matters is in
+manipulability: the min-cost flow formulation enables systematic
+editorial exploration at zero marginal LLM cost, a capability that
+embedding-based retrieval cannot match.
 
 
 \section{System Design}
@@ -848,11 +865,12 @@ showing the highest rate, likely reflecting the LLM's training exposure
 to this frequently studied text.
 
 
-\subsection{Material Disjointness and Script Convergence}
+\subsection{The Convergence Paradox: Personas Dominate Content}
 \label{sec:material}
 
-Transport and embedding select almost entirely different passages, yet
-scripts partially converge.  Table~\ref{tab:material} shows passage-level
+The strongest evidence for persona dominance is that transport and
+embedding select almost entirely different passages, yet scripts
+partially converge.  Table~\ref{tab:material} shows passage-level
 disjointness across all five novels.
 
 \begin{table}[t]
@@ -919,11 +937,15 @@ Trevelyan  &  9.0 &  8.8 &  8.7 &  8.1 & 0.4 \\
 \end{table}
 
 
-\subsection{Conversational Design Compliance}
+\subsection{Conversational Design Instructions Shape the Conversation}
 \label{sec:conversational}
 
-The script generation prompt encodes measurable conversational design
-features.  Across all 186 episodes:
+The script generation prompt encodes specific conversational design
+instructions---quote handling patterns, reactive language, turn
+structure, prosodic annotation---that go beyond content to shape
+\emph{how} the conversation unfolds.  These are the instructions that
+distinguish a discussion from parallel monologues.  Across all 186
+episodes:
 
 \begin{table}[t]
 \caption{Conversational design measurements (186 episodes).}
@@ -940,20 +962,27 @@ Reactive markers/episode & 59.0 \\
 \end{tabular}
 \end{table}
 
-Quote pattern compliance is now 100\%: every quote utterance carries a
+Quote pattern compliance is 100\%: every quote utterance carries a
 passage reference or reading mode annotation.  Reactive markers (59/ep)
-indicate genuine conversational engagement between experts.
+indicate genuine conversational engagement between experts.  These
+results show that conversational design instructions produce their
+intended effects reliably.  The open question---addressed by the
+ablation study (\S\ref{sec:ablation})---is which of these effects are
+\emph{prompt-driven} (collapsing when the instruction is removed) vs.\
+\emph{architecture-driven} (emerging naturally from the shared-passage
+design regardless of prompting).
 
 
-\section{Planned: Host Preparation (Phase~2.5)}
+\section{Planned: Host Preparation as a Conversational Lever}
 \label{sec:host-prep}
 
 The weakest conversational metric in Table~\ref{tab:conversational}
 is question frequency: 1.7 questions per segment.  The host steers
 with statements and transitions rather than questions, producing
-discussion that flows but rarely probes.  We hypothesise that giving
-the host a \emph{preparation stage}---structured interviews with each
-expert before script generation---will increase question frequency,
+discussion that flows but rarely probes.  This exposes a fifth
+potential lever: \emph{host preparation}---giving the host structured
+knowledge of what each expert will want to say before the conversation
+begins.  We hypothesise that this will increase question frequency,
 improve cross-referencing, and produce more targeted conversational
 steering.
 
@@ -1062,13 +1091,16 @@ panels $\times$ 3 conditions (9+ paired comparisons):
 not yet implemented.}
 
 
-\section{Planned: Conversational Prompt Ablation}
+\section{Planned: What Is Prompt-Driven vs.\ Architecture-Driven?}
 \label{sec:ablation}
 
 The conversational design measurements in
 Table~\ref{tab:conversational} show that the Phase~3 prompt's
-instructions produce their intended effects.  But we do not yet know
-which instructions are \emph{necessary}: does the model produce
+instructions produce their intended effects.  But the central
+scientific question remains open: which conversational behaviours are
+\emph{prompt-driven}---collapsing when the instruction is
+removed---and which are \emph{architecture-driven}---emerging from the
+shared-passage design regardless of prompting?  Does the model produce
 expert-to-expert transitions because the prompt says ``this is a
 conversation, not parallel monologues,'' or because the shared-context
 architecture (all experts see all passages) makes cross-engagement
@@ -1166,20 +1198,37 @@ analysis pipeline planned, not yet implemented.}
 \section{Discussion}
 \label{sec:discussion}
 
-\subsection{Support for the Hypotheses}
+\subsection{A Dominance Hierarchy of Conversational Levers}
 
-\textbf{H1 (manipulability)}: confirmed.  The demand-profile mechanism
-allows systematic, predictable control over passage selection.
-Changing demand vectors reshapes the passage set in ways that are
-legible as flow changes and impossible to replicate via retrieval
-parameter tuning.  The interest-based discard cost further ensures
-that high-quality passages are preferentially retained.
+The results reveal a clear hierarchy among the four levers that shape
+conversational coherence:
 
-\textbf{H2 (exploration cost)}: confirmed for selection; attenuated
-overall.  Transport selection costs zero tokens vs embedding's
-$\sim$15K, a 13\% per-run saving.  But the real cost advantage is
-\emph{preview without commitment}: the user can inspect passage
-assignments before paying for script generation.
+\textbf{Personas dominate.}  Expert identity signatures are
+remarkably stable across novels, selection conditions, and panel
+configurations.  The same persona discussing different passages about
+different novels produces overlapping vocabulary and consistent
+airtime proportions.  This is the strongest force shaping what a
+conversation \emph{sounds like}.
+
+\textbf{Grounding prevents confabulation.}  Any form of passage
+grounding (+69 pp quote verification) dwarfs the difference between
+grounding methods.  The shared-passage architecture---all experts see
+all passages---may also be the active ingredient for cross-expert
+engagement, though the ablation study (\S\ref{sec:ablation}) is
+needed to confirm this.
+
+\textbf{Conversational instructions produce measurable effects.}
+Quote pattern compliance, reactive markers, and prosodic annotation
+are all prompt-driven.  But which instructions are \emph{necessary}
+vs.\ which are redundant given the architecture remains an open
+question---precisely the question the ablation study addresses.
+
+\textbf{Passage selection method matters for manipulability, not
+quality.}  Transport and embedding produce comparable scripts from
+almost entirely different passages.  The transport formulation's
+contribution is not better scripts but \emph{editorial control}: the
+demand-profile mechanism allows systematic, predictable manipulation
+at zero marginal LLM cost.
 
 \subsection{Stereotypes as Editorial Objects}
 
@@ -1205,13 +1254,15 @@ non-literary text, non-English sources, or contemporary works.
 
 \subsection{Implications}
 
-Content selection for LLM-generated media need not be a retrieval
-problem.  When source material is finite, pre-annotated, and
-editorially constrained, combinatorial optimisation offers
-inspectability, manipulability, and cheapness that retrieval cannot
-match.  This applies beyond literary podcasts: legal document review,
-curriculum design, exhibit curation---any setting where a user selects
-content from a fixed corpus under competing priorities.
+The central insight is that multi-voice LLM-generated conversations
+are shaped by a hierarchy of design levers, not a single algorithmic
+choice.  Personas, grounding, conversational instructions, and segment
+continuity each contribute independently, and understanding which
+levers dominate---and which are redundant---is essential for
+principled system design.  This framing applies beyond literary
+podcasts to any domain where LLMs generate structured multi-party
+discourse: legal panel discussions, curriculum dialogues, exhibit
+narration, or simulated expert consultations.
 
 
 \begin{acknowledgments}
