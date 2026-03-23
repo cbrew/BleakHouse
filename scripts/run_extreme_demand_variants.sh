@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+yes#!/usr/bin/env bash
 # Run all 20 panels with peaked expert demand profiles.
 # Each expert's defining dimension is amplified while secondaries
 # are flattened or zeroed, making each a more extreme caricature
@@ -53,7 +53,7 @@ TREVELYAN_DEMANDS=(
   --expert-demand "Oliver Trevelyan:prov_narrative_technique=0"
 )
 
-echo "=== Extreme (Peaked) Demand Transport Condition (20 panels) ==="
+echo "=== Extreme Peaked Demand Transport Condition - 20 panels ==="
 echo "Each expert's defining dimension amplified, secondaries flattened"
 echo ""
 
@@ -188,4 +188,4 @@ $RUN --name ext_v30_woodcourt_edmund_trevelyan \
   "${EDMUND_DEMANDS[@]}" "${TREVELYAN_DEMANDS[@]}" "${WOODCOURT_DEMANDS[@]}"
 
 echo ""
-echo "=== All 20 extreme (peaked) demand panels complete ==="
+echo "=== All 20 extreme peaked demand panels complete ==="

@@ -1,0 +1,237 @@
+{
+  "name": "motf_ext_v17_trevelyan_edmund",
+  "producer": {
+    "total_budget": 60,
+    "per_expert_max": 25,
+    "per_expert_min": 8,
+    "cluster_lambda": 5,
+    "null_cost": 100,
+    "strong_cost": 1,
+    "weak_cost": 3
+  },
+  "experts": [
+    {
+      "name": "Eleanor Hartley",
+      "role": "literary_critic",
+      "demands": {
+        "prov_narrative_technique": 6,
+        "prov_character_development": 1,
+        "prov_thematic_depth": 0
+      }
+    },
+    {
+      "name": "Edmund Leigh",
+      "role": "traditionalist_critic",
+      "demands": {
+        "prov_character_development": 7,
+        "prov_thematic_depth": 1,
+        "prov_narrative_technique": 0
+      }
+    },
+    {
+      "name": "Oliver Trevelyan",
+      "role": "performer_and_wit",
+      "demands": {
+        "prov_humor_entertainment": 8,
+        "prov_atmosphere_setting": 0,
+        "prov_narrative_technique": 0
+      }
+    }
+  ],
+  "arcs": [
+    {
+      "name": "Maggie's intellectual hunger",
+      "character": "Maggie Tulliver",
+      "demand": 6,
+      "require_field": "prov_character_development",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Tom and Maggie's rift",
+      "character": "Tom Tulliver",
+      "demand": 5,
+      "require_field": "prov_character_development",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "The Tulliver ruin",
+      "character": "Mr Tulliver",
+      "demand": 4,
+      "require_field": "prov_plot_advancement",
+      "require_value": "not_none",
+      "prefer_min_interest": 2
+    }
+  ],
+  "segment_templates": [
+    {
+      "name": "Opening: The Mill and the Metaphor",
+      "segment_type": "opening",
+      "preferred_dimensions": [
+        "prov_narrative_technique",
+        "prov_atmosphere_setting"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 3,
+      "preferred_experts": [
+        "Eleanor Hartley"
+      ]
+    },
+    {
+      "name": "Maggie's Mind: Hunger for Knowledge and Self",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_character_development",
+        "prov_thematic_depth"
+      ],
+      "preferred_arcs": [
+        "Maggie's intellectual hunger"
+      ],
+      "min_passages": 4,
+      "max_passages": 6,
+      "preferred_experts": [
+        "Edmund Leigh"
+      ]
+    },
+    {
+      "name": "A Brother's Betrayal: Tom and Maggie's Fracture",
+      "segment_type": "close_reading",
+      "preferred_dimensions": [
+        "prov_character_development",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [
+        "Tom and Maggie's rift"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Eleanor Hartley"
+      ]
+    },
+    {
+      "name": "The Ruin Descends: Mr Tulliver's Fall",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_plot_advancement",
+        "prov_thematic_depth"
+      ],
+      "preferred_arcs": [
+        "The Tulliver ruin"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Edmund Leigh"
+      ]
+    },
+    {
+      "name": "Comedy and Cruelty: The Wakem Question",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_humor_entertainment",
+        "prov_social_critique"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": [
+        "Oliver Trevelyon"
+      ]
+    },
+    {
+      "name": "Narrative Choices: How Eliot Tells This Story",
+      "segment_type": "close_reading",
+      "preferred_dimensions": [
+        "prov_narrative_technique",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [
+        "Maggie's intellectual hunger",
+        "Tom and Maggie's rift"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Eleanor Hartley"
+      ]
+    },
+    {
+      "name": "The Weight of Society: Class, Duty, and Desire",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_thematic_depth",
+        "prov_social_critique"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": [
+        "Edmund Leigh"
+      ]
+    },
+    {
+      "name": "Closing: The Flood and the Reckoning",
+      "segment_type": "closing",
+      "preferred_dimensions": [
+        "prov_narrative_technique",
+        "prov_thematic_depth"
+      ],
+      "preferred_arcs": [
+        "Maggie's intellectual hunger",
+        "Tom and Maggie's rift",
+        "The Tulliver ruin"
+      ],
+      "min_passages": 2,
+      "max_passages": 3,
+      "preferred_experts": []
+    }
+  ],
+  "segment_null_cost": 50,
+  "segment_dimension_mismatch_cost": 5,
+  "segment_arc_mismatch_cost": 3,
+  "segment_expert_mismatch_cost": 2,
+  "prompt_version": 2,
+  "model": "claude-sonnet-4-6",
+  "personas": [
+    {
+      "name": "Eleanor Hartley",
+      "role": "literary_critic",
+      "description": "Dr. Eleanor Hartley \u2014 a novelist herself who teaches creative writing.  Obsessed with how great novelists construct their effects \u2014 the architecture of sentences, the narration, the way a single image can carry a chapter's meaning.  Gets visibly excited when she spots a structural choice she admires.  Has a gift for making technical craft feel thrilling rather than dry.",
+      "voice_policy": {
+        "rate": 1.01,
+        "energy": "medium_high",
+        "pause_bias_ms": 170,
+        "style": "analytic_bright"
+      },
+      "speaking_style": "Agile, medium-length sentences.  Slightly faster when excited about craft.  Technical terms made vivid, never dry."
+    },
+    {
+      "name": "Edmund Leigh",
+      "role": "traditionalist_critic",
+      "description": "Sir Edmund Leigh \u2014 a retired Oxford don and lifelong Tory who believes great novelists' genius lies in moral imagination, not social programme.  Reads novels as stories about individual character tested by circumstance \u2014 about goodness, self-sacrifice, weakness of will.  Suspicious of politicised readings.  Thinks literary atmosphere is a device, not a metaphor for capitalism.  Beautifully spoken, occasionally withering, always courteous.  Quotes Dr. Johnson and Burke as readily as the novelist under discussion.",
+      "voice_policy": {
+        "rate": 0.94,
+        "energy": "medium_low",
+        "pause_bias_ms": 280,
+        "style": "patrician_measured"
+      },
+      "speaking_style": "Stately, carefully composed sentences.  Unhurried.  Occasional withering asides delivered with perfect courtesy.  Long pauses before the key word."
+    },
+    {
+      "name": "Oliver Trevelyan",
+      "role": "performer_and_wit",
+      "description": "Actor, writer, and the voice of more classic novel audiobooks than anyone alive.  Approaches every novel as a performer first \u2014 he hears the rhythms of the prose, spots the comic timing, catches the moments written for the voice rather than the page.  Endlessly quotable himself.  Loves the grotesques and comic characters with genuine delight.  Gets quiet and serious when the novel earns it \u2014 moments of death, suffering, loss \u2014 but always returns to the pleasure of the text.  Believes great novelists are above all entertainers of genius.",
+      "voice_policy": {
+        "rate": 1.02,
+        "energy": "medium_high",
+        "pause_bias_ms": 190,
+        "style": "raconteur_warm"
+      },
+      "speaking_style": "Natural raconteur rhythm \u2014 varied sentence lengths, comic timing built into the phrasing.  Reads quotes with theatrical relish.  Knows when to let silence do the work."
+    }
+  ],
+  "tts_model": "flash"
+}

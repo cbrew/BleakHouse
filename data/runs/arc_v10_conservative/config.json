@@ -1,0 +1,220 @@
+{
+  "name": "arc_v10_conservative",
+  "producer": {
+    "total_budget": 60,
+    "per_expert_max": 25,
+    "per_expert_min": 8,
+    "cluster_lambda": 5,
+    "null_cost": 100,
+    "strong_cost": 1,
+    "weak_cost": 3
+  },
+  "experts": [
+    {
+      "name": "Eleanor Hartley",
+      "role": "literary_critic",
+      "demands": {
+        "prov_narrative_technique": 12,
+        "prov_character_development": 10,
+        "prov_thematic_depth": 6
+      }
+    },
+    {
+      "name": "Edmund Leigh",
+      "role": "traditionalist_critic",
+      "demands": {
+        "prov_character_development": 14,
+        "prov_thematic_depth": 10,
+        "prov_narrative_technique": 6
+      }
+    },
+    {
+      "name": "Caroline Woodcourt",
+      "role": "close_reader",
+      "demands": {
+        "prov_humor_entertainment": 12,
+        "prov_character_development": 8,
+        "prov_atmosphere_setting": 6
+      }
+    }
+  ],
+  "arcs": [
+    {
+      "name": "Richard's deterioration",
+      "character": "Richard Carstone",
+      "demand": 6,
+      "require_field": "prov_character_development",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Lady Dedlock's secret",
+      "character": "Lady Dedlock",
+      "demand": 5,
+      "require_field": "prov_plot_advancement",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Jo's suffering",
+      "character": "Jo",
+      "demand": 4,
+      "require_field": "prov_social_critique",
+      "require_value": "not_none",
+      "prefer_min_interest": 2
+    }
+  ],
+  "segment_templates": [
+    {
+      "name": "The Fog and the Law: Opening the Labyrinth",
+      "segment_type": "opening",
+      "preferred_dimensions": [
+        "prov_narrative_technique",
+        "prov_atmosphere_setting"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": [
+        "Eleanor Hartley"
+      ]
+    },
+    {
+      "name": "Goodness Under Pressure: Richard's Choice and Fall",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_character_development",
+        "prov_thematic_depth"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration"
+      ],
+      "min_passages": 4,
+      "max_passages": 6,
+      "preferred_experts": [
+        "Edmund Leigh"
+      ]
+    },
+    {
+      "name": "The Music of Dickens: Close Readings in Comedy and Pathos",
+      "segment_type": "close_reading",
+      "preferred_dimensions": [
+        "prov_humor_entertainment",
+        "prov_character_development",
+        "prov_atmosphere_setting"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Caroline Woodcourt"
+      ]
+    },
+    {
+      "name": "Jo's Chain: Suffering and Social Structure",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_social_critique",
+        "prov_plot_advancement"
+      ],
+      "preferred_arcs": [
+        "Jo's suffering"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": []
+    },
+    {
+      "name": "A Woman's Secret: Lady Dedlock's Architecture of Revelation",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_plot_advancement",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [
+        "Lady Dedlock's secret"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Eleanor Hartley"
+      ]
+    },
+    {
+      "name": "The Web of Consequence: Moral Entanglement and Character Fate",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_thematic_depth",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [
+        "Richard's deterioration",
+        "Lady Dedlock's secret"
+      ],
+      "min_passages": 3,
+      "max_passages": 4,
+      "preferred_experts": [
+        "Edmund Leigh"
+      ]
+    },
+    {
+      "name": "How Dickens Holds Us: The Novel's Design and Power",
+      "segment_type": "closing",
+      "preferred_dimensions": [
+        "prov_narrative_technique",
+        "prov_thematic_depth"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": [
+        "Eleanor Hartley"
+      ]
+    }
+  ],
+  "segment_null_cost": 50,
+  "segment_dimension_mismatch_cost": 5,
+  "segment_arc_mismatch_cost": 3,
+  "segment_expert_mismatch_cost": 2,
+  "prompt_version": 3,
+  "model": "claude-sonnet-4-6",
+  "personas": [
+    {
+      "name": "Eleanor Hartley",
+      "role": "literary_critic",
+      "description": "Dr. Eleanor Hartley \u2014 a novelist herself who teaches creative writing.  Obsessed with how great novelists construct their effects \u2014 the architecture of sentences, the narration, the way a single image can carry a chapter's meaning.  Gets visibly excited when she spots a structural choice she admires.  Has a gift for making technical craft feel thrilling rather than dry.",
+      "voice_policy": {
+        "rate": 1.01,
+        "energy": "medium_high",
+        "pause_bias_ms": 170,
+        "style": "analytic_bright"
+      },
+      "speaking_style": "Agile, medium-length sentences.  Slightly faster when excited about craft.  Technical terms made vivid, never dry."
+    },
+    {
+      "name": "Edmund Leigh",
+      "role": "traditionalist_critic",
+      "description": "Sir Edmund Leigh \u2014 a retired Oxford don and lifelong Tory who believes great novelists' genius lies in moral imagination, not social programme.  Reads novels as stories about individual character tested by circumstance \u2014 about goodness, self-sacrifice, weakness of will.  Suspicious of politicised readings.  Thinks literary atmosphere is a device, not a metaphor for capitalism.  Beautifully spoken, occasionally withering, always courteous.  Quotes Dr. Johnson and Burke as readily as the novelist under discussion.",
+      "voice_policy": {
+        "rate": 0.94,
+        "energy": "medium_low",
+        "pause_bias_ms": 280,
+        "style": "patrician_measured"
+      },
+      "speaking_style": "Stately, carefully composed sentences.  Unhurried.  Occasional withering asides delivered with perfect courtesy.  Long pauses before the key word."
+    },
+    {
+      "name": "Caroline Woodcourt",
+      "role": "close_reader",
+      "description": "Ms. Caroline Woodcourt \u2014 a book critic and lifelong reader of classic fiction who came to the novel as a teenager and has re-read it many times.  Focuses on the experience of reading \u2014 what's funny, what's moving, what makes you stop and re-read a sentence.  Loves reading passages aloud and catching the verbal music.  Has strong opinions about which characters deserve better.",
+      "voice_policy": {
+        "rate": 0.97,
+        "energy": "medium",
+        "pause_bias_ms": 240,
+        "style": "reflective_intimate"
+      },
+      "speaking_style": "Emotionally engaged, intimate.  Shorter sentences when moved.  Slightly slower, more pauses.  Savours the verbal music."
+    }
+  ],
+  "tts_model": "flash"
+}

@@ -1,0 +1,396 @@
+"""Segment a Gutenberg HTML novel into passages (paragraphs with IDs and offsets).
+
+Handles four HTML structures found in Project Gutenberg:
+  1. Anchor-based: <p><a id="cN"></p> (Bleak House, Our Mutual Friend)
+  2. div.chapter with h3: Mill on the Floss
+  3. div.chapter with h2: North and South
+  4. Body-level h2: A Passage to India
+
+Usage:
+  uv run python -m enrichment.segment_novel --novel our_mutual_friend
+  uv run python -m enrichment.segment_novel --novel mill_on_the_floss
+  uv run python -m enrichment.segment_novel --novel north_and_south
+  uv run python -m enrichment.segment_novel --novel passage_to_india
+  uv run python -m enrichment.segment_novel --all
+"""
+
+import json
+import logging
+import re
+from dataclasses import dataclass
+from pathlib import Path
+
+import lxml.etree as etree
+
+from enrichment.schemas import Passage
+
+logger = logging.getLogger(__name__)
+
+NOVELS_DIR = Path("data/novels")
+
+
+@dataclass
+class NovelConfig:
+    key: str
+    title: str
+    author: str
+    html_filename: str
+    gutenberg_id: int
+
+
+NOVELS: dict[str, NovelConfig] = {
+    "our_mutual_friend": NovelConfig(
+        key="our_mutual_friend",
+        title="Our Mutual Friend",
+        author="Charles Dickens",
+        html_filename="pg883-images.html",
+        gutenberg_id=883,
+    ),
+    "mill_on_the_floss": NovelConfig(
+        key="mill_on_the_floss",
+        title="The Mill on the Floss",
+        author="George Eliot",
+        html_filename="pg6688-images.html",
+        gutenberg_id=6688,
+    ),
+    "north_and_south": NovelConfig(
+        key="north_and_south",
+        title="North and South",
+        author="Elizabeth Gaskell",
+        html_filename="pg4276-images.html",
+        gutenberg_id=4276,
+    ),
+    "passage_to_india": NovelConfig(
+        key="passage_to_india",
+        title="A Passage to India",
+        author="E. M. Forster",
+        html_filename="pg61221-images.html",
+        gutenberg_id=61221,
+    ),
+}
+
+
+def _is_chapter_heading(text: str) -> bool:
+    """Check if text looks like a chapter heading (not a book/part heading)."""
+    t = text.strip().upper()
+    return bool(re.match(r"CHAPTER\s+[IVXLC\d]+", t))
+
+
+def _make_chapter_id(index: int) -> str:
+    """Generate a chapter ID like c1, c2, ..."""
+    return f"c{index}"
+
+
+def _extract_paragraphs(elements: list) -> list[str]:
+    """Extract paragraph texts from a list of lxml elements."""
+    paragraphs: list[str] = []
+    for elem in elements:
+        if elem.tag == "p":
+            text = " ".join(elem.itertext()).strip()
+            # Skip very short paragraphs that are likely decorative
+            if text and len(text) > 2:
+                paragraphs.append(text)
+    return paragraphs
+
+
+def parse_anchor_based(tree: etree._Element) -> list[dict]:
+    """Parse novels using <p><a id="..."></p> chapter markers (Dickens on Gutenberg).
+
+    Filters to only chapter anchors (link2HCH...), skipping book/part anchors.
+    """
+    anchors = tree.xpath("//p[a[@id]]")
+    chapters: list[dict] = []
+    chapter_num = 0
+
+    for anchor in anchors:
+        anchor_id = anchor[0].attrib.get("id", "")
+        # Only process chapter anchors, not book/part markers
+        if not anchor_id.startswith("link2HCH"):
+            continue
+
+        chapter_num += 1
+        title = ""
+        paragraphs: list[str] = []
+
+        following = anchor.xpath("./following-sibling::*")
+        for elem in following:
+            # Stop at next anchor
+            if elem.xpath("./a[@id]"):
+                break
+            if elem.tag in ("h2", "h3", "h4"):
+                # Prefer h3 (chapter title) over h2 (chapter number)
+                candidate = "".join(elem.itertext()).strip()
+                if elem.tag == "h3":
+                    title = candidate
+                elif not title and not _is_chapter_heading(candidate):
+                    title = candidate
+            elif elem.tag == "p":
+                text = " ".join(elem.itertext()).strip()
+                if text and len(text) > 2:
+                    paragraphs.append(text)
+
+        if paragraphs:
+            chapters.append(
+                {
+                    "id": _make_chapter_id(chapter_num),
+                    "title": title,
+                    "paragraphs": paragraphs,
+                }
+            )
+
+    return chapters
+
+
+def parse_div_chapter(tree: etree._Element, heading_tag: str = "h3") -> list[dict]:  # noqa: ARG001
+    """Parse novels using <div class="chapter"> containers.
+
+    Used by Mill on the Floss (h3 headings) and North and South (h2 headings).
+    """
+    divs = tree.xpath('//div[@class="chapter"]')
+    chapters: list[dict] = []
+    chapter_num = 0
+
+    for div in divs:
+        children = list(div)
+        # Find the heading
+        title = ""
+        for child in children:
+            if child.tag in ("h2", "h3", "h4"):
+                raw = "".join(child.itertext()).strip()
+                # Extract chapter title: strip "CHAPTER X." prefix
+                lines = raw.split("\n")
+                if len(lines) > 1:
+                    # Title is usually the second line
+                    title = lines[1].strip()
+                elif not _is_chapter_heading(raw):
+                    title = raw
+
+        # For div.chapter, paragraphs may be inside the div or siblings after it
+        paragraphs = _extract_paragraphs(children)
+
+        # If no paragraphs inside div, collect siblings until next div.chapter
+        if not paragraphs:
+            parent = div.getparent()
+            if parent is not None:
+                sibs = list(parent)
+                idx = sibs.index(div)
+                for sib in sibs[idx + 1 :]:
+                    if (
+                        sib.tag == "div"
+                        and sib.attrib.get("class") == "chapter"
+                    ):
+                        break
+                    if sib.tag == "h2" and _is_chapter_heading(
+                        "".join(sib.itertext()).strip()
+                    ):
+                        break
+                    if sib.tag == "p":
+                        text = " ".join(sib.itertext()).strip()
+                        if text and len(text) > 2:
+                            paragraphs.append(text)
+                    elif sib.tag == "div" and sib.attrib.get("class") == "poetry":
+                        # Include poetry blocks as paragraphs
+                        text = " ".join(sib.itertext()).strip()
+                        if text and len(text) > 2:
+                            paragraphs.append(text)
+
+        if paragraphs:
+            chapter_num += 1
+            chapters.append(
+                {
+                    "id": _make_chapter_id(chapter_num),
+                    "title": title,
+                    "paragraphs": paragraphs,
+                }
+            )
+
+    return chapters
+
+
+def parse_body_h2(tree: etree._Element) -> list[dict]:
+    """Parse novels with chapter H2s directly in body (A Passage to India).
+
+    Collects <p> elements between consecutive chapter H2s.
+    """
+    body = tree.xpath("//body")[0]
+    children = list(body)
+
+    # Find all chapter H2 indices
+    chapter_starts: list[tuple[int, str]] = []
+    current_part = ""
+    for i, elem in enumerate(children):
+        if elem.tag == "h2":
+            text = "".join(elem.itertext()).strip()
+            if text.startswith("PART"):
+                current_part = text
+            elif _is_chapter_heading(text):
+                chapter_starts.append((i, current_part))
+
+    chapters: list[dict] = []
+    for idx, (start_i, part) in enumerate(chapter_starts):
+        # End is next chapter start or end of children
+        end_i = (
+            chapter_starts[idx + 1][0]
+            if idx + 1 < len(chapter_starts)
+            else len(children)
+        )
+
+        heading_text = "".join(children[start_i].itertext()).strip()
+        # Build title from part + chapter number
+        title = part if part else heading_text
+
+        paragraphs: list[str] = []
+        for elem in children[start_i + 1 : end_i]:
+            if elem.tag == "p":
+                text = " ".join(elem.itertext()).strip()
+                if text and len(text) > 2:
+                    paragraphs.append(text)
+            elif elem.tag == "h2":
+                # Part heading or license — stop
+                break
+
+        if paragraphs:
+            chapters.append(
+                {
+                    "id": _make_chapter_id(len(chapters) + 1),
+                    "title": title,
+                    "paragraphs": paragraphs,
+                }
+            )
+
+    return chapters
+
+
+def detect_and_parse(html_path: Path) -> list[dict]:
+    """Auto-detect HTML structure and parse chapters."""
+    html_content = html_path.read_text()
+    tree = etree.HTML(html_content)
+
+    # Strategy 1: anchor-based (Dickens)
+    anchors = tree.xpath("//p[a[@id]]")
+    chapter_anchors = [
+        a for a in anchors if a[0].attrib.get("id", "").startswith("link2HCH")
+    ]
+    if chapter_anchors:
+        logger.info("Detected anchor-based structure (%d chapters)", len(chapter_anchors))
+        return parse_anchor_based(tree)
+
+    # Strategy 2: div.chapter
+    chapter_divs = tree.xpath('//div[@class="chapter"]')
+    if chapter_divs:
+        # Check if chapters use h3 (Mill) or h2 (North and South)
+        first_div = chapter_divs[0]
+        has_h3 = bool(first_div.xpath(".//h3"))
+        tag = "h3" if has_h3 else "h2"
+        logger.info(
+            "Detected div.chapter structure (%d divs, %s headings)",
+            len(chapter_divs),
+            tag,
+        )
+        return parse_div_chapter(tree, heading_tag=tag)
+
+    # Strategy 3: body-level H2 chapters
+    h2s = tree.xpath("//h2")
+    chapter_h2s = [
+        h for h in h2s if _is_chapter_heading("".join(h.itertext()).strip())
+    ]
+    if chapter_h2s:
+        logger.info("Detected body-level H2 structure (%d chapters)", len(chapter_h2s))
+        return parse_body_h2(tree)
+
+    raise ValueError(f"Could not detect chapter structure in {html_path}")
+
+
+def segment_chapter(chapter: dict) -> list[Passage]:
+    """Convert a chapter's paragraphs into Passage objects with offsets."""
+    chapter_id = chapter["id"]
+    chapter_title = chapter.get("title", "")
+    paragraphs: list[str] = chapter["paragraphs"]
+
+    full_text = "\n\n".join(paragraphs)
+    passages: list[Passage] = []
+    char_offset = 0
+
+    for idx, para_text in enumerate(paragraphs):
+        char_start = full_text.index(para_text, char_offset)
+        char_end = char_start + len(para_text)
+
+        passages.append(
+            Passage(
+                passage_id=f"{chapter_id}:p{idx}",
+                chapter_id=chapter_id,
+                chapter_title=chapter_title,
+                paragraph_index=idx,
+                char_start=char_start,
+                char_end=char_end,
+                text=para_text,
+            )
+        )
+        char_offset = char_end
+
+    return passages
+
+
+def segment_novel(novel_key: str) -> None:
+    """Segment a novel into passages and write to JSON."""
+    config = NOVELS[novel_key]
+    novel_dir = NOVELS_DIR / config.key
+    html_path = novel_dir / config.html_filename
+    output_path = novel_dir / "passages_raw.json"
+
+    if not html_path.exists():
+        raise FileNotFoundError(
+            f"HTML not found at {html_path}. "
+            f"Download from https://www.gutenberg.org/ebooks/{config.gutenberg_id}"
+        )
+
+    logger.info("Parsing %s from %s", config.title, html_path)
+    chapters = detect_and_parse(html_path)
+    logger.info("Found %d chapters", len(chapters))
+
+    all_passages: list[dict] = []
+    for chapter in chapters:
+        passages = segment_chapter(chapter)
+        logger.info(
+            "  %s (%s): %d paragraphs",
+            chapter["id"],
+            chapter.get("title", "?")[:40],
+            len(passages),
+        )
+        all_passages.extend(p.model_dump() for p in passages)
+
+    output_path.write_text(json.dumps(all_passages, indent=2))
+    logger.info(
+        "Wrote %d passages to %s (%s by %s)",
+        len(all_passages),
+        output_path,
+        config.title,
+        config.author,
+    )
+
+
+def main() -> None:
+    import argparse
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    parser = argparse.ArgumentParser(description="Segment Gutenberg novels into passages")
+    parser.add_argument(
+        "--novel",
+        choices=list(NOVELS.keys()),
+        help="Which novel to segment",
+    )
+    parser.add_argument("--all", action="store_true", help="Segment all novels")
+    args = parser.parse_args()
+
+    if args.all:
+        for key in NOVELS:
+            segment_novel(key)
+    elif args.novel:
+        segment_novel(args.novel)
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

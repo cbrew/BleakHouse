@@ -1,0 +1,236 @@
+{
+  "name": "nas_ext_v17_trevelyan_edmund",
+  "producer": {
+    "total_budget": 60,
+    "per_expert_max": 25,
+    "per_expert_min": 8,
+    "cluster_lambda": 5,
+    "null_cost": 100,
+    "strong_cost": 1,
+    "weak_cost": 3
+  },
+  "experts": [
+    {
+      "name": "Eleanor Hartley",
+      "role": "literary_critic",
+      "demands": {
+        "prov_narrative_technique": 6,
+        "prov_character_development": 1,
+        "prov_thematic_depth": 0
+      }
+    },
+    {
+      "name": "Edmund Leigh",
+      "role": "traditionalist_critic",
+      "demands": {
+        "prov_character_development": 7,
+        "prov_thematic_depth": 1,
+        "prov_narrative_technique": 0
+      }
+    },
+    {
+      "name": "Oliver Trevelyan",
+      "role": "performer_and_wit",
+      "demands": {
+        "prov_humor_entertainment": 8,
+        "prov_atmosphere_setting": 0,
+        "prov_narrative_technique": 0
+      }
+    }
+  ],
+  "arcs": [
+    {
+      "name": "Margaret's transformation",
+      "character": "Margaret Hale",
+      "demand": 6,
+      "require_field": "prov_character_development",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Thornton and the strike",
+      "character": "John Thornton",
+      "demand": 5,
+      "require_field": "prov_social_critique",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Higgins and class solidarity",
+      "character": "Nicholas Higgins",
+      "demand": 4,
+      "require_field": "prov_social_critique",
+      "require_value": "not_none",
+      "prefer_min_interest": 2
+    }
+  ],
+  "segment_templates": [
+    {
+      "name": "A Stranger in the Mill Town: Milton's First Impression",
+      "segment_type": "opening",
+      "preferred_dimensions": [
+        "prov_character_development",
+        "prov_atmosphere_setting"
+      ],
+      "preferred_arcs": [
+        "Margaret's transformation"
+      ],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": [
+        "Eleanor Hartley"
+      ]
+    },
+    {
+      "name": "The Strike at Marlborough Mills: Capital, Labor, and the Human Cost",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_social_critique",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [
+        "Thornton and the strike",
+        "Higgins and class solidarity"
+      ],
+      "min_passages": 4,
+      "max_passages": 6,
+      "preferred_experts": [
+        "Edmund Leigh"
+      ]
+    },
+    {
+      "name": "Thornton's Reckoning: Pride, Self-Interest, and Industrial Conscience",
+      "segment_type": "close_reading",
+      "preferred_dimensions": [
+        "prov_character_development",
+        "prov_thematic_depth"
+      ],
+      "preferred_arcs": [
+        "Thornton and the strike"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": []
+    },
+    {
+      "name": "The Comic Interludes: Wit, Folly, and Social Mask",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_humor_entertainment",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": [
+        "Oliver Trevelyon"
+      ]
+    },
+    {
+      "name": "Margaret's Quiet Rebellion: Voice, Agency, and the Question of Duty",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_character_development",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [
+        "Margaret's transformation"
+      ],
+      "min_passages": 4,
+      "max_passages": 6,
+      "preferred_experts": []
+    },
+    {
+      "name": "Class, Conversion, and Gaskell's Moral Ambivalence",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_thematic_depth",
+        "prov_social_critique"
+      ],
+      "preferred_arcs": [
+        "Higgins and class solidarity"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Edmund Leigh"
+      ]
+    },
+    {
+      "name": "Narrative Texture: Gaskell's Technique of Sympathy and Restraint",
+      "segment_type": "close_reading",
+      "preferred_dimensions": [
+        "prov_narrative_technique",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [
+        "Margaret's transformation"
+      ],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": [
+        "Eleanor Hartley"
+      ]
+    },
+    {
+      "name": "From Conflict to Understanding: The Novel's Unresolved Synthesis",
+      "segment_type": "closing",
+      "preferred_dimensions": [
+        "prov_thematic_depth",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [
+        "Margaret's transformation",
+        "Thornton and the strike"
+      ],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": []
+    }
+  ],
+  "segment_null_cost": 50,
+  "segment_dimension_mismatch_cost": 5,
+  "segment_arc_mismatch_cost": 3,
+  "segment_expert_mismatch_cost": 2,
+  "prompt_version": 2,
+  "model": "claude-sonnet-4-6",
+  "personas": [
+    {
+      "name": "Eleanor Hartley",
+      "role": "literary_critic",
+      "description": "Dr. Eleanor Hartley \u2014 a novelist herself who teaches creative writing.  Obsessed with how great novelists construct their effects \u2014 the architecture of sentences, the narration, the way a single image can carry a chapter's meaning.  Gets visibly excited when she spots a structural choice she admires.  Has a gift for making technical craft feel thrilling rather than dry.",
+      "voice_policy": {
+        "rate": 1.01,
+        "energy": "medium_high",
+        "pause_bias_ms": 170,
+        "style": "analytic_bright"
+      },
+      "speaking_style": "Agile, medium-length sentences.  Slightly faster when excited about craft.  Technical terms made vivid, never dry."
+    },
+    {
+      "name": "Edmund Leigh",
+      "role": "traditionalist_critic",
+      "description": "Sir Edmund Leigh \u2014 a retired Oxford don and lifelong Tory who believes great novelists' genius lies in moral imagination, not social programme.  Reads novels as stories about individual character tested by circumstance \u2014 about goodness, self-sacrifice, weakness of will.  Suspicious of politicised readings.  Thinks literary atmosphere is a device, not a metaphor for capitalism.  Beautifully spoken, occasionally withering, always courteous.  Quotes Dr. Johnson and Burke as readily as the novelist under discussion.",
+      "voice_policy": {
+        "rate": 0.94,
+        "energy": "medium_low",
+        "pause_bias_ms": 280,
+        "style": "patrician_measured"
+      },
+      "speaking_style": "Stately, carefully composed sentences.  Unhurried.  Occasional withering asides delivered with perfect courtesy.  Long pauses before the key word."
+    },
+    {
+      "name": "Oliver Trevelyan",
+      "role": "performer_and_wit",
+      "description": "Actor, writer, and the voice of more classic novel audiobooks than anyone alive.  Approaches every novel as a performer first \u2014 he hears the rhythms of the prose, spots the comic timing, catches the moments written for the voice rather than the page.  Endlessly quotable himself.  Loves the grotesques and comic characters with genuine delight.  Gets quiet and serious when the novel earns it \u2014 moments of death, suffering, loss \u2014 but always returns to the pleasure of the text.  Believes great novelists are above all entertainers of genius.",
+      "voice_policy": {
+        "rate": 1.02,
+        "energy": "medium_high",
+        "pause_bias_ms": 190,
+        "style": "raconteur_warm"
+      },
+      "speaking_style": "Natural raconteur rhythm \u2014 varied sentence lengths, comic timing built into the phrasing.  Reads quotes with theatrical relish.  Knows when to let silence do the work."
+    }
+  ],
+  "tts_model": "flash"
+}

@@ -308,8 +308,8 @@ provision dimension (Figure~\ref{fig:flow}).  Each eligible passage is
 a supply node whose supply equals its provision strength (strong${}={}$2,
 weak${}={}$1).  Each expert with positive demand for the dimension is a
 demand node.  A single null sink absorbs all supply that the solver
-does not route to experts, at zero cost---discarding a passage is
-free.  The OR-Tools \texttt{SimpleMinCostFlow} solver requires exact
+does not route to experts, but at a cost equal to the passage's
+interest score (0--5); discarding high-interest passages is expensive.  The OR-Tools \texttt{SimpleMinCostFlow} solver requires exact
 balance (total supply $=$ total demand $+$ null sink demand) and
 raises an error otherwise.
 
@@ -417,9 +417,11 @@ lowest-cost assignment is kept.
   are $k$ parallel arcs of capacity~1 with costs $0, \lambda,
   2\lambda, \ldots$, creating a convex penalty that discourages
   selecting multiple passages from the same chapter cluster.
-  \textbf{Passage$\to$null} arcs (dashed, cost${}={}$0) let the
-  solver discard passages freely; the null sink absorbs all supply
-  not routed to experts.  OR-Tools requires exact balance: total
+  \textbf{Passage$\to$null} arcs (dashed, cost${}={}$interest score)
+  let the solver discard passages, but at a cost proportional to
+  their interest rating; high-interest passages are therefore
+  preferentially routed to experts rather than discarded.
+  The null sink absorbs all supply not routed to experts.  OR-Tools requires exact balance: total
   passage supply $=$ total expert demand $+$ null sink demand.  The
   code verifies this and raises an error on any non-optimal status.}
 \label{fig:flow}
