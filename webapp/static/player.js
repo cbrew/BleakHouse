@@ -13,42 +13,65 @@ const SPEAKER_COLORS = {
 
 const SPEEDS = [0.75, 1.0, 1.25, 1.5, 2.0];
 
+let novels = {};       // { "Bleak House": [{run_id, experts, ...}, ...], ... }
 let manifest = null;
 let flatTurns = [];
 let audio = null;
 let currentTurnIdx = -1;
 let speedIdx = 1;
-let openPassageTurnId = null; // which turn's passage is currently expanded
+let openPassageTurnId = null;
 
 // ── DOM refs ──
-const runSelect   = document.getElementById("run-select");
-const expertChips = document.getElementById("expert-chips");
-const playBtn     = document.getElementById("play-btn");
-const seekBar     = document.getElementById("seek-bar");
-const timeDisplay = document.getElementById("time-display");
-const speedBtn    = document.getElementById("speed-btn");
-const segmentNav  = document.getElementById("segment-nav");
-const transcript  = document.getElementById("transcript");
-const loading     = document.getElementById("loading");
+const novelTitle   = document.getElementById("novel-title");
+const novelSelect  = document.getElementById("novel-select");
+const runSelect    = document.getElementById("run-select");
+const expertChips  = document.getElementById("expert-chips");
+const playBtn      = document.getElementById("play-btn");
+const seekBar      = document.getElementById("seek-bar");
+const timeDisplay  = document.getElementById("time-display");
+const speedBtn     = document.getElementById("speed-btn");
+const segmentNav   = document.getElementById("segment-nav");
+const transcript   = document.getElementById("transcript");
+const loading      = document.getElementById("loading");
 
 // ── Init ──
 async function init() {
-    const runs = await fetch("/api/runs").then(r => r.json());
-    if (runs.length === 0) {
+    novels = await fetch("/api/novels").then(r => r.json());
+    const novelNames = Object.keys(novels);
+    if (novelNames.length === 0) {
         loading.textContent = "No podcast runs with audio found.";
         return;
     }
+
+    novelSelect.innerHTML = "";
+    for (const name of novelNames) {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        novelSelect.appendChild(opt);
+    }
+    novelSelect.addEventListener("change", () => selectNovel(novelSelect.value));
+    selectNovel(novelNames[0]);
+}
+
+function selectNovel(novelName) {
+    novelTitle.textContent = novelName + " Unpacked";
+    document.title = novelName + " — Literary Podcast";
+
+    const runs = novels[novelName] || [];
     runSelect.innerHTML = "";
     for (const run of runs) {
         const opt = document.createElement("option");
         opt.value = run.run_id;
         const mins = Math.round(run.total_duration_ms / 60000);
         const names = run.experts.map(e => e.name).join(", ");
-        opt.textContent = `${run.run_id} (${mins}m) — ${names}`;
+        opt.textContent = `${names} (${mins}m)`;
         runSelect.appendChild(opt);
     }
-    runSelect.addEventListener("change", () => loadRun(runSelect.value));
-    loadRun(runs[0].run_id);
+    runSelect.onchange = () => loadRun(runSelect.value);
+    if (runs.length > 0) {
+        loadRun(runs[0].run_id);
+    }
 }
 
 async function loadRun(runId) {
@@ -122,7 +145,6 @@ async function loadRun(runId) {
 // ── Passage helpers ──
 
 function getPassageRefsForTurn(turn) {
-    // Collect unique passage refs in order from this turn's utterances
     const refs = [];
     const seen = new Set();
     for (const utt of turn.utterances) {
@@ -155,7 +177,6 @@ function buildPassageRevealHTML(refs) {
             chips += `<span class="passage-chip emotion">${escapeHTML(e)}</span>`;
         }
         const meta = chips ? `<div class="passage-reveal-meta">${chips}</div>` : "";
-
         parts.push(chapter + text + summary + meta);
     }
     return parts.join("");
@@ -168,13 +189,12 @@ function escapeHTML(str) {
 }
 
 function togglePassage(turnId, refs, event) {
-    event.stopPropagation(); // don't trigger the turn click (seek)
+    event.stopPropagation();
 
     const revealEl = document.getElementById(`passage-${turnId}`);
     const handleEl = document.getElementById(`handle-${turnId}`);
     if (!revealEl || !handleEl) return;
 
-    // If this one is already open, close it
     if (openPassageTurnId === turnId) {
         revealEl.classList.remove("open");
         handleEl.classList.remove("open");
@@ -182,7 +202,6 @@ function togglePassage(turnId, refs, event) {
         return;
     }
 
-    // Close any previously open passage
     if (openPassageTurnId) {
         const oldReveal = document.getElementById(`passage-${openPassageTurnId}`);
         const oldHandle = document.getElementById(`handle-${openPassageTurnId}`);
@@ -190,7 +209,6 @@ function togglePassage(turnId, refs, event) {
         if (oldHandle) oldHandle.classList.remove("open");
     }
 
-    // Open this one
     revealEl.innerHTML = buildPassageRevealHTML(refs);
     revealEl.classList.add("open");
     handleEl.classList.add("open");
@@ -220,7 +238,6 @@ function renderTranscript() {
             const color = SPEAKER_COLORS[turn.speaker] || "#999";
             const refs = getPassageRefsForTurn(turn);
 
-            // Speaker line with optional passage handle
             const speakerEl = document.createElement("div");
             speakerEl.className = "turn-speaker";
             let speakerHTML =
@@ -228,7 +245,6 @@ function renderTranscript() {
                 `<span style="color:${color}">${turn.speaker}</span>`;
 
             if (refs.length > 0 && manifest.passages) {
-                // Only show handle if we actually have passage data for at least one ref
                 const hasData = refs.some(r => manifest.passages[r]);
                 if (hasData) {
                     const label = refs.length === 1 ? "passage" : `${refs.length} passages`;
@@ -239,7 +255,6 @@ function renderTranscript() {
             speakerEl.innerHTML = speakerHTML;
             el.appendChild(speakerEl);
 
-            // Attach handle click handler
             if (refs.length > 0) {
                 const handle = speakerEl.querySelector(".passage-handle");
                 if (handle) {
@@ -247,7 +262,6 @@ function renderTranscript() {
                 }
             }
 
-            // Utterance text
             const textEl = document.createElement("div");
             textEl.className = "turn-text";
             for (const utt of turn.utterances) {
@@ -263,7 +277,6 @@ function renderTranscript() {
             }
             el.appendChild(textEl);
 
-            // Passage reveal container (hidden by default)
             if (refs.length > 0 && manifest.passages && refs.some(r => manifest.passages[r])) {
                 const revealEl = document.createElement("div");
                 revealEl.className = "passage-reveal";
@@ -327,7 +340,6 @@ function syncLoop() {
         seekBar.value = audio.currentTime;
         timeDisplay.textContent = formatTime(audio.currentTime) + " / " + formatTime(audio.duration || 0);
 
-        // Find active turn via binary search
         let newIdx = -1;
         let lo = 0, hi = flatTurns.length - 1;
         while (lo <= hi) {
@@ -348,7 +360,6 @@ function syncLoop() {
             currentTurnIdx = newIdx;
         }
 
-        // Update segment nav
         if (newIdx >= 0) {
             const activeSegIdx = flatTurns[newIdx].segIdx;
             document.querySelectorAll(".seg-tab").forEach((tab, i) => {

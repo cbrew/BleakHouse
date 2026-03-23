@@ -19,30 +19,34 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-app = FastAPI(title="Bleak House Podcast Player")
+app = FastAPI(title="Literary Podcast Player")
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
-def _discover_runs() -> list[dict]:
-    """Find runs that have both audio and a manifest."""
-    runs = []
+def _discover_runs() -> dict[str, list[dict]]:
+    """Find runs grouped by novel title."""
+    novels: dict[str, list[dict]] = {}
     runs_dir = DATA_DIR / "runs"
     if not runs_dir.exists():
-        return runs
+        return novels
     for run_dir in sorted(runs_dir.iterdir()):
         manifest_path = run_dir / "audio" / "manifest.json"
         podcast_path = run_dir / "audio" / "podcast.mp3"
         if manifest_path.exists() and podcast_path.exists():
             with open(manifest_path) as f:
                 manifest = json.load(f)
-            runs.append({
+            title = manifest.get("title", run_dir.name)
+            novel = title.replace(": A Literary Discussion", "")
+            run_info = {
                 "run_id": run_dir.name,
-                "title": manifest.get("title", run_dir.name),
+                "title": title,
+                "novel": novel,
                 "experts": manifest.get("experts", []),
                 "total_duration_ms": manifest.get("total_duration_ms", 0),
-            })
-    return runs
+            }
+            novels.setdefault(novel, []).append(run_info)
+    return novels
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -50,8 +54,8 @@ async def index():
     return FileResponse(str(STATIC_DIR / "index.html"))
 
 
-@app.get("/api/runs")
-async def list_runs():
+@app.get("/api/novels")
+async def list_novels():
     return _discover_runs()
 
 
@@ -66,7 +70,6 @@ async def get_manifest(run_id: str):
 
 @app.get("/audio/{run_id}/{filename}")
 async def serve_audio(run_id: str, filename: str):
-    # Sanitize path components
     if ".." in run_id or ".." in filename:
         raise HTTPException(400, "Invalid path")
     audio_path = DATA_DIR / "runs" / run_id / "audio" / filename
