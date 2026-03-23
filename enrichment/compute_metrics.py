@@ -102,13 +102,17 @@ def classify_run(name: str) -> tuple[str, str, str]:
     # Cross-novel: motf_trn_v01_baseline, omf_emb_v11_...
     for prefix, novel in [
         ("motf_trn_", "mill_on_the_floss"), ("motf_emb_", "mill_on_the_floss"),
-        ("motf_nop_", "mill_on_the_floss"),
+        ("motf_nop_", "mill_on_the_floss"), ("motf_ext_", "mill_on_the_floss"),
+        ("motf_hia_", "mill_on_the_floss"),
         ("nas_trn_", "north_and_south"), ("nas_emb_", "north_and_south"),
-        ("nas_nop_", "north_and_south"),
+        ("nas_nop_", "north_and_south"), ("nas_ext_", "north_and_south"),
+        ("nas_hia_", "north_and_south"),
         ("omf_trn_", "our_mutual_friend"), ("omf_emb_", "our_mutual_friend"),
-        ("omf_nop_", "our_mutual_friend"),
+        ("omf_nop_", "our_mutual_friend"), ("omf_ext_", "our_mutual_friend"),
+        ("omf_hia_", "our_mutual_friend"),
         ("pti_trn_", "passage_to_india"), ("pti_emb_", "passage_to_india"),
-        ("pti_nop_", "passage_to_india"),
+        ("pti_nop_", "passage_to_india"), ("pti_ext_", "passage_to_india"),
+        ("pti_hia_", "passage_to_india"),
     ]:
         if name.startswith(prefix):
             rest = name[len(prefix):]
@@ -117,7 +121,7 @@ def classify_run(name: str) -> tuple[str, str, str]:
 
     # BH conditions
     for prefix, cond in [
-        ("arc_", "trn"), ("emb_", "emb"), ("nop_", "nop"),
+        ("arc_", "trn"), ("hia_", "hia"), ("emb_", "emb"), ("nop_", "nop"),
         ("rag_", "rag"), ("rand_", "rand"), ("ext_", "ext"),
     ]:
         if name.startswith(prefix):
@@ -435,7 +439,7 @@ def main() -> None:
     lines.append(f"{'Condition':>12s} {'N':>4s} {'Words/ep':>10s} {'Quotes/ep':>10s} "
                  f"{'Char/1Kw':>10s} {'UniqChar':>10s} {'CharEnt':>10s}")
 
-    for cond in ["trn", "emb", "rag", "nop", "rand", "ext"]:
+    for cond in ["trn", "hia", "emb", "rag", "nop", "rand", "ext"]:
         runs = by_condition.get(cond, [])
         if not runs:
             continue
@@ -462,7 +466,7 @@ def main() -> None:
     lines.append("-" * 72)
     lines.append(f"{'Condition':>12s} {'N':>4s} {'Words/ep':>10s} {'Quotes/ep':>10s} "
                  f"{'Char/1Kw':>10s} {'UniqChar':>10s} {'CharEnt':>10s}")
-    for cond in ["trn", "emb", "rag", "nop", "rand"]:
+    for cond in ["trn", "hia", "emb", "rag", "nop", "rand"]:
         runs = [m for m in by_condition.get(cond, []) if m.novel == "bleak_house"]
         if not runs:
             continue
@@ -498,7 +502,7 @@ def main() -> None:
 
     # BH quote verification by condition
     lines.append("Bleak House:")
-    for cond in ["trn", "emb", "rag", "nop", "rand"]:
+    for cond in ["trn", "hia", "emb", "rag", "nop", "rand"]:
         runs = [m for m in by_condition.get(cond, []) if m.novel == "bleak_house"]
         if not runs:
             continue
@@ -680,7 +684,7 @@ def main() -> None:
         for novel_key in ["bleak_house", "our_mutual_friend", "mill_on_the_floss",
                           "north_and_south", "passage_to_india"]:
             source = source_cache.get(novel_key, "")
-            for cond in ["trn", "emb", "rag", "nop", "rand", "ext"]:
+            for cond in ["trn", "hia", "emb", "rag", "nop", "rand", "ext"]:
                 runs = [m for m in all_metrics
                         if m.novel == novel_key and m.condition == cond]
                 if not runs:

@@ -1,0 +1,221 @@
+{
+  "name": "motf_hia_v15_trevelyan_for_hartley",
+  "producer": {
+    "total_budget": 60,
+    "per_expert_max": 25,
+    "per_expert_min": 8,
+    "cluster_lambda": 5,
+    "null_cost": 100,
+    "strong_cost": 1,
+    "weak_cost": 3
+  },
+  "experts": [
+    {
+      "name": "Oliver Trevelyan",
+      "role": "performer_and_wit",
+      "demands": {
+        "prov_humor_entertainment": 14,
+        "prov_atmosphere_setting": 10,
+        "prov_narrative_technique": 10
+      }
+    },
+    {
+      "name": "James Blackstone",
+      "role": "social_historian",
+      "demands": {
+        "prov_social_critique": 12,
+        "prov_atmosphere_setting": 10,
+        "prov_thematic_depth": 6
+      }
+    },
+    {
+      "name": "Caroline Woodcourt",
+      "role": "close_reader",
+      "demands": {
+        "prov_humor_entertainment": 12,
+        "prov_character_development": 8,
+        "prov_atmosphere_setting": 6
+      }
+    }
+  ],
+  "arcs": [
+    {
+      "name": "Maggie's intellectual hunger",
+      "character": "Maggie Tulliver",
+      "demand": 12,
+      "require_field": "prov_character_development",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "Tom and Maggie's rift",
+      "character": "Tom Tulliver",
+      "demand": 10,
+      "require_field": "prov_character_development",
+      "require_value": "not_none",
+      "prefer_min_interest": 3
+    },
+    {
+      "name": "The Tulliver ruin",
+      "character": "Mr Tulliver",
+      "demand": 8,
+      "require_field": "prov_plot_advancement",
+      "require_value": "not_none",
+      "prefer_min_interest": 2
+    }
+  ],
+  "segment_templates": [
+    {
+      "name": "Opening: St Ogg's on the Verge",
+      "segment_type": "opening",
+      "preferred_dimensions": [
+        "prov_atmosphere_setting",
+        "prov_social_critique"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 3,
+      "preferred_experts": [
+        "James Blackstone"
+      ]
+    },
+    {
+      "name": "The Hunger Within: Maggie's Intellectual Awakening",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_character_development",
+        "prov_thematic_depth"
+      ],
+      "preferred_arcs": [
+        "Maggie's intellectual hunger"
+      ],
+      "min_passages": 4,
+      "max_passages": 6,
+      "preferred_experts": [
+        "Caroline Woodcourt"
+      ]
+    },
+    {
+      "name": "Wit and Waterside: Entertainment in a Constrained World",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_humor_entertainment",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "Oliver Trevelyan"
+      ]
+    },
+    {
+      "name": "A Rift Deepens: Tom and Maggie's Irreconcilable Paths",
+      "segment_type": "deep_dive",
+      "preferred_dimensions": [
+        "prov_character_development",
+        "prov_thematic_depth"
+      ],
+      "preferred_arcs": [
+        "Tom and Maggie's rift"
+      ],
+      "min_passages": 3,
+      "max_passages": 6,
+      "preferred_experts": [
+        "Caroline Woodcourt"
+      ]
+    },
+    {
+      "name": "The Mill Crumbles: Mr Tulliver's Fall and the Social Machine",
+      "segment_type": "close_reading",
+      "preferred_dimensions": [
+        "prov_plot_advancement",
+        "prov_social_critique",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [
+        "The Tulliver ruin"
+      ],
+      "min_passages": 3,
+      "max_passages": 5,
+      "preferred_experts": [
+        "James Blackstone"
+      ]
+    },
+    {
+      "name": "Narrative Choices: How Eliot Reveals and Withholds",
+      "segment_type": "discussion",
+      "preferred_dimensions": [
+        "prov_narrative_technique",
+        "prov_character_development"
+      ],
+      "preferred_arcs": [],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": [
+        "Oliver Trevelyon"
+      ]
+    },
+    {
+      "name": "Closing: Drowning as Judgment and Transcendence",
+      "segment_type": "closing",
+      "preferred_dimensions": [
+        "prov_thematic_depth",
+        "prov_character_development",
+        "prov_narrative_technique"
+      ],
+      "preferred_arcs": [
+        "Maggie's intellectual hunger",
+        "Tom and Maggie's rift"
+      ],
+      "min_passages": 2,
+      "max_passages": 4,
+      "preferred_experts": []
+    }
+  ],
+  "segment_null_cost": 50,
+  "segment_dimension_mismatch_cost": 5,
+  "segment_arc_mismatch_cost": 3,
+  "segment_expert_mismatch_cost": 2,
+  "prompt_version": 2,
+  "model": "claude-sonnet-4-6",
+  "personas": [
+    {
+      "name": "Oliver Trevelyan",
+      "role": "performer_and_wit",
+      "description": "Actor, writer, and the voice of more classic novel audiobooks than anyone alive.  Approaches every novel as a performer first \u2014 he hears the rhythms of the prose, spots the comic timing, catches the moments written for the voice rather than the page.  Endlessly quotable himself.  Loves the grotesques and comic characters with genuine delight.  Gets quiet and serious when the novel earns it \u2014 moments of death, suffering, loss \u2014 but always returns to the pleasure of the text.  Believes great novelists are above all entertainers of genius.",
+      "voice_policy": {
+        "rate": 1.02,
+        "energy": "medium_high",
+        "pause_bias_ms": 190,
+        "style": "raconteur_warm"
+      },
+      "speaking_style": "Natural raconteur rhythm \u2014 varied sentence lengths, comic timing built into the phrasing.  Reads quotes with theatrical relish.  Knows when to let silence do the work."
+    },
+    {
+      "name": "James Blackstone",
+      "role": "social_historian",
+      "description": "Prof. James Blackstone \u2014 a legal and social historian who specializes in the institutions depicted in literature.  Brings the real-world context \u2014 what the institutions actually were, how the law worked, what it meant to be poor.  Can get genuinely angry about injustice, past and present.  Connects the novel's world to modern parallels without being heavy-handed about it.  Dry wit.",
+      "voice_policy": {
+        "rate": 0.96,
+        "energy": "medium_low",
+        "pause_bias_ms": 260,
+        "style": "measured_dry"
+      },
+      "speaking_style": "Measured, longer sentences kept fairly intact.  Authority comes from syntactic control.  Dry punchlines land with pause, not speed."
+    },
+    {
+      "name": "Caroline Woodcourt",
+      "role": "close_reader",
+      "description": "Ms. Caroline Woodcourt \u2014 a book critic and lifelong reader of classic fiction who came to the novel as a teenager and has re-read it many times.  Focuses on the experience of reading \u2014 what's funny, what's moving, what makes you stop and re-read a sentence.  Loves reading passages aloud and catching the verbal music.  Has strong opinions about which characters deserve better.",
+      "voice_policy": {
+        "rate": 0.97,
+        "energy": "medium",
+        "pause_bias_ms": 240,
+        "style": "reflective_intimate"
+      },
+      "speaking_style": "Emotionally engaged, intimate.  Shorter sentences when moved.  Slightly slower, more pauses.  Savours the verbal music."
+    }
+  ],
+  "tts_model": "flash"
+}
