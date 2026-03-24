@@ -225,6 +225,30 @@ embedding-based retrieval cannot offer.
 
 ---
 
+## H14: Transport Enables Zero-Cost Exploration — CONFIRMED
+
+**Paper relevance:** DH (editorial workflow) + ACL (practical advantage)
+
+The transport solver runs in 57ms mean (0.038–0.078s) at zero token
+cost. Embedding curation costs ~8.5K Sonnet tokens per run.
+
+| Metric                | Transport     | Embedding     |
+|-----------------------|--------------|---------------|
+| Time per solve        | 57ms         | ~10s          |
+| Tokens per solve      | 0            | ~8,500        |
+| Cost per solve        | $0.00        | ~$0.05        |
+| 20 configurations     | 1.1s / $0.00 | ~200s / $0.91 |
+
+The project already has 22 transport runs and 22 embedding runs,
+demonstrating real-world scale. A producer can try 20 demand
+configurations in the time it takes to run one embedding curation.
+
+For the DH paper: transport offers a **preview-before-commit workflow**
+that embedding cannot match. Editorial exploration is free —
+the cost is only incurred when you commit to script generation.
+
+---
+
 ## Status and Next Steps
 
 ### Enrichment status (15 novels)
@@ -236,8 +260,7 @@ embedding-based retrieval cannot offer.
 
 ### What's ready vs what's needed
 
-**Can analyse now (data exists):**
-- H14 (transport zero-cost exploration) — agent running
+**All Tier 1 analysis complete.**
 
 **Need new pipeline runs:**
 - H6 extended — transport runs on 10 new novels (both panels)
