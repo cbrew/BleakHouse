@@ -233,6 +233,11 @@ quote from the novel, use this pattern:
 - Use the enrichment metadata (themes, emotional register) to inform \
   the discussion, but never mention the metadata itself.
 
+**Segment length:** Each segment should be approximately 1,500 words \
+(1,800 for the opening segment with introductions).  This is roughly \
+10 minutes of audio.  Prioritise quality over quantity — if you have \
+5 questions but only room for 3, choose the best 3.
+
 **Inter-speaker timing (set via pause_before_ms on first utterance of turn):**
 - Same speaker continuation: 120-180 ms
 - Speaker switch after analysis: 180-260 ms
