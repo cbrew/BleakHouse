@@ -1,8 +1,52 @@
 # Experiment Skill
 
-**Description:** Plan, design, run, and analyse experiments testing hypotheses about the BleakHouse literary podcast system.
+**Description:** Plan, design, run, and analyse experiments testing hypotheses about the BleakHouse literary podcast system. Experiments serve two potential papers with different audiences and framings.
 
 **When to use:** When the user says "experiment", "test hypothesis", "run experiment", "design experiment", or references specific hypothesis IDs (H1-H20) from paper/hypotheses.md.
+
+## Two Paper Framings
+
+Every experiment contributes to one or both of these papers. When designing an experiment, note which framing(s) it serves.
+
+**Paper 1 (ACL framing): How LLMs behave under grounding and distribution shift.**
+- Core claim: Providing explicit textual grounding largely eliminates hallucination, while lack of grounding reveals structured, distribution-dependent failure modes tied to the model's training exposure.
+- Key findings for this paper: grounding vs no-grounding dominance, hallucination as systematic borrowing (not random noise), measurable novel-dependent LLM knowledge, architecture-induced interaction vs prompt-induced interaction, clean ablations.
+- Audience cares about: hallucination mechanisms, distribution shift, RAG vs architectural design, generalizable insights beyond the literary domain.
+
+**Paper 2 (Digital Humanities framing): How interpretation can be modeled, controlled, and studied computationally.**
+- Core claim: Literary interpretation can be operationalized as an allocation problem over textual affordances, where different critical lenses produce distinct, inspectable readings of the same text.
+- Key findings for this paper: parameterized interpretive lenses (Marxist, formalist, etc.), textual affordances that vary across works, passage selection as interpretive act, misquotation as intertextual contamination, scholarly discourse scaffolded without prior expertise.
+- Audience cares about: making interpretation explicit and manipulable, bridging close reading and computational methods, theories of interpretation, what happens when you point established critical lenses at unfamiliar texts.
+
+## Obscure Novel Candidates
+
+Five lesser-known Victorian novels on Project Gutenberg, ordered by likely LLM training exposure (most to least familiar):
+
+| Novel | Author | Year | ~Words | Key test |
+|---|---|---|---|---|
+| No Name | Wilkie Collins | 1862 | 250K | Sensation/thriller structure vs Dickensian experts |
+| New Grub Street | George Gissing | 1891 | 200K | Meta-literary (fictional authors) — risk of LLM confusion |
+| The Odd Women | George Gissing | 1893 | 150K | Gender politics — tests whether Rosen's Marxist frame and Edmund's conservative frame stretch |
+| Miss Marjoribanks | Mrs Oliphant | 1866 | 200K | Domestic comedy, deeply obscure. LLM training exposure likely very low |
+| Hester | Mrs Oliphant | 1883 | 180K | Banking, women in finance. Oliphant is genuinely forgotten |
+
+**Why Oliphant matters most:** She wrote over 90 novels, was enormously popular in her time, but is barely read today. If the system produces coherent, grounded discussion of Miss Marjoribanks, that's a strong generalization result. If ungrounded generation confabulates by borrowing from Eliot or Gaskell (the most similar well-known authors), that reveals the structure of LLM literary hallucination — systematic borrowing, not random noise.
+
+**Gutenberg availability (confirmed):**
+- No Name: gutenberg.org/ebooks/1438
+- New Grub Street: gutenberg.org/ebooks/1709
+- The Odd Women: gutenberg.org/ebooks/4313
+- Miss Marjoribanks: gutenberg.org/ebooks/41286
+- Hester: gutenberg.org/ebooks/48197
+
+**Novel key conventions:**
+- `miss_marjoribanks` → prefix `mmar`
+- `hester` → prefix `hest`
+- `no_name` → prefix `noname`
+- `new_grub_street` → prefix `ngs`
+- `odd_women` → prefix `oddw`
+
+**Onboarding a new novel requires:** downloading from Gutenberg, parsing into passages, running Phase 0 enrichment (~5M Haiku tokens, one-time), and adding novel-specific configuration to enrichment/novel_prompts.py (title, author, year, narration notes, character arcs). The seven provision dimensions are applied unchanged — whether they transfer is itself hypothesis H18.
 
 ## Instructions
 
@@ -12,6 +56,7 @@ Read the hypotheses document and current system state:
 
 ```
 Read paper/hypotheses.md           # All hypotheses with test plans
+Read paper/two_papers.txt          # ACL and DH paper framings
 Read data/runs/*/config.json       # What runs exist
 bd list                            # Open beads issues
 ```
@@ -21,6 +66,8 @@ Identify which hypotheses the user wants to test. If unclear, ask.
 ### 2. Discuss Design with User
 
 Before running anything, present a concrete experimental design and ask for approval. The design should include:
+
+**Paper relevance.** Which paper framing(s) this experiment serves (ACL, DH, or both) and why.
 
 **Runs needed.** List the exact `run_pipeline` commands, specifying:
 - `--novel` (which novel)
@@ -44,6 +91,7 @@ Before running anything, present a concrete experimental design and ask for appr
 - Passage-level and chapter-level Jaccard between conditions
 - Provision dimension distributions (from enrichment data)
 - Confabulation detection (match_passages.py for ungrounded runs)
+- Cross-novel confabulation: match quotes against wrong novel's corpus
 
 **Cost estimate.** Approximate token cost:
 - Phase 0 (segment design): ~2K Haiku tokens
@@ -52,7 +100,7 @@ Before running anything, present a concrete experimental design and ask for appr
 - Phase 3 (script generation): ~15K Sonnet tokens × segments (~100K total)
 - Enrichment (new novel): ~5M Haiku tokens (one-time)
 
-**Expected outcome.** What result would confirm or disconfirm the hypothesis.
+**Expected outcome.** What result would confirm or disconfirm the hypothesis. State this concretely: "We expect Jaccard < 0.05" or "We expect verification to drop below 10%."
 
 Present this to the user and wait for their go-ahead before running anything.
 
@@ -95,7 +143,11 @@ First check if enrichment exists:
 ```bash
 ls data/novels/[novel_key]/passages_enriched.json
 ```
-If not, enrichment must be run first (Phase 0, ~5M Haiku tokens).
+If not, enrichment must be run first. This requires:
+1. Download from Gutenberg and parse into passages
+2. Add novel config to enrichment/novel_prompts.py
+3. Run Phase 0 enrichment (~5M Haiku tokens)
+4. Optionally generate contextual embeddings for embedding pipeline
 
 ### 5. Measure Results
 
@@ -130,17 +182,30 @@ For confabulation analysis on ungrounded runs:
 from webapp.match_passages import load_enriched_passages, match_episode_quotes
 ```
 
+For cross-novel confabulation (H19 — does a confabulated Oliphant quote match real Dickens?):
+```python
+# Match quotes from novel A's no-passages run against novel B's enriched passages
+passages_b = load_enriched_passages("Bleak House")
+results = match_episode_quotes(episode_from_novel_a, passages_b)
+# High match ratios = systematic cross-novel borrowing
+```
+
 ### 6. Report Results
 
 Save a structured report to `data/runs/[run_name]/experiment_report.txt` containing:
 - Hypothesis ID and statement
+- Paper relevance (ACL / DH / both)
 - Experimental design (runs, conditions, metrics)
 - Results table (baseline vs treatment, with deltas)
 - Assessment: confirmed / disconfirmed / inconclusive
 - Surprises or unexpected findings
+- Implications for each paper framing
 - Suggested follow-up experiments
 
-Present a summary to the user and discuss interpretation.
+Present a summary to the user and discuss interpretation. Specifically discuss:
+- Does this change what we'd write in the ACL paper?
+- Does this change what we'd write in the DH paper?
+- What should we test next?
 
 ### 7. Close Out
 
@@ -160,34 +225,38 @@ Run names should encode the experiment:
 - `mmar_ext_v01_baseline` — Miss Marjoribanks transport baseline
 - `mmar_nop_v01_baseline` — Miss Marjoribanks no-passages baseline
 
-Novel key conventions for new novels:
-- `miss_marjoribanks` → prefix `mmar`
-- `hester` → prefix `hest`
-- `no_name` → prefix `noname`
-- `new_grub_street` → prefix `ngs`
-- `odd_women` → prefix `oddw`
-
 ## Hypothesis quick reference
 
 ### Ready to test now (no new infrastructure needed)
-- H2, H11: Host prep effects (preliminary results exist)
-- H3: Convergence paradox (data exists, needs TF-IDF analysis)
-- H5, H9: Grounding and confabulation (data exists across 5 novels)
-- H6: Expert prominence adaptation (data exists across 5 novels)
-- H8: Demand manipulation (data exists for peaked/high-arc)
-- H10: Host prep + identity preservation (one pair exists, need more)
-- H14: Transport cost advantage (timing data available)
+
+| ID | Hypothesis | Paper | Status |
+|---|---|---|---|
+| H2 | Host prep transforms monologue into dialogue | Both | Preliminary: confirmed |
+| H3 | Convergence paradox (persona dominates content) | ACL | Data exists, needs TF-IDF |
+| H5 | Grounding prevents confabulation | ACL | Data exists across 5 novels |
+| H6 | Expert prominence adapts to text | DH | Data exists across 5 novels |
+| H8 | Demand manipulation produces predictable shifts | Both | Data exists for peaked/high-arc |
+| H9 | Confabulation is novel-dependent | ACL | Data exists across 5 novels |
+| H10 | Host prep preserves expert identity | Both | One pair exists |
+| H11 | Length constraints preserve conversational gains | UX | Preliminary: confirmed |
+| H14 | Transport enables zero-cost exploration | Both | Timing data available |
 
 ### Need ablation runs (prompt modifications)
-- H1: Cross-engagement ablation (A1)
-- H4: Quote pattern ablation (A2)
-- H7: Prosodic annotation ablation (A3)
-- H12: Sentence-type ablation (A4)
-- H15: Timing guidance ablation (A6)
 
-### Need new novel infrastructure
-- H16: Grounding gap on obscure novels
-- H17: Expert degradation on unfamiliar material
-- H18: Enrichment schema bias
-- H19: Cross-novel confabulation patterns
-- H20: Host prep compensates for ignorance
+| ID | Hypothesis | Paper | Ablation |
+|---|---|---|---|
+| H1 | Cross-engagement is architecture-driven | ACL | Remove "not parallel monologues" |
+| H4 | Quote pattern is prompt-driven | ACL | Remove 3-part quote spec |
+| H7 | Prosodic annotations are prompt-driven | ACL | Remove rate/pause guidance |
+| H12 | Sentence-type classification is redundant | ACL | Remove type requirement |
+| H15 | Timing guidance is low-impact | ACL | Remove timing table |
+
+### Need new novel infrastructure (Gutenberg onboarding)
+
+| ID | Hypothesis | Paper | Key novel |
+|---|---|---|---|
+| H16 | Grounding gap widens for obscure novels | ACL | Oliphant |
+| H17 | Expert personas degrade gracefully | Both | Oliphant |
+| H18 | Enrichment schema is Dickens-biased | DH | All candidates |
+| H19 | Confabulation borrows from known novels | ACL | Oliphant vs Dickens |
+| H20 | Host prep compensates for LLM ignorance | Both | Oliphant |
