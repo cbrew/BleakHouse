@@ -1,0 +1,171 @@
+================================================================================
+EXPERIMENT H8: Demand-profile manipulation produces predictable passage shifts
+================================================================================
+
+Timestamp: 2026-03-24T21:17:18.434781+00:00
+Git hash: 4b5243f
+Method: ext_ (transport/min-cost-flow) runs only
+Metric: Jaccard similarity = |intersection| / |union|
+H8 threshold: Jaccard < 0.55 indicates substantial reshaping
+
+--------------------------------------------------------------------------------
+SECTION 1: Bleak House (ext_) — Detailed Pair Comparisons
+--------------------------------------------------------------------------------
+
+Baseline (v01) expert demands:
+  Eleanor Hartley: narrative_technique=6, character_development=1
+  James Blackstone: social_critique=6, atmosphere_setting=1
+  Caroline Woodcourt: humor_entertainment=6, atmosphere_setting=1
+
+--- v10 conservative demands (ext_v10_conservative) ---
+Variant expert demands:
+  Eleanor Hartley: narrative_technique=6, character_development=1
+  Edmund Leigh: character_development=7, thematic_depth=1
+  Caroline Woodcourt: humor_entertainment=6, atmosphere_setting=1
+
+  Baseline passages: 40
+  Variant passages:  40
+  Intersection:      34
+  Only in baseline:  6
+  Only in variant:   6
+  PASSAGE JACCARD:   0.7391  >= 0.55
+  Baseline chapters: 22
+  Variant chapters:  24
+  Chapter overlap:   21
+  CHAPTER JACCARD:   0.8400
+
+--- v11 marxist-heavy demands (ext_v11_marxist) ---
+Variant expert demands:
+  Daniel Rosen: social_critique=8
+  James Blackstone: social_critique=6, atmosphere_setting=1
+  Caroline Woodcourt: humor_entertainment=6, atmosphere_setting=1
+
+  Baseline passages: 40
+  Variant passages:  35
+  Intersection:      30
+  Only in baseline:  10
+  Only in variant:   5
+  PASSAGE JACCARD:   0.6667  >= 0.55
+  Baseline chapters: 22
+  Variant chapters:  18
+  Chapter overlap:   17
+  CHAPTER JACCARD:   0.7391
+
+--- v12 radical panel (ext_v12_radical_panel) ---
+Variant expert demands:
+  Daniel Rosen: social_critique=8
+  Edmund Leigh: character_development=7, thematic_depth=1
+  Caroline Woodcourt: humor_entertainment=6, atmosphere_setting=1
+
+  Baseline passages: 40
+  Variant passages:  38
+  Intersection:      30
+  Only in baseline:  10
+  Only in variant:   8
+  PASSAGE JACCARD:   0.6250  >= 0.55
+  Baseline chapters: 22
+  Variant chapters:  21
+  Chapter overlap:   20
+  CHAPTER JACCARD:   0.8696
+
+--- v19 all experts swapped (ext_v19_all_swapped) ---
+Variant expert demands:
+  Oliver Trevelyan: humor_entertainment=8
+  Edmund Leigh: character_development=7, thematic_depth=1
+  Daniel Rosen: social_critique=8
+
+  Baseline passages: 40
+  Variant passages:  39
+  Intersection:      29
+  Only in baseline:  11
+  Only in variant:   10
+  PASSAGE JACCARD:   0.5800  >= 0.55
+  Baseline chapters: 22
+  Variant chapters:  20
+  Chapter overlap:   17
+  CHAPTER JACCARD:   0.6800
+
+--------------------------------------------------------------------------------
+SECTION 2: Cross-Novel Comparisons (ext_ transport runs)
+--------------------------------------------------------------------------------
+
+=== Mill on the Floss (motf_) ===
+
+  v10_conservative:
+    Passage Jaccard: 0.6757  >= 0.55
+    Chapter Jaccard: 0.5909
+    Passages: 30 base, 32 var, 25 shared
+    Chapters: 17 base, 18 var, 13 shared
+  v19_all_swapped:
+    Passage Jaccard: 0.5238  << BELOW 0.55
+    Chapter Jaccard: 0.5385
+    Passages: 30 base, 34 var, 22 shared
+    Chapters: 17 base, 23 var, 14 shared
+
+=== North and South (nas_) ===
+
+  v10_conservative:
+    Passage Jaccard: 0.7381  >= 0.55
+    Chapter Jaccard: 0.8571
+    Passages: 37 base, 36 var, 31 shared
+    Chapters: 21 base, 18 var, 18 shared
+  v19_all_swapped:
+    Passage Jaccard: 0.6170  >= 0.55
+    Chapter Jaccard: 0.6923
+    Passages: 37 base, 39 var, 29 shared
+    Chapters: 21 base, 23 var, 18 shared
+
+=== Our Mutual Friend (omf_) ===
+
+  v10_conservative:
+    Passage Jaccard: 0.7429  >= 0.55
+    Chapter Jaccard: 0.8182
+    Passages: 30 base, 31 var, 26 shared
+    Chapters: 20 base, 20 var, 18 shared
+  v19_all_swapped:
+    Passage Jaccard: 0.6500  >= 0.55
+    Chapter Jaccard: 0.7917
+    Passages: 30 base, 36 var, 26 shared
+    Chapters: 20 base, 23 var, 19 shared
+
+--------------------------------------------------------------------------------
+SECTION 3: Summary Table
+--------------------------------------------------------------------------------
+
+Novel                  Variant                       Pass J  Chap J |base|  |var|  |int|  <0.55?
+------------------------------------------------------------------------------------------------
+Bleak House            v10 conservative demands      0.7391  0.8400     40     40     34      no
+Bleak House            v11 marxist-heavy demands     0.6667  0.7391     40     35     30      no
+Bleak House            v12 radical panel             0.6250  0.8696     40     38     30      no
+Bleak House            v19 all experts swapped       0.5800  0.6800     40     39     29      no
+Mill on the Floss      v10_conservative              0.6757  0.5909     30     32     25      no
+Mill on the Floss      v19_all_swapped               0.5238  0.5385     30     34     22     YES
+North and South        v10_conservative              0.7381  0.8571     37     36     31      no
+North and South        v19_all_swapped               0.6170  0.6923     37     39     29      no
+Our Mutual Friend      v10_conservative              0.7429  0.8182     30     31     26      no
+Our Mutual Friend      v19_all_swapped               0.6500  0.7917     30     36     26      no
+
+--------------------------------------------------------------------------------
+SECTION 4: Interpretation & H8 Verdict
+--------------------------------------------------------------------------------
+
+Demand-only variants (v10, v11, v12): mean passage Jaccard = 0.6979
+  0/6 below 0.55 threshold
+Panel-swap variants (v19):             mean passage Jaccard = 0.5927
+  1/4 below 0.55 threshold
+
+H8 Verdict:
+
+  - PARTIALLY SUPPORTED / NOT SUPPORTED: Demand-only manipulation does NOT
+    consistently produce Jaccard < 0.55 (mean = 0.6979).
+    The passage set changes, but less dramatically than H8 predicted.
+  - UNEXPECTED: Panel swap (v19) does NOT produce Jaccard < 0.55.
+    This suggests passage selection is more driven by segment templates
+    or arc constraints than by expert demand profiles.
+
+  - Panel swap produces lower Jaccard than demand-only changes,
+    confirming that changing both experts and demands has a larger effect.
+
+  Key insight: The transport formulation's passage selection responds to
+  demand profile changes, demonstrating that editorial intention (encoded as
+  demand vectors) is legible as flow changes in the min-cost-flow solution.

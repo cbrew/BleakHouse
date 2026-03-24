@@ -1,0 +1,196 @@
+==============================================================================
+Experiment H3: Persona Convergence Paradox
+Generated: 2026-03-24T17:08:36.662850
+Git: 4b5243f
+==============================================================================
+
+HYPOTHESIS: Two passage selection algorithms (transport vs embedding)
+that choose almost entirely different material produce scripts with
+converging vocabulary and character focus, because the persona -- not
+the passage -- determines what each expert says.
+
+EXPECTED: passage Jaccard < 0.05; per-expert vocabulary cosine > 0.5
+
+------------------------------------------------------------------------------
+PASSAGE-LEVEL OVERLAP (Jaccard)
+------------------------------------------------------------------------------
+Novel                     Panel   ext   emb Overlap  Union  Jaccard  H3 ok?
+------------------------------------------------------------------------------
+Bleak House                   A    31    31       2     60   0.0333     YES
+Bleak House                   B    35    27       2     60   0.0333     YES
+Mill on the Floss             A    23    27       4     46   0.0870      NO
+North and South               A    32    28       2     58   0.0345     YES
+Our Mutual Friend             A    21    32       4     49   0.0816      NO
+
+------------------------------------------------------------------------------
+PER-EXPERT VOCABULARY SIMILARITY (ext vs emb, same expert)
+------------------------------------------------------------------------------
+Novel                  Pnl Expert                  cos_TF cos_TFIDF voc_Jacc ext_wds emb_wds  H3 ok?
+------------------------------------------------------------------------------
+Bleak House              A Eleanor Hartley          0.962     0.000    0.243    1862    2927     YES
+Bleak House              A James Blackstone         0.955     0.000    0.227    1838    2696     YES
+Bleak House              A Caroline Woodcourt       0.954     0.000    0.226    1933    2557     YES
+Bleak House              B Oliver Trevelyan         0.944     0.000    0.243    1935    2704     YES
+Bleak House              B Edmund Leigh             0.961     0.000    0.256    1642    2521     YES
+Bleak House              B Daniel Rosen             0.959     0.000    0.236    1780    2718     YES
+Mill on the Floss        A Eleanor Hartley          0.954     0.000    0.222    1981    2717     YES
+Mill on the Floss        A James Blackstone         0.949     0.000    0.251    2002    2554     YES
+Mill on the Floss        A Caroline Woodcourt       0.959     0.000    0.253    1805    2593     YES
+North and South          A Eleanor Hartley          0.945     0.000    0.255    3065    2276     YES
+North and South          A James Blackstone         0.956     0.000    0.248    3268    2210     YES
+North and South          A Caroline Woodcourt       0.949     0.000    0.249    2963    2329     YES
+Our Mutual Friend        A Eleanor Hartley          0.962     0.000    0.243    2743    2324     YES
+Our Mutual Friend        A James Blackstone         0.953     0.000    0.203    2471    2523     YES
+Our Mutual Friend        A Caroline Woodcourt       0.944     0.000    0.230    2410    2182     YES
+
+------------------------------------------------------------------------------
+SUMMARY STATISTICS
+------------------------------------------------------------------------------
+  Passage Jaccard:  mean=0.0539  max=0.0870  n=5  (H3 expects < 0.05)
+  Cosine (TF):      mean=0.954  min=0.944  max=0.962  n=15  (H3 expects > 0.5)
+  Cosine (TF-IDF):  mean=0.000  min=0.000  max=0.000  n=15
+
+------------------------------------------------------------------------------
+VERDICT
+------------------------------------------------------------------------------
+  H3 INCONCLUSIVE: Passage overlap higher than expected,
+  making vocabulary convergence unsurprising.
+
+==============================================================================
+DETAILED PAIR BREAKDOWNS
+==============================================================================
+
+--- Bleak House (Panel A) ---
+  ext run: ext_v01_baseline
+  emb run: emb_v01_baseline
+  ext passages: 31
+  emb passages: 31
+  shared passages: 2
+  passage Jaccard: 0.0333
+
+  Eleanor Hartley:
+    ext words: 1862, emb words: 2927
+    ext vocab: 696, emb vocab: 1062, shared: 344
+    vocab Jaccard:  0.243
+    cosine (TF):    0.962
+    cosine (TF-IDF): 0.000
+  James Blackstone:
+    ext words: 1838, emb words: 2696
+    ext vocab: 737, emb vocab: 979, shared: 317
+    vocab Jaccard:  0.227
+    cosine (TF):    0.955
+    cosine (TF-IDF): 0.000
+  Caroline Woodcourt:
+    ext words: 1933, emb words: 2557
+    ext vocab: 724, emb vocab: 894, shared: 298
+    vocab Jaccard:  0.226
+    cosine (TF):    0.954
+    cosine (TF-IDF): 0.000
+
+--- Bleak House (Panel B) ---
+  ext run: ext_v19_all_swapped
+  emb run: emb_v19_all_swapped
+  ext passages: 35
+  emb passages: 27
+  shared passages: 2
+  passage Jaccard: 0.0333
+
+  Oliver Trevelyan:
+    ext words: 1935, emb words: 2704
+    ext vocab: 766, emb vocab: 895, shared: 325
+    vocab Jaccard:  0.243
+    cosine (TF):    0.944
+    cosine (TF-IDF): 0.000
+  Edmund Leigh:
+    ext words: 1642, emb words: 2521
+    ext vocab: 653, emb vocab: 886, shared: 314
+    vocab Jaccard:  0.256
+    cosine (TF):    0.961
+    cosine (TF-IDF): 0.000
+  Daniel Rosen:
+    ext words: 1780, emb words: 2718
+    ext vocab: 724, emb vocab: 932, shared: 316
+    vocab Jaccard:  0.236
+    cosine (TF):    0.959
+    cosine (TF-IDF): 0.000
+
+--- Mill on the Floss (Panel A) ---
+  ext run: motf_ext_v01_baseline
+  emb run: motf_emb_v01_baseline
+  ext passages: 23
+  emb passages: 27
+  shared passages: 4
+  passage Jaccard: 0.0870
+
+  Eleanor Hartley:
+    ext words: 1981, emb words: 2717
+    ext vocab: 772, emb vocab: 957, shared: 314
+    vocab Jaccard:  0.222
+    cosine (TF):    0.954
+    cosine (TF-IDF): 0.000
+  James Blackstone:
+    ext words: 2002, emb words: 2554
+    ext vocab: 774, emb vocab: 974, shared: 351
+    vocab Jaccard:  0.251
+    cosine (TF):    0.949
+    cosine (TF-IDF): 0.000
+  Caroline Woodcourt:
+    ext words: 1805, emb words: 2593
+    ext vocab: 703, emb vocab: 885, shared: 321
+    vocab Jaccard:  0.253
+    cosine (TF):    0.959
+    cosine (TF-IDF): 0.000
+
+--- North and South (Panel A) ---
+  ext run: nas_ext_v01_baseline
+  emb run: nas_emb_v01_baseline
+  ext passages: 32
+  emb passages: 28
+  shared passages: 2
+  passage Jaccard: 0.0345
+
+  Eleanor Hartley:
+    ext words: 3065, emb words: 2276
+    ext vocab: 1041, emb vocab: 844, shared: 383
+    vocab Jaccard:  0.255
+    cosine (TF):    0.945
+    cosine (TF-IDF): 0.000
+  James Blackstone:
+    ext words: 3268, emb words: 2210
+    ext vocab: 1124, emb vocab: 907, shared: 403
+    vocab Jaccard:  0.248
+    cosine (TF):    0.956
+    cosine (TF-IDF): 0.000
+  Caroline Woodcourt:
+    ext words: 2963, emb words: 2329
+    ext vocab: 943, emb vocab: 839, shared: 355
+    vocab Jaccard:  0.249
+    cosine (TF):    0.949
+    cosine (TF-IDF): 0.000
+
+--- Our Mutual Friend (Panel A) ---
+  ext run: omf_ext_v01_baseline
+  emb run: omf_emb_v01_baseline
+  ext passages: 21
+  emb passages: 32
+  shared passages: 4
+  passage Jaccard: 0.0816
+
+  Eleanor Hartley:
+    ext words: 2743, emb words: 2324
+    ext vocab: 939, emb vocab: 886, shared: 357
+    vocab Jaccard:  0.243
+    cosine (TF):    0.962
+    cosine (TF-IDF): 0.000
+  James Blackstone:
+    ext words: 2471, emb words: 2523
+    ext vocab: 977, emb vocab: 942, shared: 324
+    vocab Jaccard:  0.203
+    cosine (TF):    0.953
+    cosine (TF-IDF): 0.000
+  Caroline Woodcourt:
+    ext words: 2410, emb words: 2182
+    ext vocab: 827, emb vocab: 792, shared: 303
+    vocab Jaccard:  0.230
+    cosine (TF):    0.944
+    cosine (TF-IDF): 0.000
