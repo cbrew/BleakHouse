@@ -64,9 +64,16 @@ A tutorial-style modular RAG app, progressively refined through v1/v2/v3 in `Two
 **Text-to-speech:**
 - `enrichment/render_audio.py` - Renders structured podcast episodes to audio via Gemini TTS (flash/pro), with per-speaker voice assignment, accent direction, delivery annotations, and disk caching
 
-## Policy: No Guessing About APIs
+## Policy: No Guessing, No Unsupported Claims
 
-Do not state API capabilities, limitations, or feature availability as fact without verification. Before making claims about what an API can or cannot do: (1) search the codebase for existing usage patterns, (2) check documentation if the codebase doesn't clarify, (3) if still uncertain, say "I'm not sure." This applies to Anthropic, OpenAI, Google, and all other external APIs.
+**Do not state things as fact without evidence.** This applies to everything, not just APIs:
+
+- **APIs:** Do not claim what an API can or cannot do without checking the codebase or documentation first.
+- **Literary claims:** Do not assert that a novel is "Dickens's most comedic" or "has strong social themes" without evidence. Use the enrichment data (provision dimensions) as the formal measure of what each novel affords. If no data exists, say so.
+- **Technical claims:** Do not assert that data is "too large for git" or that a process "will take X minutes" without checking. Look at file sizes, check timing data, read the code.
+- **Causal claims:** Do not invent explanations for observed patterns. If a correlation exists, report it. If you don't know the mechanism, say "I don't know why."
+
+The standard is: *check first, then speak.* If you cannot verify a claim, frame it as a question or hypothesis, not as a fact. Post-hoc rationalisation is worse than saying "I don't know."
 
 Anthropic structured output is used in this project via `output_config={"format": {"type": "json_schema", "schema": schema}}`. See `enrichment/test_single.py` for the canonical pattern.
 
