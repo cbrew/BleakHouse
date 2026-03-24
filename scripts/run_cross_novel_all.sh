@@ -170,7 +170,7 @@ launch_run() {
     wait_for_slot
     echo "  [$(date +%H:%M:%S)] Starting $run_name"
     BLEAKHOUSE_NOVEL="$novel_key" \
-        uv run python -m enrichment.run --novel "$novel_key" --name "$run_name" "$@" \
+        uv run python -m enrichment.run_pipeline --pipeline transport --novel "$novel_key" --name "$run_name" "$@" \
         > /dev/null 2>&1 &
     running_pids+=($!)
 }

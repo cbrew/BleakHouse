@@ -13,7 +13,7 @@ run_transport() {
     shift
     echo ""
     echo "=== TRANSPORT $name === ($(date +%H:%M:%S))"
-    uv run python -m enrichment.run --novel bleak_house --name "$name" "$@"
+    uv run python -m enrichment.run_pipeline --pipeline transport --novel bleak_house --name "$name" "$@"
     echo "=== TRANSPORT $name complete === ($(date +%H:%M:%S))"
 }
 
@@ -22,7 +22,7 @@ run_embedding() {
     shift
     echo ""
     echo "=== EMBEDDING $name === ($(date +%H:%M:%S))"
-    uv run python -m enrichment.embedding_run --novel bleak_house --name "$name" "$@"
+    uv run python -m enrichment.run_pipeline --pipeline embedding --novel bleak_house --name "$name" "$@"
     echo "=== EMBEDDING $name complete === ($(date +%H:%M:%S))"
 }
 
