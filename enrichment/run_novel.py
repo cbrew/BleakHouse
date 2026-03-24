@@ -119,6 +119,7 @@ def run_condition(
     cmd = [
         sys.executable, "-m", module,
         "--name", name,
+        "--novel", novel_key,
         "--prompt-version", str(prompt_version),
     ]
     for replacement in PANELS.get(panel, []):
