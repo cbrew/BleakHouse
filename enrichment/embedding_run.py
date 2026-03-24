@@ -139,6 +139,7 @@ def run_phase3(
     model: str,
     personas: list[ExpertPersona],
     prompt_version: int = 2,
+    host_briefs: list | None = None,
 ) -> dict:
     """Phase 3: script generation (identical to transport pipeline)."""
     import anthropic
@@ -162,9 +163,15 @@ def run_phase3(
     client = anthropic.Anthropic()
     episode_segments = []
     for i, seg in enumerate(plan.segments):
+        prev_title = plan.segments[i - 1].template.name if i > 0 else None
+        next_title = plan.segments[i + 1].template.name if i < len(plan.segments) - 1 else None
+        brief = host_briefs[i] if host_briefs else None
         episode_seg = generate_segment_script(
             seg, client, model, personas, is_first_segment=(i == 0),
             prompt_version=prompt_version,
+            previous_segment_title=prev_title,
+            next_segment_title=next_title,
+            host_brief=brief,
         )
         episode_segments.append(episode_seg)
         logger.info(
