@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 from copy import deepcopy
 from pathlib import Path
 
@@ -182,6 +183,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run versioned pipeline")
     parser.add_argument("--name", required=True, help="Run name (e.g. baseline)")
     parser.add_argument(
+        "--novel", required=True,
+        help="Novel key (bleak_house, mill_on_the_floss, our_mutual_friend, "
+             "north_and_south, passage_to_india)",
+    )
+    parser.add_argument(
         "--phase",
         type=int,
         default=3,
@@ -257,6 +263,10 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
     )
+
+    # Set novel identity from CLI arg — all downstream code reads this
+    os.environ["BLEAKHOUSE_NOVEL"] = args.novel
+    logger.info("Novel: %s", args.novel)
 
     # Build config
     config = RunConfig(name=args.name, prompt_version=args.prompt_version)

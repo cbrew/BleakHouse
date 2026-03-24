@@ -145,20 +145,51 @@ def get_novel_arcs(novel_key: str | None = None) -> list[tuple[str, str, int, st
     return arcs.get(novel_key, [])
 
 
-def get_active_novel() -> NovelPromptConfig:
-    """Return the config for the active novel (from BLEAKHOUSE_NOVEL env var, or Bleak House)."""
+_BLEAK_HOUSE_DEFAULT = NovelPromptConfig(
+    title="Bleak House",
+    author="Charles Dickens",
+    year="1853",
+    narration_note="",
+    theme_examples="",
+    character_note="",
+)
+
+
+def get_active_novel(novel_key: str | None = None) -> NovelPromptConfig:
+    """Return the config for the specified novel.
+
+    Args:
+        novel_key: Explicit novel key (e.g. 'mill_on_the_floss').
+                   If None, falls back to BLEAKHOUSE_NOVEL env var with a warning.
+                   If neither is set, raises ValueError.
+    """
+    import logging
     import os
 
-    novel_key = os.environ.get("BLEAKHOUSE_NOVEL")
-    if novel_key and novel_key in NOVEL_CONFIGS:
+    if novel_key is None:
+        novel_key = os.environ.get("BLEAKHOUSE_NOVEL")
+        if novel_key:
+            logging.getLogger(__name__).warning(
+                "Novel set via BLEAKHOUSE_NOVEL env var (%s). "
+                "Prefer passing --novel explicitly.",
+                novel_key,
+            )
+
+    if not novel_key:
+        raise ValueError(
+            "No novel specified. Pass --novel to the CLI command, or set "
+            "BLEAKHOUSE_NOVEL env var. There is no default — this prevents "
+            "silent generation of the wrong novel's content."
+        )
+
+    if novel_key == "bleak_house":
+        return _BLEAK_HOUSE_DEFAULT
+    if novel_key in NOVEL_CONFIGS:
         return NOVEL_CONFIGS[novel_key]
-    return NovelPromptConfig(
-        title="Bleak House",
-        author="Charles Dickens",
-        year="1853",
-        narration_note="",
-        theme_examples="",
-        character_note="",
+
+    available = ["bleak_house"] + sorted(NOVEL_CONFIGS.keys())
+    raise ValueError(
+        f"Unknown novel key '{novel_key}'. Available: {', '.join(available)}"
     )
 
 

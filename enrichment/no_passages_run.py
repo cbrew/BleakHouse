@@ -55,6 +55,11 @@ def main() -> None:
         description="Run no-passages pipeline (prior knowledge baseline)"
     )
     parser.add_argument("--name", required=True, help="Run name (e.g. nop_v01_baseline)")
+    parser.add_argument(
+        "--novel", required=True,
+        help="Novel key (bleak_house, mill_on_the_floss, our_mutual_friend, "
+             "north_and_south, passage_to_india)",
+    )
     parser.add_argument("--model", default="claude-sonnet-4-6", help="Phase 3 model")
     parser.add_argument(
         "--replace-expert", action="append", default=[],
@@ -79,6 +84,11 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
     )
+
+    # Set novel identity from CLI arg
+    import os
+    os.environ["BLEAKHOUSE_NOVEL"] = args.novel
+    logger.info("Novel: %s", args.novel)
 
     # Build expert/persona configuration
     experts: list[ExpertProfile] = list(DEFAULT_EXPERTS)

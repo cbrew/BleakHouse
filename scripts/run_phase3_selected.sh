@@ -3,7 +3,7 @@
 # Phase 0-2 already complete — resumes from existing outputs.
 set -euo pipefail
 
-RUN="uv run python -m enrichment.run --phase 3 --resume-from 3"
+RUN="uv run python -m enrichment.run --novel bleak_house --phase 3 --resume-from 3"
 
 VARIANTS=(
     v01_baseline

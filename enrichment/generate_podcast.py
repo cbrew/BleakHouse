@@ -533,6 +533,11 @@ def build_script_report(episode: PodcastEpisode) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate podcast script")
     parser.add_argument(
+        "--novel", required=True,
+        help="Novel key (bleak_house, mill_on_the_floss, our_mutual_friend, "
+             "north_and_south, passage_to_india)",
+    )
+    parser.add_argument(
         "--model",
         default="claude-sonnet-4-6",
         help="Anthropic model to use (default: claude-sonnet-4-6)",
@@ -548,6 +553,10 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
     )
+
+    import os
+    os.environ["BLEAKHOUSE_NOVEL"] = args.novel
+    logger.info("Novel: %s", args.novel)
 
     # Phase 1: passage selection
     logger.info("Phase 1: passage selection")
