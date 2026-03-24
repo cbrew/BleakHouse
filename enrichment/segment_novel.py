@@ -67,6 +67,77 @@ NOVELS: dict[str, NovelConfig] = {
         html_filename="pg61221-images.html",
         gutenberg_id=61221,
     ),
+    # --- New novels for generalization study ---
+    "hard_times": NovelConfig(
+        key="hard_times",
+        title="Hard Times",
+        author="Charles Dickens",
+        html_filename="pg786-images.html",
+        gutenberg_id=786,
+    ),
+    "middlemarch": NovelConfig(
+        key="middlemarch",
+        title="Middlemarch",
+        author="George Eliot",
+        html_filename="pg145-images.html",
+        gutenberg_id=145,
+    ),
+    "daniel_deronda": NovelConfig(
+        key="daniel_deronda",
+        title="Daniel Deronda",
+        author="George Eliot",
+        html_filename="pg7469-images.html",
+        gutenberg_id=7469,
+    ),
+    "david_copperfield": NovelConfig(
+        key="david_copperfield",
+        title="David Copperfield",
+        author="Charles Dickens",
+        html_filename="pg766-images.html",
+        gutenberg_id=766,
+    ),
+    "cranford": NovelConfig(
+        key="cranford",
+        title="Cranford",
+        author="Elizabeth Gaskell",
+        html_filename="pg394-images.html",
+        gutenberg_id=394,
+    ),
+    "no_name": NovelConfig(
+        key="no_name",
+        title="No Name",
+        author="Wilkie Collins",
+        html_filename="pg1438-images.html",
+        gutenberg_id=1438,
+    ),
+    "new_grub_street": NovelConfig(
+        key="new_grub_street",
+        title="New Grub Street",
+        author="George Gissing",
+        html_filename="pg1709-images.html",
+        gutenberg_id=1709,
+    ),
+    "odd_women": NovelConfig(
+        key="odd_women",
+        title="The Odd Women",
+        author="George Gissing",
+        html_filename="pg4313-images.html",
+        gutenberg_id=4313,
+    ),
+    "miss_marjoribanks": NovelConfig(
+        key="miss_marjoribanks",
+        title="Miss Marjoribanks",
+        author="Mrs Oliphant",
+        html_filename="pg41286-images.html",
+        gutenberg_id=41286,
+    ),
+    "hester": NovelConfig(
+        key="hester",
+        title="Hester",
+        author="Mrs Oliphant",
+        html_filename="hester_combined.html",
+        gutenberg_id=48197,
+    ),
 }
 
 
@@ -207,21 +278,22 @@ def parse_div_chapter(tree: etree._Element, heading_tag: str = "h3") -> list[dic
     return chapters
 
 
-def parse_body_h2(tree: etree._Element) -> list[dict]:
-    """Parse novels with chapter H2s directly in body (A Passage to India).
+def parse_body_headings(tree: etree._Element, heading_tag: str = "h2") -> list[dict]:
+    """Parse novels with chapter headings directly in body.
 
-    Collects <p> elements between consecutive chapter H2s.
+    Used by A Passage to India (h2), Hard Times (h3), Miss Marjoribanks (h2),
+    Hester (h2).  Collects <p> elements between consecutive chapter headings.
     """
     body = tree.xpath("//body")[0]
     children = list(body)
 
-    # Find all chapter H2 indices
+    # Find all chapter heading indices
     chapter_starts: list[tuple[int, str]] = []
     current_part = ""
     for i, elem in enumerate(children):
-        if elem.tag == "h2":
+        if elem.tag == heading_tag:
             text = "".join(elem.itertext()).strip()
-            if text.startswith("PART"):
+            if text.upper().startswith(("PART", "BOOK THE", "BOOK I", "BOOK II", "BOOK III")):
                 current_part = text
             elif _is_chapter_heading(text):
                 chapter_starts.append((i, current_part))
@@ -236,8 +308,11 @@ def parse_body_h2(tree: etree._Element) -> list[dict]:
         )
 
         heading_text = "".join(children[start_i].itertext()).strip()
-        # Build title from part + chapter number
-        title = part if part else heading_text
+        # Extract title: strip "CHAPTER X" prefix, use remaining text
+        lines = heading_text.split("\n")
+        title = lines[1].strip() if len(lines) > 1 else ""
+        if not title:
+            title = part if part else heading_text
 
         paragraphs: list[str] = []
         for elem in children[start_i + 1 : end_i]:
@@ -245,8 +320,10 @@ def parse_body_h2(tree: etree._Element) -> list[dict]:
                 text = " ".join(elem.itertext()).strip()
                 if text and len(text) > 2:
                     paragraphs.append(text)
-            elif elem.tag == "h2":
-                # Part heading or license — stop
+            elif elem.tag in ("h2", "h3") and _is_chapter_heading(
+                "".join(elem.itertext()).strip()
+            ):
+                # Next chapter heading — stop
                 break
 
         if paragraphs:
@@ -275,16 +352,17 @@ def detect_and_parse(html_path: Path) -> list[dict]:
         logger.info("Detected anchor-based structure (%d chapters)", len(chapter_anchors))
         return parse_anchor_based(tree)
 
-    # Strategy 2: div.chapter
+    # Strategy 2: div.chapter (only if divs actually contain content)
     chapter_divs = tree.xpath('//div[@class="chapter"]')
-    if chapter_divs:
+    non_empty_divs = [d for d in chapter_divs if len(list(d)) > 0]
+    if non_empty_divs:
         # Check if chapters use h3 (Mill) or h2 (North and South)
-        first_div = chapter_divs[0]
+        first_div = non_empty_divs[0]
         has_h3 = bool(first_div.xpath(".//h3"))
         tag = "h3" if has_h3 else "h2"
         logger.info(
             "Detected div.chapter structure (%d divs, %s headings)",
-            len(chapter_divs),
+            len(non_empty_divs),
             tag,
         )
         return parse_div_chapter(tree, heading_tag=tag)
@@ -296,7 +374,16 @@ def detect_and_parse(html_path: Path) -> list[dict]:
     ]
     if chapter_h2s:
         logger.info("Detected body-level H2 structure (%d chapters)", len(chapter_h2s))
-        return parse_body_h2(tree)
+        return parse_body_headings(tree, heading_tag="h2")
+
+    # Strategy 4: body-level H3 chapters (Hard Times)
+    h3s = tree.xpath("//h3")
+    chapter_h3s = [
+        h for h in h3s if _is_chapter_heading("".join(h.itertext()).strip())
+    ]
+    if chapter_h3s:
+        logger.info("Detected body-level H3 structure (%d chapters)", len(chapter_h3s))
+        return parse_body_headings(tree, heading_tag="h3")
 
     raise ValueError(f"Could not detect chapter structure in {html_path}")
 

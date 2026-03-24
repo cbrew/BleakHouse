@@ -45,8 +45,17 @@ Five lesser-known Victorian novels on Project Gutenberg, ordered by likely LLM t
 - `no_name` → prefix `noname`
 - `new_grub_street` → prefix `ngs`
 - `odd_women` → prefix `oddw`
+- `hard_times` → prefix `ht`
+- `middlemarch` → prefix `mid`
+- `daniel_deronda` → prefix `dd`
+- `david_copperfield` → prefix `dc`
+- `cranford` → prefix `cran`
 
 **Onboarding a new novel requires:** downloading from Gutenberg, parsing into passages, running Phase 0 enrichment (~5M Haiku tokens, one-time), and adding novel-specific configuration to enrichment/novel_prompts.py (title, author, year, narration notes, character arcs). The seven provision dimensions are applied unchanged — whether they transfer is itself hypothesis H18.
+
+**Currently onboarded (segmented, awaiting enrichment):** hard_times, middlemarch, daniel_deronda, david_copperfield, cranford, no_name, new_grub_street, odd_women, miss_marjoribanks, hester.
+
+**Fully enriched (ready for pipeline runs):** bleak_house, our_mutual_friend, mill_on_the_floss, north_and_south, passage_to_india.
 
 ## Instructions
 
