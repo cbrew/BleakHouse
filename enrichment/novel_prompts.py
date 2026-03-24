@@ -93,6 +93,231 @@ NOVEL_CONFIGS: dict[str, NovelPromptConfig] = {
             "'Fielding'). Include characters referenced indirectly."
         ),
     ),
+    # --- New novels for generalization study ---
+    "hard_times": NovelPromptConfig(
+        title="Hard Times",
+        author="Charles Dickens",
+        year="1854",
+        narration_note=(
+            "*Hard Times* uses third-person omniscient narration. Dickens's "
+            "shortest novel, structured in three books (Sowing, Reaping, "
+            "Garnering). The narration is more polemical than in his other novels, "
+            "directly attacking utilitarianism and industrial exploitation."
+        ),
+        theme_examples=(
+            "'utilitarianism', 'education', 'imagination', 'industry', 'class', "
+            "'marriage', 'circus', 'fact', 'fancy', 'labour', 'strikes', 'poverty', "
+            "'hypocrisy', 'divorce', 'statistics'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Thomas Gradgrind' not 'Gradgrind', "
+            "'Josiah Bounderby' not 'Bounderby', 'Louisa Gradgrind' not 'Louisa', "
+            "'Stephen Blackpool' not 'Stephen', 'Sissy Jupe' not 'Sissy'). "
+            "Include characters referenced indirectly."
+        ),
+    ),
+    "middlemarch": NovelPromptConfig(
+        title="Middlemarch",
+        author="George Eliot",
+        year="1871",
+        narration_note=(
+            "*Middlemarch* uses third-person omniscient narration with Eliot's "
+            "characteristic philosophical commentary. The novel weaves four major "
+            "plot strands set in a provincial English town during 1829-1832, "
+            "with frequent authorial generalisation about human nature."
+        ),
+        theme_examples=(
+            "'vocation', 'marriage', 'reform', 'science', 'religion', 'money', "
+            "'ambition', 'idealism', 'provincial', 'politics', 'duty', 'sympathy', "
+            "'egoism', 'knowledge', 'women', 'inheritance'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Dorothea Brooke' not 'Dorothea', "
+            "'Tertius Lydgate' not 'Lydgate', 'Edward Casaubon' not 'Casaubon', "
+            "'Rosamond Vincy' not 'Rosamond', 'Fred Vincy' not 'Fred', "
+            "'Will Ladislaw' not 'Will', 'Nicholas Bulstrode' not 'Bulstrode'). "
+            "Include characters referenced indirectly."
+        ),
+    ),
+    "daniel_deronda": NovelPromptConfig(
+        title="Daniel Deronda",
+        author="George Eliot",
+        year="1876",
+        narration_note=(
+            "*Daniel Deronda* uses third-person omniscient narration. The novel "
+            "interweaves two plot strands: Gwendolen Harleth's marriage and moral "
+            "development, and Daniel Deronda's discovery of his Jewish heritage. "
+            "Eliot's narration is philosophically dense, especially in the "
+            "Deronda chapters."
+        ),
+        theme_examples=(
+            "'identity', 'judaism', 'nationalism', 'marriage', 'gambling', "
+            "'music', 'vocation', 'sympathy', 'egoism', 'duty', 'inheritance', "
+            "'class', 'empire', 'art', 'zionism', 'rescue'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Gwendolen Harleth' not 'Gwendolen', "
+            "'Daniel Deronda' not 'Deronda', 'Henleigh Grandcourt' not "
+            "'Grandcourt', 'Mirah Lapidoth' not 'Mirah', 'Mordecai' not 'Ezra'). "
+            "Include characters referenced indirectly."
+        ),
+    ),
+    "david_copperfield": NovelPromptConfig(
+        title="David Copperfield",
+        author="Charles Dickens",
+        year="1850",
+        narration_note=(
+            "*David Copperfield* uses first-person retrospective narration "
+            "throughout. The adult David looks back on his life from childhood, "
+            "giving the novel a distinctive blend of naive and mature perspectives. "
+            "Dickens considered it his 'favourite child' among his novels."
+        ),
+        theme_examples=(
+            "'memory', 'childhood', 'education', 'class', 'marriage', 'ambition', "
+            "'discipline', 'undisciplined heart', 'writing', 'poverty', 'cruelty', "
+            "'friendship', 'betrayal', 'emigration', 'perseverance'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'David Copperfield' not 'David', "
+            "'Edward Murdstone' not 'Murdstone', 'Betsey Trotwood' not 'Aunt', "
+            "'James Steerforth' not 'Steerforth', 'Uriah Heep' not 'Heep', "
+            "'Agnes Wickfield' not 'Agnes', 'Mr Micawber' not 'Micawber'). "
+            "Include characters referenced indirectly."
+        ),
+    ),
+    "cranford": NovelPromptConfig(
+        title="Cranford",
+        author="Elizabeth Gaskell",
+        year="1853",
+        narration_note=(
+            "*Cranford* uses first-person narration by Mary Smith, a younger "
+            "visitor who observes the lives of the elderly gentlewomen of a small "
+            "English town. The novel is episodic, originally published as "
+            "magazine sketches. The tone is comic and affectionate."
+        ),
+        theme_examples=(
+            "'gentility', 'poverty', 'community', 'manners', 'death', 'age', "
+            "'women', 'economy', 'gossip', 'propriety', 'kindness', 'change', "
+            "'snobbery', 'friendship', 'elegance'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Miss Matty' or 'Miss Matilda Jenkyns' "
+            "not 'Matty', 'Miss Deborah Jenkyns' not 'Deborah', "
+            "'Captain Brown' not 'the Captain', 'Mary Smith' for the narrator). "
+            "Include characters referenced indirectly."
+        ),
+    ),
+    "no_name": NovelPromptConfig(
+        title="No Name",
+        author="Wilkie Collins",
+        year="1862",
+        narration_note=(
+            "*No Name* uses third-person narration alternating with epistolary "
+            "sections ('Between the Scenes'). Collins structures the novel as "
+            "a series of dramatic scenes separated by letters and documents. "
+            "The narration is plot-driven and theatrical."
+        ),
+        theme_examples=(
+            "'illegitimacy', 'identity', 'inheritance', 'disguise', 'deception', "
+            "'law', 'marriage', 'revenge', 'respectability', 'sisters', "
+            "'performance', 'will', 'disinheritance', 'determination'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Magdalen Vanstone' not 'Magdalen', "
+            "'Norah Vanstone' not 'Norah', 'Captain Wragge' not 'Wragge', "
+            "'Noel Vanstone' not 'Noel', 'Mrs Lecount' not 'Lecount'). "
+            "Include characters referenced indirectly."
+        ),
+    ),
+    "new_grub_street": NovelPromptConfig(
+        title="New Grub Street",
+        author="George Gissing",
+        year="1891",
+        narration_note=(
+            "*New Grub Street* uses third-person omniscient narration. The novel "
+            "follows the contrasting fortunes of writers in the literary "
+            "marketplace of 1880s London. Gissing's narration is precise and "
+            "unsentimental, with a naturalist's eye for economic determinism."
+        ),
+        theme_examples=(
+            "'writing', 'money', 'ambition', 'poverty', 'marriage', 'journalism', "
+            "'commercialism', 'art', 'class', 'failure', 'compromise', "
+            "'respectability', 'literary market', 'integrity'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Edwin Reardon' not 'Reardon', "
+            "'Jasper Milvain' not 'Milvain', 'Alfred Yule' not 'Yule', "
+            "'Marian Yule' not 'Marian', 'Amy Reardon' not 'Amy', "
+            "'Harold Biffen' not 'Biffen'). Include characters referenced indirectly."
+        ),
+    ),
+    "odd_women": NovelPromptConfig(
+        title="The Odd Women",
+        author="George Gissing",
+        year="1893",
+        narration_note=(
+            "*The Odd Women* uses third-person omniscient narration. The novel "
+            "follows several unmarried women navigating limited options in "
+            "1890s London. Gissing is sympathetic but unsentimental, examining "
+            "gender politics through contrasting strategies of survival."
+        ),
+        theme_examples=(
+            "'women', 'marriage', 'independence', 'work', 'poverty', 'feminism', "
+            "'education', 'class', 'typewriting', 'celibacy', 'temptation', "
+            "'pride', 'compromise', 'equality'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Rhoda Nunn' not 'Rhoda', "
+            "'Monica Madden' not 'Monica', 'Edmund Widdowson' not 'Widdowson', "
+            "'Mary Barfoot' not 'Miss Barfoot', 'Everard Barfoot' not 'Barfoot', "
+            "'Virginia Madden' not 'Virginia'). Include characters referenced "
+            "indirectly."
+        ),
+    ),
+    "miss_marjoribanks": NovelPromptConfig(
+        title="Miss Marjoribanks",
+        author="Mrs Oliphant",
+        year="1866",
+        narration_note=(
+            "*Miss Marjoribanks* uses third-person omniscient narration with "
+            "Oliphant's characteristic ironic wit. The novel follows Lucilla "
+            "Marjoribanks as she 'reforms' the social life of Carlingford. "
+            "The tone blends domestic comedy with sharp social observation."
+        ),
+        theme_examples=(
+            "'society', 'ambition', 'marriage', 'influence', 'domesticity', "
+            "'propriety', 'power', 'election', 'duty', 'reform', 'gossip', "
+            "'entertainment', 'provincial', 'management'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Lucilla Marjoribanks' not 'Lucilla', "
+            "'Dr Marjoribanks' not 'the Doctor', 'Tom Marjoribanks' not 'Tom', "
+            "'Mrs Woodburn' not 'the Woodburns'). Include characters referenced "
+            "indirectly."
+        ),
+    ),
+    "hester": NovelPromptConfig(
+        title="Hester",
+        author="Mrs Oliphant",
+        year="1883",
+        narration_note=(
+            "*Hester* uses third-person omniscient narration. The novel centres "
+            "on the Vernon family and their bank in Redborough. Oliphant "
+            "explores women's relationship to money, power, and independence "
+            "through the conflict between Catherine Vernon and Hester."
+        ),
+        theme_examples=(
+            "'banking', 'money', 'power', 'women', 'independence', 'reputation', "
+            "'family', 'gratitude', 'resentment', 'speculation', 'crisis', "
+            "'marriage', 'intelligence', 'dependence'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Hester Vernon' not 'Hester', "
+            "'Catherine Vernon' not 'Catherine', 'Edward Vernon' not 'Edward', "
+            "'Harry Vernon' not 'Harry', 'Mrs John Vernon' not 'Hester's mother'). "
+            "Include characters referenced indirectly."
+        ),
+    ),
 }
 
 
@@ -139,6 +364,87 @@ def get_novel_arcs(novel_key: str | None = None) -> list[tuple[str, str, int, st
             ("The Marabar Caves", "Adela Quested", 5,
              "prov_plot_advancement", "not_none", 3),
             ("Fielding's disillusion", "Cyril Fielding", 4,
+             "prov_thematic_depth", "not_none", 2),
+        ],
+        # --- New novels for generalization study ---
+        "hard_times": [
+            ("Louisa's deadened inner life", "Louisa Gradgrind", 6,
+             "prov_character_development", "not_none", 3),
+            ("Stephen's injustice", "Stephen Blackpool", 5,
+             "prov_social_critique", "not_none", 3),
+            ("Gradgrind's reckoning", "Thomas Gradgrind", 4,
+             "prov_thematic_depth", "not_none", 2),
+        ],
+        "middlemarch": [
+            ("Dorothea's disillusion and growth", "Dorothea Brooke", 6,
+             "prov_character_development", "not_none", 3),
+            ("Lydgate's professional ruin", "Tertius Lydgate", 5,
+             "prov_character_development", "not_none", 3),
+            ("Bulstrode's exposure", "Nicholas Bulstrode", 4,
+             "prov_plot_advancement", "not_none", 2),
+        ],
+        "daniel_deronda": [
+            ("Gwendolen's moral awakening", "Gwendolen Harleth", 6,
+             "prov_character_development", "not_none", 3),
+            ("Deronda's discovery of identity", "Daniel Deronda", 5,
+             "prov_thematic_depth", "not_none", 3),
+            ("Grandcourt's tyranny", "Henleigh Grandcourt", 4,
+             "prov_plot_advancement", "not_none", 2),
+        ],
+        "david_copperfield": [
+            ("David's undisciplined heart", "David Copperfield", 6,
+             "prov_character_development", "not_none", 3),
+            ("Steerforth's betrayal", "James Steerforth", 5,
+             "prov_plot_advancement", "not_none", 3),
+            ("Uriah Heep's scheming", "Uriah Heep", 4,
+             "prov_plot_advancement", "not_none", 2),
+        ],
+        "cranford": [
+            ("Miss Matty's genteel poverty", "Miss Matty", 6,
+             "prov_character_development", "not_none", 3),
+            ("Captain Brown's death", "Captain Brown", 5,
+             "prov_plot_advancement", "not_none", 3),
+            ("Peter's return", "Peter Jenkyns", 4,
+             "prov_plot_advancement", "not_none", 2),
+        ],
+        "no_name": [
+            ("Magdalen's campaign of deception", "Magdalen Vanstone", 6,
+             "prov_character_development", "not_none", 3),
+            ("The inheritance plot", "Noel Vanstone", 5,
+             "prov_plot_advancement", "not_none", 3),
+            ("Captain Wragge's schemes", "Captain Wragge", 4,
+             "prov_plot_advancement", "not_none", 2),
+        ],
+        "new_grub_street": [
+            ("Reardon's decline", "Edwin Reardon", 6,
+             "prov_character_development", "not_none", 3),
+            ("Milvain's rise", "Jasper Milvain", 5,
+             "prov_social_critique", "not_none", 3),
+            ("Marian's trapped position", "Marian Yule", 4,
+             "prov_character_development", "not_none", 2),
+        ],
+        "odd_women": [
+            ("Rhoda's principles tested", "Rhoda Nunn", 6,
+             "prov_character_development", "not_none", 3),
+            ("Monica's desperate marriage", "Monica Madden", 5,
+             "prov_character_development", "not_none", 3),
+            ("Widdowson's jealousy", "Edmund Widdowson", 4,
+             "prov_plot_advancement", "not_none", 2),
+        ],
+        "miss_marjoribanks": [
+            ("Lucilla's social campaign", "Lucilla Marjoribanks", 6,
+             "prov_character_development", "not_none", 3),
+            ("The Cavendish scandal", "Mr Cavendish", 5,
+             "prov_plot_advancement", "not_none", 3),
+            ("Tom's return", "Tom Marjoribanks", 4,
+             "prov_plot_advancement", "not_none", 2),
+        ],
+        "hester": [
+            ("Hester's frustrated ambition", "Hester Vernon", 6,
+             "prov_character_development", "not_none", 3),
+            ("Edward's speculation and flight", "Edward Vernon", 5,
+             "prov_plot_advancement", "not_none", 3),
+            ("Catherine's power and loneliness", "Catherine Vernon", 4,
              "prov_thematic_depth", "not_none", 2),
         ],
     }
