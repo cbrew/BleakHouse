@@ -1,0 +1,114 @@
+Two-paper framing and experiment plan for BleakHouse
+====================================================
+
+This document reframes the experimental agenda around two distinct papers:
+
+Paper 1 (ACL framing)
+---------------------
+**Question.** How do LLMs behave under grounding and distribution shift?
+
+**Core claim.** Passage grounding largely eliminates hallucinated quotation, while no-grounding
+reveals structured failures that depend on likely training exposure.
+
+**What ACL readers should get.**
+- Grounding vs no-grounding is the dominant factor for quote faithfulness.
+- Confabulation is structured (systematic borrowing), not random noise.
+- Prompting alone cannot recover architecture-level effects.
+- Effects persist across known vs obscure novels.
+
+Paper 2 (Digital Humanities framing)
+------------------------------------
+**Question.** Can literary interpretation be made explicit, controllable, and inspectable?
+
+**Core claim.** Interpretation can be operationalized as allocation over textual affordances:
+different expert lenses and demand profiles produce distinct, auditable readings.
+
+**What DH readers should get.**
+- Passage selection is itself an interpretive act.
+- Lens parameters (demand vectors) are manipulable and measurable.
+- Textual affordances vary across novels and reshape expert prominence.
+- The pipeline scaffolds meaningful discussion even for less-canonical works.
+
+Shared experiment matrix
+------------------------
+Each experiment should explicitly say which paper(s) it supports.
+
+1) Grounding dominance benchmark (ACL)
+- Conditions: transport, embedding, random, plain-RAG, no-passages.
+- Metrics: quote verification, confabulation rate.
+- Decision rule: support if grounded >= 90% verification and no-passages <= 50% average.
+
+2) Novel-dependent ignorance test (ACL)
+- Conditions: no-passages runs across familiar vs less-familiar novels.
+- Metrics: verification by novel; rank correlation with exposure proxies.
+- Decision rule: support if familiar novels significantly outperform obscure novels.
+
+3) Cross-corpus confabulation mechanism (ACL, DH)
+- Conditions: take quotes from obscure no-passages episodes; compare against:
+  (a) all in-project novel corpora, and (b) broader 19th-century reference corpora.
+- Metrics:
+  - exact/near-exact overlap rate with any single known novel (expected to be rare),
+  - semantic nearest-neighbor author attribution,
+  - stylistic attribution confidence (author/period classifier),
+  - generic-Victorian prototype score (high lexical overlap with broad-era language, low overlap
+    with any specific source novel).
+- Decision rule:
+  - strong version: repeated high-confidence attribution to a specific known author/text family;
+  - weaker but still useful version: confabulations look "period-plausible" yet do not map to
+    specific source passages, indicating prototype-level borrowing rather than direct quotation.
+
+4) Architecture vs prompt factorial (ACL)
+- Conditions: shared passages ON/OFF x cross-engagement instruction ON/OFF.
+- Metrics: cross-reference rate, turn-transition graph density.
+- Decision rule: support if shared-context effect size is clearly larger than instruction effect.
+
+5) Host-prep interaction under ignorance (ACL, DH)
+- Conditions: host-prep ON/OFF for familiar and obscure novels, transport fixed.
+- Metrics: questions per segment, reactive markers, expert vocabulary stability.
+- Decision rule: support if host-prep lift is larger on obscure novels with limited identity drift.
+
+6) Interpretive controllability benchmark (DH)
+- Conditions: baseline vs peaked vs arc-boosted demand vectors.
+- Metrics: passage/chapter Jaccard, solver latency, token cost.
+- Decision rule: support if editorial changes produce predictable passage shifts at near-zero marginal tokens.
+
+7) Schema transfer and bias stress test (DH)
+- Conditions: run enrichment on existing + candidate novels using same seven dimensions.
+- Metrics: per-dimension strong-rate; detect empty/saturated dimensions.
+- Decision rule: support transfer if no dimension collapses; support bias if specific dimensions collapse on non-Dickensian texts.
+
+8) Prompt-pruning ablations (ACL)
+- Conditions: remove one constraint at a time (quote pattern, prosody, sentence-type, timing).
+- Metrics: structure compliance, prosodic variance, blind preference.
+- Decision rule: keep only constraints with measurable output benefit.
+
+Interpretation note on obscure-novel confabulation
+--------------------------------------------------
+For obscure novels, we should treat direct recoverable quotes from Dickens/Eliot as a possible
+outcome, not the default expectation. A more realistic baseline is:
+- low exact overlap with specific novels,
+- but detectable pull toward high-frequency Victorian diction and narrative templates.
+
+So the experiment should be powered to detect both:
+1) specific-source borrowing (rare but high-signal when present), and
+2) diffuse prototype borrowing (likely, and still theoretically important).
+
+Execution order
+---------------
+1. Grounding dominance benchmark (fastest high-value ACL result).
+2. Architecture vs prompt factorial.
+3. Prompt-pruning ablations (to reduce cost/noise for downstream runs).
+4. Interpretive controllability benchmark.
+5. Novel-dependent ignorance + host-prep interaction (run together on shared artifacts).
+6. Cross-novel confabulation mechanism.
+7. Schema transfer/bias stress test.
+
+Reporting template (for every experiment)
+-----------------------------------------
+- Hypothesis ID(s)
+- Paper relevance: ACL / DH / both
+- Run commands and fixed variables
+- Metrics and decision thresholds
+- Result: confirmed / disconfirmed / inconclusive
+- Implications for paper claims
+- Next follow-up run
