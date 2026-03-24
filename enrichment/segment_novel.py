@@ -388,11 +388,53 @@ def detect_and_parse(html_path: Path) -> list[dict]:
     raise ValueError(f"Could not detect chapter structure in {html_path}")
 
 
-def segment_chapter(chapter: dict) -> list[Passage]:
-    """Convert a chapter's paragraphs into Passage objects with offsets."""
+def _split_paragraph(text: str, max_words: int) -> list[str]:
+    """Split a long paragraph at sentence boundaries to stay under max_words."""
+    if len(text.split()) <= max_words:
+        return [text]
+
+    # Split at sentence boundaries: period/exclamation/question followed by
+    # whitespace and an uppercase letter or opening quote.
+    sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z\"'\u2018\u201C])", text)
+
+    chunks: list[str] = []
+    current: list[str] = []
+    current_wc = 0
+
+    for sent in sentences:
+        sent_wc = len(sent.split())
+        if current_wc + sent_wc > max_words and current:
+            chunks.append(" ".join(current))
+            current = [sent]
+            current_wc = sent_wc
+        else:
+            current.append(sent)
+            current_wc += sent_wc
+
+    if current:
+        chunks.append(" ".join(current))
+
+    return chunks if chunks else [text]
+
+
+def segment_chapter(
+    chapter: dict, *, max_words: int | None = None,
+) -> list[Passage]:
+    """Convert a chapter's paragraphs into Passage objects with offsets.
+
+    If *max_words* is set, long paragraphs are split at sentence boundaries
+    so that each resulting passage stays close to *max_words* words.
+    """
     chapter_id = chapter["id"]
     chapter_title = chapter.get("title", "")
     paragraphs: list[str] = chapter["paragraphs"]
+
+    # Optionally split long paragraphs
+    if max_words is not None:
+        split_paras: list[str] = []
+        for para in paragraphs:
+            split_paras.extend(_split_paragraph(para, max_words))
+        paragraphs = split_paras
 
     full_text = "\n\n".join(paragraphs)
     passages: list[Passage] = []
@@ -418,7 +460,7 @@ def segment_chapter(chapter: dict) -> list[Passage]:
     return passages
 
 
-def segment_novel(novel_key: str) -> None:
+def segment_novel(novel_key: str, *, max_words: int | None = None) -> None:
     """Segment a novel into passages and write to JSON."""
     config = NOVELS[novel_key]
     novel_dir = NOVELS_DIR / config.key
@@ -432,12 +474,14 @@ def segment_novel(novel_key: str) -> None:
         )
 
     logger.info("Parsing %s from %s", config.title, html_path)
+    if max_words:
+        logger.info("Splitting long paragraphs at ~%d words", max_words)
     chapters = detect_and_parse(html_path)
     logger.info("Found %d chapters", len(chapters))
 
     all_passages: list[dict] = []
     for chapter in chapters:
-        passages = segment_chapter(chapter)
+        passages = segment_chapter(chapter, max_words=max_words)
         logger.info(
             "  %s (%s): %d paragraphs",
             chapter["id"],
@@ -468,13 +512,19 @@ def main() -> None:
         help="Which novel to segment",
     )
     parser.add_argument("--all", action="store_true", help="Segment all novels")
+    parser.add_argument(
+        "--max-words",
+        type=int,
+        default=None,
+        help="Split paragraphs longer than this at sentence boundaries",
+    )
     args = parser.parse_args()
 
     if args.all:
         for key in NOVELS:
-            segment_novel(key)
+            segment_novel(key, max_words=args.max_words)
     elif args.novel:
-        segment_novel(args.novel)
+        segment_novel(args.novel, max_words=args.max_words)
     else:
         parser.print_help()
 
