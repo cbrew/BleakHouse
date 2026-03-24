@@ -24,6 +24,7 @@ from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     EpisodeMetadata,
     EpisodeSegment,
     ExpertPersona,
+    HostBrief,
     PodcastEpisode,
 )
 from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]
@@ -258,6 +259,7 @@ def build_messages(
     prompt_version: int = 2,
     previous_segment_title: str | None = None,
     next_segment_title: str | None = None,
+    host_brief: HostBrief | None = None,
 ) -> tuple[str, str]:
     """Build system and user messages for a segment's LLM call.
 
@@ -283,6 +285,28 @@ def build_messages(
         novel_title=title,
         novel_author=author,
     )
+
+    # When host prep is active, add questioning mandate to system prompt
+    if host_brief is not None:
+        system += """
+
+**HOST PREPARATION: The host has done homework for this segment.**
+
+The host has pre-interviewed each expert and prepared specific questions.  \
+These questions are provided below in the user message.  The host should:
+
+- Ask 3–5 of these prepared questions during the segment, weaving them \
+  naturally into the conversation — not as rigid Q&A but as informed steering.
+- Direct each question at a named expert.  That expert responds first, \
+  then the other panelists jump in — agreeing, disagreeing, building on \
+  what was said.  The host's questions open a thread, not a slot for a \
+  single answer.
+- Use the questions to draw out specific passages for quotation, to set \
+  up productive disagreements, and to create moments where experts \
+  respond directly to each other.
+- Keep the energy informal and conversational — pub with smart friends, \
+  not conference panel.  The host is well-prepared but not scripted.
+"""
 
     user_parts: list[str] = [
         f"## Segment: {segment.template.name}",
@@ -340,6 +364,26 @@ def build_messages(
             "grounded as if you had passages in front of you.",
         ])
 
+    # Inject HostBrief questions when host prep is active
+    if host_brief is not None:
+        user_parts.extend(["", "## Host Preparation: Planned Questions", ""])
+        if host_brief.steering_notes:
+            user_parts.append(f"**Steering notes:** {host_brief.steering_notes}")
+            user_parts.append("")
+        for i, q in enumerate(host_brief.questions, 1):
+            user_parts.append(f"**Q{i} → {q.target_expert}:** {q.question}")
+            user_parts.append(f"  *Intent:* {q.intent}")
+            if q.follow_up_for:
+                user_parts.append(
+                    f"  *Others who might jump in:* {', '.join(q.follow_up_for)}"
+                )
+            user_parts.append("")
+        if host_brief.cross_engagement_targets:
+            user_parts.append(
+                "**Cross-engagement opportunities:** "
+                + "; ".join(host_brief.cross_engagement_targets)
+            )
+
     return system, "\n".join(user_parts)
 
 
@@ -357,12 +401,14 @@ def generate_segment_script(
     prompt_version: int = 2,
     previous_segment_title: str | None = None,
     next_segment_title: str | None = None,
+    host_brief: HostBrief | None = None,
 ) -> EpisodeSegment:
     """Generate a multi-voice script for one segment via structured output."""
     system_msg, user_msg = build_messages(
         segment, personas, is_first_segment, prompt_version,
         previous_segment_title=previous_segment_title,
         next_segment_title=next_segment_title,
+        host_brief=host_brief,
     )
 
     logger.info(

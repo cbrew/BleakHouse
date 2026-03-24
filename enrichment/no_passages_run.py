@@ -77,6 +77,14 @@ def main() -> None:
         "--resume-from", type=int, default=None, choices=[3],
         help="Resume from Phase 3 using existing Phase 0 output",
     )
+    parser.add_argument(
+        "--host-prep", action="store_true",
+        help="Enable host preparation: pre-interviews + question planning",
+    )
+    parser.add_argument(
+        "--interview-model", default="claude-haiku-4-5-20251001",
+        help="Model for Phase 2.5a pre-interviews (default: haiku)",
+    )
 
     args = parser.parse_args()
 
@@ -181,9 +189,33 @@ def main() -> None:
 
     logger.info("Phases 1+2: no passages (prior knowledge baseline)")
 
+    # Phase 2.5: Host preparation (optional)
+    host_briefs = None
+    if args.host_prep:
+        from enrichment.host_prep import run_host_prep  # pyright: ignore[reportMissingImports]
+        from enrichment.novel_prompts import get_active_novel  # pyright: ignore[reportMissingImports]
+
+        novel_cfg = get_active_novel(args.novel)
+        logger.info("Phase 2.5: host preparation (interview=%s)", args.interview_model)
+
+        segments_data = phase2.get("segments", [])
+        assignments_by_segment = [[] for _ in segments_data]  # no passages
+
+        host_briefs = run_host_prep(
+            __import__("anthropic").Anthropic(),
+            personas, segments_data, assignments_by_segment,
+            novel_cfg.title, novel_cfg.author,
+            interview_model=args.interview_model,
+            planning_model=args.model,
+        )
+        with open(run_dir / "phase2_5_host_briefs.json", "w") as f:
+            json.dump([b.model_dump() for b in host_briefs], f, indent=2)
+        logger.info("Saved %d host briefs", len(host_briefs))
+
     # Phase 3: script generation
     logger.info("Phase 3: script generation (model=%s)", args.model)
-    phase3 = run_phase3(phase2, phase1, args.model, personas, prompt_version=args.prompt_version)
+    phase3 = run_phase3(phase2, phase1, args.model, personas,
+                        prompt_version=args.prompt_version, host_briefs=host_briefs)
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
 

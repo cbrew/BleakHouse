@@ -397,6 +397,63 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
     ),
 }
 
+# ---------------------------------------------------------------------------
+# Host preparation models (Phase 2.5)
+# ---------------------------------------------------------------------------
+
+
+class PreInterviewResponse(BaseModel):
+    """One expert's pre-interview response for a segment."""
+
+    expert_name: str = Field(description="Name of the expert interviewed")
+    key_points: list[str] = Field(
+        description="2-4 main points this expert wants to make about the segment's material"
+    )
+    potential_quotes: list[str] = Field(
+        description="1-3 passages or quotes the expert would most like to read aloud"
+    )
+    disagreement_angles: list[str] = Field(
+        default_factory=list,
+        description="Points where this expert might disagree with or challenge the others"
+    )
+    strongest_take: str = Field(
+        default="",
+        description="The single most interesting or provocative thing this expert wants to say"
+    )
+
+
+class HostQuestion(BaseModel):
+    """A planned question for the host to ask during a segment."""
+
+    target_expert: str = Field(description="Name of the expert this question is primarily directed at")
+    question: str = Field(description="The question itself — conversational, not academic")
+    intent: str = Field(
+        description="What this question is designed to draw out "
+        "(e.g. 'provoke disagreement with Blackstone', 'get Hartley to read the fog passage')"
+    )
+    follow_up_for: list[str] = Field(
+        default_factory=list,
+        description="Other experts who might want to jump in after the target responds"
+    )
+
+
+class HostBrief(BaseModel):
+    """The host's preparation notes for one segment."""
+
+    segment_name: str = Field(description="Name of the segment this brief is for")
+    questions: list[HostQuestion] = Field(
+        description="3-5 planned questions, in suggested order"
+    )
+    steering_notes: str = Field(
+        default="",
+        description="General notes on how to steer this segment's conversation"
+    )
+    cross_engagement_targets: list[str] = Field(
+        default_factory=list,
+        description="Specific points where experts should be encouraged to respond to each other"
+    )
+
+
 HOST_VOICE_POLICY = VoicePolicy(
     rate=0.98,
     energy="medium",

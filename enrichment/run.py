@@ -120,7 +120,12 @@ def run_phase2(config: RunConfig, phase1_data: dict) -> dict:
     }
 
 
-def run_phase3(config: RunConfig, phase2_data: dict, phase1_data: dict) -> dict:
+def run_phase3(
+    config: RunConfig,
+    phase2_data: dict,
+    phase1_data: dict,
+    host_briefs: list | None = None,
+) -> dict:
     """Phase 3: script generation. Returns serializable episode."""
     from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]
         PassageAssignment,
@@ -156,12 +161,14 @@ def run_phase3(config: RunConfig, phase2_data: dict, phase1_data: dict) -> dict:
     for i, seg in enumerate(plan.segments):
         prev_title = plan.segments[i - 1].template.name if i > 0 else None
         next_title = plan.segments[i + 1].template.name if i < len(plan.segments) - 1 else None
+        brief = host_briefs[i] if host_briefs else None
         episode_seg = generate_segment_script(
             seg, client, config.model, personas,
             is_first_segment=(i == 0),
             prompt_version=config.prompt_version,
             previous_segment_title=prev_title,
             next_segment_title=next_title,
+            host_brief=brief,
         )
         episode_segments.append(episode_seg)
         logger.info(
@@ -252,6 +259,16 @@ def main() -> None:
     parser.add_argument(
         "--prompt-version", type=int, default=2,
         help="Prompt version: 1=original, 2=supply-aware+passage-grounded (default: 2)",
+    )
+
+    # Host preparation (Phase 2.5)
+    parser.add_argument(
+        "--host-prep", action="store_true",
+        help="Enable host preparation: pre-interviews + question planning before Phase 3",
+    )
+    parser.add_argument(
+        "--interview-model", default="claude-haiku-4-5-20251001",
+        help="Model for Phase 2.5a pre-interviews (default: haiku)",
     )
 
     # Phase 3 overrides
@@ -447,9 +464,46 @@ def main() -> None:
         logger.info("Stopping after Phase 2")
         return
 
+    # Phase 2.5: Host preparation (optional)
+    host_briefs = None
+    if args.host_prep:
+        from enrichment.host_prep import run_host_prep  # pyright: ignore[reportMissingImports]
+        from enrichment.novel_prompts import get_active_novel  # pyright: ignore[reportMissingImports]
+
+        novel_cfg = get_active_novel(args.novel)
+        logger.info("Phase 2.5: host preparation (interview=%s)", args.interview_model)
+
+        # Build per-segment assignment lists from phase2 data
+        pa_lookup = {a["passage_id"]: a for a in phase1.get("assignments", [])}
+        segments_data = phase2.get("segments", [])
+        assignments_by_segment = []
+        for seg_data in segments_data:
+            seg_assignments = []
+            for a in seg_data.get("assignments", []):
+                full = pa_lookup.get(a.get("passage_id", ""), a)
+                seg_assignments.append(full)
+            assignments_by_segment.append(seg_assignments)
+
+        host_briefs = run_host_prep(
+            anthropic.Anthropic(),
+            config.personas,
+            segments_data,
+            assignments_by_segment,
+            novel_cfg.title,
+            novel_cfg.author,
+            interview_model=args.interview_model,
+            planning_model=config.model,
+        )
+
+        # Save host briefs
+        briefs_data = [b.model_dump() for b in host_briefs]
+        with open(run_dir / "phase2_5_host_briefs.json", "w") as f:
+            json.dump(briefs_data, f, indent=2)
+        logger.info("Saved %d host briefs", len(host_briefs))
+
     # Phase 3
     logger.info("Phase 3: script generation (model=%s)", config.model)
-    phase3 = run_phase3(config, phase2, phase1)
+    phase3 = run_phase3(config, phase2, phase1, host_briefs=host_briefs)
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
 
