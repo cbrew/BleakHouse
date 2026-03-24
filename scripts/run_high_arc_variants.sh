@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-RUN="uv run python -m enrichment.run --novel bleak_house"
+RUN="uv run python -m enrichment.run_pipeline --pipeline transport --novel bleak_house"
 ARC_OVERRIDES=(
   --arc-demand "Richard's deterioration=12"
   --arc-demand "Lady Dedlock's secret=10"

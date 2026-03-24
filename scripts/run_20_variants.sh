@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-RUN="uv run python -m enrichment.run --novel bleak_house --phase 2"
+RUN="uv run python -m enrichment.run_pipeline --pipeline transport --novel bleak_house --phase 2"
 
 echo "=== Round 1: Parameter Tuning (V1–V10) ==="
 

@@ -17,7 +17,7 @@ run_variant() {
     shift
     echo ""
     echo "=== $name === ($(date +%H:%M:%S))"
-    uv run python -m enrichment.embedding_run --novel bleak_house --name "$name" --phase "$PHASE" "$@"
+    uv run python -m enrichment.run_pipeline --pipeline embedding --novel bleak_house --name "$name" --phase "$PHASE" "$@"
     echo "=== $name complete === ($(date +%H:%M:%S))"
 }
 

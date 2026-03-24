@@ -43,7 +43,7 @@ for ((i=0; i<total; i+=BATCH_SIZE)); do
     for name in "${batch[@]}"; do
         flags="${PANEL_FLAGS[$name]}"
         echo "  Starting $name ..."
-        eval uv run python -m enrichment.run --novel bleak_house \
+        eval uv run python -m enrichment.run_pipeline --pipeline transport --novel bleak_house \
             --name "$name" \
             --resume-from 3 \
             $flags \

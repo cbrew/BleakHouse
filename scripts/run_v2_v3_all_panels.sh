@@ -38,7 +38,7 @@ run_panel() {
   echo "=== ${prefix}_${suffix} (v${version}) ==="
 
   # Transport
-  eval uv run python -m enrichment.run --novel bleak_house \
+  eval uv run python -m enrichment.run_pipeline --pipeline transport --novel bleak_house \
     --name "${prefix}_${suffix}" \
     --prompt-version "${version}" \
     ${flags} \
@@ -46,7 +46,7 @@ run_panel() {
   PID_T=$!
 
   # Embedding
-  eval uv run python -m enrichment.embedding_run --novel bleak_house \
+  eval uv run python -m enrichment.run_pipeline --pipeline embedding --novel bleak_house \
     --name "${prefix}_emb_${suffix}" \
     --prompt-version "${version}" \
     ${flags} \
@@ -54,7 +54,7 @@ run_panel() {
   PID_E=$!
 
   # No-passages
-  eval uv run python -m enrichment.no_passages_run --novel bleak_house \
+  eval uv run python -m enrichment.run_pipeline --pipeline no-passages --novel bleak_house \
     --name "${prefix}_nop_${suffix}" \
     --prompt-version "${version}" \
     ${flags} \

@@ -19,7 +19,7 @@ yes#!/usr/bin/env bash
 
 set -euo pipefail
 
-RUN="uv run python -m enrichment.run --novel bleak_house"
+RUN="uv run python -m enrichment.run_pipeline --pipeline transport --novel bleak_house"
 
 # Peaked demand overrides per expert
 HARTLEY_DEMANDS=(

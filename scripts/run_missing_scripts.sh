@@ -25,7 +25,7 @@ echo "================================================"
 for name in "${VARIANTS[@]}"; do
     echo ""
     echo "=== $name === ($(date +%H:%M:%S))"
-    uv run python -m enrichment.run --novel bleak_house --name "$name" --resume-from 3
+    uv run python -m enrichment.run_pipeline --pipeline transport --novel bleak_house --name "$name" --resume-from 3
     echo "=== $name complete === ($(date +%H:%M:%S))"
 done
 

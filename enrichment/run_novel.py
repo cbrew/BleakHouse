@@ -106,20 +106,11 @@ def run_condition(
             )
             sys.exit(1)
 
-    # Build command
-    if condition == "transport":
-        module = "enrichment.run"
-    elif condition == "embedding":
-        module = "enrichment.embedding_run"
-    elif condition == "no-passages":
-        module = "enrichment.no_passages_run"
-    else:
-        raise ValueError(f"Unknown condition: {condition}")
-
     cmd = [
-        sys.executable, "-m", module,
+        sys.executable, "-m", "enrichment.run_pipeline",
         "--name", name,
         "--novel", novel_key,
+        "--pipeline", condition,
         "--prompt-version", str(prompt_version),
     ]
     for replacement in PANELS.get(panel, []):
