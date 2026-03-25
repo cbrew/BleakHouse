@@ -33,6 +33,16 @@ NOVEL_KEYS = [
     "mill_on_the_floss",
     "north_and_south",
     "passage_to_india",
+    "hard_times",
+    "middlemarch",
+    "daniel_deronda",
+    "david_copperfield",
+    "cranford",
+    "no_name",
+    "new_grub_street",
+    "odd_women",
+    "miss_marjoribanks",
+    "hester",
 ]
 
 CONDITIONS = ["transport", "embedding", "no-passages"]
@@ -59,6 +69,11 @@ PANELS: dict[str, list[str]] = {
         "Eleanor Hartley=dr_rosen",
         "Caroline Woodcourt=trevelyan",
     ],
+    "v19_all_swapped": [
+        "Eleanor Hartley=trevelyan",
+        "James Blackstone=sir_edmund",
+        "Caroline Woodcourt=dr_rosen",
+    ],
     "v30_woodcourt_edmund_trevelyan": [
         "Eleanor Hartley=trevelyan",
         "James Blackstone=sir_edmund",
@@ -70,6 +85,16 @@ NOVEL_PREFIXES = {
     "mill_on_the_floss": "motf",
     "north_and_south": "nas",
     "passage_to_india": "pti",
+    "hard_times": "ht",
+    "middlemarch": "mid",
+    "daniel_deronda": "dd",
+    "david_copperfield": "dc",
+    "cranford": "cran",
+    "no_name": "noname",
+    "new_grub_street": "ngs",
+    "odd_women": "oddw",
+    "miss_marjoribanks": "mmar",
+    "hester": "hest",
 }
 
 COND_PREFIXES = {
