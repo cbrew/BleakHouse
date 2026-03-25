@@ -25,6 +25,16 @@ NOVEL_KEYS = [
     "mill_on_the_floss",
     "north_and_south",
     "passage_to_india",
+    "hard_times",
+    "middlemarch",
+    "daniel_deronda",
+    "david_copperfield",
+    "cranford",
+    "no_name",
+    "new_grub_street",
+    "odd_women",
+    "miss_marjoribanks",
+    "hester",
 ]
 
 BATCH_SIZE = 500
