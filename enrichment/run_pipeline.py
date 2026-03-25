@@ -136,12 +136,13 @@ def run_phase0(
         templates = list(DEFAULT_SEGMENT_TEMPLATES)
     else:
         logger.info("Phase 0: designing segments")
-        templates = design_segments(
-            experts, arcs,
+        kwargs: dict = dict(
             prompt_version=prompt_version,
             personas=personas if prompt_version >= 3 else None,
-            model=segment_model,
         )
+        if segment_model is not None:
+            kwargs["model"] = segment_model
+        templates = design_segments(experts, arcs, **kwargs)
 
     with open(run_dir / "phase0_segments.json", "w") as f:
         json.dump([t.model_dump() for t in templates], f, indent=2)
