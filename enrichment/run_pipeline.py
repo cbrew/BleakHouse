@@ -199,9 +199,10 @@ def run_phases_1_2_transport(
 
     # Phase 1: passage selection
     logger.info("Phase 1: passage selection (transport)")
-    from enrichment.run import compute_supplementary_demand  # pyright: ignore[reportMissingImports]
-    supplementary = compute_supplementary_demand(config)
-    result = run_pipeline(config.experts, config.arcs, config.producer, supplementary)
+    from enrichment.design_segments import compute_supplementary_demand  # pyright: ignore[reportMissingImports]
+    supp = compute_supplementary_demand(config.segment_templates, config.experts)
+    supp_demand = supp.dimension_boost if supp.total_boost > 0 else None
+    result = run_pipeline(config.experts, config.arcs, config.producer, supp_demand)
     passages = load_passages()
     assignments = build_passage_assignments(result, passages)
 
