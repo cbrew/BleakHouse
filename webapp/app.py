@@ -87,6 +87,29 @@ async def get_manifest(run_id: str):
         return json.load(f)
 
 
+@app.get("/api/runs/{run_id}/episode")
+async def get_episode(run_id: str):
+    """Serve the raw phase3_episode.json for any run."""
+    if ".." in run_id:
+        raise HTTPException(400, "Invalid path")
+    ep_path = DATA_DIR / "runs" / run_id / "phase3_episode.json"
+    if not ep_path.exists():
+        raise HTTPException(404, f"No episode for run {run_id}")
+    with open(ep_path) as f:
+        return json.load(f)
+
+
+@app.get("/script/{run_id}", response_class=HTMLResponse)
+async def script_viewer(run_id: str):
+    """Serve the script viewer page for a run."""
+    if ".." in run_id:
+        raise HTTPException(400, "Invalid path")
+    ep_path = DATA_DIR / "runs" / run_id / "phase3_episode.json"
+    if not ep_path.exists():
+        raise HTTPException(404, f"No episode for run {run_id}")
+    return HTMLResponse(SCRIPT_VIEWER_HTML)
+
+
 @app.get("/audio/{run_id}/{filename}")
 async def serve_audio(run_id: str, filename: str):
     if ".." in run_id or ".." in filename:
@@ -681,7 +704,7 @@ function showRunDetail(evt, encoded) {
     div.id = 'pop';
     div.className = 'popover';
     div.innerHTML = `<span class="close" onclick="this.parentElement.remove()">&times;</span>` +
-        `<h3>${c.name}</h3>${started}${rows}${metrics}`;
+        `<h3><a href="/script/${c.name}" target="_blank" style="color:inherit;text-decoration:none;border-bottom:1px dashed #999">${c.name}</a></h3>${started}${rows}${metrics}`;
     div.style.left = Math.min(evt.pageX + 10, window.innerWidth - 340) + 'px';
     div.style.top = (evt.pageY + 10) + 'px';
     document.body.appendChild(div);
@@ -697,6 +720,118 @@ const es = new EventSource('/tracker/stream');
 es.onmessage = e => { render(JSON.parse(e.data)); document.getElementById('status').textContent = 'live'; };
 es.onerror = () => { document.getElementById('status').textContent = 'reconnecting...'; };
 fetch('/tracker/data').then(r => r.json()).then(render);
+</script>
+</body>
+</html>
+"""
+
+
+SCRIPT_VIEWER_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Script Viewer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+       margin: 0; background: #1a1a2e; color: #e0e0e0; }
+header { background: #16213e; padding: 12px 20px; display: flex; align-items: center; gap: 12px;
+         border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 10; }
+header h1 { font-size: 1.1em; color: #f0a500; }
+header a { color: #88b; text-decoration: none; font-size: 0.85em; }
+header a:hover { text-decoration: underline; }
+.chips { display: flex; gap: 6px; margin-left: auto; }
+.chip { font-size: 0.75em; padding: 2px 8px; border-radius: 10px; border: 1px solid; }
+#transcript { max-width: 800px; margin: 0 auto; padding: 20px; }
+.segment-header { font-size: 1.1em; font-weight: 600; color: #f0a500; margin: 24px 0 8px;
+                   padding: 8px 0; border-bottom: 1px solid #333; }
+.turn { padding: 6px 0; border-bottom: 1px solid #222; }
+.speaker { font-weight: 600; font-size: 0.85em; margin-bottom: 2px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.text { font-size: 0.9em; line-height: 1.5; color: #ccc; }
+.text .quote { color: #c9a0dc; font-style: italic; }
+.text .reading { color: #e8c170; font-style: italic; font-weight: 500; }
+.meta { font-size: 0.75em; color: #666; margin-top: 16px; padding-top: 8px; border-top: 1px solid #222; }
+</style>
+</head>
+<body>
+<header>
+    <h1 id="title">Loading...</h1>
+    <a href="/tracker">&larr; Back to tracker</a>
+    <div class="chips" id="chips"></div>
+</header>
+<div id="transcript"></div>
+<div class="meta" id="meta"></div>
+<script>
+const COLORS = {
+    "Host":"#f0a500","Eleanor Hartley":"#4ecdc4","James Blackstone":"#6c7b95",
+    "Caroline Woodcourt":"#c06c84","Edmund Leigh":"#8e7cc3","Daniel Rosen":"#e07c5a",
+    "Oliver Trevelyan":"#5cb85c","Dr. Sarah Chen":"#f0a500"
+};
+const runId = location.pathname.split('/').pop();
+fetch(`/api/runs/${runId}/episode`).then(r => r.json()).then(ep => {
+    document.getElementById('title').textContent = (ep.title || runId);
+    document.title = (ep.title || runId) + ' — Script Viewer';
+
+    // Expert chips
+    const speakers = new Set();
+    for (const seg of ep.segments) {
+        for (const turn of seg.turns) {
+            if (turn.speaker !== 'Host') speakers.add(turn.speaker);
+        }
+    }
+    const chips = document.getElementById('chips');
+    for (const s of speakers) {
+        const c = document.createElement('span');
+        c.className = 'chip';
+        c.style.borderColor = COLORS[s] || '#666';
+        c.style.color = COLORS[s] || '#ccc';
+        c.textContent = s;
+        chips.appendChild(c);
+    }
+
+    // Transcript
+    const tx = document.getElementById('transcript');
+    let totalWords = 0;
+    for (const seg of ep.segments) {
+        const h = document.createElement('div');
+        h.className = 'segment-header';
+        h.textContent = seg.title || seg.segment_type || '';
+        tx.appendChild(h);
+        for (const turn of seg.turns) {
+            const div = document.createElement('div');
+            div.className = 'turn';
+            const color = COLORS[turn.speaker] || '#999';
+            div.innerHTML = `<div class="speaker"><span class="dot" style="background:${color}"></span>` +
+                `<span style="color:${color}">${turn.speaker}</span></div>`;
+            let textHtml = '';
+            for (const u of turn.utterances) {
+                const words = u.text.split(/\\s+/).length;
+                totalWords += words;
+                if (u.quote_mode === 'reading') {
+                    textHtml += `<span class="reading">${esc(u.text)}</span> `;
+                } else if (u.is_quote) {
+                    textHtml += `<span class="quote">${esc(u.text)}</span> `;
+                } else {
+                    textHtml += esc(u.text) + ' ';
+                }
+            }
+            div.innerHTML += `<div class="text">${textHtml}</div>`;
+            tx.appendChild(div);
+        }
+    }
+    document.getElementById('meta').textContent =
+        `${ep.segments.length} segments, ${totalWords.toLocaleString()} words`;
+}).catch(e => {
+    document.getElementById('title').textContent = 'Error loading ' + runId;
+    document.getElementById('transcript').textContent = e.message;
+});
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
 </script>
 </body>
 </html>
