@@ -167,16 +167,23 @@ def _measure(path: Path) -> dict | None:
     questions = 0
     reactive = 0
     quotes = 0
+    quote_modes: dict[str, int] = {"setup": 0, "reading": 0, "commentary": 0}
     for seg in segs:
         for turn in seg.get("turns", []):
             text = " ".join(u.get("text", "") for u in turn.get("utterances", []))
             words += len(text.split())
             questions += text.count("?")
             reactive += len(REACTIVE_RE.findall(text))
-            quotes += sum(1 for u in turn.get("utterances", []) if u.get("is_quote"))
+            for u in turn.get("utterances", []):
+                if u.get("is_quote"):
+                    quotes += 1
+                mode = u.get("quote_mode", "none")
+                if mode in quote_modes:
+                    quote_modes[mode] += 1
     return {
         "w": words, "q": round(questions / n, 1),
         "r": round(reactive / n, 1), "quotes": quotes,
+        "quote_modes": quote_modes,
     }
 
 
@@ -216,7 +223,24 @@ def _phase_timings(rd: Path) -> dict:
     result["p0_min"] = _dur("config", "p0")
     result["p1_min"] = _dur("p0", "p1")
     result["p2_min"] = _dur("p1", "p2")
-    result["p25_min"] = _dur("p2", "hp") if "hp" in mtimes else None
+    # Phase 2.5: use config→hp duration if plausible (hostprep runs copy
+    # phase2_plan from old runs, making p2→hp unreliable). A real Phase 2.5
+    # takes 4-6 minutes, so config→hp should be < 30 min for a hostprep run.
+    if "hp" in mtimes and "config" in mtimes:
+        config_to_hp = (mtimes["hp"] - mtimes["config"]) / 60
+        if 1 < config_to_hp < 30:
+            # Subtract phases 0-2 time if available
+            p012_time = sum(
+                v for v in [result.get("p0_min"), result.get("p1_min"), result.get("p2_min")]
+                if v is not None
+            )
+            p25_est = round(config_to_hp - p012_time, 1)
+            result["p25_min"] = p25_est if p25_est > 0 else _dur("p2", "hp")
+        else:
+            result["p25_min"] = None  # implausible, probably copied files
+    else:
+        result["p25_min"] = None
+
     if "hp" in mtimes:
         result["p3_min"] = _dur("hp", "p3")
     else:
@@ -626,9 +650,14 @@ function showRunDetail(evt, encoded) {
         rows = '<div class="timing" style="color:#999">Timing data unavailable (files may have been copied)</div>';
     }
 
+    const qm = c.quote_modes || {};
+    const quoteDetail = c.quotes > 0
+        ? ` (setup: ${qm.setup||0}, reading: ${qm.reading||0}, commentary: ${qm.commentary||0})`
+        : '';
     const metrics = `<div style="margin-top:6px;border-top:1px solid #eee;padding-top:6px">` +
         `Q/seg: <strong>${c.q}</strong> &bull; React/seg: <strong>${c.r}</strong> &bull; ` +
-        `Words: <strong>${c.w?.toLocaleString()}</strong> &bull; Quotes: <strong>${c.quotes}</strong></div>`;
+        `Words: <strong>${c.w?.toLocaleString()}</strong><br>` +
+        `Quotes: <strong>${c.quotes}</strong>${quoteDetail}</div>`;
 
     const started = t.started ? `<div style="color:#888;font-size:0.9em">Started: ${t.started}</div>` : '';
 
