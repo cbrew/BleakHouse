@@ -180,24 +180,40 @@ def _measure(path: Path) -> dict | None:
     }
 
 
+def _run_status(runs_dir: Path, rn: str) -> str:
+    """Determine run status: done, running, or missing."""
+    rd = runs_dir / rn
+    if (rd / "phase3_episode.json").exists():
+        return "done"
+    if (rd / "config.json").exists():
+        # Has config but no episode — in progress
+        return "running"
+    return "missing"
+
+
 def _build_matrix_data() -> dict:
     runs_dir = DATA_DIR / "runs"
     rows = []
     total = 0
     done = 0
+    running = 0
     for novel_key, title, author, year in TRACKER_NOVELS:
         cells = []
         for pp, panel, hp in TRACKER_CONDITIONS:
             total += 1
             rn = _tracker_run_name(novel_key, pp, panel, hp)
-            m = _measure(runs_dir / rn / "phase3_episode.json")
-            if m:
+            status = _run_status(runs_dir, rn)
+            if status == "done":
                 done += 1
-                cells.append({"name": rn, "status": "done", **m})
+                m = _measure(runs_dir / rn / "phase3_episode.json")
+                cells.append({"name": rn, "status": "done", **(m or {})})
+            elif status == "running":
+                running += 1
+                cells.append({"name": rn, "status": "running"})
             else:
                 cells.append({"name": rn, "status": "missing"})
         rows.append({"key": novel_key, "title": title, "author": author, "year": year, "cells": cells})
-    return {"rows": rows, "total": total, "done": done}
+    return {"rows": rows, "total": total, "done": done, "running": running}
 
 
 @app.get("/tracker", response_class=HTMLResponse)
@@ -249,6 +265,8 @@ td.n { text-align:left; font-weight:600; background:#fff; white-space:nowrap; }
 td.a { text-align:left; color:#666; background:#fff; }
 td.y { color:#888; background:#fff; }
 td.m { background:#f5f5f5; color:#ccc; }
+td.run { background:#cce5ff; color:#004085; animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
 td.d { cursor:help; }
 td.hi { background:#d4edda; }
 td.mi { background:#fff3cd; }
@@ -285,20 +303,24 @@ td.lo { background:#f8d7da; }
 <p><span style="background:#d4edda"></span> Q/seg &ge;5
    <span style="background:#fff3cd"></span> 2&ndash;5
    <span style="background:#f8d7da"></span> &lt;2
+   <span style="background:#cce5ff"></span> running
    <span style="background:#f5f5f5"></span> pending</p>
 </div>
 <script>
 function render(data) {
     const pct = Math.round(data.done * 100 / data.total);
-    document.getElementById('progress').innerHTML =
-        `<strong>${data.done}/${data.total}</strong> (${pct}%) ` +
-        `<span class="bar-bg"><span class="bar" style="width:${data.done*300/data.total}px"></span></span>`;
+    let status = `<strong>${data.done}/${data.total}</strong> (${pct}%) `;
+    if (data.running > 0) status += `<span style="color:#004085"> ${data.running} running</span> `;
+    status += `<span class="bar-bg"><span class="bar" style="width:${data.done*300/data.total}px"></span></span>`;
+    document.getElementById('progress').innerHTML = status;
     let html = '';
     for (const row of data.rows) {
         html += `<tr><td class="n">${row.title}</td><td class="a">${row.author}</td><td class="y">${row.year}</td>`;
         for (const c of row.cells) {
             if (c.status === 'missing') {
                 html += '<td class="m">&mdash;</td>';
+            } else if (c.status === 'running') {
+                html += `<td class="run" title="${c.name}">&#9654;</td>`;
             } else {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 html += `<td class="d ${cls}" title="${c.name}">` +
