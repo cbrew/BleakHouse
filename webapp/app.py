@@ -182,6 +182,8 @@ def _measure(path: Path) -> dict | None:
 
 def _run_detail(runs_dir: Path, rn: str) -> dict:
     """Get status and detail for a run directory."""
+    import time
+
     rd = runs_dir / rn
     if (rd / "phase3_episode.json").exists():
         m = _measure(rd / "phase3_episode.json")
@@ -189,28 +191,63 @@ def _run_detail(runs_dir: Path, rn: str) -> dict:
     if not (rd / "config.json").exists():
         return {"name": rn, "status": "missing"}
 
-    # In progress — determine phase
-    if (rd / "phase2_5_host_briefs.json").exists():
+    # In progress — determine phase and progress
+    has_p0 = (rd / "phase0_segments.json").exists()
+    has_p1 = (rd / "phase1_assignments.json").exists()
+    has_p2 = (rd / "phase2_plan.json").exists()
+    has_hp = (rd / "phase2_5_host_briefs.json").exists()
+
+    expects_hp = False
+    try:
+        cfg = json.load(open(rd / "config.json"))
+        expects_hp = bool(cfg.get("host_prep"))
+    except (json.JSONDecodeError, KeyError):
+        pass
+
+    if has_p2 and (has_hp or not expects_hp):
         phase = "Phase 3"
-    elif (rd / "phase2_plan.json").exists():
-        phase = "Phase 2.5" if (rd / "config.json").exists() else "Phase 3"
-        # Check if hostprep briefs are expected
-        try:
-            cfg = json.load(open(rd / "config.json"))
-            if cfg.get("host_prep") and not (rd / "phase2_5_host_briefs.json").exists():
-                phase = "Phase 2.5"
-            else:
-                phase = "Phase 3"
-        except (json.JSONDecodeError, KeyError):
-            phase = "Phase 3"
-    elif (rd / "phase1_assignments.json").exists():
+    elif has_p2 and expects_hp and not has_hp:
+        phase = "Phase 2.5"
+    elif has_p1:
         phase = "Phase 2"
-    elif (rd / "phase0_segments.json").exists():
+    elif has_p0:
         phase = "Phase 1"
     else:
         phase = "Phase 0"
 
-    return {"name": rn, "status": "running", "phase": phase}
+    # Start time from config.json mtime
+    start_ts = rd / "config.json"
+    started = int(start_ts.stat().st_mtime)
+
+    # Elapsed time
+    elapsed_min = round((time.time() - started) / 60, 1)
+
+    # Estimate progress within Phase 3
+    phase3_pct = 0
+    total_segs = 0
+    if phase == "Phase 3" and has_p0:
+        try:
+            segs = json.load(open(rd / "phase0_segments.json"))
+            total_segs = len(segs)
+        except (json.JSONDecodeError, KeyError):
+            pass
+        if total_segs > 0:
+            # Count how many report.txt lines mention completed segments
+            # Use the most recently modified file's mtime as a heartbeat
+            mtimes = []
+            for f in rd.iterdir():
+                mtimes.append(f.stat().st_mtime)
+            # Rough estimate: each segment takes ~90s in Phase 3
+            elapsed_in_p3 = time.time() - (rd / "phase2_5_host_briefs.json" if has_hp
+                                           else rd / "phase2_plan.json").stat().st_mtime
+            segs_done_est = min(int(elapsed_in_p3 / 90), total_segs - 1)
+            phase3_pct = round(segs_done_est / total_segs * 100)
+
+    return {
+        "name": rn, "status": "running", "phase": phase,
+        "elapsed_min": elapsed_min, "started": started,
+        "phase3_pct": phase3_pct, "total_segs": total_segs,
+    }
 
 
 def _check_process_alive() -> dict | None:
@@ -378,6 +415,20 @@ function render(data) {
     let pinfo = '';
     if (data.process && data.process.alive) {
         pinfo = `&#9654; Pipeline process alive (PID ${data.process.pid}), current run: <strong>${data.process.run}</strong>`;
+        // Find the running cell to show details
+        for (const row of data.rows) {
+            for (const c of row.cells) {
+                if (c.status === 'running' && c.phase === 'Phase 3') {
+                    const pct = c.phase3_pct || 0;
+                    const segs = c.total_segs || '?';
+                    pinfo += ` &mdash; ${c.phase} (${segs} segments, ~${pct}% est.) &mdash; ${c.elapsed_min} min elapsed`;
+                    break;
+                } else if (c.status === 'running') {
+                    pinfo += ` &mdash; ${c.phase} &mdash; ${c.elapsed_min} min elapsed`;
+                    break;
+                }
+            }
+        }
     } else if (data.running > 0) {
         pinfo = '&#9888; Runs in progress but no pipeline process detected &mdash; may have crashed';
     } else if (data.done < data.total) {
@@ -394,7 +445,15 @@ function render(data) {
                 html += '<td class="m">&mdash;</td>';
             } else if (c.status === 'running') {
                 const ph = c.phase || '?';
-                html += `<td class="run" title="${c.name} — ${ph}">${ph}</td>`;
+                const pct = c.phase3_pct || 0;
+                const elapsed = c.elapsed_min || 0;
+                let inner = `<span style="font-size:0.75em;font-weight:600">${ph}</span>`;
+                if (ph === 'Phase 3' && pct > 0) {
+                    inner += `<br><span style="display:inline-block;width:90%;height:4px;background:#b8daff;border-radius:2px">` +
+                        `<span style="display:inline-block;width:${pct}%;height:4px;background:#004085;border-radius:2px"></span></span>`;
+                }
+                inner += `<br><span style="font-size:0.7em;color:#004085">${elapsed}m</span>`;
+                html += `<td class="run" title="${c.name} — ${ph} — ${elapsed} min">${inner}</td>`;
             } else {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 html += `<td class="d ${cls}" title="${c.name}">` +
