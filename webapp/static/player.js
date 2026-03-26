@@ -36,8 +36,29 @@ const loading      = document.getElementById("loading");
 
 // ── Init ──
 async function init() {
+    // Direct link: /?run=ext_v01_baseline skips selectors
+    const params = new URLSearchParams(window.location.search);
+    const directRun = params.get("run");
+
     novels = await fetch("/api/novels").then(r => r.json());
     const novelNames = Object.keys(novels);
+
+    if (directRun) {
+        // Hide selectors, load directly
+        novelSelect.style.display = "none";
+        runSelect.style.display = "none";
+        // Find the novel for this run
+        for (const [name, runs] of Object.entries(novels)) {
+            if (runs.some(r => r.run_id === directRun)) {
+                novelTitle.textContent = name + " Unpacked";
+                document.title = name + " — Literary Podcast";
+                break;
+            }
+        }
+        loadRun(directRun);
+        return;
+    }
+
     if (novelNames.length === 0) {
         loading.textContent = "No podcast runs with audio found.";
         return;
