@@ -180,15 +180,58 @@ def _measure(path: Path) -> dict | None:
     }
 
 
-def _run_status(runs_dir: Path, rn: str) -> str:
-    """Determine run status: done, running, or missing."""
+def _run_detail(runs_dir: Path, rn: str) -> dict:
+    """Get status and detail for a run directory."""
     rd = runs_dir / rn
     if (rd / "phase3_episode.json").exists():
-        return "done"
-    if (rd / "config.json").exists():
-        # Has config but no episode — in progress
-        return "running"
-    return "missing"
+        m = _measure(rd / "phase3_episode.json")
+        return {"name": rn, "status": "done", **(m or {})}
+    if not (rd / "config.json").exists():
+        return {"name": rn, "status": "missing"}
+
+    # In progress — determine phase
+    if (rd / "phase2_5_host_briefs.json").exists():
+        phase = "Phase 3"
+    elif (rd / "phase2_plan.json").exists():
+        phase = "Phase 2.5" if (rd / "config.json").exists() else "Phase 3"
+        # Check if hostprep briefs are expected
+        try:
+            cfg = json.load(open(rd / "config.json"))
+            if cfg.get("host_prep") and not (rd / "phase2_5_host_briefs.json").exists():
+                phase = "Phase 2.5"
+            else:
+                phase = "Phase 3"
+        except (json.JSONDecodeError, KeyError):
+            phase = "Phase 3"
+    elif (rd / "phase1_assignments.json").exists():
+        phase = "Phase 2"
+    elif (rd / "phase0_segments.json").exists():
+        phase = "Phase 1"
+    else:
+        phase = "Phase 0"
+
+    return {"name": rn, "status": "running", "phase": phase}
+
+
+def _check_process_alive() -> dict | None:
+    """Check if a pipeline process is running and what it's doing."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["pgrep", "-fl", "enrichment.run_pipeline|enrichment.embedding_run|enrichment.run_novel|run_full_matrix"],
+            capture_output=True, text=True, timeout=5,
+        )
+        lines = [ln for ln in result.stdout.strip().split("\n") if ln and "pgrep" not in ln]
+        if not lines:
+            return None
+        # Extract the run name from the command line
+        for line in lines:
+            m = re.search(r"--name\s+(\S+)", line)
+            if m:
+                return {"pid": line.split()[0], "run": m.group(1), "alive": True}
+        return {"pid": lines[0].split()[0], "run": "unknown", "alive": True}
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
 
 
 def _build_matrix_data() -> dict:
@@ -196,24 +239,28 @@ def _build_matrix_data() -> dict:
     rows = []
     total = 0
     done = 0
-    running = 0
+    running_count = 0
+    running_names = []
     for novel_key, title, author, year in TRACKER_NOVELS:
         cells = []
         for pp, panel, hp in TRACKER_CONDITIONS:
             total += 1
             rn = _tracker_run_name(novel_key, pp, panel, hp)
-            status = _run_status(runs_dir, rn)
-            if status == "done":
+            detail = _run_detail(runs_dir, rn)
+            if detail["status"] == "done":
                 done += 1
-                m = _measure(runs_dir / rn / "phase3_episode.json")
-                cells.append({"name": rn, "status": "done", **(m or {})})
-            elif status == "running":
-                running += 1
-                cells.append({"name": rn, "status": "running"})
-            else:
-                cells.append({"name": rn, "status": "missing"})
+            elif detail["status"] == "running":
+                running_count += 1
+                running_names.append(rn)
+            cells.append(detail)
         rows.append({"key": novel_key, "title": title, "author": author, "year": year, "cells": cells})
-    return {"rows": rows, "total": total, "done": done, "running": running}
+
+    process = _check_process_alive()
+    return {
+        "rows": rows, "total": total, "done": done,
+        "running": running_count, "running_names": running_names,
+        "process": process,
+    }
 
 
 @app.get("/tracker", response_class=HTMLResponse)
@@ -284,6 +331,7 @@ td.lo { background:#f8d7da; }
 <div class="sub">15 novels &times; 2 panels &times; 2 pipelines &times; 2 host-prep = 120 runs
  &mdash; <span id="status">connecting...</span></div>
 <div id="progress"></div>
+<div id="procinfo" style="font-size:0.85em; color:#555; margin-bottom:1em;"></div>
 <table>
 <thead>
 <tr>
@@ -299,20 +347,45 @@ td.lo { background:#f8d7da; }
 <tbody id="tbody"></tbody>
 </table>
 <div class="legend">
-<p>Each cell: <strong>Q/seg</strong> / reactive/seg / word count. Hover for run name.</p>
-<p><span style="background:#d4edda"></span> Q/seg &ge;5
-   <span style="background:#fff3cd"></span> 2&ndash;5
-   <span style="background:#f8d7da"></span> &lt;2
+<p><strong>Cell values</strong> (top to bottom):</p>
+<table style="width:auto; margin:0.5em 0; font-size:1em;">
+<tr><td style="border:none; text-align:left; padding:2px 8px;"><span class="q">5.1</span></td>
+    <td style="border:none; text-align:left; padding:2px 8px;">Questions per segment &mdash; measures how conversational the host is</td></tr>
+<tr><td style="border:none; text-align:left; padding:2px 8px;"><span class="r">14.3</span></td>
+    <td style="border:none; text-align:left; padding:2px 8px;">Reactive markers per segment &mdash; cross-expert engagement (agreement, disagreement, building on)</td></tr>
+<tr><td style="border:none; text-align:left; padding:2px 8px;"><span class="w">8k</span></td>
+    <td style="border:none; text-align:left; padding:2px 8px;">Total episode word count (thousands)</td></tr>
+</table>
+<p><strong>Cell colours:</strong>
+   <span style="background:#d4edda"></span> Q/seg &ge; 5 (strong dialogue)
+   <span style="background:#fff3cd"></span> 2&ndash;5 (moderate)
+   <span style="background:#f8d7da"></span> &lt; 2 (monologue-like)
    <span style="background:#cce5ff"></span> running
-   <span style="background:#f5f5f5"></span> pending</p>
+   <span style="background:#f5f5f5"></span> pending
+</p>
+<p><strong>Column abbreviations:</strong> A = Panel A (Hartley/Blackstone/Woodcourt),
+   B = Panel B (Trevelyan/Leigh/Rosen), HP = host preparation (Phase 2.5)</p>
 </div>
 <script>
 function render(data) {
     const pct = Math.round(data.done * 100 / data.total);
-    let status = `<strong>${data.done}/${data.total}</strong> (${pct}%) `;
-    if (data.running > 0) status += `<span style="color:#004085"> ${data.running} running</span> `;
-    status += `<span class="bar-bg"><span class="bar" style="width:${data.done*300/data.total}px"></span></span>`;
+    const remaining = data.total - data.done;
+    let status = `<strong>${data.done}/${data.total}</strong> (${pct}%) &mdash; ${remaining} remaining `;
+    if (data.running > 0) status += `<span style="color:#004085">&bull; ${data.running} in progress</span> `;
+    status += `<br><span class="bar-bg"><span class="bar" style="width:${data.done*300/data.total}px"></span></span>`;
     document.getElementById('progress').innerHTML = status;
+    // Process info
+    let pinfo = '';
+    if (data.process && data.process.alive) {
+        pinfo = `&#9654; Pipeline process alive (PID ${data.process.pid}), current run: <strong>${data.process.run}</strong>`;
+    } else if (data.running > 0) {
+        pinfo = '&#9888; Runs in progress but no pipeline process detected &mdash; may have crashed';
+    } else if (data.done < data.total) {
+        pinfo = '&#9744; No pipeline process running. Use <code>uv run python -m enrichment.run_full_matrix --only-missing</code> to continue.';
+    } else {
+        pinfo = '&#9989; All 120 runs complete!';
+    }
+    document.getElementById('procinfo').innerHTML = pinfo;
     let html = '';
     for (const row of data.rows) {
         html += `<tr><td class="n">${row.title}</td><td class="a">${row.author}</td><td class="y">${row.year}</td>`;
@@ -320,7 +393,8 @@ function render(data) {
             if (c.status === 'missing') {
                 html += '<td class="m">&mdash;</td>';
             } else if (c.status === 'running') {
-                html += `<td class="run" title="${c.name}">&#9654;</td>`;
+                const ph = c.phase || '?';
+                html += `<td class="run" title="${c.name} — ${ph}">${ph}</td>`;
             } else {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 html += `<td class="d ${cls}" title="${c.name}">` +
