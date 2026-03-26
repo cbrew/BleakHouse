@@ -298,6 +298,10 @@ def _run_detail(runs_dir: Path, rn: str) -> dict:
         timings = _phase_timings(rd)
         qv = _load_quote_verification(rd)
         has_audio = (rd / "audio" / "manifest.json").exists()
+        # Also check the 'ext' variant name (older runs used ext instead of trn)
+        if not has_audio and "_trn_" in rn:
+            alt_rd = runs_dir / rn.replace("_trn_", "_ext_")
+            has_audio = (alt_rd / "audio" / "manifest.json").exists()
         return {"name": rn, "status": "done", **(m or {}), "timings": timings, "qv": qv, "has_audio": has_audio}
     if not (rd / "config.json").exists():
         return {"name": rn, "status": "missing"}
@@ -613,8 +617,9 @@ function render(data) {
             } else {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 const cdata = encodeURIComponent(JSON.stringify(c));
+                const audio = c.has_audio ? '<span style="font-size:0.7em;color:#333" title="audio available">&#9835;</span>' : '';
                 html += `<td class="d ${cls}" onclick="showRunDetail(event, '${cdata}')">` +
-                    `<span class="q">${c.q}</span><br>` +
+                    `<span class="q">${c.q}</span>${audio}<br>` +
                     `<span class="r">${c.r}</span><br>` +
                     `<span class="w">${Math.round(c.w/1000)}k</span></td>`;
             }
