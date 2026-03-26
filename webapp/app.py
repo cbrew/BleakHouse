@@ -271,6 +271,40 @@ def _check_process_alive() -> dict | None:
         return None
 
 
+def _compute_phase_histograms() -> dict:
+    """Compute timing histograms from completed runs."""
+    runs_dir = DATA_DIR / "runs"
+    p25_times: list[float] = []
+    p3_times: list[float] = []
+
+    for rd in runs_dir.iterdir():
+        if not rd.is_dir():
+            continue
+        config_f = rd / "config.json"
+        hp_briefs = rd / "phase2_5_host_briefs.json"
+        episode = rd / "phase3_episode.json"
+
+        if not (config_f.exists() and episode.exists()):
+            continue
+
+        cfg_mtime = config_f.stat().st_mtime
+        ep_mtime = episode.stat().st_mtime
+
+        if hp_briefs.exists():
+            hp_mtime = hp_briefs.stat().st_mtime
+            p25_dur = (hp_mtime - cfg_mtime) / 60
+            p3_dur = (ep_mtime - hp_mtime) / 60
+            if 1 < p25_dur < 30 and 5 < p3_dur < 30:
+                p25_times.append(round(p25_dur, 1))
+                p3_times.append(round(p3_dur, 1))
+        else:
+            total = (ep_mtime - cfg_mtime) / 60
+            if 5 < total < 30:
+                p3_times.append(round(total, 1))
+
+    return {"p25": sorted(p25_times), "p3": sorted(p3_times)}
+
+
 def _build_matrix_data() -> dict:
     runs_dir = DATA_DIR / "runs"
     rows = []
@@ -293,10 +327,11 @@ def _build_matrix_data() -> dict:
         rows.append({"key": novel_key, "title": title, "author": author, "year": year, "cells": cells})
 
     process = _check_process_alive()
+    histograms = _compute_phase_histograms()
     return {
         "rows": rows, "total": total, "done": done,
         "running": running_count, "running_names": running_names,
-        "process": process,
+        "process": process, "histograms": histograms,
     }
 
 
@@ -383,6 +418,7 @@ td.lo { background:#f8d7da; }
 </thead>
 <tbody id="tbody"></tbody>
 </table>
+<div id="histograms" style="display:flex; gap:2em; margin-bottom:1.5em;"></div>
 <div class="legend">
 <p><strong>Cell values</strong> (top to bottom):</p>
 <table style="width:auto; margin:0.5em 0; font-size:1em;">
@@ -465,6 +501,41 @@ function render(data) {
         html += '</tr>';
     }
     document.getElementById('tbody').innerHTML = html;
+    // Histograms
+    if (data.histograms) renderHistograms(data.histograms);
+}
+function renderHistograms(h) {
+    const container = document.getElementById('histograms');
+    container.innerHTML = '';
+    for (const [key, label] of [['p25','Phase 2.5 (host prep)'], ['p3','Phase 3 (script gen)']]) {
+        const vals = h[key];
+        if (!vals || vals.length === 0) continue;
+        // Bucket into 1-min bins
+        const min = Math.floor(Math.min(...vals));
+        const max = Math.ceil(Math.max(...vals));
+        const nbins = Math.max(max - min, 1);
+        const bins = Array(nbins).fill(0);
+        for (const v of vals) bins[Math.min(Math.floor(v) - min, nbins-1)]++;
+        const peak = Math.max(...bins);
+        const w = 220, h2 = 80, bw = Math.min(Math.floor(w / nbins), 20);
+        const mean = (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
+        const median = vals[Math.floor(vals.length/2)].toFixed(1);
+        let svg = `<div style="font-size:0.8em"><strong>${label}</strong><br>` +
+            `<span style="color:#888">n=${vals.length}, mean=${mean}m, median=${median}m</span><br>` +
+            `<svg width="${w+30}" height="${h2+20}" style="margin-top:4px">`;
+        for (let i = 0; i < nbins; i++) {
+            const bh = peak > 0 ? (bins[i]/peak) * h2 : 0;
+            const x = i * bw + 20;
+            const y = h2 - bh;
+            svg += `<rect x="${x}" y="${y}" width="${bw-1}" height="${bh}" fill="#5b9bd5"/>`;
+            if (i % 2 === 0 || nbins <= 10) {
+                svg += `<text x="${x+bw/2}" y="${h2+12}" text-anchor="middle" font-size="9" fill="#888">${min+i}</text>`;
+            }
+        }
+        svg += `<text x="10" y="${h2/2}" text-anchor="middle" transform="rotate(-90,10,${h2/2})" font-size="9" fill="#888">runs</text>`;
+        svg += `</svg></div>`;
+        container.innerHTML += svg;
+    }
 }
 const es = new EventSource('/tracker/stream');
 es.onmessage = e => { render(JSON.parse(e.data)); document.getElementById('status').textContent = 'live'; };
