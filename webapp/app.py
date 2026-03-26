@@ -553,7 +553,7 @@ function render(data) {
             } else {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 const cdata = encodeURIComponent(JSON.stringify(c));
-                html += `<td class="d ${cls}" onclick="showPopover(event, '${cdata}')">` +
+                html += `<td class="d ${cls}" onclick="showRunDetail(event, '${cdata}')">` +
                     `<span class="q">${c.q}</span><br>` +
                     `<span class="r">${c.r}</span><br>` +
                     `<span class="w">${Math.round(c.w/1000)}k</span></td>`;
@@ -598,7 +598,7 @@ function renderHistograms(h) {
         container.innerHTML += svg;
     }
 }
-function showPopover(evt, encoded) {
+function showRunDetail(evt, encoded) {
     // Remove existing popover
     const old = document.getElementById('pop');
     if (old) old.remove();
