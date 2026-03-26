@@ -254,6 +254,17 @@ def _phase_timings(rd: Path) -> dict:
     return result
 
 
+def _load_quote_verification(rd: Path) -> dict | None:
+    """Load cached quote verification results."""
+    qv_path = rd / "quote_verification.json"
+    if qv_path.exists():
+        try:
+            return json.load(open(qv_path))
+        except (json.JSONDecodeError, KeyError):
+            pass
+    return None
+
+
 def _run_detail(runs_dir: Path, rn: str) -> dict:
     """Get status and detail for a run directory."""
     import time
@@ -262,7 +273,8 @@ def _run_detail(runs_dir: Path, rn: str) -> dict:
     if (rd / "phase3_episode.json").exists():
         m = _measure(rd / "phase3_episode.json")
         timings = _phase_timings(rd)
-        return {"name": rn, "status": "done", **(m or {}), "timings": timings}
+        qv = _load_quote_verification(rd)
+        return {"name": rn, "status": "done", **(m or {}), "timings": timings, "qv": qv}
     if not (rd / "config.json").exists():
         return {"name": rn, "status": "missing"}
 
@@ -654,10 +666,14 @@ function showRunDetail(evt, encoded) {
     const quoteDetail = c.quotes > 0
         ? ` (setup: ${qm.setup||0}, reading: ${qm.reading||0}, commentary: ${qm.commentary||0})`
         : '';
+    const qv = c.qv;
+    const verif = qv
+        ? `<br>Verified: <strong>${qv.verified}/${qv.total}</strong> (${qv.rate}%)`
+        : '';
     const metrics = `<div style="margin-top:6px;border-top:1px solid #eee;padding-top:6px">` +
         `Q/seg: <strong>${c.q}</strong> &bull; React/seg: <strong>${c.r}</strong> &bull; ` +
         `Words: <strong>${c.w?.toLocaleString()}</strong><br>` +
-        `Quotes: <strong>${c.quotes}</strong>${quoteDetail}</div>`;
+        `Quotes: <strong>${c.quotes}</strong>${quoteDetail}${verif}</div>`;
 
     const started = t.started ? `<div style="color:#888;font-size:0.9em">Started: ${t.started}</div>` : '';
 
