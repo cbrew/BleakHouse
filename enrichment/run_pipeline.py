@@ -241,7 +241,7 @@ def run_phases_1_2_embedding(
     experts: list[ExpertProfile],
     arcs: list[ArcDemand],
     templates: list[SegmentTemplate],
-    personas: list[ExpertPersona],
+    personas: list[ExpertPersona],  # noqa: ARG001
     run_dir: Path,
     curation_model: str = "claude-sonnet-4-6",
     candidates_per_query: int = 15,
@@ -249,8 +249,9 @@ def run_phases_1_2_embedding(
     passage_target: int = 32,
 ) -> tuple[dict, dict]:
     """Phases 1+2 for embedding pipeline: retrieval + LLM curation."""
-    from enrichment.embedding_podcast import (  # pyright: ignore[reportMissingImports]
-        RetrievalConfig,
+    from enrichment.embedding_podcast import RetrievalConfig  # pyright: ignore[reportMissingImports]
+    from enrichment.embedding_run import (  # pyright: ignore[reportMissingImports]
+        _load_enrichment_data,
         run_embedding_phases,
     )
 
@@ -261,9 +262,10 @@ def run_phases_1_2_embedding(
         curation_model=curation_model,
     )
 
+    enrichment_data = _load_enrichment_data()
     logger.info("Phases 1+2: embedding retrieval + LLM curation")
     phase1, phase2, artifacts = run_embedding_phases(
-        experts, arcs, templates, retrieval_config, personas,
+        experts, arcs, templates, enrichment_data, retrieval_config,
     )
 
     with open(run_dir / "phase1_assignments.json", "w") as f:
