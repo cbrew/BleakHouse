@@ -297,7 +297,8 @@ def _run_detail(runs_dir: Path, rn: str) -> dict:
         m = _measure(rd / "phase3_episode.json")
         timings = _phase_timings(rd)
         qv = _load_quote_verification(rd)
-        return {"name": rn, "status": "done", **(m or {}), "timings": timings, "qv": qv}
+        has_audio = (rd / "audio" / "manifest.json").exists()
+        return {"name": rn, "status": "done", **(m or {}), "timings": timings, "qv": qv, "has_audio": has_audio}
     if not (rd / "config.json").exists():
         return {"name": rn, "status": "missing"}
 
@@ -703,8 +704,10 @@ function showRunDetail(evt, encoded) {
     const div = document.createElement('div');
     div.id = 'pop';
     div.className = 'popover';
+    const viewUrl = c.has_audio ? `/?run=${c.name}` : `/script/${c.name}`;
+    const viewLabel = c.has_audio ? '&#9654; audio' : '&#9654; script';
     div.innerHTML = `<span class="close" onclick="this.parentElement.remove()">&times;</span>` +
-        `<h3><a href="/script/${c.name}" target="_blank" style="color:inherit;text-decoration:none;border-bottom:1px dashed #999">${c.name}</a></h3>${started}${rows}${metrics}`;
+        `<h3>${c.name} <a href="${viewUrl}" target="_blank" style="font-size:0.8em;color:#5b9bd5;text-decoration:none;margin-left:6px">${viewLabel}</a></h3>${started}${rows}${metrics}`;
     div.style.left = Math.min(evt.pageX + 10, window.innerWidth - 340) + 'px';
     div.style.top = (evt.pageY + 10) + 'px';
     document.body.appendChild(div);
