@@ -131,23 +131,13 @@ def run_condition(
             )
             sys.exit(1)
 
-    # run_pipeline.py works for transport but its embedding/no-passages
-    # paths are incomplete. Dispatch to the per-condition modules directly.
-    modules = {
-        "transport": "enrichment.run_pipeline",
-        "embedding": "enrichment.embedding_run",
-        "no-passages": "enrichment.no_passages_run",
-    }
-    module = modules[condition]
-
     cmd = [
-        sys.executable, "-m", module,
+        sys.executable, "-m", "enrichment.run_pipeline",
         "--name", name,
         "--novel", novel_key,
+        "--pipeline", condition,
         "--prompt-version", str(prompt_version),
     ]
-    if module == "enrichment.run_pipeline":
-        cmd.extend(["--pipeline", condition])
     for replacement in PANELS.get(panel, []):
         cmd.extend(["--replace-expert", replacement])
 
