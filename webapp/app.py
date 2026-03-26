@@ -180,6 +180,56 @@ def _measure(path: Path) -> dict | None:
     }
 
 
+def _phase_timings(rd: Path) -> dict:
+    """Extract phase durations from file modification times."""
+    from datetime import datetime, timezone
+
+    files = {
+        "config": rd / "config.json",
+        "p0": rd / "phase0_segments.json",
+        "p1": rd / "phase1_assignments.json",
+        "p2": rd / "phase2_plan.json",
+        "hp": rd / "phase2_5_host_briefs.json",
+        "p3": rd / "phase3_episode.json",
+    }
+
+    mtimes: dict[str, float] = {}
+    for key, path in files.items():
+        if path.exists():
+            mtimes[key] = path.stat().st_mtime
+
+    result: dict = {}
+
+    if "config" in mtimes:
+        result["started"] = datetime.fromtimestamp(
+            mtimes["config"], tz=timezone.utc
+        ).strftime("%Y-%m-%d %H:%M")
+
+    # Phase durations (minutes) — only if timestamps are plausible
+    # (files created in sequence, not copied from elsewhere)
+    def _dur(a: str, b: str) -> float | None:
+        if a in mtimes and b in mtimes:
+            d = (mtimes[b] - mtimes[a]) / 60
+            return round(d, 1) if 0 < d < 60 else None
+        return None
+
+    result["p0_min"] = _dur("config", "p0")
+    result["p1_min"] = _dur("p0", "p1")
+    result["p2_min"] = _dur("p1", "p2")
+    result["p25_min"] = _dur("p2", "hp") if "hp" in mtimes else None
+    if "hp" in mtimes:
+        result["p3_min"] = _dur("hp", "p3")
+    else:
+        result["p3_min"] = _dur("p2", "p3")
+
+    if "config" in mtimes and "p3" in mtimes:
+        total = (mtimes["p3"] - mtimes["config"]) / 60
+        if 0 < total < 120:
+            result["total_min"] = round(total, 1)
+
+    return result
+
+
 def _run_detail(runs_dir: Path, rn: str) -> dict:
     """Get status and detail for a run directory."""
     import time
@@ -187,7 +237,8 @@ def _run_detail(runs_dir: Path, rn: str) -> dict:
     rd = runs_dir / rn
     if (rd / "phase3_episode.json").exists():
         m = _measure(rd / "phase3_episode.json")
-        return {"name": rn, "status": "done", **(m or {})}
+        timings = _phase_timings(rd)
+        return {"name": rn, "status": "done", **(m or {}), "timings": timings}
     if not (rd / "config.json").exists():
         return {"name": rn, "status": "missing"}
 
@@ -386,7 +437,16 @@ td.y { color:#888; background:#fff; }
 td.m { background:#f5f5f5; color:#ccc; }
 td.run { background:#cce5ff; color:#004085; animation: pulse 2s ease-in-out infinite; }
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
-td.d { cursor:help; }
+td.d { cursor:pointer; }
+.popover {
+    position:absolute; background:white; border:1px solid #999; border-radius:6px;
+    padding:10px 14px; box-shadow:0 4px 12px rgba(0,0,0,.15); font-size:0.85em;
+    z-index:100; max-width:320px; line-height:1.5;
+}
+.popover h3 { margin:0 0 6px; font-size:1em; color:#2c3e50; }
+.popover .timing { color:#555; }
+.popover .timing strong { color:#1a1a1a; }
+.popover .close { float:right; cursor:pointer; color:#999; font-size:1.2em; }
 td.hi { background:#d4edda; }
 td.mi { background:#fff3cd; }
 td.lo { background:#f8d7da; }
@@ -492,7 +552,8 @@ function render(data) {
                 html += `<td class="run" title="${c.name} — ${ph} — ${elapsed} min">${inner}</td>`;
             } else {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
-                html += `<td class="d ${cls}" title="${c.name}">` +
+                const cdata = encodeURIComponent(JSON.stringify(c));
+                html += `<td class="d ${cls}" onclick="showPopover(event, '${cdata}')">` +
                     `<span class="q">${c.q}</span><br>` +
                     `<span class="r">${c.r}</span><br>` +
                     `<span class="w">${Math.round(c.w/1000)}k</span></td>`;
@@ -536,6 +597,56 @@ function renderHistograms(h) {
         svg += `</svg></div>`;
         container.innerHTML += svg;
     }
+}
+function showPopover(evt, encoded) {
+    // Remove existing popover
+    const old = document.getElementById('pop');
+    if (old) old.remove();
+
+    const c = JSON.parse(decodeURIComponent(encoded));
+    const t = c.timings || {};
+
+    let rows = '';
+    const phases = [
+        ['Phase 0 (segment design)', t.p0_min],
+        ['Phase 1 (passage selection)', t.p1_min],
+        ['Phase 2 (segment assignment)', t.p2_min],
+        ['Phase 2.5 (host prep)', t.p25_min],
+        ['Phase 3 (script generation)', t.p3_min],
+    ];
+    for (const [label, val] of phases) {
+        if (val != null) {
+            rows += `<div class="timing">${label}: <strong>${val} min</strong></div>`;
+        }
+    }
+    if (t.total_min) {
+        rows += `<div class="timing" style="margin-top:4px;border-top:1px solid #eee;padding-top:4px">Total: <strong>${t.total_min} min</strong></div>`;
+    }
+    if (!rows) {
+        rows = '<div class="timing" style="color:#999">Timing data unavailable (files may have been copied)</div>';
+    }
+
+    const metrics = `<div style="margin-top:6px;border-top:1px solid #eee;padding-top:6px">` +
+        `Q/seg: <strong>${c.q}</strong> &bull; React/seg: <strong>${c.r}</strong> &bull; ` +
+        `Words: <strong>${c.w?.toLocaleString()}</strong> &bull; Quotes: <strong>${c.quotes}</strong></div>`;
+
+    const started = t.started ? `<div style="color:#888;font-size:0.9em">Started: ${t.started}</div>` : '';
+
+    const div = document.createElement('div');
+    div.id = 'pop';
+    div.className = 'popover';
+    div.innerHTML = `<span class="close" onclick="this.parentElement.remove()">&times;</span>` +
+        `<h3>${c.name}</h3>${started}${rows}${metrics}`;
+    div.style.left = Math.min(evt.pageX + 10, window.innerWidth - 340) + 'px';
+    div.style.top = (evt.pageY + 10) + 'px';
+    document.body.appendChild(div);
+
+    // Close on outside click
+    setTimeout(() => {
+        document.addEventListener('click', function handler(e) {
+            if (!div.contains(e.target)) { div.remove(); document.removeEventListener('click', handler); }
+        });
+    }, 100);
 }
 const es = new EventSource('/tracker/stream');
 es.onmessage = e => { render(JSON.parse(e.data)); document.getElementById('status').textContent = 'live'; };
