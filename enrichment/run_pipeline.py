@@ -257,8 +257,8 @@ def run_phases_1_2_embedding(
 
     retrieval_config = RetrievalConfig(
         candidates_per_query=candidates_per_query,
-        candidate_cap=candidate_cap,
-        passage_target=passage_target,
+        total_candidate_cap=candidate_cap,
+        final_passage_target=passage_target,
         curation_model=curation_model,
     )
 
