@@ -1,10 +1,15 @@
-"""Orchestrate the full 120-run experiment matrix.
+"""Orchestrate the full 180-run experiment matrix.
 
-15 novels × 2 panels × 2 pipelines × 2 host-prep settings = 120 runs.
+15 novels × 2 panels × 3 pipelines (transport, embedding, no-passages)
+× 2 host-prep settings = 180 runs.
 
-Phases 0-2 are shared between hostprep and non-hostprep for the same
-novel × panel × pipeline combo, so only 60 Phase 0-2 configs are needed.
+For transport and embedding: Phases 0-2 are shared between hostprep and
+non-hostprep for the same novel × panel × pipeline combo.
 Hostprep runs copy Phase 0-2 outputs from the corresponding non-hostprep
+run and use --resume-from 3 --host-prep.
+
+For no-passages: each run is self-contained (Phases 1+2 are trivially
+empty). Hostprep runs copy Phase 0 from the corresponding non-hostprep
 run and use --resume-from 3 --host-prep.
 
 Usage:
@@ -59,19 +64,21 @@ PANEL_REPLACEMENTS: dict[str, list[str]] = {
     ],
 }
 
-PIPELINES = ["transport", "embedding"]
+PIPELINES = ["transport", "embedding", "no_passages"]
 
 # Pipeline prefix in run names: Bleak House uses 'ext', others use 'trn'
-# for transport. Embedding always uses 'emb'.
+# for transport. Embedding always uses 'emb'. No-passages always uses 'nop'.
 PIPELINE_PREFIXES = {
     "transport": "ext",   # BH default
     "embedding": "emb",
+    "no_passages": "nop",
 }
 
 # For non-BH novels, transport runs use 'trn' not 'ext'
 PIPELINE_PREFIXES_NON_BH = {
     "transport": "trn",
     "embedding": "emb",
+    "no_passages": "nop",
 }
 
 PHASE_FILES = ["phase0_segments.json", "phase1_assignments.json", "phase2_plan.json"]
@@ -122,16 +129,24 @@ def run_pipeline(
     hostprep: bool,
     resume_from: int | None = None,
 ) -> None:
-    """Execute a single pipeline run via run_pipeline.py."""
+    """Execute a single pipeline run."""
     name = run_name(novel_key, pipeline, panel, hostprep)
 
-    cmd = [
-        sys.executable, "-m", "enrichment.run_pipeline",
-        "--name", name,
-        "--novel", novel_key,
-        "--pipeline", pipeline,
-        "--prompt-version", "2",
-    ]
+    if pipeline == "no_passages":
+        cmd = [
+            sys.executable, "-m", "enrichment.no_passages_run",
+            "--name", name,
+            "--novel", novel_key,
+            "--prompt-version", "2",
+        ]
+    else:
+        cmd = [
+            sys.executable, "-m", "enrichment.run_pipeline",
+            "--name", name,
+            "--novel", novel_key,
+            "--pipeline", pipeline,
+            "--prompt-version", "2",
+        ]
 
     for replacement in PANEL_REPLACEMENTS[panel]:
         cmd.extend(["--replace-expert", replacement])
@@ -149,7 +164,7 @@ def run_pipeline(
 
 
 def build_matrix() -> list[dict]:
-    """Build the full 120-run matrix with dependency info."""
+    """Build the full 180-run matrix with dependency info."""
     matrix = []
     for novel_key in NOVELS:
         for panel in PANELS:
@@ -179,7 +194,7 @@ def build_matrix() -> list[dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run the full 120-condition experiment matrix"
+        description="Run the full 180-condition experiment matrix"
     )
     parser.add_argument(
         "--dry-run", action="store_true",

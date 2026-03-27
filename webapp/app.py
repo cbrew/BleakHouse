@@ -162,6 +162,8 @@ TRACKER_CONDITIONS = [
     ("trn", "v19_all_swapped", False), ("trn", "v19_all_swapped", True),
     ("emb", "v01_baseline", False), ("emb", "v01_baseline", True),
     ("emb", "v19_all_swapped", False), ("emb", "v19_all_swapped", True),
+    ("nop", "v01_baseline", False), ("nop", "v01_baseline", True),
+    ("nop", "v19_all_swapped", False), ("nop", "v19_all_swapped", True),
 ]
 
 
@@ -370,7 +372,7 @@ def _check_process_alive() -> dict | None:
     import subprocess
     try:
         result = subprocess.run(
-            ["pgrep", "-fl", "enrichment.run_pipeline|enrichment.embedding_run|enrichment.run_novel|run_full_matrix"],
+            ["pgrep", "-fl", "enrichment.run_pipeline|enrichment.embedding_run|enrichment.no_passages_run|enrichment.run_novel|run_full_matrix"],
             capture_output=True, text=True, timeout=5,
         )
         lines = [ln for ln in result.stdout.strip().split("\n") if ln and "pgrep" not in ln]
@@ -442,10 +444,31 @@ def _build_matrix_data() -> dict:
         rows.append({"key": novel_key, "title": title, "author": author, "year": year, "cells": cells})
 
     process = _check_process_alive()
+    active_run = process["run"] if process and process.get("alive") else None
+
+    # Distinguish actively-running from stalled (crashed) partial runs
+    for row in rows:
+        for cell in row["cells"]:
+            if cell["status"] == "running":
+                if active_run and cell["name"] == active_run:
+                    pass  # genuinely running
+                elif active_run and active_run != "unknown":
+                    cell["status"] = "stalled"
+                # If process alive but run unknown, leave as "running" (ambiguous)
+
+    # Recount after reclassification
+    running_count = sum(
+        1 for row in rows for cell in row["cells"] if cell["status"] == "running"
+    )
+    stalled_count = sum(
+        1 for row in rows for cell in row["cells"] if cell["status"] == "stalled"
+    )
+
     histograms = _compute_phase_histograms()
     return {
         "rows": rows, "total": total, "done": done,
-        "running": running_count, "running_names": running_names,
+        "running": running_count, "stalled": stalled_count,
+        "running_names": [c["name"] for row in rows for c in row["cells"] if c["status"] == "running"],
         "process": process, "histograms": histograms,
     }
 
@@ -524,7 +547,7 @@ td.lo { background:#f8d7da; }
 </head>
 <body>
 <h1>BleakHouse Experiment Matrix</h1>
-<div class="sub">15 novels &times; 2 panels &times; 2 pipelines &times; 2 host-prep = 120 runs
+<div class="sub">15 novels &times; 2 panels &times; 3 pipelines &times; 2 host-prep = 180 runs
  &mdash; <span id="status">connecting...</span></div>
 <div id="progress"></div>
 <div id="procinfo" style="font-size:0.85em; color:#555; margin-bottom:1em;"></div>
@@ -534,8 +557,10 @@ td.lo { background:#f8d7da; }
     <th rowspan="2">Novel</th><th rowspan="2">Author</th><th rowspan="2">Year</th>
     <th colspan="4" class="g">Transport</th>
     <th colspan="4" class="g">Embedding</th>
+    <th colspan="4" class="g">No Passages</th>
 </tr>
 <tr>
+    <th>A</th><th>A+HP</th><th>B</th><th>B+HP</th>
     <th>A</th><th>A+HP</th><th>B</th><th>B+HP</th>
     <th>A</th><th>A+HP</th><th>B</th><th>B+HP</th>
 </tr>
@@ -558,6 +583,7 @@ td.lo { background:#f8d7da; }
    <span style="background:#fff3cd"></span> 2&ndash;5 (moderate)
    <span style="background:#f8d7da"></span> &lt; 2 (monologue-like)
    <span style="background:#cce5ff"></span> running
+   <span style="background:#ffe0b2"></span> stalled (crashed)
    <span style="background:#f5f5f5"></span> pending
 </p>
 <p><strong>Column abbreviations:</strong> A = Panel A (Hartley/Blackstone/Woodcourt),
@@ -569,6 +595,7 @@ function render(data) {
     const remaining = data.total - data.done;
     let status = `<strong>${data.done}/${data.total}</strong> (${pct}%) &mdash; ${remaining} remaining `;
     if (data.running > 0) status += `<span style="color:#004085">&bull; ${data.running} in progress</span> `;
+    if (data.stalled > 0) status += `<span style="color:#e65100">&bull; ${data.stalled} stalled</span> `;
     status += `<br><span class="bar-bg"><span class="bar" style="width:${data.done*300/data.total}px"></span></span>`;
     document.getElementById('progress').innerHTML = status;
     // Process info
@@ -603,17 +630,22 @@ function render(data) {
         for (const c of row.cells) {
             if (c.status === 'missing') {
                 html += '<td class="m">&mdash;</td>';
-            } else if (c.status === 'running') {
+            } else if (c.status === 'running' || c.status === 'stalled') {
                 const ph = c.phase || '?';
                 const pct = c.phase3_pct || 0;
                 const elapsed = c.elapsed_min || 0;
-                let inner = `<span style="font-size:0.75em;font-weight:600">${ph}</span>`;
-                if (ph === 'Phase 3' && pct > 0) {
+                const isStalled = c.status === 'stalled';
+                const bgColor = isStalled ? 'ffe0b2' : 'cce5ff';
+                const fgColor = isStalled ? 'e65100' : '004085';
+                const label = isStalled ? `${ph} &#9888;` : ph;
+                let inner = `<span style="font-size:0.75em;font-weight:600;color:#${fgColor}">${label}</span>`;
+                if (!isStalled && ph === 'Phase 3' && pct > 0) {
                     inner += `<br><span style="display:inline-block;width:90%;height:4px;background:#b8daff;border-radius:2px">` +
                         `<span style="display:inline-block;width:${pct}%;height:4px;background:#004085;border-radius:2px"></span></span>`;
                 }
-                inner += `<br><span style="font-size:0.7em;color:#004085">${elapsed}m</span>`;
-                html += `<td class="run" title="${c.name} — ${ph} — ${elapsed} min">${inner}</td>`;
+                inner += `<br><span style="font-size:0.7em;color:#${fgColor}">${elapsed}m</span>`;
+                const statusLabel = isStalled ? 'stalled' : 'running';
+                html += `<td style="background:#${bgColor}" title="${c.name} — ${ph} — ${statusLabel} — ${elapsed} min">${inner}</td>`;
             } else {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 const cdata = encodeURIComponent(JSON.stringify(c));
