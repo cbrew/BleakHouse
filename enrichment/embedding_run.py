@@ -34,14 +34,12 @@ from enrichment.embedding_podcast import (  # pyright: ignore[reportMissingImpor
 )
 from enrichment.generate_podcast import (  # pyright: ignore[reportMissingImports]
     assemble_episode,
-    build_script_report,
     generate_segment_script,
 )
 from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     DEFAULT_PERSONAS,
     ALTERNATIVE_PERSONAS,
     ExpertPersona,
-    PodcastEpisode,
     SegmentTemplate,
 )
 from enrichment.run_config import RUNS_DIR  # pyright: ignore[reportMissingImports]
@@ -403,12 +401,10 @@ def main() -> None:
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
 
-    episode = PodcastEpisode.model_validate(phase3)
-    report = build_script_report(episode)
-    report_path = run_dir / "report.txt"
-    with open(report_path, "w") as f:
-        f.write(report)
-    logger.info("Saved report to %s", report_path)
+    # Phase 4: Post-generation outputs
+    from enrichment.post_phase3 import run_post_phase3
+
+    run_post_phase3(run_dir, args.name)
 
 
 if __name__ == "__main__":
