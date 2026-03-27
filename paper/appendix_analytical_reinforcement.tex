@@ -15,8 +15,9 @@ available from Project Gutenberg\footnote{%
   and The Pile.  We assume all 15 novels are present in the training
   data of the model used (Claude, Anthropic), though we cannot verify
   this for any proprietary model.}
-and almost certainly appear in the model's training data.  The gradient
-must therefore reflect something other than raw textual presence.  This
+and plausibly appear in the model's training data (though we cannot
+verify this for any proprietary model).  If so, the gradient
+must reflect something other than raw textual presence.  This
 appendix investigates what that something is, subjects the
 investigation to systematic critique, and states what survives.
 
@@ -32,10 +33,13 @@ papers that discuss them, Wikipedia articles that summarise plots with
 embedded excerpts, blog posts, teaching materials, and social media.
 
 A famous passage---the fog opening of \emph{Bleak House}, the pier
-glass passage of \emph{Middlemarch}---may appear not only in the
-Gutenberg text but across hundreds of such sources.  A passage from
-Chapter~12 of \emph{Hester} appears on Gutenberg and virtually
-nowhere else.  Our hypothesis: the LLM's per-novel quote fidelity
+glass passage of \emph{Middlemarch}---plausibly appears not only in the
+Gutenberg text but across many such sources.  We have not counted these
+occurrences, but the existence of study guides, Wikipedia articles, and
+academic papers for canonical novels, and their absence for obscure
+ones, makes the asymmetry likely.  A passage from
+Chapter~12 of \emph{Hester} appears on Gutenberg and, we conjecture,
+in few if any other sources.  Our hypothesis: the LLM's per-novel quote fidelity
 tracks the volume of this \textbf{analytical reinforcement}, not the
 presence of the source text.
 
@@ -187,14 +191,19 @@ Oliphant & Miss Marjoribanks  &  8.4 &  3 \\
 
 \textbf{Dickens} (4 novels): Bleak House (53\%) $>$ David Copperfield
 (44\%) $>$ Hard Times (39\%) $>$ Our Mutual Friend (29\%).  This
-within-Dickens ranking tracks canonical status: Bleak House is the
-most taught and discussed; Our Mutual Friend, though artistically
-admired, is the least widely assigned.  Same author, plausibly similar prose style,
-different critical prominence, different quote fidelity.
+ordering is consistent with the attention scores (75.9, 100.0, 70.8,
+69.8), though David Copperfield's high attention score (driven by its
+large Goodreads readership and long Wikipedia article) does not
+translate into the highest nop rate.  The gradient exists within a
+single author's prose style, which is evidence against the
+author-effect confound, though with only four points the pattern could
+be coincidental.
 
 \textbf{Eliot} (3 novels): Middlemarch (57\%) $>$ Mill on the Floss
-(37\%) $>$ Daniel Deronda (30\%). It is plausible that Middlemarch is far more widely
-taught and discussed than Daniel Deronda.
+(37\%) $>$ Daniel Deronda (30\%).  The ordering tracks the attention
+scores (79.2, 62.6, 59.3).  Middlemarch has the highest Goodreads count
+(181,000 vs.\ 59,000 and 27,000) and a much larger Wikipedia article
+than Daniel Deronda.
 
 \textbf{Gaskell} (2 novels): Cranford (33\%) $\gg$ North and South
 (2\%).  This is the most striking within-author contrast and the one
@@ -211,18 +220,26 @@ more memorisable) phrasing.  This pair is genuinely anomalous and
 resists the simple analytical-reinforcement explanation.
 
 \textbf{Gissing} (2 novels): New Grub Street (20\%) $>$ The Odd Women
-(6\%).  New Grub Street is the better-known novel.
+(6\%).  New Grub Street has a slightly higher attention score (17.5
+vs.\ 13.1), driven by marginally more Goodreads ratings (6,300
+vs.\ 5,500) and a longer Wikipedia article (3,200 vs.\ 1,200 words).
+Neither novel has a study guide.
 
 \textbf{Oliphant} (2 novels): Miss Marjoribanks (3\%) $\approx$
-Hester (0\%).  Both near zero, consistent with Oliphant's general
-absence from modern critical discussion.
+Hester (0\%).  Both are near zero, with the lowest attention scores
+in the corpus (8.4 and 0.8).  Hester has only 548 Goodreads ratings,
+the fewest of any novel in the sample.
 
 \medskip\noindent
-Within-author gradients exist for all five authors with multiple novels
-and, with the exception of the Gaskell pair (discussed in A.4), they
-track critical-cultural prominence.  \textbf{This is the strongest
-evidence for the analytical reinforcement hypothesis}, because it
-controls for the most plausible confound: author prose style.
+Within-author gradients exist for Dickens (4 novels), Eliot (3 novels),
+and Gissing (2 novels), and in each case the ranking is consistent with
+the attention scores.  The Gaskell pair is anomalous (A.4), and the
+Oliphant pair is uninformative (both near zero).  \textbf{The
+within-author evidence is the strongest argument against the
+author-effect confound}, because it holds prose style approximately
+constant.  However, even within an author, novels differ in ways beyond
+critical prominence---length, subject matter, narrative voice---and we
+cannot isolate analytical reinforcement as the sole explanation.
 
 \subsection*{A.6\quad Objections and Qualifications}
 
@@ -239,10 +256,11 @@ duplication.  The hypothesis is consistent with
 for proprietary models.
 
 \item[Ad hoc scoring.]  The composite score is one defensible
-operationalisation among several.  We tested robustness informally:
-dropping any single proxy changes $r$ by less than 0.1.  A more
-principled instrument would require validated cultural-prominence
-metrics that do not currently exist.
+operationalisation among several.  Different weighting schemes or
+different proxies would produce different correlations.  We have not
+conducted a systematic sensitivity analysis.  A more principled
+instrument would require validated cultural-prominence metrics that do
+not currently exist.
 
 \item[Small sample.]  $n = 15$ supports trend identification but not
 confident statistical inference.  The correlation ($r = 0.72$) has a
@@ -273,13 +291,14 @@ LLM behaviour onto human cognitive categories.
 
 \textbf{Stated conservatively:}
 
-All 15 novels are available from Project Gutenberg and almost certainly
+All 15 novels are available from Project Gutenberg and plausibly
 appear in LLM training data.  Yet the LLM's ability to quote them from
-memory varies from 57\% to 0\%.  This gradient correlates with
-critical-cultural prominence ($r = 0.72$, $n = 15$) and persists
-within authors: among four Dickens novels, three Eliot novels, and two
-Gissing novels, the within-author ranking tracks the novel's position
-in modern critical culture.
+memory varies from 57\% to 0\%.  This gradient correlates with a
+composite measure of critical-cultural prominence ($r = 0.72$,
+$n = 15$).  Within-author gradients for Dickens (4 novels), Eliot
+(3 novels), and Gissing (2 novels) are consistent with the attention
+scores, though the Gaskell pair is anomalous and the sample sizes are
+too small for confident within-author inference.
 
 We interpret this as a literary-critical manifestation of differential
 LLM memorisation: canonical novels, whose passages are duplicated
@@ -289,8 +308,8 @@ consistent with \textcite{carlini2023quantifying}'s framework but
 unverifiable without access to training data.
 
 The parallel with \textcite{bayard2007comment}'s argument about human
-non-reading is suggestive: both humans and LLMs navigate literary
-culture through graduated approximation.  The mechanisms are entirely
-different, but the observable gradient---from faithful quotation
-of canonical works to creative pastiche of obscure ones---is
-strikingly similar.
+non-reading is suggestive: both humans and LLMs produce more confident
+discourse about texts they have engaged with more thoroughly.  The
+mechanisms are entirely different---cultural positioning for humans,
+statistical weight distributions for models---and the parallel is an
+analogy, not an equivalence.
