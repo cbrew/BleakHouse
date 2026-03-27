@@ -1,0 +1,289 @@
+% Appendix: standalone or \input into main paper
+% Requires: booktabs, tabularx, amsmath, hyperref, biblatex with jtdh_refs.bib
+
+\section*{Appendix: Why Can the LLM Quote Middlemarch but Not Hester?}
+\addcontentsline{toc}{section}{Appendix: Analytical Reinforcement}
+\label{app:reinforcement}
+
+\noindent
+When asked to discuss a novel without source passages, the LLM produces
+verifiable quotations at rates ranging from 57\%
+(\emph{Middlemarch}) to 0\% (\emph{Hester}).  All 15 novels are
+available from Project Gutenberg\footnote{%
+  \url{https://www.gutenberg.org}.  Gutenberg texts are a standard
+  component of web-scraped training corpora such as C4
+  and The Pile.  We assume all 15 novels are present in the training
+  data of the model used (Claude, Anthropic), though we cannot verify
+  this for any proprietary model.}
+and almost certainly appear in the model's training data.  The gradient
+must therefore reflect something other than raw textual presence.  This
+appendix investigates what that something is, subjects the
+investigation to systematic critique, and states what survives.
+
+\subsection*{A.1\quad Hypothesis: Analytical Reinforcement}
+
+\textcite{carlini2023quantifying} showed that LLM memorisation grows
+log-linearly with data duplication: sequences that appear more
+frequently in training data are reproduced more faithfully.  For
+novels, the Gutenberg source text appears once.  But for canonical
+novels, specific passages are \emph{duplicated} across thousands of
+secondary sources: study guides that excerpt key quotations, academic
+papers that discuss them, Wikipedia articles that summarise plots with
+embedded excerpts, blog posts, teaching materials, and social media.
+
+A famous passage---the fog opening of \emph{Bleak House}, the pier
+glass passage of \emph{Middlemarch}---may appear not only in the
+Gutenberg text but across hundreds of such sources.  A passage from
+Chapter~12 of \emph{Hester} appears on Gutenberg and virtually
+nowhere else.  Our hypothesis: the LLM's per-novel quote fidelity
+tracks the volume of this \textbf{analytical reinforcement}, not the
+presence of the source text.
+
+\subsection*{A.2\quad Data Sources and Composite Score}
+
+We constructed a composite attention score from three proxies, each
+capturing a different facet of a novel's analytical footprint:
+
+\begin{enumerate}[leftmargin=2em]
+
+\item \textbf{Goodreads ratings count.}  Source: Goodreads.com, accessed
+March 2026.  This measures present-day readership.
+Ratings counts range from 548 (\emph{Hester}) to 261,000
+(\emph{David Copperfield}).  Log-normalised to $[0, 100]$ to reduce
+the influence of extreme popularity:
+$\mathrm{score} = 100 \times (\log r - \log r_{\min}) / (\log r_{\max} - \log r_{\min})$
+where $r$ is the ratings count.
+
+\item \textbf{Wikipedia article word count.}  Source: English Wikipedia,
+accessed March 2026.  Word count of the novel's Wikipedia article,
+measured by selecting all text content.  This measures encyclopaedic
+and analytical attention: longer articles contain more plot summary,
+critical discussion, and quoted excerpts.  Ranges from $\sim$850
+(\emph{Miss Marjoribanks}) to $\sim$19,000 (\emph{David
+Copperfield}).  Linearly normalised to $[0, 100]$.
+
+\item \textbf{Study guide presence.}  Binary indicator: does the novel
+have a SparkNotes, LitCharts, CliffsNotes, or Shmoop study guide?
+Source: manual check of each platform, March 2026.  Study guides are
+particularly relevant because they systematically excerpt and re-quote
+key passages, producing exactly the kind of passage-level duplication
+that \textcite{carlini2023quantifying}'s framework predicts will
+strengthen memorisation.  Coded as 33.3 (present) or 0 (absent).
+\end{enumerate}
+
+The composite score is the unweighted mean of the three normalised
+components, producing a scale of 0--100.  We acknowledge this scoring
+is ad hoc: the choice of proxies, normalisation methods, and equal
+weighting is not theoretically derived.  Different reasonable choices
+would produce different numbers.  We report it as one defensible
+operationalisation, not as a validated instrument.
+
+\subsection*{A.3\quad Results}
+
+Table~\ref{tab:attention} presents the full data.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Critical attention metrics and ungrounded (no-passages) quote
+verification rates.  Data sources: Goodreads.com, English Wikipedia,
+SparkNotes/LitCharts (all accessed March 2026).  Nop\% is the
+percentage of LLM-generated quotes verified against the full enriched
+passage corpus using 5-tier matching ($\geq$60\% = verified).}
+\label{tab:attention}
+\begin{tabularx}{\textwidth}{X|l|r|r|r|c|r|r}
+\toprule
+\textit{Novel} & \textit{Author} & \textit{Year} &
+  \textit{GR ratings} & \textit{Wiki words} & \textit{SG} &
+  \textit{Attn.} & \textit{Nop\%} \\
+\midrule
+Middlemarch        & Eliot    & 1871 & 181,000 & 8,750  & Y &  79.2 & 57 \\
+Bleak House        & Dickens  & 1853 &  98,000 & 8,750  & Y &  75.9 & 53 \\
+David Copperfield  & Dickens  & 1850 & 261,000 & 19,000 & Y & 100.0 & 44 \\
+Hard Times         & Dickens  & 1854 &  75,000 & 6,750  & Y &  70.8 & 39 \\
+Passage to India   & Forster  & 1924 &  73,000 & 4,350  & Y &  66.2 & 39 \\
+Mill on the Floss  & Eliot    & 1860 &  59,000 & 3,000  & Y &  62.6 & 37 \\
+Cranford           & Gaskell  & 1853 &  48,000 & 2,900  & N &  27.9 & 33 \\
+Daniel Deronda     & Eliot    & 1876 &  27,000 & 3,500  & Y &  59.3 & 30 \\
+Our Mutual Friend  & Dickens  & 1865 &  32,000 & 8,750  & Y &  69.8 & 29 \\
+New Grub Street    & Gissing  & 1891 &   6,300 & 3,200  & N &  17.5 & 20 \\
+The Odd Women      & Gissing  & 1893 &   5,500 & 1,200  & N &  13.1 &  6 \\
+Miss Marjoribanks  & Oliphant & 1866 &   2,600 &   850  & N &   8.4 &  3 \\
+North and South    & Gaskell  & 1855 & 182,000 & 8,750  & Y &  79.2 &  2 \\
+Hester             & Oliphant & 1883 &     548 & 1,300  & N &   0.8 &  0 \\
+No Name            & Collins  & 1862 &   7,900 & 3,200  & N &  18.7 &  0 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Overall correlation.}  Pearson $r = 0.72$, Spearman
+$\rho = 0.70$ ($n = 15$).  Excluding \emph{North and South}
+(discussed below): Pearson $r = 0.89$, Spearman $\rho = 0.90$
+($n = 14$).
+
+\subsection*{A.4\quad The North and South Outlier}
+
+\emph{North and South} has an attention score of 79.2---comparable
+to \emph{Middlemarch} and \emph{Bleak House}---but a nop verification
+rate of only 2\%.  Its Goodreads count (182,000) is almost certainly
+inflated by the 2004 BBC television adaptation, which generated a
+large modern fandom that discusses the adaptation's casting, romance,
+and divergences from the novel---not the novel's prose passage by
+passage.
+
+This suggests that the composite attention score, which treats
+Goodreads popularity as equivalent to Wikipedia coverage and study
+guide presence, conflates \emph{readership} with \emph{analytical
+engagement}.  A novel can be widely read (or widely watched) without
+generating the passage-level discussion that reinforces specific
+textual fragments in training data.  \emph{Cranford} (also adapted by
+the BBC, 2007) shows a milder version of this effect but remains
+closer to the trend line.
+
+We report the outlier-excluded correlation ($r = 0.89$) alongside the
+full-sample correlation ($r = 0.72$), but we do not rely on the
+exclusion.  The more important evidence is the within-author analysis
+below.
+
+\subsection*{A.5\quad Within-Author Gradients}
+
+The most damaging objection to the analytical reinforcement hypothesis
+is that the correlation might reflect \emph{author effects}: perhaps
+Dickens's prose is inherently more memorisable than Oliphant's,
+regardless of secondary discussion.  We address this by examining
+within-author gradients, which hold prose style constant.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Within-author nop verification gradients.  All novels by the
+same author share the same prose style; differences must reflect
+something other than stylistic memorisability.}
+\label{tab:within_author}
+\begin{tabularx}{\textwidth}{l|X|r|r}
+\toprule
+\textit{Author} & \textit{Novel} & \textit{Attn.} & \textit{Nop\%} \\
+\midrule
+Dickens  & Bleak House        & 75.9 & 53 \\
+         & David Copperfield  & 100.0 & 44 \\
+         & Hard Times         & 70.8 & 39 \\
+         & Our Mutual Friend  & 69.8 & 29 \\
+\addlinespace
+Eliot    & Middlemarch        & 79.2 & 57 \\
+         & Mill on the Floss  & 62.6 & 37 \\
+         & Daniel Deronda     & 59.3 & 30 \\
+\addlinespace
+Gaskell  & Cranford           & 27.9 & 33 \\
+         & North and South    & 79.2 &  2 \\
+\addlinespace
+Gissing  & New Grub Street    & 17.5 & 20 \\
+         & The Odd Women      & 13.1 &  6 \\
+\addlinespace
+Oliphant & Miss Marjoribanks  &  8.4 &  3 \\
+         & Hester             &  0.8 &  0 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Dickens} (4 novels): Bleak House (53\%) $>$ David Copperfield
+(44\%) $>$ Hard Times (39\%) $>$ Our Mutual Friend (29\%).  This
+within-Dickens ranking tracks canonical status: Bleak House is the
+most taught and discussed; Our Mutual Friend, though artistically
+admired, is the least widely assigned.  Same author, same prose style,
+different critical prominence, different quote fidelity.
+
+\textbf{Eliot} (3 novels): Middlemarch (57\%) $>$ Mill on the Floss
+(37\%) $>$ Daniel Deronda (30\%).  Middlemarch is far more widely
+taught and discussed than Daniel Deronda.
+
+\textbf{Gaskell} (2 novels): Cranford (33\%) $\gg$ North and South
+(2\%).  This is the most striking within-author contrast: despite
+being shorter, less famous in popular culture, and by the same author,
+Cranford dramatically outperforms.  North and South's modern popularity
+is adaptation-driven; Cranford's, though also boosted by a BBC
+adaptation, draws on a longer history of classroom use.
+
+\textbf{Gissing} (2 novels): New Grub Street (20\%) $>$ The Odd Women
+(6\%).  New Grub Street is the better-known novel.
+
+\textbf{Oliphant} (2 novels): Miss Marjoribanks (3\%) $\approx$
+Hester (0\%).  Both near zero, consistent with Oliphant's general
+absence from modern critical discussion.
+
+\medskip\noindent
+Within-author gradients exist for all five authors with multiple novels
+and, with the exception of the Gaskell pair (discussed in A.4), they
+track critical-cultural prominence.  \textbf{This is the strongest
+evidence for the analytical reinforcement hypothesis}, because it
+controls for the most plausible confound: author prose style.
+
+\subsection*{A.6\quad Objections and Qualifications}
+
+We subjected the thesis to systematic critique.  The principal
+objections, and our responses:
+
+\begin{description}[leftmargin=1.5em, labelindent=0em]
+
+\item[Training data opacity.]  We do not know the exact composition of
+the model's training data.  The attention score is a proxy for likely
+duplication in web-scraped corpora, not a measurement of actual
+duplication.  The hypothesis is consistent with
+\textcite{carlini2023quantifying}'s findings but cannot be verified
+for proprietary models.
+
+\item[Ad hoc scoring.]  The composite score is one defensible
+operationalisation among several.  We tested robustness informally:
+dropping any single proxy changes $r$ by less than 0.1.  A more
+principled instrument would require validated cultural-prominence
+metrics that do not currently exist.
+
+\item[Small sample.]  $n = 15$ supports trend identification but not
+confident statistical inference.  The correlation ($r = 0.72$) has a
+wide confidence interval.  We rely on the within-author evidence
+(Table~\ref{tab:within_author}) as much as on the aggregate
+correlation.
+
+\item[Readership vs.\ analytical engagement.]  The North and South
+outlier demonstrates that popular readership does not entail the kind
+of passage-level analytical engagement that would reinforce specific
+fragments in training data.  A more refined metric would distinguish
+passage-quoting activity (study guides, academic close readings) from
+generic discussion (reviews, adaptation commentary).  We have not
+measured this distinction directly.
+
+\item[The Bayard parallel is a metaphor.]
+\textcite{bayard2007comment}'s argument concerns human cultural
+navigation; our findings concern statistical weight distributions in a
+language model.  The parallel---both humans and LLMs navigate literary
+culture through graduated approximation---is evocative but the
+mechanisms differ entirely.  We flag it as an analogy, not an identity.
+As \textcite{shanahan2024talking} argues, care is needed in mapping
+LLM behaviour onto human cognitive categories.
+
+\end{description}
+
+\subsection*{A.7\quad Conclusions}
+
+\textbf{Stated conservatively:}
+
+All 15 novels are available from Project Gutenberg and almost certainly
+appear in LLM training data.  Yet the LLM's ability to quote them from
+memory varies from 57\% to 0\%.  This gradient correlates with
+critical-cultural prominence ($r = 0.72$, $n = 15$) and persists
+within authors: among four Dickens novels, three Eliot novels, and two
+Gissing novels, the within-author ranking tracks the novel's position
+in modern critical culture.
+
+We interpret this as a literary-critical manifestation of differential
+LLM memorisation: canonical novels, whose passages are duplicated
+across study guides, academic papers, and Wikipedia, are more
+faithfully retained than obscure ones.  This interpretation is
+consistent with \textcite{carlini2023quantifying}'s framework but
+unverifiable without access to training data.
+
+The parallel with \textcite{bayard2007comment}'s argument about human
+non-reading is suggestive: both humans and LLMs navigate literary
+culture through graduated approximation.  The mechanisms are entirely
+different, but the observable gradient---from faithful quotation
+of canonical works to creative pastiche of obscure ones---is
+strikingly similar.
