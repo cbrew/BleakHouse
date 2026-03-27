@@ -27,6 +27,16 @@ _NOVEL_PATHS: dict[str, str] = {
     "The Mill on the Floss": "novels/mill_on_the_floss/passages_enriched.json",
     "North and South": "novels/north_and_south/passages_enriched.json",
     "A Passage to India": "novels/passage_to_india/passages_enriched.json",
+    "Hard Times": "novels/hard_times/passages_enriched.json",
+    "Middlemarch": "novels/middlemarch/passages_enriched.json",
+    "Daniel Deronda": "novels/daniel_deronda/passages_enriched.json",
+    "David Copperfield": "novels/david_copperfield/passages_enriched.json",
+    "Cranford": "novels/cranford/passages_enriched.json",
+    "No Name": "novels/no_name/passages_enriched.json",
+    "New Grub Street": "novels/new_grub_street/passages_enriched.json",
+    "The Odd Women": "novels/odd_women/passages_enriched.json",
+    "Miss Marjoribanks": "novels/miss_marjoribanks/passages_enriched.json",
+    "Hester": "novels/hester/passages_enriched.json",
 }
 
 
