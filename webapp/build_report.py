@@ -245,89 +245,102 @@ _TEMPLATE = """\
 <meta charset="utf-8">
 <title>{title} — {run_id}</title>
 <style>
+:root {{
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --surface-alt: #0f3460;
+    --text: #e8e8e8;
+    --text-dim: #8888aa;
+    --accent: #e94560;
+    --passage-warm: #d4c5a0;
+    --passage-bg: #1e1a14;
+}}
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}
 body {{
     font-family: Georgia, "Times New Roman", serif;
-    max-width: 800px; margin: 2em auto; padding: 0 1em;
-    color: #1a1a1a; background: #fafaf8; line-height: 1.6;
+    max-width: 800px; margin: 0 auto; padding: 2em 1em;
+    color: var(--text); background: var(--bg); line-height: 1.6;
 }}
-header {{ margin-bottom: 2em; border-bottom: 2px solid #2c3e50; padding-bottom: 1em; }}
-h1 {{ font-size: 1.5em; color: #2c3e50; margin-bottom: 0.2em; }}
-.meta {{ color: #666; font-size: 0.85em; }}
+header {{
+    margin-bottom: 2em; border-bottom: 2px solid var(--surface-alt);
+    padding-bottom: 1em;
+}}
+h1 {{ font-size: 1.5em; color: var(--accent); margin-bottom: 0.2em; }}
+.meta {{ color: var(--text-dim); font-size: 0.85em; }}
 .meta span {{ margin-right: 1.5em; }}
 h2.seg-title {{
-    font-size: 1.15em; color: #2c3e50; margin: 1.8em 0 0.8em;
-    border-bottom: 1px solid #ddd; padding-bottom: 0.3em;
+    font-size: 1.15em; color: var(--accent); margin: 1.8em 0 0.8em;
+    border-bottom: 1px solid var(--surface-alt); padding-bottom: 0.3em;
 }}
-.seg-type {{ color: #888; font-weight: normal; font-size: 0.85em; }}
+.seg-type {{ color: var(--text-dim); font-weight: normal; font-size: 0.85em; }}
 .turn {{ margin-bottom: 1.2em; }}
 .speaker {{
     font-weight: 700; font-size: 0.9em; margin-bottom: 0.2em;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
 }}
-.speaker.host {{ color: #2c3e50; }}
-.speaker.expert {{ color: #8b4513; }}
-.role {{ color: #888; font-weight: normal; font-size: 0.85em; }}
-.speech {{ font-size: 0.95em; }}
+.speaker.host {{ color: var(--accent); }}
+.speaker.expert {{ color: var(--passage-warm); }}
+.role {{ color: var(--text-dim); font-weight: normal; font-size: 0.85em; }}
+.speech {{ font-size: 0.95em; color: var(--text); }}
 .quote {{
     display: inline;
-    font-style: italic; color: #4a2c0a;
+    font-style: italic; color: var(--passage-warm);
     border-left: 3px solid #c9a96e; padding-left: 0.5em;
 }}
-.setup {{ color: #555; }}
-.commentary {{ color: #333; }}
+.setup {{ color: var(--text-dim); }}
+.commentary {{ color: #ccc; }}
 /* Passage reveals */
 details.pr {{
     margin: 0.4em 0 0.4em 1em;
-    border: 1px solid #ddd; border-radius: 4px;
-    font-size: 0.85em; background: #fff;
+    border: 1px solid var(--surface-alt); border-radius: 4px;
+    font-size: 0.85em; background: var(--surface);
 }}
 details.pr summary {{
     cursor: pointer; padding: 0.3em 0.6em;
-    color: #2c6fbb; font-family: monospace; font-size: 0.9em;
+    color: #6fa8dc; font-family: monospace; font-size: 0.9em;
 }}
-details.pr summary:hover {{ background: #f0f4f8; }}
+details.pr summary:hover {{ background: var(--surface-alt); }}
 details.pr[open] {{ padding: 0.4em 0.6em; }}
-.pr-chapter {{ font-weight: 600; color: #2c3e50; margin-bottom: 0.3em; }}
+.pr-chapter {{ font-weight: 600; color: var(--accent); margin-bottom: 0.3em; }}
 .pr-text {{
-    font-size: 0.9em; color: #333; margin: 0.3em 0;
+    font-size: 0.9em; color: #ccc; margin: 0.3em 0;
     max-height: 200px; overflow-y: auto;
-    border-left: 2px solid #e0d8c8; padding-left: 0.6em;
+    border-left: 2px solid var(--passage-warm); padding-left: 0.6em;
 }}
-.pr-summary {{ color: #555; font-style: italic; margin: 0.3em 0; }}
+.pr-summary {{ color: var(--text-dim); font-style: italic; margin: 0.3em 0; }}
 .pr-meta {{ margin-top: 0.3em; }}
 .chip {{
     display: inline-block; padding: 1px 6px; margin: 2px;
     border-radius: 10px; font-size: 0.8em;
 }}
-.chip.char {{ background: #e8f4fd; color: #1a5276; }}
-.chip.theme {{ background: #fef9e7; color: #7d6608; }}
-.chip.emo {{ background: #fdedec; color: #922b21; }}
+.chip.char {{ background: #1a3a5c; color: #8fc4e8; }}
+.chip.theme {{ background: #3d3510; color: #d4c060; }}
+.chip.emo {{ background: #3d1515; color: #e88; }}
 /* Match badges */
 .badge {{
     display: inline-block; padding: 1px 6px; border-radius: 3px;
     font-size: 0.75em; font-weight: 600; vertical-align: middle;
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 }}
-.badge.verified {{ background: #d4edda; color: #155724; }}
-.badge.paraphrase {{ background: #fff3cd; color: #856404; }}
-.badge.distant-echo {{ background: #ffe0b2; color: #e65100; }}
-.badge.no-source {{ background: #f8d7da; color: #721c24; }}
-.badge.invented {{ background: #343a40; color: #fff; }}
-.badge.suggested {{ background: #e2e3e5; color: #383d41; }}
+.badge.verified {{ background: #1e4620; color: #6fdc6f; }}
+.badge.paraphrase {{ background: #4a3f10; color: #e8d44d; }}
+.badge.distant-echo {{ background: #4a2a10; color: #e8a44d; }}
+.badge.no-source {{ background: #4a1a1a; color: #e87070; }}
+.badge.invented {{ background: #e94560; color: #fff; }}
+.badge.suggested {{ background: var(--surface-alt); color: var(--text-dim); }}
 /* Autopsy */
 .autopsy {{
     margin: 0.3em 0 0.3em 1em; padding: 0.4em 0.6em;
-    background: #f8f8f8; border-left: 3px solid #721c24;
-    font-size: 0.82em; color: #555;
+    background: var(--passage-bg); border-left: 3px solid var(--accent);
+    font-size: 0.82em; color: var(--text-dim);
 }}
 .autopsy-stat {{ margin-bottom: 0.2em; }}
-.autopsy-absent {{ color: #721c24; }}
-.autopsy-absent code {{ background: #f8d7da; padding: 1px 4px; border-radius: 2px; font-size: 0.9em; }}
-.autopsy-fallback {{ color: #888; font-style: italic; margin-top: 0.2em; }}
+.autopsy-absent {{ color: #e87070; }}
+.autopsy-absent code {{ background: #3d1515; padding: 1px 4px; border-radius: 2px; font-size: 0.9em; color: #e87070; }}
+.autopsy-fallback {{ color: var(--text-dim); font-style: italic; margin-top: 0.2em; }}
 footer {{
-    margin-top: 2em; padding-top: 1em; border-top: 1px solid #ddd;
-    color: #888; font-size: 0.8em;
+    margin-top: 2em; padding-top: 1em; border-top: 1px solid var(--surface-alt);
+    color: var(--text-dim); font-size: 0.8em;
 }}
 </style>
 </head>
