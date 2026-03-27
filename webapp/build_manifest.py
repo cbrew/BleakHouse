@@ -1,11 +1,12 @@
-"""Build timing manifests for the podcast player.
+"""Build manifests for the podcast player and script reader.
 
-Reads a run's phase3_episode.json, measures cached TTS audio durations,
-and writes a manifest.json with per-turn timestamps into the run's audio dir.
+Reads a run's phase3_episode.json, optionally measures cached TTS audio
+durations, and writes a manifest.json with passage backlinks.
 
 Usage:
     uv run python -m webapp.build_manifest --run ext_v01_baseline
-    uv run python -m webapp.build_manifest --all
+    uv run python -m webapp.build_manifest --all          # audio runs only
+    uv run python -m webapp.build_manifest --all --no-audio  # all runs
 """
 
 from __future__ import annotations
@@ -16,25 +17,30 @@ import logging
 from pathlib import Path
 
 from enrichment.podcast_types import PodcastEpisode, Turn
-from enrichment.render_audio import (
-    SPEAKER_VOICES,
-    _cache_key,
-    _load_cached,
-    build_turn_prompt,
-)
 
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
-# Novel key lookup by episode title prefix
+# Novel title (as it appears in episode JSON, minus ": A Literary Discussion")
+# → relative path under data/ to passages_enriched.json
 _NOVEL_DIRS: dict[str, str] = {
-    "Bleak House": "",  # passages_enriched.json is in data/ directly
+    "Bleak House": "",
     "Our Mutual Friend": "novels/our_mutual_friend",
     "The Mill on the Floss": "novels/mill_on_the_floss",
     "North and South": "novels/north_and_south",
     "A Passage to India": "novels/passage_to_india",
+    "Hard Times": "novels/hard_times",
+    "Middlemarch": "novels/middlemarch",
+    "Daniel Deronda": "novels/daniel_deronda",
+    "David Copperfield": "novels/david_copperfield",
+    "Cranford": "novels/cranford",
+    "No Name": "novels/no_name",
+    "New Grub Street": "novels/new_grub_street",
+    "The Odd Women": "novels/odd_women",
+    "Miss Marjoribanks": "novels/miss_marjoribanks",
+    "Hester": "novels/hester",
 }
 
 
@@ -139,6 +145,13 @@ def find_suggested_passages(
 
 def measure_turn_duration_ms(turn: Turn, model_id: str) -> int:
     """Get duration of a turn's audio from the TTS cache."""
+    from enrichment.render_audio import (
+        SPEAKER_VOICES,
+        _cache_key,
+        _load_cached,
+        build_turn_prompt,
+    )
+
     speaker = turn.speaker
     voice_name = SPEAKER_VOICES.get(speaker, "Sulafat")
     prompt = build_turn_prompt(turn)
@@ -158,6 +171,12 @@ def measure_turn_duration_ms(turn: Turn, model_id: str) -> int:
     return len(cached)
 
 
+def estimate_turn_duration_ms(turn: Turn) -> int:
+    """Estimate duration from character count (~15 chars/sec)."""
+    char_count = sum(len(u.text) for u in turn.utterances)
+    return int(char_count / 15 * 1000)
+
+
 def compute_turn_pauses(turn: Turn) -> tuple[int, int]:
     """Compute leading and trailing pause durations matching render_audio logic."""
     leading_ms = 0
@@ -171,21 +190,27 @@ def compute_turn_pauses(turn: Turn) -> tuple[int, int]:
     return leading_ms, trailing_ms
 
 
-def build_manifest(run_id: str, model_key: str = "flash") -> dict | None:
-    """Build a timing manifest for a run."""
-    from enrichment.render_audio import MODEL_IDS
+def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) -> dict | None:
+    """Build a manifest for a run.
 
-    model_id = MODEL_IDS[model_key]
+    When audio=True (default), measures real TTS durations and writes to
+    {run_dir}/audio/manifest.json.  When audio=False, estimates durations
+    from character counts and writes to {run_dir}/manifest.json.
+    """
     run_dir = DATA_DIR / "runs" / run_id
     episode_path = run_dir / "phase3_episode.json"
-    audio_dir = run_dir / "audio"
 
     if not episode_path.exists():
         logger.warning("No episode file for run %s", run_id)
         return None
-    if not audio_dir.exists():
-        logger.warning("No audio dir for run %s", run_id)
-        return None
+
+    if audio:
+        audio_dir = run_dir / "audio"
+        if not audio_dir.exists():
+            logger.warning("No audio dir for run %s", run_id)
+            return None
+        from enrichment.render_audio import MODEL_IDS
+        model_id = MODEL_IDS[model_key]
 
     with open(episode_path) as f:
         episode = PodcastEpisode.model_validate(json.load(f))
@@ -231,9 +256,12 @@ def build_manifest(run_id: str, model_key: str = "flash") -> dict | None:
             leading_pause, trailing_pause = compute_turn_pauses(turn)
             cursor_ms += leading_pause
 
-            audio_duration = measure_turn_duration_ms(turn, model_id)
+            if audio:
+                turn_duration = measure_turn_duration_ms(turn, model_id)  # pyright: ignore[reportPossiblyUnbound]
+            else:
+                turn_duration = estimate_turn_duration_ms(turn)
             turn_start = cursor_ms
-            cursor_ms += audio_duration
+            cursor_ms += turn_duration
             cursor_ms += trailing_pause
             turn_end = cursor_ms
 
@@ -292,14 +320,11 @@ def build_manifest(run_id: str, model_key: str = "flash") -> dict | None:
 
         enriched = load_enriched_passages(episode.title)
         if enriched:
-            # Build episode dict from manifest segments (which have the utterances)
             ep_dict = {"segments": manifest_segments}
             results = match_episode_quotes(ep_dict, enriched)
 
-            # Add matched passages to the lookup
             referenced_passages.update(results["matched_passages"])
 
-            # Attach passage_ref and match info to utterances
             for si, ti, ui, pid, ratio, category in results["utterance_matches"]:
                 utt = manifest_segments[si]["turns"][ti]["utterances"][ui]
                 if pid:
@@ -316,6 +341,11 @@ def build_manifest(run_id: str, model_key: str = "flash") -> dict | None:
                 run_id, verified, paraphrase, confab, total,
             )
 
+    # For ungrounded runs, also add suggested passages per segment
+    if passage_source == "ungrounded":
+        suggested = find_suggested_passages(manifest_segments, episode.title)
+        referenced_passages.update(suggested)
+
     manifest = {
         "run_id": run_id,
         "title": episode.title,
@@ -323,21 +353,27 @@ def build_manifest(run_id: str, model_key: str = "flash") -> dict | None:
         "segments": manifest_segments,
         "passages": referenced_passages,
         "passage_source": passage_source,
+        "has_audio": audio,
         "total_duration_ms": cursor_ms,
     }
 
-    out_path = audio_dir / "manifest.json"
+    if audio:
+        out_path = run_dir / "audio" / "manifest.json"
+    else:
+        out_path = run_dir / "manifest.json"
     with open(out_path, "w") as f:
         json.dump(manifest, f, indent=2)
-    logger.info("Wrote manifest for %s: %d segments, %.1f min total",
-                run_id, len(manifest_segments), cursor_ms / 60000)
+    logger.info("Wrote manifest for %s: %d segments, %s",
+                run_id, len(manifest_segments),
+                f"{cursor_ms / 60000:.1f} min" if audio else "no audio")
     return manifest
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build timing manifests for podcast player")
+    parser = argparse.ArgumentParser(description="Build manifests for podcast player / script reader")
     parser.add_argument("--run", help="Run ID to build manifest for")
-    parser.add_argument("--all", action="store_true", help="Build manifests for all runs with audio")
+    parser.add_argument("--all", action="store_true", help="Build manifests for all runs")
+    parser.add_argument("--no-audio", action="store_true", help="Build without audio timing (for all runs)")
     parser.add_argument("--model", choices=["flash", "pro"], default="flash")
     args = parser.parse_args()
 
@@ -346,10 +382,18 @@ def main() -> None:
     if args.all:
         runs_dir = DATA_DIR / "runs"
         for run_dir in sorted(runs_dir.iterdir()):
-            if (run_dir / "audio").exists() and (run_dir / "phase3_episode.json").exists():
-                build_manifest(run_dir.name, args.model)
+            if not (run_dir / "phase3_episode.json").exists():
+                continue
+            if args.no_audio:
+                # Skip if manifest already exists
+                if (run_dir / "manifest.json").exists():
+                    continue
+                build_manifest(run_dir.name, args.model, audio=False)
+            else:
+                if (run_dir / "audio").exists():
+                    build_manifest(run_dir.name, args.model, audio=True)
     elif args.run:
-        build_manifest(args.run, args.model)
+        build_manifest(args.run, args.model, audio=not args.no_audio)
     else:
         parser.error("Specify --run or --all")
 

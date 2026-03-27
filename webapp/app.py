@@ -80,11 +80,24 @@ async def list_novels():
 
 @app.get("/api/runs/{run_id}/manifest")
 async def get_manifest(run_id: str):
-    manifest_path = DATA_DIR / "runs" / run_id / "audio" / "manifest.json"
+    # Check audio manifest first, then run-level manifest
+    audio_manifest = DATA_DIR / "runs" / run_id / "audio" / "manifest.json"
+    run_manifest = DATA_DIR / "runs" / run_id / "manifest.json"
+    manifest_path = audio_manifest if audio_manifest.exists() else run_manifest
     if not manifest_path.exists():
         raise HTTPException(404, f"No manifest for run {run_id}")
     with open(manifest_path) as f:
         return json.load(f)
+
+
+@app.get("/report/{run_id}", response_class=HTMLResponse)
+async def report_viewer(run_id: str):
+    if ".." in run_id:
+        raise HTTPException(400, "Invalid path")
+    report_path = DATA_DIR / "runs" / run_id / "report.html"
+    if not report_path.exists():
+        raise HTTPException(404, f"No report for run {run_id}")
+    return FileResponse(str(report_path))
 
 
 @app.get("/api/runs/{run_id}/episode")
@@ -741,10 +754,12 @@ function showRunDetail(evt, encoded) {
     const div = document.createElement('div');
     div.id = 'pop';
     div.className = 'popover';
-    const viewUrl = c.has_audio ? `/?run=${c.name}` : `/script/${c.name}`;
-    const viewLabel = c.has_audio ? '&#9654; audio' : '&#9654; script';
+    const viewUrl = c.has_audio ? `/?run=${c.name}` : `/report/${c.name}`;
+    const viewLabel = c.has_audio ? '&#9654; audio' : '&#9654; report';
+    const reportLink = `<a href="/report/${c.name}" target="_blank" style="font-size:0.8em;color:#5b9bd5;text-decoration:none;margin-left:6px">${viewLabel}</a>`;
+    const audioLink = c.has_audio ? ` <a href="/?run=${c.name}" target="_blank" style="font-size:0.8em;color:#5b9bd5;text-decoration:none;margin-left:4px">&#9835; audio</a>` : '';
     div.innerHTML = `<span class="close" onclick="this.parentElement.remove()">&times;</span>` +
-        `<h3>${c.name} <a href="${viewUrl}" target="_blank" style="font-size:0.8em;color:#5b9bd5;text-decoration:none;margin-left:6px">${viewLabel}</a></h3>${started}${rows}${metrics}`;
+        `<h3>${c.name}${reportLink}${audioLink}</h3>${started}${rows}${metrics}`;
     div.style.left = Math.min(evt.pageX + 10, window.innerWidth - 340) + 'px';
     div.style.top = (evt.pageY + 10) + 'px';
     document.body.appendChild(div);
