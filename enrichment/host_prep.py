@@ -106,15 +106,28 @@ def run_pre_interview(
         passage_block=_build_passage_summary(assignments),
     )
 
-    response = client.messages.parse(
-        model=model,
-        max_tokens=2048,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-        output_format=PreInterviewResponse,
-    )
+    max_attempts = 3
+    response = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = client.messages.parse(
+                model=model,
+                max_tokens=2048,
+                system=system,
+                messages=[{"role": "user", "content": user}],
+                output_format=PreInterviewResponse,
+            )
+            break
+        except Exception as e:
+            if attempt < max_attempts:
+                logger.warning(
+                    "  Pre-interview attempt %d/%d failed for %s × %s: %s. Retrying...",
+                    attempt, max_attempts, expert.name, segment_name, e,
+                )
+            else:
+                raise
 
-    assert response.parsed_output is not None
+    assert response is not None and response.parsed_output is not None
     result = response.parsed_output
     result.expert_name = expert.name
     logger.info(
