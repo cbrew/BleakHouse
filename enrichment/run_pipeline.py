@@ -25,7 +25,6 @@ from dotenv import load_dotenv
 from enrichment.design_segments import design_segments  # pyright: ignore[reportMissingImports]
 from enrichment.generate_podcast import (  # pyright: ignore[reportMissingImports]
     assemble_episode,
-    build_script_report,
     generate_segment_script,
 )
 from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
@@ -35,7 +34,6 @@ from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     EpisodeSegment,
     ExpertPersona,
     HostBrief,
-    PodcastEpisode,
     SegmentTemplate,
 )
 from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]
@@ -632,11 +630,10 @@ Examples:
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
 
-    episode = PodcastEpisode.model_validate(phase3)
-    report = build_script_report(episode)
-    with open(run_dir / "report.txt", "w") as f:
-        f.write(report)
-    logger.info("Saved report to %s", run_dir / "report.txt")
+    # ── Phase 4: Post-generation outputs ──
+    from enrichment.post_phase3 import run_post_phase3
+
+    run_post_phase3(run_dir, args.name)
 
 
 if __name__ == "__main__":
