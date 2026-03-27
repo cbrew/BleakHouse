@@ -40,9 +40,48 @@ def _match_badge(utt: dict) -> str:
         return f'<span class="badge verified">Verified ({pct}%)</span>'
     elif cat == "paraphrase":
         return f'<span class="badge paraphrase">Paraphrase ({pct}%)</span>'
-    elif cat == "confabulation":
-        return f'<span class="badge confabulation">Confabulation ({pct}%)</span>'
+    elif cat == "distant_echo":
+        return f'<span class="badge distant-echo">Distant echo ({pct}%) — loosest thematic connection</span>'
+    elif cat == "no_clear_source":
+        return f'<span class="badge no-source">No clear source ({pct}%) — nearest passage shown</span>'
+    elif cat == "invented":
+        autopsy = utt.get("autopsy")
+        if autopsy:
+            pct_in = autopsy.get("pct_in_novel", 0)
+            return (f'<span class="badge invented">Invented — '
+                    f'{pct_in}% of words appear in the novel</span>')
+        return '<span class="badge invented">Invented — no match found</span>'
     return ""
+
+
+def _autopsy_html(utt: dict) -> str:
+    """Render confabulation autopsy detail for invented quotes."""
+    autopsy = utt.get("autopsy")
+    if not autopsy:
+        return ""
+
+    quote_words = autopsy.get("quote_words", 0)
+    in_novel = autopsy.get("words_in_novel", 0)
+    absent = autopsy.get("words_absent", 0)
+    pct = autopsy.get("pct_in_novel", 0)
+    distinctive = autopsy.get("distinctive_absent", [])
+
+    parts = [f'<div class="autopsy">']
+    parts.append(f'<div class="autopsy-stat">Of {quote_words} unique words, '
+                 f'{in_novel} ({pct}%) appear somewhere in the novel, '
+                 f'{absent} do not.</div>')
+    if distinctive:
+        words_html = ", ".join(f"<code>{escape(w)}</code>" for w in distinctive)
+        parts.append(f'<div class="autopsy-absent">Distinctive absent words: {words_html}</div>')
+
+    reason = autopsy.get("fallback_reason", "")
+    shared = autopsy.get("shared_words", 0)
+    if reason == "word_overlap":
+        parts.append(f'<div class="autopsy-fallback">Nearest passage selected by word overlap '
+                     f'({shared} shared words).</div>')
+
+    parts.append('</div>')
+    return "".join(parts)
 
 
 def _passage_reveal(ref: str, passages: dict, is_ungrounded: bool) -> str:
@@ -68,8 +107,12 @@ def _passage_reveal(ref: str, passages: dict, is_ungrounded: bool) -> str:
             badge = f'<span class="badge verified">Verified quote ({pct}% match)</span>'
         elif cat == "paraphrase":
             badge = f'<span class="badge paraphrase">Likely paraphrase ({pct}% match)</span>'
-        elif cat == "confabulation":
-            badge = f'<span class="badge confabulation">Probable confabulation ({pct}% match)</span>'
+        elif cat == "distant_echo":
+            badge = f'<span class="badge distant-echo">Distant echo ({pct}% match)</span>'
+        elif cat == "no_clear_source":
+            badge = f'<span class="badge no-source">No clear source ({pct}% match)</span>'
+        elif cat == "invented":
+            badge = '<span class="badge invented">Nearest passage by word overlap</span>'
     elif is_ungrounded and p.get("suggested"):
         badge = '<span class="badge suggested">Suggested passage (not a direct source)</span>'
 
@@ -151,6 +194,9 @@ def build_report_html(manifest: dict) -> str:
                     badge = _match_badge(utt)
                     if badge:
                         utt_parts.append(f' {badge}')
+                    autopsy_detail = _autopsy_html(utt)
+                    if autopsy_detail:
+                        utt_parts.append(autopsy_detail)
                 elif quote_mode == "setup":
                     utt_parts.append(f'<span class="setup">{escape(text)}</span>')
                 elif quote_mode == "commentary":
@@ -265,8 +311,20 @@ details.pr[open] {{ padding: 0.4em 0.6em; }}
 }}
 .badge.verified {{ background: #d4edda; color: #155724; }}
 .badge.paraphrase {{ background: #fff3cd; color: #856404; }}
-.badge.confabulation {{ background: #f8d7da; color: #721c24; }}
+.badge.distant-echo {{ background: #ffe0b2; color: #e65100; }}
+.badge.no-source {{ background: #f8d7da; color: #721c24; }}
+.badge.invented {{ background: #343a40; color: #fff; }}
 .badge.suggested {{ background: #e2e3e5; color: #383d41; }}
+/* Autopsy */
+.autopsy {{
+    margin: 0.3em 0 0.3em 1em; padding: 0.4em 0.6em;
+    background: #f8f8f8; border-left: 3px solid #721c24;
+    font-size: 0.82em; color: #555;
+}}
+.autopsy-stat {{ margin-bottom: 0.2em; }}
+.autopsy-absent {{ color: #721c24; }}
+.autopsy-absent code {{ background: #f8d7da; padding: 1px 4px; border-radius: 2px; font-size: 0.9em; }}
+.autopsy-fallback {{ color: #888; font-style: italic; margin-top: 0.2em; }}
 footer {{
     margin-top: 2em; padding-top: 1em; border-top: 1px solid #ddd;
     color: #888; font-size: 0.8em;

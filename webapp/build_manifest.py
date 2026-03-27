@@ -325,21 +325,24 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
 
             referenced_passages.update(results["matched_passages"])
 
-            for si, ti, ui, pid, ratio, category in results["utterance_matches"]:
+            for si, ti, ui, pid, ratio, category, autopsy in results["utterance_matches"]:
                 utt = manifest_segments[si]["turns"][ti]["utterances"][ui]
                 if pid:
                     utt["passage_ref"] = pid
                 utt["match_ratio"] = round(ratio, 3)
                 utt["match_category"] = category
+                if autopsy:
+                    utt["autopsy"] = autopsy
 
-            verified = sum(1 for _, _, _, _, _, c in results["utterance_matches"] if c == "verified")
-            paraphrase = sum(1 for _, _, _, _, _, c in results["utterance_matches"] if c == "paraphrase")
-            confab = sum(1 for _, _, _, _, _, c in results["utterance_matches"] if c == "confabulation")
+            cats = {}
+            for _, _, _, _, _, c, _ in results["utterance_matches"]:
+                cats[c] = cats.get(c, 0) + 1
             total = len(results["utterance_matches"])
-            logger.info(
-                "  Quote matching for %s: %d verified, %d paraphrase, %d confabulation (of %d quotes)",
-                run_id, verified, paraphrase, confab, total,
-            )
+            parts = [f"{cats.get(c, 0)} {c}" for c in
+                     ["verified", "paraphrase", "distant_echo", "no_clear_source", "invented"]
+                     if cats.get(c, 0) > 0]
+            logger.info("  Quote matching for %s: %s (of %d quotes)",
+                        run_id, ", ".join(parts), total)
 
     # For ungrounded runs, also add suggested passages per segment
     if passage_source == "ungrounded":
