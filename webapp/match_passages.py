@@ -89,24 +89,66 @@ def categorise(ratio: float) -> str:
         return "verified"
     if ratio >= 0.3:
         return "paraphrase"
-    return "confabulation"
+    if ratio >= 0.1:
+        return "distant_echo"
+    if ratio > 0:
+        return "no_clear_source"
+    return "invented"
+
+
+def _build_autopsy(quote_text: str, passages: list[dict]) -> dict:
+    """Build a confabulation autopsy for a zero-match quote.
+
+    Reports how many words from the quote appear anywhere in the novel,
+    which distinctive words (length >= 5) are absent, and finds the
+    thematically closest passage by character/theme overlap.
+    """
+    quote_words = _normalise(quote_text)
+    quote_set = set(quote_words)
+
+    # Build vocabulary of all words across all passages
+    novel_vocab: set[str] = set()
+    for p in passages:
+        novel_vocab.update(_normalise(p.get("text", "")))
+
+    words_in_novel = quote_set & novel_vocab
+    words_absent = quote_set - novel_vocab
+    # "Distinctive" = 5+ chars, not common function words
+    distinctive_absent = sorted(
+        w for w in words_absent if len(w) >= 5
+    )
+
+    return {
+        "quote_words": len(quote_set),
+        "words_in_novel": len(words_in_novel),
+        "words_absent": len(words_absent),
+        "distinctive_absent": distinctive_absent[:10],
+        "pct_in_novel": round(len(words_in_novel) / max(len(quote_set), 1) * 100),
+    }
 
 
 def find_best_match(
     quote_text: str,
     passages: list[dict],
-) -> tuple[str, float, dict] | None:
+) -> tuple[str, float, dict, dict | None]:
     """Find the passage that best matches a quote.
 
-    Returns (passage_id, match_ratio, passage_dict) or None if no passages.
+    Always returns (passage_id, match_ratio, passage_dict, autopsy_or_none).
+    Returns ("", 0.0, {}, None) only if quote is too short or no passages exist.
     """
     quote_words = _normalise(quote_text)
-    if len(quote_words) < 3:
-        return None
+    if not quote_words or not passages:
+        return ("", 0.0, {}, None)
 
     best_id = ""
     best_ratio = 0.0
-    best_passage = {}
+    best_passage: dict = {}
+
+    # Also track the best passage by individual word overlap (for ratio=0 fallback)
+    quote_set = set(quote_words)
+    best_word_overlap = 0
+    best_overlap_id = ""
+    best_overlap_passage: dict = {}
 
     for p in passages:
         p_text = p.get("text", "")
@@ -114,14 +156,38 @@ def find_best_match(
             continue
         p_words = _normalise(p_text)
         ratio = score_match(quote_words, p_words)
+
         if ratio > best_ratio:
             best_ratio = ratio
             best_id = p.get("passage_id", "")
             best_passage = p
 
-    if not best_id:
-        return None
-    return best_id, best_ratio, best_passage
+        # Track word overlap for thematic fallback
+        overlap = len(quote_set & set(p_words))
+        if overlap > best_word_overlap:
+            best_word_overlap = overlap
+            best_overlap_id = p.get("passage_id", "")
+            best_overlap_passage = p
+
+    # If window matching found something, use it
+    if best_id and best_ratio > 0:
+        return (best_id, best_ratio, best_passage, None)
+
+    # Zero window-match: use the passage with most individual word overlap
+    # and build an autopsy
+    autopsy = _build_autopsy(quote_text, passages)
+    if best_overlap_id:
+        autopsy["fallback_reason"] = "word_overlap"
+        autopsy["shared_words"] = best_word_overlap
+        return (best_overlap_id, 0.0, best_overlap_passage, autopsy)
+
+    # No word overlap at all — use first passage with text as arbitrary fallback
+    autopsy["fallback_reason"] = "no_overlap"
+    for p in passages:
+        if p.get("text") and p.get("passage_id"):
+            return (p["passage_id"], 0.0, p, autopsy)
+
+    return ("", 0.0, {}, autopsy)
 
 
 def match_episode_quotes(
@@ -130,12 +196,15 @@ def match_episode_quotes(
 ) -> dict:
     """Match all quotes in an episode to source passages.
 
+    Every quote gets a passage_ref (even at ratio 0) so there is always
+    something clickable for drill-down.
+
     Returns a dict with:
-      matched_passages: {passage_id: {text, chapter_id, ..., match_ratio, match_category, matched_quotes}}
-      utterance_matches: [(seg_idx, turn_idx, utt_idx, passage_id, match_ratio, match_category)]
+      matched_passages: {passage_id: {text, chapter_id, ..., match_ratio, match_category, ...}}
+      utterance_matches: [(seg_idx, turn_idx, utt_idx, passage_id, match_ratio, match_category, autopsy)]
     """
     matched_passages: dict[str, dict] = {}
-    utterance_matches: list[tuple[int, int, int, str, float, str]] = []
+    utterance_matches: list[tuple[int, int, int, str, float, str, dict | None]] = []
 
     for si, seg in enumerate(episode.get("segments", [])):
         for ti, turn in enumerate(seg.get("turns", [])):
@@ -146,16 +215,11 @@ def match_episode_quotes(
                     continue
 
                 text = utt.get("text", "").strip().lstrip("> ").strip('"').strip("'")
-                result = find_best_match(text, passages)
-                if result is None:
-                    utterance_matches.append((si, ti, ui, "", 0.0, "confabulation"))
-                    continue
-
-                pid, ratio, passage = result
+                pid, ratio, passage, autopsy = find_best_match(text, passages)
                 category = categorise(ratio)
-                utterance_matches.append((si, ti, ui, pid, ratio, category))
+                utterance_matches.append((si, ti, ui, pid, ratio, category, autopsy))
 
-                if pid not in matched_passages:
+                if pid and pid not in matched_passages:
                     e = passage.get("enrichment", {})
                     matched_passages[pid] = {
                         "text": passage.get("text", ""),
@@ -168,11 +232,12 @@ def match_episode_quotes(
                         "narrator": e.get("narrator", ""),
                         "matched_quotes": [],
                     }
-                matched_passages[pid]["matched_quotes"].append({
-                    "text": text,
-                    "match_ratio": round(ratio, 3),
-                    "match_category": category,
-                })
+                if pid:
+                    matched_passages[pid]["matched_quotes"].append({
+                        "text": text,
+                        "match_ratio": round(ratio, 3),
+                        "match_category": category,
+                    })
 
     # Add the best match_ratio and category to each passage entry
     for pid, pdata in matched_passages.items():
