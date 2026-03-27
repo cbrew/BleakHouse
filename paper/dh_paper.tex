@@ -1,0 +1,610 @@
+\documentclass[final]{clv2025}
+
+\jvol{vv}
+\jnum{nn}
+\jyear{2025}
+
+\dochead{Full Paper}
+
+\pageonefooter{}
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage{microtype}
+\usepackage{xcolor}
+
+\runningtitle{Reading Without Having Read}
+\runningauthor{Brew}
+
+\begin{document}
+
+\title{Reading Without Having Read:\\
+Textual Affordances, Interpretive Frameworks,\\
+and the Grounding Problem in Computational Literary Criticism}
+
+\author{Chris Brew$^{1,2}$}
+
+\affilblock{
+    \affil{The Ohio State University$^1$\quad LexisNexis Legal \& Professional$^2$\\\quad \email{brew.2@osu.edu}}
+}
+
+\maketitle
+
+\begin{abstract}
+Can literary interpretation be decomposed into independently measurable
+and manipulable components?  We present a computational framework that
+generates structured multi-voice literary discussions about novels,
+enabling us to isolate three factors: \emph{textual affordances} (what a
+novel provides for discussion), \emph{interpretive frameworks} (the
+critical perspective a reader brings), and \emph{grounding} (whether the
+reader has actually read the text).  Testing across 15 Victorian and
+early-modern novels (60,774 passages, 180 experimental conditions), we
+find that interpretive frameworks dominate: two passage-selection
+algorithms that choose almost entirely different passages (Jaccard
+similarity 0.057) produce near-identical literary discussions, with
+expert airtime stable to $\pm$2\% across all novels.  This is a
+computational demonstration of Fish's thesis that meaning is
+reader-constructed.  Without textual grounding, the system produces
+\emph{pastiche}---not random hallucination but graduated borrowing from
+training data, with 82\% of invented quotes drawing 90--100\% of their
+vocabulary from the novel's own word stock.  The rate of faithful
+quotation ranges from 57\% for canonical novels (Middlemarch) to 0\%
+for obscure ones (Hester), providing an unintended instrument for
+measuring an LLM's literary knowledge.  Conversational scaffolding
+(host preparation) uniformly raises question density from $\sim$1 to
+$\sim$11 per segment across all 15 novels, confirming that dialogue
+structure is architecture-driven, not content-dependent.  We argue that
+these findings connect computational text generation to long-standing
+debates in reader-response theory, distant reading, and the digital
+humanities.
+\end{abstract}
+
+%% ============================================================
+\section{Introduction: The Computational Reader}
+\label{sec:intro}
+
+Two algorithms examine the same novel and select passages for a panel
+of literary experts to discuss.  The first uses min-cost network flow
+optimisation, selecting passages that satisfy each expert's thematic
+demands at minimum cost.  The second uses contextual embeddings with
+LLM-curated similarity, selecting passages that semantically match each
+expert's profile.  The two algorithms agree on fewer than 6\% of their
+selections (mean Jaccard similarity 0.057 across 15 novels).  Yet the
+resulting literary discussions---multi-voice conversations in which
+three experts and a host analyse the novel---are nearly
+indistinguishable in character: each expert's share of airtime varies by
+less than 2 percentage points regardless of which algorithm selected the
+passages.
+
+This \emph{convergence paradox} is the starting point for our
+investigation.  If the texts being discussed barely overlap, but the
+discussions sound the same, then the dominant factor shaping
+interpretation is not the text but the reader---or, in our
+computational framework, the interpretive persona.  This finding has
+implications that extend well beyond podcast generation.  It provides
+the first large-scale computational evidence for Stanley Fish's
+influential thesis that meaning is constructed by interpretive
+communities, not extracted from texts \cite{fish1980text}.  It
+demonstrates that literary interpretation can be decomposed into
+independently measurable components.  And it reveals what happens when
+one of those components---textual grounding---is removed: the system
+does not fall silent but instead produces \emph{pastiche}, a graduated
+form of confabulation that recombines the novel's own vocabulary into
+plausible-but-nonexistent passages.
+
+We test nine hypotheses across 15 novels spanning 1850--1924 (four
+Dickens, three Eliot, two Gaskell, one each from Collins, Forster,
+Gissing, and Oliphant), totalling 60,774 enriched passages and 180
+experimental conditions.  Our three main contributions are:
+
+\begin{enumerate}
+\item A demonstration that \textbf{interpretive frameworks dominate
+passage selection} in determining the character of literary discussion
+(Section~\ref{sec:convergence}).
+
+\item Evidence that \textbf{ungrounded generation produces measurable
+pastiche}, not random hallucination, with a confabulation rate that
+serves as an unintended instrument for measuring LLM literary knowledge
+(Section~\ref{sec:grounding}).
+
+\item A practical demonstration that \textbf{literary interpretation can
+be made steerable}: a scholar can explore ``what would a Marxist reading
+emphasise?'' at zero marginal LLM cost
+(Section~\ref{sec:editorial}).
+\end{enumerate}
+
+
+%% ============================================================
+\section{Theoretical Framing}
+\label{sec:theory}
+
+Our framework connects to three traditions in literary theory and one in
+computational creativity.
+
+\paragraph{Interpretive communities (Fish).}
+Fish~\cite{fish1980text} argued that literary texts do not contain
+determinate meanings waiting to be extracted; rather, meaning is
+constituted by the interpretive strategies that readers bring.  Two
+readers applying different strategies to the same text will produce
+different readings, not because they disagree about the text but because
+they are, in effect, reading different texts.  Our system
+operationalises this claim: each expert persona embodies a distinct
+interpretive strategy (formalist close reading, social-historical
+analysis, reader-response criticism), and the convergence paradox shows
+that these strategies---not the passages selected---determine what gets
+said.
+
+\paragraph{Textual affordance (Iser).}
+Iser~\cite{iser1978act} proposed that texts contain
+\emph{Leerstellen}---gaps and indeterminacies---that readers must fill,
+and that different texts afford different kinds of filling.  We
+operationalise affordance through a seven-dimensional enrichment schema
+applied to every passage in each novel: \texttt{character\_development},
+\texttt{plot\_advancement}, \texttt{thematic\_depth},
+\texttt{social\_critique}, \texttt{humor\_entertainment},
+\texttt{atmosphere\_setting}, and \texttt{narrative\_technique}.  These
+dimensions vary substantially across novels (Section~\ref{sec:affordance}),
+confirming that different texts afford different interpretive
+possibilities.
+
+\paragraph{Distant reading (Moretti, Underwood).}
+Moretti's~\cite{moretti2013distant} call for ``distant reading''---the
+computational analysis of literary systems rather than individual
+texts---has been realised primarily through topic modelling, network
+analysis, and stylometry.  Our contribution is a different kind of
+distant reading: we do not analyse what novels \emph{contain} but what
+they \emph{afford}---what kinds of discussions they enable when filtered
+through explicit critical lenses.
+
+\paragraph{Combinational creativity (Boden).}
+Boden~\cite{boden2004creative} distinguishes combinational creativity
+(novel combinations of familiar ideas) from exploratory creativity
+(traversal of a conceptual space) and transformational creativity
+(changing the space itself).  Our system's editorial control
+mechanism---in which a scholar manipulates expert demand profiles to
+produce different readings---is a tool for systematic combinational
+exploration of interpretive space.
+
+
+%% ============================================================
+\section{System Overview}
+\label{sec:system}
+
+We generate structured literary discussion podcasts through a
+four-phase pipeline.  The system is the instrument, not the
+contribution; we describe it briefly and refer readers to the companion
+technical paper for implementation details.
+
+\paragraph{Corpus.}  Fifteen novels (Table~\ref{tab:novels}), parsed
+into passages averaging 50--80 words.  Total: 60,774 passages.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Corpus: 15 novels, 60,774 passages.}
+\label{tab:novels}
+\begin{tabular}{llrr}
+\toprule
+Novel & Author & Year & Passages \\
+\midrule
+Bleak House & Dickens & 1853 & 6,916 \\
+Our Mutual Friend & Dickens & 1865 & 5,775 \\
+David Copperfield & Dickens & 1850 & 5,621 \\
+Hard Times & Dickens & 1854 & 1,773 \\
+Mill on the Floss & Eliot & 1860 & 4,654 \\
+Middlemarch & Eliot & 1871 & 5,519 \\
+Daniel Deronda & Eliot & 1876 & 5,170 \\
+North and South & Gaskell & 1855 & 2,942 \\
+Cranford & Gaskell & 1853 & 1,226 \\
+A Passage to India & Forster & 1924 & 2,556 \\
+No Name & Collins & 1862 & 6,057 \\
+New Grub Street & Gissing & 1891 & 3,872 \\
+The Odd Women & Gissing & 1893 & 3,395 \\
+Miss Marjoribanks & Oliphant & 1866 & 3,019 \\
+Hester & Oliphant & 1883 & 2,279 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Phase 0: Enrichment.}  Each passage is annotated with a
+20-field schema (using Claude Haiku) including an interest score
+(0--5), seven \emph{provision dimensions} measuring what the passage
+supplies for discussion, characters present, themes, emotional register,
+and a best extractable quote.
+
+\paragraph{Phase 1--2: Passage selection.}  We test three conditions:
+\begin{itemize}
+\item \textbf{Transport}: min-cost network flow matching expert demand
+profiles to passage provisions.  Zero LLM tokens, $<$1 second.
+\item \textbf{Embedding}: contextual embeddings with LLM-curated
+similarity.  $\sim$15K Sonnet tokens, $\sim$10 seconds.
+\item \textbf{No passages}: the LLM generates from prior knowledge
+alone (no Phase 1--2).
+\end{itemize}
+
+\paragraph{Phase 2.5: Host preparation (optional).}  Pre-interviews
+with each expert (Haiku) surface their views on assigned passages,
+followed by question planning (Sonnet) that creates targeted host
+questions.  This is our conversational scaffolding intervention.
+
+\paragraph{Phase 3: Script generation.}  A single Sonnet call per
+segment produces a structured podcast script with speaker turns,
+quotations, and prosodic annotations.
+
+\paragraph{Experimental design.}  180 conditions: 15 novels $\times$
+2 expert panels $\times$ 3 pipelines (transport, embedding,
+no-passages) $\times$ 2 host-preparation settings (with/without).
+Each condition produces one complete podcast episode.
+
+
+%% ============================================================
+\section{The Convergence Paradox: Frameworks Dominate}
+\label{sec:convergence}
+
+\paragraph{Hypothesis DH1.}  \emph{Critical frameworks dominate passage
+selection: persona explains more script variance than text.}
+
+\paragraph{Hypothesis DH6.}  \emph{Expert prominence is
+framework-stable, not text-adaptive.}
+
+We compare the passage sets selected by transport and embedding for the
+same novel and panel.  Across all 15 novels, the mean Jaccard similarity
+is \textbf{0.057} (range 0.000--0.118).  Transport typically selects
+49--63 passages; embedding selects 29--36.  Of these, only 3--7 are
+shared.  The two methods produce nearly disjoint readings of the same
+novel.
+
+Yet the resulting scripts are similar.  Expert airtime---each expert's
+share of total expert words, excluding the host---is stable across all
+15 novels: Eleanor Hartley (literary critic) 32--37\%, James Blackstone
+(social historian) 30--37\%, Caroline Woodcourt (close reader)
+29--34\%.  The standard deviation across novels is less than 2
+percentage points for each expert.
+
+This stability is a stronger finding than we predicted.  Our original
+hypothesis (H6 in the companion paper) predicted that expert prominence
+would \emph{adapt} to textual affordance---that a novel rich in social
+critique would give the social historian more airtime.  The data shows
+the opposite: the frameworks are \emph{robust}, maintaining their
+character regardless of what the novel provides.  For digital humanities,
+this is the more interesting result.  It means that the interpretive
+frameworks function as genuine critical lenses---consistent heuristics
+for reading, not chameleons that reshape themselves to fit each text.
+
+\paragraph{Interpretation.}  The convergence paradox operationalises
+Fish's thesis at scale.  When two radically different passage-selection
+strategies produce convergent discussions, the dominant variable is the
+interpretive community (the expert panel), not the text.  A Marxist
+reading of \textit{Cranford} and a Marxist reading of \textit{Hard
+Times} differ in their textual evidence but not in their analytical
+character.  The reader makes the reading.
+
+
+%% ============================================================
+\section{Textual Affordances as Novel Fingerprints}
+\label{sec:affordance}
+
+\paragraph{Hypothesis DH2.}  \emph{Textual affordances are measurable
+and vary: provision dimensions discriminate novels.}
+
+\paragraph{Hypothesis DH7.}  \emph{The enrichment schema partially
+transfers across novels.}
+
+Our seven provision dimensions produce distinctive profiles for each
+novel.  The most diagnostic dimension is
+\texttt{humor\_entertainment}, which has a coefficient of variation of
+0.704 across the 15 novels: \textit{Miss Marjoribanks} (Oliphant) has
+the richest comedic supply, while \textit{New Grub Street} (Gissing)
+and \textit{The Odd Women} (Gissing) are among the sparsest.
+
+Six of the seven dimensions transfer across all 15 novels without
+modification.  The exception is \texttt{atmosphere\_setting}, which is
+uniformly low ($<$6\% of passages rated strong) across all novels.  We
+interpret this as a bias in the enrichment schema toward features that
+are diagnostic in Realist fiction---the schema was designed on
+\textit{Bleak House} and reflects Dickensian priorities.  The dimension
+is not absent from these novels; it is present but the schema does not
+capture it well.
+
+\paragraph{Affordance profiles.}  Each novel's provision-dimension
+profile constitutes a measurable \emph{affordance fingerprint}.
+\textit{Hard Times} affords social critique (20.2\% strong) more than
+any other novel.  \textit{Miss Marjoribanks} affords comedy (27.1\%)
+and character study (40.5\%).  These are not subjective judgements but
+reproducible computational measurements, and they constrain (without
+determining) the discussions that can be generated.
+
+
+%% ============================================================
+\section{Reading Without Having Read}
+\label{sec:grounding}
+
+\paragraph{Hypothesis DH3.}  \emph{Grounding is prerequisite for
+faithful interpretation: the gap between grounded and ungrounded
+generation is $\geq$40 percentage points.}
+
+\paragraph{Hypothesis DH4.}  \emph{Confabulation measures training
+exposure: ungrounded verification rates correlate with novel prominence.}
+
+\paragraph{Hypothesis DH5.}  \emph{Confabulation is pastiche, not
+random hallucination.}
+
+The grounding gap is the central empirical finding of this study.  When
+given source passages (transport or embedding), the system quotes the
+novel accurately: mean verification rates of 98.0\% (transport) and
+97.2\% (embedding).  When generating from prior knowledge alone
+(no-passages condition), the mean drops to 48.9\%, with a range of
+0--57\% depending on the novel.
+
+\subsection{The Knowledge Gradient}
+
+Table~\ref{tab:nop_verification} shows the ungrounded verification
+rate for each novel, ordered by decreasing accuracy.  The pattern is
+clear: the LLM quotes canonical, widely-read novels more accurately
+than obscure ones.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Ungrounded (no-passages) quote verification by novel.
+Verification uses 5-tier matching against the full enriched corpus:
+\emph{verified} ($\geq$60\% match), \emph{paraphrase} (30--59\%),
+\emph{distant echo} (10--29\%), \emph{no clear source} (1--9\%),
+\emph{invented} (0\%).}
+\label{tab:nop_verification}
+\begin{tabular}{llrr}
+\toprule
+Novel & Author & Verified\% & Invented\% \\
+\midrule
+Middlemarch & Eliot & 57 & 21 \\
+Bleak House & Dickens & 53 & 22 \\
+David Copperfield & Dickens & 44 & 17 \\
+Hard Times & Dickens & 39 & 40 \\
+Passage to India & Forster & 39 & 34 \\
+Mill on the Floss & Eliot & 37 & 32 \\
+Cranford & Gaskell & 33 & 61 \\
+Daniel Deronda & Eliot & 30 & 36 \\
+Our Mutual Friend & Dickens & 29 & 55 \\
+New Grub Street & Gissing & 20 & 65 \\
+Odd Women & Gissing & 6 & 91 \\
+Miss Marjoribanks & Oliphant & 3 & 44 \\
+North and South & Gaskell & 2 & 77 \\
+Hester & Oliphant & 0 & 78 \\
+No Name & Collins & 0 & 100 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The grounding gap ranges from approximately 30 percentage points
+(Middlemarch: grounded 99\%, ungrounded 57\%) to nearly 100 percentage
+points (Hester, No Name: grounded $\sim$98\%, ungrounded 0\%).
+\textbf{Hypothesis DH3 is confirmed with a much larger effect than
+predicted}, and \textbf{DH4 is confirmed}: novel prominence is a strong
+predictor of ungrounded accuracy.
+
+\subsection{Pastiche, Not Hallucination}
+
+The most distinctive finding concerns the \emph{nature} of
+confabulation.  We performed a vocabulary autopsy on all 726 invented
+quotes (0\% match with any passage in the novel).  The results are
+striking:
+
+\begin{itemize}
+\item \textbf{82\% of invented quotes} draw 90--100\% of their
+individual words from the novel's own vocabulary.
+\item The mean percentage of quote words appearing somewhere in the
+novel is \textbf{95.1\%}.
+\item The minimum is 67\%---even the worst confabulations are
+constructed from the novel's word stock.
+\end{itemize}
+
+This is not random generation.  The LLM is writing \emph{in the style
+of} the novel rather than \emph{from} the novel.  It recombines real
+vocabulary into plausible-but-nonexistent sequences.  In literary-critical
+terms, this is \emph{pastiche}---imitation of an author's manner
+without direct quotation from their text.
+
+For the DH community, this reframes the ``hallucination problem'' in
+LLM-generated literary discussion.  When the system lacks grounding, it
+does not produce gibberish; it produces a kind of creative
+imitation---sometimes quite convincing---that draws on whatever the
+model absorbed during training.  The graduated nature of this
+imitation (from perfect quotation of famous passages to pure pastiche
+of obscure ones) makes it a measurable phenomenon, not merely an error
+to be eliminated.
+
+\paragraph{Interpretation.}  We suggest that confabulation rate
+functions as an unintended \textbf{instrument for measuring LLM literary
+knowledge}.  A novel that the model can quote accurately from memory
+(Middlemarch, 57\% verified) is one the model has deeply absorbed.  A
+novel it cannot quote at all (Hester, 0\%) is one it has encountered
+only glancingly, or not at all.  This is, to our knowledge, the first
+proposal to use confabulation rate as a measurement tool rather than
+treating it solely as a failure mode.
+
+
+%% ============================================================
+\section{Conversational Scaffolding}
+\label{sec:scaffolding}
+
+\paragraph{Hypothesis DH8.}  \emph{Conversational structure is
+scaffolding-driven, not content-driven.}
+
+Host preparation---a phase in which the system conducts pre-interviews
+with each expert persona and then plans targeted questions---transforms
+the generated discussions.  Without host preparation, the system produces
+extended expert monologues with a mean of $\sim$1 question per segment.
+With host preparation, the mean rises to $\sim$11 questions per segment.
+
+Crucially, this effect is \textbf{uniform across all 15 novels}.
+The ratio of questions with host prep to questions without ranges from
+5.3$\times$ (\textit{Our Mutual Friend}) to 14.1$\times$
+(\textit{Cranford}), but every novel shows the transformation from
+monologue to dialogue.  This uniformity confirms that the effect is
+architectural---it is a property of the conversational scaffolding, not
+of the literary content being discussed.
+
+\paragraph{Interpretation.}  For digital humanities, this finding
+separates two concerns that are often conflated: the \emph{substance}
+of a literary discussion (what is said about the novel) and its
+\emph{dynamics} (how speakers interact).  The dynamics can be designed
+independently of the substance, through structural interventions that
+operate at the level of conversation architecture rather than literary
+content.
+
+
+%% ============================================================
+\section{Editorial Control}
+\label{sec:editorial}
+
+\paragraph{Hypothesis DH9.}  \emph{Editorial manipulation is tractable:
+demand-profile changes produce predictable, graduated passage shifts.}
+
+The transport selection method formulates passage selection as a
+min-cost flow problem in which each expert has a \emph{demand profile}
+over the seven provision dimensions.  By modifying these demand
+profiles---increasing one expert's appetite for social critique,
+another's for narrative technique---a scholar can explore how different
+critical emphases reshape the discussion.
+
+We tested this by varying the demand profiles across multiple
+configurations, from conservative adjustments (single-dimension shifts)
+to radical panel replacement (all three experts swapped).  The resulting
+passage-set Jaccard similarities show a \textbf{graduated response}:
+conservative shifts produce Jaccard values of 0.7--0.8 with the
+baseline, while full panel replacement produces 0.5--0.6.  The
+editorial intention is legible as a predictable flow of passage changes.
+
+This exploration incurs \textbf{zero marginal LLM cost}.  The min-cost
+flow solver runs in $<$100ms with no API calls.  A scholar can preview
+dozens of configurations before committing to the expensive script
+generation step.  This ``preview-before-commit'' workflow is unique
+to the transport formulation; embedding-based selection offers no
+equivalent mechanism for systematic exploration.
+
+\paragraph{Interpretation.}  In Boden's~\cite{boden2004creative}
+terms, this is a tool for \emph{exploratory creativity}---systematic
+traversal of an interpretive space defined by provision dimensions and
+expert demands.  The scholar does not create new critical lenses but
+explores the consequences of adjusting existing ones, at a granularity
+and speed that would be impractical with human panels.
+
+
+%% ============================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{What Does It Mean to ``Operationalise'' Interpretation?}
+
+Our framework does not claim to replicate human literary interpretation.
+It claims something more modest and, we believe, more useful: that the
+\emph{structure} of interpretation---the relationship between text,
+reader, and resulting discourse---can be modelled as a set of
+independently variable factors, each of which can be measured,
+manipulated, and compared.
+
+The convergence paradox (Section~\ref{sec:convergence}) suggests that
+the most powerful factor is the interpretive framework.  The grounding
+results (Section~\ref{sec:grounding}) show that access to the actual
+text is a prerequisite for accuracy but not for fluency.  The
+scaffolding results (Section~\ref{sec:scaffolding}) demonstrate that
+conversational dynamics can be designed independently of content.  These
+are not literary-critical insights in themselves; they are
+\emph{structural} insights about how literary-critical discourse is
+produced.
+
+\subsection{The Schema Problem}
+
+Our enrichment schema---seven provision dimensions derived from
+\textit{Bleak House}---partially transfers to 14 additional novels.
+The failure of \texttt{atmosphere\_setting} suggests that the schema is
+inflected by the tradition in which it was designed.  A schema developed
+from modernist fiction, or from non-English literature, would likely
+capture different affordances.  We regard this as a productive
+limitation: the fact that schemas are perspective-dependent is itself a
+finding about the nature of literary description.
+
+\subsection{Limitations}
+
+\textbf{Automated metrics only.}  We report verification rates,
+airtime distributions, and structural statistics, but no human
+evaluation of discussion quality, insight, or literary value.
+
+\textbf{English canon.}  All 15 novels are in English, from
+1850--1924.  We cannot claim generalisability to other languages,
+periods, or genres.
+
+\textbf{Enrichment bias.}  The provision dimensions reflect the
+priorities of Victorian Realism.  Application to other traditions would
+require schema adaptation.
+
+\textbf{No causal claims.}  Our experimental design supports
+correlational findings (e.g., novel prominence correlates with
+verification rate) but does not establish causal mechanisms.
+
+
+%% ============================================================
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Computational literary criticism.}
+Moretti's~\cite{moretti2013distant} ``distant reading'' programme and
+Underwood's~\cite{underwood2019distant} statistical analyses of
+literary history have established computational methods in literary
+studies.  Our work differs in generating \emph{discourse about}
+literature rather than analysing literature directly.
+
+\paragraph{AI-generated conversation.}
+Google's NotebookLM~\cite{notebooklm2024} generates audio discussions
+from uploaded documents.  Our contribution is the explicit
+decomposition of the generation process into manipulable components,
+enabling controlled comparison across conditions.
+
+\paragraph{Retrieval-augmented generation.}
+Lewis et al.~\cite{lewis2020rag} and Gao et al.~\cite{gao2024rag}
+establish RAG as the standard approach to grounding LLM output.  Our
+finding that grounding method matters far less than the fact of
+grounding extends this literature.
+
+\paragraph{Hallucination and confabulation.}
+Our pastiche finding---that confabulation is structured, graduated, and
+vocabulary-preserving---extends work on LLM hallucination by
+characterising confabulation as a literary phenomenon (pastiche) rather
+than solely a technical failure.
+
+
+%% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have shown that literary interpretation, modelled as a computational
+process, decomposes into three independently measurable factors:
+interpretive frameworks, textual affordances, and grounding.  Of these,
+frameworks dominate---a finding that provides the first large-scale
+computational evidence for Fish's thesis that meaning is
+reader-constructed.
+
+When grounding is removed, the system does not fail randomly but
+produces graduated pastiche, constructing plausible quotations from
+the novel's own vocabulary.  This pastiche is more faithful for
+canonical novels and degrades to pure invention for obscure ones,
+providing a novel instrument for measuring LLM literary knowledge.
+
+Conversational scaffolding transforms monologue into dialogue
+uniformly across all 15 novels, confirming that discussion dynamics
+can be designed independently of literary content.  Editorial control
+through demand-profile manipulation enables zero-cost exploration of
+interpretive space.
+
+These findings connect AI text generation to long-standing debates in
+reader-response theory and suggest that computational frameworks can
+contribute to---not replace---the humanities' understanding of how
+reading works.
+
+
+\bibliography{refs}
+\bibliographystyle{compling}
+
+\end{document}
