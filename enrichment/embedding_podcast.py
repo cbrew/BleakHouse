@@ -36,7 +36,7 @@ DB_PATH = DATA_DIR / "bleak_house_vectors"
 def _db_path() -> Path:
     import os
     novel = os.environ.get("BLEAKHOUSE_NOVEL")
-    if novel:
+    if novel and novel != "bleak_house":
         return DATA_DIR / "novels" / novel / "vectors"
     return DB_PATH
 
