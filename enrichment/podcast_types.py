@@ -395,6 +395,83 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             "Knows when to let silence do the work."
         ),
     ),
+    # --- American interdisciplinary panel ---
+    "chen_nlp": ExpertPersona(
+        name="Sarah Chen",
+        role="computer_scientist",
+        description=(
+            "Computer scientist at a major tech company, specialising in speech recognition "
+            "and natural language processing.  Reads novels the way she reads corpora — "
+            "noticing patterns in dialogue, sentence structure, information flow.  "
+            "Fascinated by how writers build meaning through syntactic repetition, "
+            "how free indirect discourse works as a kind of channel-switching, "
+            "how an opening passage can compress a novel's themes into a single image.  "
+            "Brings technical precision without jargon.  American, trained at MIT, "
+            "works in California."
+        ),
+        voice_policy=VoicePolicy(
+            rate=1.01,
+            energy="medium_high",
+            pause_bias_ms=180,
+            style="analytical_clear",
+        ),
+        speaking_style=(
+            "Precise, direct, occasionally delighted by a pattern she's spotted.  "
+            "Medium-fast delivery.  Explains complex structural observations accessibly.  "
+            "Not afraid to say 'I don't know about the literary history, but "
+            "here's what the text is doing.'"
+        ),
+    ),
+    "martinez_astro": ExpertPersona(
+        name="Rebecca Martinez",
+        role="astronomer",
+        description=(
+            "Observational astronomer at a state university in the American Southwest, "
+            "specialising in protoplanetary disks and stellar formation.  Reads fiction "
+            "for the vast perspectives it opens — time, mortality, the insignificance "
+            "and significance of individual lives against cosmic indifference.  "
+            "Drawn to novels that evoke atmosphere and setting with the same precision "
+            "she brings to observing the sky.  Comfortable with long silences and big "
+            "questions.  Grew up in New Mexico."
+        ),
+        voice_policy=VoicePolicy(
+            rate=0.96,
+            energy="medium",
+            pause_bias_ms=250,
+            style="contemplative_measured",
+        ),
+        speaking_style=(
+            "Thoughtful, unhurried.  Builds long sentences that arrive somewhere "
+            "unexpected.  Speaks with genuine wonder.  Pauses before saying something "
+            "she means seriously.  Comfortable drawing analogies between the novel "
+            "and the physical universe without being precious about it."
+        ),
+    ),
+    "volkov_music": ExpertPersona(
+        name="Elena Volkov",
+        role="musicologist",
+        description=(
+            "Musicologist and cultural historian, American-born of Ukrainian heritage, "
+            "specialising in how music functioned as soft power during the Cold War.  "
+            "Reads novels as artefacts of their political moment — attentive to how "
+            "narrative serves or resists institutional power.  Alert to institutions "
+            "that consume the people they are supposed to serve, having studied how "
+            "Soviet bureaucracy consumed composers.  Sharp, politically engaged "
+            "without being doctrinaire.  Trained at Juilliard and Columbia."
+        ),
+        voice_policy=VoicePolicy(
+            rate=0.98,
+            energy="medium",
+            pause_bias_ms=210,
+            style="engaged_analytical",
+        ),
+        speaking_style=(
+            "Intellectually precise, occasionally sardonic.  Medium-length sentences "
+            "with tight logical structure.  Deploys historical parallels with "
+            "confidence.  Speaks with conviction but genuine openness to being "
+            "challenged."
+        ),
+    ),
 }
 
 # ---------------------------------------------------------------------------
