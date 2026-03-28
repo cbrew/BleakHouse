@@ -47,7 +47,7 @@ OUTPUT_FILE = DATA_DIR / "transport_assignments.json"
 def _novel_data_dir() -> Path | None:
     import os
     novel = os.environ.get("BLEAKHOUSE_NOVEL")
-    if novel:
+    if novel and novel != "bleak_house":
         return DATA_DIR / "novels" / novel
     return None
 
