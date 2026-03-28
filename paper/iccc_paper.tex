@@ -512,6 +512,61 @@ The pattern is consistent across all 726 invented quotes: 82\% draw
 90--100\% of their words from the novel.  The LLM writes \emph{in the
 style of} the text, not \emph{from} it.
 
+\section{Why One Is Synoptic and the Other Analytical}
+
+The synoptic/analytical distinction is not an accident of parameter
+tuning.  It follows from the mathematical structure of each method.
+
+\textbf{Transport (synoptic).}  The min-cost flow formulation
+\cite{ahuja1993network} models passage selection as an optimisation
+problem.  Each passage is a supply node with provisions across seven
+dimensions (character development, plot advancement, social critique,
+etc.).  Each expert is a demand node with an appetite for specific
+dimensions.  The solver finds the minimum-cost assignment that
+satisfies all demands.  Default budget: up to 60 passages, 8--25 per
+expert.
+
+Because demand is \emph{multi-dimensional}---each expert wants
+passages strong in several different dimensions---the solver must draw
+from across the novel to satisfy all demands simultaneously.  A
+single chapter rarely supplies all seven dimensions at once.  The
+result is broad coverage: 59 passages from 28 chapters on average.
+The synoptic character is a consequence of multi-dimensional demand
+meeting a cost-minimising solver.
+
+Strong matches (provision~=~``strong'') cost~1; weak matches cost~3.
+The solver prefers passages that strongly match an expert's primary
+demand, which tends to select the most topically concentrated passages
+in each dimension---but across many dimensions, producing breadth.
+
+\textbf{Embedding (analytical).}  The embedding method retrieves
+passage candidates by semantic similarity to each expert's profile
+description, then uses an LLM (Sonnet) to curate the final set.
+Default: 100 candidates retrieved, curated to 32 final passages.
+
+Because retrieval is \emph{similarity-driven}, passages cluster
+around each expert's dominant theme.  A social historian's profile
+description embeds close to passages about institutional critique;
+retrieved candidates are topically concentrated.  LLM curation selects
+the most relevant from this already-concentrated pool.  The result is
+depth: 32 passages from 20 chapters, concentrated in the novel's most
+thematically dense sections.
+
+The analytical character is a consequence of cosine similarity
+producing topical clustering, compounded by LLM curation that selects
+for argumentative density over narrative breadth.
+
+\textbf{Is this systematic?}  Yes, but with a caveat.  The passage
+counts (60 budget vs.\ 32 target) are design parameters, not
+mathematical necessities.  Setting the transport budget to 32 would
+produce narrower coverage; setting the embedding target to 60 would
+force broader retrieval.  But the \emph{qualitative} character of each
+method---multi-dimensional optimisation producing breadth,
+similarity-based retrieval producing depth---would persist at any
+matched budget.  Transport distributes across dimensions; embedding
+concentrates within themes.  This is an inherent property of the two
+algorithmic approaches, not a tuning artefact.
+
 \section{Convergence Data}
 
 Table~\ref{tab:convergence_detail} shows the provision-dimension
