@@ -1,0 +1,247 @@
+\documentclass[letterpaper]{article}
+\usepackage{iccc}
+\usepackage{times}
+\usepackage{helvet}
+\usepackage{courier}
+\usepackage{booktabs}
+
+\pdfinfo{
+/Title (Exploratory Creativity in Literary Interpretation)
+/Subject (Proceedings of ICCC)
+/Author (Anonymous)}
+
+\title{Exploratory Creativity in Literary Interpretation:\\
+Manipulating Critical Lenses at Zero Marginal Cost}
+\author{Anonymous}
+\setcounter{secnumdepth}{0}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+\begin{quote}
+We present a system for generating multi-voice literary discussions
+about novels that decomposes interpretation into independently
+manipulable components: expert personas (critical frameworks),
+passage selection (reading strategies), and conversational
+scaffolding.  Testing across 15 novels and 180 conditions, we find a
+\emph{convergence paradox}: two algorithmically distinct reading
+strategies---one synoptic, one analytical---select nearly disjoint
+passage sets (Jaccard~0.057) yet produce discussions whose character
+is determined by the interpretive framework, not the reading.  This
+makes the system a tool for \emph{exploratory creativity} in Boden's
+sense: systematic traversal of an interpretive space defined by
+critical perspectives and textual affordances, at zero marginal cost
+per exploration.  Removing textual grounding reveals that ungrounded
+generation produces not random output but graduated \emph{pastiche}
+that recombines the novel's vocabulary---a form of combinational
+creativity whose fidelity tracks training-data exposure.  We argue
+that the system's value lies not in producing creative artefacts but
+in making the \emph{space of possible interpretations} navigable.
+\end{quote}
+\end{abstract}
+
+\section{Introduction}
+
+Computational creativity research has long distinguished between
+\emph{exploratory} creativity---traversing a defined conceptual
+space---and \emph{combinational} creativity---producing novel
+combinations of familiar elements \cite{boden2004creative}.  Most
+LLM-based creative systems operate in combinational mode: they
+generate novel text by recombining learned patterns.  We present a
+system that enables exploratory creativity in a specific domain:
+literary interpretation.
+
+The system generates structured multi-voice podcast discussions about
+novels.  Three expert personas, each embodying a distinct critical
+framework (e.g.\ formalist, social-historical, reader-response),
+discuss passages selected by an algorithmic reading strategy.  The key
+insight is that the components are independently variable: the same
+novel can be discussed through different lenses, using different
+passage selections, with different conversational scaffolding---and
+each variation is a distinct point in an interpretive space that a
+human editor can explore.
+
+This exploration is \emph{cheap}.  The passage-selection step uses
+min-cost network flow \cite{ahuja1993network} and runs in under 100ms
+with no LLM calls.  An editor can preview dozens of interpretive
+configurations before committing to the expensive generation step.
+This ``preview-before-commit'' workflow distinguishes the system from
+generative tools like NotebookLM \cite{notebooklm2024}, which produce
+a single output with no mechanism for systematic variation.
+
+\section{The Convergence Paradox}
+
+Our central empirical finding concerns the relative power of different
+creative levers.  We implement two reading strategies as
+passage-selection algorithms applied to 15 Victorian novels (60,774
+passages):
+
+\begin{itemize}
+\item \textbf{Synoptic}: min-cost flow selects 59 passages from 28
+chapters, favouring character development and plot.
+\item \textbf{Analytical}: contextual embeddings select 32 passages
+from 20 chapters, favouring social critique and thematic depth.
+\end{itemize}
+
+These strategies agree on fewer than 6\% of their selections
+(Jaccard~0.057).  Yet the resulting discussions converge: expert
+airtime is stable to $\pm$2\% across all novels and both strategies.
+
+In Boden's framework, this means the \emph{conceptual space} of
+literary discussion is shaped primarily by the interpretive
+framework---the critical lens---not by the input material.  The space
+is framework-defined, not text-defined.  This is a structural finding
+about where creative agency resides in the system: it resides in the
+choice of perspective, not in the selection of evidence.
+
+\section{Pastiche as Combinational Creativity}
+
+What happens when textual grounding is removed entirely?  In our
+\emph{no-passages} condition, the LLM must discuss the novel from
+prior knowledge alone.  The result is not silence or incoherence but
+graduated \emph{pastiche}: the system constructs plausible quotations
+by recombining the novel's own vocabulary.  Of 726 invented quotes,
+82\% draw 90--100\% of their individual words from the novel's word
+stock.  The mean overlap is 95.1\%.
+
+This is combinational creativity in a precise sense: the system
+produces novel combinations of familiar elements (the novel's
+vocabulary) that are locally plausible but globally unfaithful.  The
+fidelity of this pastiche tracks the novel's cultural
+prominence---57\% verified for \emph{Middlemarch}, 0\% for
+\emph{Hester} \cite{bayard2007comment}---which in turn reflects
+differential memorisation of training data
+\cite{carlini2021extracting,carlini2023quantifying}.
+
+For computational creativity, this finding matters because it
+characterises a \emph{failure mode} as a \emph{creative mode}.  The
+system is not hallucinating randomly; it is performing pastiche, the
+literary term for imitation of an author's manner without direct
+quotation.  This is a form of creativity---it produces novel,
+plausible, stylistically coherent text---but it is creativity
+unmoored from its source, and the graduated nature of its infidelity
+makes it measurable.
+
+\section{Exploring Interpretive Space}
+
+The system's practical value for computational creativity lies in its
+support for exploratory traversal of interpretive space.  An editor
+can:
+
+\begin{enumerate}
+\item \textbf{Swap critical lenses}: replace a formalist with a
+Marxist, an astronomer, or an NLP scientist, and observe how the
+discussion reshifts.
+
+\item \textbf{Adjust demand profiles}: increase one expert's appetite
+for social critique or narrative technique, producing graduated
+passage-set changes (Jaccard 0.5--0.8 with baseline).
+
+\item \textbf{Add or remove scaffolding}: host preparation raises
+question density from $\sim$1 to $\sim$11 per segment, uniformly
+across all novels.
+
+\item \textbf{Compare grounded and ungrounded}: observe the pastiche
+gradient as grounding is removed, measuring how much of the
+discussion's substance depends on actual textual evidence.
+\end{enumerate}
+
+Each exploration incurs zero marginal LLM cost at the
+passage-selection level.  The expensive step (script generation) is
+deferred until the editor has identified a promising configuration.
+This is Boden's \emph{exploratory creativity} operationalised as a
+human-AI workflow: the human defines the space (through persona and
+demand choices), the machine traverses it (through optimisation and
+generation), and the human evaluates the results.
+
+\section{Relation to Computational Creativity}
+
+We see three connections to the CC literature:
+
+\textbf{Creativity resides in the framework, not the output.}
+\citeauthor{colton2012computational}~\shortcite{colton2012computational}
+argue that attributing creativity requires understanding the
+\emph{process}, not just evaluating the \emph{product}.  Our
+convergence paradox is a finding about process: the interpretive
+framework, not the textual input, determines the character of the
+output.  The creative act is the choice of lens.
+
+\textbf{Pastiche is a measurable creative mode.}
+\citeauthor{ritchie2007}~\shortcite{ritchie2007} proposes criteria
+for attributing creativity to programs, including novelty and value.
+Pastiche is novel (the sequences do not exist in the source text) and
+locally valuable (they are stylistically coherent).  But it lacks
+\emph{fidelity}---it does not faithfully represent the source.  Our
+five-tier verification scheme (verified, paraphrase, distant echo, no
+clear source, invented) provides a graded measure of this trade-off.
+
+\textbf{The system enables human exploratory creativity.}  Following
+\citeauthor{doshi2024generative}~\shortcite{doshi2024generative}, who
+find that generative AI enhances individual creativity but reduces
+collective diversity, we note that our system's value is precisely in
+producing \emph{diverse} outputs from the same source material.
+Different lenses, different panels, different demand profiles yield
+systematically different discussions.  The system does not converge on
+a single ``best'' interpretation; it maps the space of possible
+interpretations.
+
+\section{What If I Put My Friends in the Podcast?}
+
+The system's personas are not limited to literary scholars.  To test
+the boundaries of exploratory creativity, we replaced the default
+panel (a formalist, a social historian, and a close reader) with three
+American professionals from outside the humanities: a computer
+scientist specialising in speech recognition and NLP, an
+observational astronomer who studies stellar formation, and a
+musicologist who studies Cold War cultural diplomacy.
+
+The resulting discussions of \emph{Bleak House} are recognisably
+different from the literary-critical baseline.  The astronomer reads
+Dickens's fog as a physical formation condition---opacity is not
+metaphor but the baseline state of complex systems.  The NLP
+scientist analyses agent deletion in the opening sentences: ``There is
+no main clause.  It is a sequence of noun phrases and participial
+clauses with no finite verb until paragraph two.''  The musicologist
+compares Chancery to Soviet institutions that consumed the artists
+they were supposed to support.
+
+Two observations matter for computational creativity:
+
+First, the \emph{convergence paradox still holds}.  Despite radically
+different personas, expert airtime remains balanced and the
+discussions are structurally similar to the literary-critical ones.
+The framework dominates even when the framework is non-literary.
+
+Second, the experts bring their \emph{metaphors} but not their
+\emph{methods}.  The astronomer does not propose measurements or
+hypotheses; she produces literary-critical discourse decorated with
+astronomical imagery.  This is a limitation of the prompt
+architecture: the host preparation questions (``what strikes you
+about these passages?'') import literary-critical norms regardless
+of the persona.  A prompt designed for genuinely interdisciplinary
+encounter---``what would your discipline's tools reveal about this
+passage?''---might produce different results.  This is itself a
+finding about where creative constraint operates: not just in the
+persona but in the conversational scaffold.
+
+\section{Limitations}
+
+Our ``interpretive frameworks'' are LLM persona prompts, not cognitive
+models.  As \citeauthor{shanahan2024talking}~\shortcite{shanahan2024talking}
+warns, we should not map LLM behaviour onto human cognitive categories
+without justification.  The convergence paradox shows that persona
+prompts produce stable, distinctive outputs; it does not show that
+these outputs are produced by the same mechanisms as human literary
+interpretation.  The personas are stereotypes, not theories---useful
+experimental instruments, not models of creative cognition.
+
+We report automated metrics only, with no human evaluation of
+creative quality, insight, or literary value.
+
+\section{Author Contributions}
+Anonymised for review.
+
+\bibliographystyle{iccc}
+\bibliography{iccc_refs}
+
+\end{document}
