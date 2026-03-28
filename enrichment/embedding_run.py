@@ -73,7 +73,7 @@ REPORTS_DIR = BASE_DIR / "reports"
 def _load_enrichment_data() -> list[dict]:
     import os
     novel = os.environ.get("BLEAKHOUSE_NOVEL")
-    if novel:
+    if novel and novel != "bleak_house":
         path = DATA_DIR / "novels" / novel / "passages_enriched.json"
     else:
         path = DATA_DIR / "passages_enriched.json"

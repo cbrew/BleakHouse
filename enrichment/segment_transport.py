@@ -109,7 +109,7 @@ def build_passage_assignments(
     if enrichment_data is None:
         import os
         novel = os.environ.get("BLEAKHOUSE_NOVEL")
-        if novel:
+        if novel and novel != "bleak_house":
             enr_path = DATA_DIR / "novels" / novel / "passages_enriched.json"
         else:
             enr_path = DATA_DIR / "passages_enriched.json"
