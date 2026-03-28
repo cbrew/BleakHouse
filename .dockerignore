@@ -1,14 +1,21 @@
 # Ignore everything by default
 *
 
-# Include what the container needs
+# Include webapp code
 !webapp/
-!data/runs/ext_v01_baseline/audio/
-!data/runs/ext_v19_all_swapped/audio/
-!data/runs/nop_v19_all_swapped/audio/
-!data/runs/motf_ext_v01_baseline/audio/
-!data/runs/motf_ext_v19_all_swapped/audio/
-!data/runs/motf_nop_v19_all_swapped/audio/
 
-# Exclude segment-only audio
-data/runs/*/audio/podcast_segment_*.mp3
+# Include staged demo data
+!demo_data/
+
+# Include run data — files the webapp needs at runtime:
+!data/runs/*/manifest.json
+!data/runs/*/report.html
+!data/runs/*/config.json
+!data/runs/*/quote_verification.json
+!data/runs/*/phase3_episode.json
+!data/runs/*/phase2_5_host_briefs.json
+!data/runs/*/phase2_5_interviews.json
+!data/runs/*/audio/manifest.json
+
+# Audio mp3s go on a fly volume, NOT in the image.
+# Mount volume at /app/data/audio/ and symlink or serve from there.

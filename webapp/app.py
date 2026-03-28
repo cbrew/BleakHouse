@@ -40,7 +40,8 @@ def _discover_runs() -> dict[str, list[dict]]:
         return novels
     for run_dir in sorted(runs_dir.iterdir()):
         podcast_path = run_dir / "audio" / "podcast.mp3"
-        if not podcast_path.exists():
+        volume_path = AUDIO_VOLUME / run_dir.name / "podcast.mp3"
+        if not podcast_path.exists() and not volume_path.exists():
             continue
 
         # Load manifest: prefer audio/manifest.json, fall back to run-level
@@ -150,11 +151,16 @@ async def script_viewer(run_id: str):
     return HTMLResponse(SCRIPT_VIEWER_HTML)
 
 
+AUDIO_VOLUME = Path("/app/audio_volume")
+
 @app.get("/audio/{run_id}/{filename}")
 async def serve_audio(run_id: str, filename: str):
     if ".." in run_id or ".." in filename:
         raise HTTPException(400, "Invalid path")
+    # Check run-local audio first, then fly volume
     audio_path = DATA_DIR / "runs" / run_id / "audio" / filename
+    if not audio_path.exists():
+        audio_path = AUDIO_VOLUME / run_id / filename
     if not audio_path.exists():
         raise HTTPException(404, f"Audio file not found: {filename}")
     return FileResponse(str(audio_path), media_type="audio/mpeg")

@@ -2,19 +2,14 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install only what the webapp needs
 RUN pip install --no-cache-dir fastapi uvicorn[standard]
 
 # Copy webapp code
 COPY webapp/ webapp/
 
-# Copy audio data (6 runs: 2 novels × 3 conditions)
-COPY data/runs/ext_v01_baseline/audio/ data/runs/ext_v01_baseline/audio/
-COPY data/runs/ext_v19_all_swapped/audio/ data/runs/ext_v19_all_swapped/audio/
-COPY data/runs/nop_v19_all_swapped/audio/ data/runs/nop_v19_all_swapped/audio/
-COPY data/runs/motf_ext_v01_baseline/audio/ data/runs/motf_ext_v01_baseline/audio/
-COPY data/runs/motf_ext_v19_all_swapped/audio/ data/runs/motf_ext_v19_all_swapped/audio/
-COPY data/runs/motf_nop_v19_all_swapped/audio/ data/runs/motf_nop_v19_all_swapped/audio/
+# Copy staged demo data (183 runs: 180 tracker grid + 3 interdisciplinary)
+# Audio mp3s are served from a fly volume mounted at /app/data/runs/*/audio/
+COPY demo_data/ data/
 
 EXPOSE 8080
 
