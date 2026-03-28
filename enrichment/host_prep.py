@@ -275,10 +275,11 @@ def run_host_prep(
     novel_author: str,
     interview_model: str = "claude-haiku-4-5-20251001",
     planning_model: str = "claude-sonnet-4-6",
-) -> list[HostBrief]:
+) -> tuple[list[HostBrief], list[list[PreInterviewResponse]]]:
     """Run the full Phase 2.5 pipeline: pre-interviews + question planning.
 
-    Returns one HostBrief per segment.
+    Returns (briefs, interviews) where interviews[seg_idx] is a list of
+    PreInterviewResponse per expert.
     """
     logger.info("Phase 2.5a: pre-interviews (%d experts × %d segments)",
                 len(personas), len(segments))
@@ -297,7 +298,7 @@ def run_host_prep(
         )
         briefs.append(brief)
 
-    return briefs
+    return briefs, interviews
 
 
 # ---------------------------------------------------------------------------
@@ -340,13 +341,18 @@ def main() -> None:
     client = anthropic.Anthropic()
     from enrichment.podcast_types import DEFAULT_PERSONAS  # pyright: ignore[reportMissingImports]
 
-    briefs = run_host_prep(
+    briefs, interviews = run_host_prep(
         client, DEFAULT_PERSONAS, segments, assignments_by_segment,
         cfg.title, cfg.author,
         args.interview_model, args.planning_model,
     )
 
     # Output
+    for si, brief in enumerate(briefs):
+        if interviews[si]:
+            print(f"\n--- Pre-interviews for {brief.segment_name} ---")
+            for iv in interviews[si]:
+                print(f"  {iv.expert_name}: {'; '.join(iv.key_points[:2])}")
     for brief in briefs:
         print(f"\n{'='*60}")
         print(f"Segment: {brief.segment_name}")

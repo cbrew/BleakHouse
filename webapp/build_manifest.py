@@ -349,6 +349,22 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
         suggested = find_suggested_passages(manifest_segments, episode.title)
         referenced_passages.update(suggested)
 
+    # Load host preparation data if available
+    host_prep = None
+    briefs_path = run_dir / "phase2_5_host_briefs.json"
+    interviews_path = run_dir / "phase2_5_interviews.json"
+    if briefs_path.exists():
+        with open(briefs_path) as f:
+            briefs_data = json.load(f)
+        interviews_data = None
+        if interviews_path.exists():
+            with open(interviews_path) as f:
+                interviews_data = json.load(f)
+        host_prep = {
+            "briefs": briefs_data,
+            "interviews": interviews_data,
+        }
+
     manifest = {
         "run_id": run_id,
         "title": episode.title,
@@ -359,6 +375,8 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
         "has_audio": audio,
         "total_duration_ms": cursor_ms,
     }
+    if host_prep:
+        manifest["host_prep"] = host_prep
 
     if audio:
         out_path = run_dir / "audio" / "manifest.json"

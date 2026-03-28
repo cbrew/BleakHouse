@@ -136,6 +136,88 @@ def _passage_reveal(ref: str, passages: dict, is_ungrounded: bool) -> str:
     )
 
 
+def _host_prep_html(brief: dict | None, interviews: list[dict] | None, passages: dict) -> str:
+    """Render host preparation data (pre-interviews + brief) for a segment."""
+    if not brief and not interviews:
+        return ""
+
+    parts = ['<details class="hp-section">',
+             '<summary>Host preparation</summary>']
+
+    # Pre-interviews
+    if interviews:
+        parts.append('<div class="hp-interviews">')
+        parts.append('<h4>Pre-interviews</h4>')
+        for iv in interviews:
+            name = iv.get("expert_name", "Expert")
+            parts.append(f'<details class="hp-interview">')
+            parts.append(f'<summary>{escape(name)}</summary>')
+
+            strongest = iv.get("strongest_take", "")
+            if strongest:
+                parts.append(f'<div class="hp-strongest">{escape(strongest)}</div>')
+
+            kp = iv.get("key_points", [])
+            if kp:
+                parts.append('<div class="hp-label">Key points:</div><ul>')
+                for point in kp:
+                    parts.append(f'<li>{escape(point)}</li>')
+                parts.append('</ul>')
+
+            quotes = iv.get("potential_quotes", [])
+            if quotes:
+                parts.append('<div class="hp-label">Passages they want to quote:</div><ul>')
+                for q in quotes:
+                    parts.append(f'<li class="hp-quote">{escape(q)}</li>')
+                parts.append('</ul>')
+
+            angles = iv.get("disagreement_angles", [])
+            if angles:
+                parts.append('<div class="hp-label">Disagreement angles:</div><ul>')
+                for a in angles:
+                    parts.append(f'<li class="hp-disagree">{escape(a)}</li>')
+                parts.append('</ul>')
+
+            parts.append('</details>')
+        parts.append('</div>')
+
+    # Brief (questions + steering)
+    if brief:
+        questions = brief.get("questions", [])
+        if questions:
+            parts.append('<div class="hp-questions">')
+            parts.append('<h4>Planned questions</h4>')
+            for q in questions:
+                target = q.get("target_expert", "")
+                question = q.get("question", "")
+                intent = q.get("intent", "")
+                follow = q.get("follow_up_for", [])
+                parts.append(f'<div class="hp-q">')
+                parts.append(f'<div class="hp-q-target">{escape(target)}</div>')
+                parts.append(f'<div class="hp-q-text">{escape(question)}</div>')
+                if intent:
+                    parts.append(f'<div class="hp-q-intent">{escape(intent)}</div>')
+                if follow:
+                    names = ", ".join(follow) if isinstance(follow, list) else str(follow)
+                    parts.append(f'<div class="hp-q-follow">Follow up: {escape(names)}</div>')
+                parts.append('</div>')
+            parts.append('</div>')
+
+        steering = brief.get("steering_notes", "")
+        if steering:
+            parts.append(f'<div class="hp-steering"><h4>Steering notes</h4>{escape(steering)}</div>')
+
+        cross = brief.get("cross_engagement_targets", [])
+        if cross:
+            parts.append('<div class="hp-cross"><h4>Cross-engagement targets</h4><ul>')
+            for c in cross:
+                parts.append(f'<li>{escape(c)}</li>')
+            parts.append('</ul></div>')
+
+    parts.append('</details>')
+    return "\n".join(parts)
+
+
 def build_report_html(manifest: dict) -> str:
     """Generate a self-contained HTML report from a manifest."""
     run_id = manifest.get("run_id", "unknown")
@@ -145,6 +227,7 @@ def build_report_html(manifest: dict) -> str:
     passages = manifest.get("passages", {})
     passage_source = manifest.get("passage_source", "grounded")
     is_ungrounded = passage_source == "ungrounded"
+    host_prep = manifest.get("host_prep")
 
     # Count stats
     total_words = 0
@@ -161,12 +244,28 @@ def build_report_html(manifest: dict) -> str:
     # Build expert intro
     expert_names = ", ".join(e["name"] for e in experts)
 
+    # Index host prep data by segment
+    briefs_by_seg: list[dict | None] = [None] * len(segments)
+    interviews_by_seg: list[list[dict] | None] = [None] * len(segments)
+    if host_prep:
+        for si, brief in enumerate(host_prep.get("briefs") or []):
+            if si < len(segments):
+                briefs_by_seg[si] = brief
+        for si, ivs in enumerate(host_prep.get("interviews") or []):
+            if si < len(segments):
+                interviews_by_seg[si] = ivs
+
     # Build body
     body_parts = []
-    for seg in segments:
+    for seg_idx, seg in enumerate(segments):
         seg_title = seg.get("title", "Untitled")
         seg_type = seg.get("segment_type", "")
         body_parts.append(f'<h2 class="seg-title">{escape(seg_title)} <span class="seg-type">({escape(seg_type)})</span></h2>')
+
+        # Host preparation section (collapsible)
+        hp_html = _host_prep_html(briefs_by_seg[seg_idx], interviews_by_seg[seg_idx], passages)
+        if hp_html:
+            body_parts.append(hp_html)
 
         for turn in seg.get("turns", []):
             speaker = turn.get("speaker", "")
@@ -338,6 +437,36 @@ details.pr[open] {{ padding: 0.4em 0.6em; }}
 .autopsy-absent {{ color: #e87070; }}
 .autopsy-absent code {{ background: #3d1515; padding: 1px 4px; border-radius: 2px; font-size: 0.9em; color: #e87070; }}
 .autopsy-fallback {{ color: var(--text-dim); font-style: italic; margin-top: 0.2em; }}
+/* Host preparation */
+details.hp-section {{
+    margin: 0.5em 0 1em; border: 1px solid var(--surface-alt);
+    border-radius: 6px; background: var(--surface); font-size: 0.88em;
+}}
+details.hp-section summary {{
+    cursor: pointer; padding: 0.5em 0.8em; color: #6fa8dc;
+    font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}}
+details.hp-section summary:hover {{ background: var(--surface-alt); }}
+details.hp-section[open] {{ padding: 0.5em 0.8em; }}
+details.hp-section h4 {{ color: var(--accent); font-size: 0.95em; margin: 0.6em 0 0.3em; }}
+details.hp-interview {{
+    margin: 0.3em 0; border-left: 2px solid var(--passage-warm);
+    padding-left: 0.6em;
+}}
+details.hp-interview summary {{ cursor: pointer; color: var(--passage-warm); font-weight: 600; padding: 0.2em 0; }}
+.hp-strongest {{ color: var(--text); font-style: italic; margin: 0.3em 0; }}
+.hp-label {{ color: var(--text-dim); font-weight: 600; margin-top: 0.4em; font-size: 0.9em; }}
+.hp-quote {{ color: var(--passage-warm); font-style: italic; }}
+.hp-disagree {{ color: #e87070; }}
+.hp-questions {{ margin-top: 0.5em; }}
+.hp-q {{ margin: 0.5em 0; padding: 0.4em; border-left: 2px solid #6fa8dc; padding-left: 0.6em; }}
+.hp-q-target {{ color: var(--accent); font-weight: 600; font-size: 0.9em; }}
+.hp-q-text {{ color: var(--text); }}
+.hp-q-intent {{ color: var(--text-dim); font-style: italic; font-size: 0.9em; margin-top: 0.2em; }}
+.hp-q-follow {{ color: var(--text-dim); font-size: 0.85em; }}
+.hp-steering {{ margin-top: 0.5em; color: var(--text-dim); line-height: 1.5; }}
+.hp-cross {{ margin-top: 0.5em; }}
+.hp-cross li {{ color: var(--text-dim); margin: 0.3em 0; }}
 footer {{
     margin-top: 2em; padding-top: 1em; border-top: 1px solid var(--surface-alt);
     color: var(--text-dim); font-size: 0.8em;
