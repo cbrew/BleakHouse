@@ -60,6 +60,10 @@ SPEAKER_VOICES: dict[str, str] = {
     "Edmund Leigh": "Algenib",       # Gravelly male — suits patrician gravitas
     "Daniel Rosen": "Alnilam",       # Firm male — suits passionate precision
     "Oliver Trevelyan": "Achird",    # Friendly male — suits warm raconteur
+    # American interdisciplinary panel
+    "Sarah Chen": "Zephyr",          # Bright female — suits precise clarity
+    "Rebecca Martinez": "Achernar",  # Soft female — suits contemplative warmth
+    "Elena Volkov": "Aoede",         # Firm female — suits engaged analysis
 }
 
 # Accent directions per speaker, embedded in the prompt
@@ -73,6 +77,10 @@ SPEAKER_ACCENTS: dict[str, str] = {
     "Edmund Leigh": "speaks with a patrician Oxford accent, unhurried and precise",
     "Daniel Rosen": "speaks with a clear London accent, purposeful and direct",
     "Oliver Trevelyan": "speaks with a warm, theatrical Home Counties accent, varied and lively",
+    # American interdisciplinary panel
+    "Sarah Chen": "speaks with a clear California accent, precise and direct, like a tech professional giving a talk",
+    "Rebecca Martinez": "speaks with a soft American Southwest accent, unhurried and thoughtful, with occasional pauses for emphasis",
+    "Elena Volkov": "speaks with a crisp American East Coast accent, the cadence of someone trained at Juilliard and Columbia, intellectually sharp",
 }
 
 SPEAKER_VOICE_POLICIES: dict[str, VoicePolicy] = {
@@ -85,6 +93,10 @@ SPEAKER_VOICE_POLICIES: dict[str, VoicePolicy] = {
     "Edmund Leigh": VoicePolicy(rate=0.94, energy="medium_low", pause_bias_ms=280, style="patrician_measured"),
     "Daniel Rosen": VoicePolicy(rate=0.99, energy="medium_high", pause_bias_ms=200, style="passionate_precise"),
     "Oliver Trevelyan": VoicePolicy(rate=1.02, energy="medium_high", pause_bias_ms=190, style="raconteur_warm"),
+    # American interdisciplinary panel
+    "Sarah Chen": VoicePolicy(rate=1.01, energy="medium_high", pause_bias_ms=180, style="analytical_clear"),
+    "Rebecca Martinez": VoicePolicy(rate=0.96, energy="medium", pause_bias_ms=250, style="contemplative_measured"),
+    "Elena Volkov": VoicePolicy(rate=0.98, energy="medium", pause_bias_ms=210, style="engaged_analytical"),
 }
 
 
