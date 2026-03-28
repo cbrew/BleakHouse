@@ -78,18 +78,33 @@ than merely prompting a chat interface.
 Our central empirical finding concerns the relative power of different
 creative levers.  We implement two reading strategies as
 passage-selection algorithms applied to 15 Victorian novels (60,774
-passages):
+passages, 7 authors, 1850--1924):
 
 \begin{itemize}
 \item \textbf{Synoptic}: min-cost flow selects 59 passages from 28
-chapters, favouring character development and plot.
+chapters, favouring character development (+8.3~pp) and plot (+10.2~pp).
 \item \textbf{Analytical}: contextual embeddings select 32 passages
-from 20 chapters, favouring social critique and thematic depth.
+from 20 chapters, favouring social critique (+13.4~pp) and thematic
+depth (+6.9~pp).
 \end{itemize}
 
-These strategies agree on fewer than 6\% of their selections
-(Jaccard~0.057).  Yet the resulting discussions converge: expert
-airtime is stable to $\pm$2\% across all novels and both strategies.
+These are recognisably different scholarly strategies---the seminar
+leader who assigns the whole novel versus the one who curates a dossier
+of key passages.  They agree on fewer than 6\% of their selections
+(mean Jaccard~0.057, range 0.000--0.118 across 28 novel$\times$panel
+pairs).  Yet the resulting discussions converge: expert airtime is
+stable to $\pm$2\% across all 15 novels and both strategies.  Eleanor
+Hartley (literary critic) receives 32--37\% of expert words, James
+Blackstone (social historian) 30--37\%, Caroline Woodcourt (close
+reader) 29--34\%, regardless of which algorithm selected the passages
+or which novel is being discussed.
+
+This stability was not predicted.  We expected expert prominence to
+\emph{adapt} to the novel's affordances---that a novel rich in social
+critique would give the social historian more airtime.  The data shows
+the opposite: frameworks are robust, maintaining their character across
+15 novels spanning Dickens, Eliot, Gaskell, Forster, Collins, Gissing,
+and Oliphant.
 
 In Boden's framework, this means the \emph{conceptual space} of
 literary discussion is shaped primarily by the interpretive
@@ -110,21 +125,66 @@ stock.  The mean overlap is 95.1\%.
 
 This is combinational creativity in a precise sense: the system
 produces novel combinations of familiar elements (the novel's
-vocabulary) that are locally plausible but globally unfaithful.  The
-fidelity of this pastiche tracks the novel's cultural
-prominence---57\% verified for \emph{Middlemarch}, 0\% for
-\emph{Hester} \cite{bayard2007comment}---which in turn reflects
-differential memorisation of training data
-\cite{carlini2021extracting,carlini2023quantifying}.
+vocabulary) that are locally plausible but globally unfaithful.
+
+\textbf{The knowledge gradient.}  The fidelity of pastiche tracks
+cultural prominence: \emph{Middlemarch} (57\% verified),
+\emph{Bleak House} (53\%), \emph{David Copperfield} (44\%) at the
+top; \emph{New Grub Street} (20\%), \emph{The Odd Women} (6\%),
+\emph{Hester} (0\%) at the bottom.  All 15 novels are on Project
+Gutenberg and plausibly in the LLM's training data; the gradient
+reflects not textual presence but the volume of secondary discussion
+(study guides, academic papers, Wikipedia) that reinforces specific
+passages \cite{carlini2021extracting,carlini2023quantifying}.
+\citeauthor{bayard2007comment}~\shortcite{bayard2007comment} argued
+that humans navigate literary culture through graduated approximation;
+the LLM does something analogously measurable, though by entirely
+different mechanisms.
+
+\begin{table}[t]
+\centering
+\small
+\caption{The knowledge gradient: ungrounded quote verification (\%)
+by novel.  All novels are on Project Gutenberg; the gradient reflects
+analytical reinforcement, not textual absence.  Grounded conditions
+achieve 97--98\% for all novels.}
+\label{tab:gradient}
+\begin{tabular}{llr@{\hspace{6pt}}r}
+\toprule
+Novel & Author & Nop\% & Gap \\
+\midrule
+Middlemarch & Eliot & 57 & 42\,pp \\
+Bleak House & Dickens & 53 & 45\,pp \\
+David Copperfield & Dickens & 44 & 53\,pp \\
+Hard Times & Dickens & 39 & 59\,pp \\
+Passage to India & Forster & 39 & 55\,pp \\
+Mill on the Floss & Eliot & 37 & 59\,pp \\
+Daniel Deronda & Eliot & 30 & 69\,pp \\
+Our Mutual Friend & Dickens & 29 & 69\,pp \\
+New Grub Street & Gissing & 20 & 79\,pp \\
+The Odd Women & Gissing & 6 & 91\,pp \\
+Hester & Oliphant & 0 & 98\,pp \\
+No Name & Collins & 0 & 95\,pp \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Within-author evidence.}  The gradient persists within
+authors, controlling for prose style.  Among Dickens's four novels:
+\emph{Bleak House} (53\%) $>$ \emph{David Copperfield} (44\%) $>$
+\emph{Hard Times} (39\%) $>$ \emph{Our Mutual Friend} (29\%).  Among
+Eliot's three: \emph{Middlemarch} (57\%) $>$ \emph{Mill on the Floss}
+(37\%) $>$ \emph{Daniel Deronda} (30\%).  Same author, same prose
+style, different cultural prominence, different pastiche fidelity.
 
 For computational creativity, this finding matters because it
 characterises a \emph{failure mode} as a \emph{creative mode}.  The
-system is not hallucinating randomly; it is performing pastiche, the
-literary term for imitation of an author's manner without direct
-quotation.  This is a form of creativity---it produces novel,
-plausible, stylistically coherent text---but it is creativity
-unmoored from its source, and the graduated nature of its infidelity
-makes it measurable.
+system is not hallucinating randomly; it is performing pastiche---imitation
+of an author's manner without direct quotation.  This is a form of
+creativity: it produces novel, plausible, stylistically coherent text.
+But it is creativity unmoored from its source, and the graduated nature
+of its infidelity makes it measurable through our five-tier scheme
+(verified, paraphrase, distant echo, no clear source, invented).
 
 \section{Exploring Interpretive Space}
 
