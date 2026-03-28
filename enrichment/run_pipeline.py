@@ -336,7 +336,7 @@ def run_phase_2_5(
             seg_assignments.append(full)
         assignments_by_segment.append(seg_assignments)
 
-    briefs = run_host_prep(
+    briefs, interviews = run_host_prep(
         client, personas, segments_data, assignments_by_segment,
         novel_title, novel_author,
         interview_model=interview_model,
@@ -345,7 +345,9 @@ def run_phase_2_5(
 
     with open(run_dir / "phase2_5_host_briefs.json", "w") as f:
         json.dump([b.model_dump() for b in briefs], f, indent=2)
-    logger.info("Saved %d host briefs", len(briefs))
+    with open(run_dir / "phase2_5_interviews.json", "w") as f:
+        json.dump([[iv.model_dump() for iv in seg] for seg in interviews], f, indent=2)
+    logger.info("Saved %d host briefs + %d interview sets", len(briefs), len(interviews))
     return briefs
 
 

@@ -484,7 +484,7 @@ def main() -> None:
                 seg_assignments.append(full)
             assignments_by_segment.append(seg_assignments)
 
-        host_briefs = run_host_prep(
+        host_briefs, host_interviews = run_host_prep(
             anthropic.Anthropic(),
             config.personas,
             segments_data,
@@ -495,11 +495,13 @@ def main() -> None:
             planning_model=config.model,
         )
 
-        # Save host briefs
+        # Save host briefs and raw interviews
         briefs_data = [b.model_dump() for b in host_briefs]
         with open(run_dir / "phase2_5_host_briefs.json", "w") as f:
             json.dump(briefs_data, f, indent=2)
-        logger.info("Saved %d host briefs", len(host_briefs))
+        with open(run_dir / "phase2_5_interviews.json", "w") as f:
+            json.dump([[iv.model_dump() for iv in seg] for seg in host_interviews], f, indent=2)
+        logger.info("Saved %d host briefs + %d interview sets", len(host_briefs), len(host_interviews))
 
     # Phase 3
     logger.info("Phase 3: script generation (model=%s)", config.model)
