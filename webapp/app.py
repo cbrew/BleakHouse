@@ -29,42 +29,69 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 def _discover_runs() -> dict[str, list[dict]]:
-    """Find runs grouped by novel title."""
+    """Find runs grouped by novel title.
+
+    Discovers runs with audio (podcast.mp3), using either
+    audio/manifest.json or a run-level manifest.json for metadata.
+    """
     novels: dict[str, list[dict]] = {}
     runs_dir = DATA_DIR / "runs"
     if not runs_dir.exists():
         return novels
     for run_dir in sorted(runs_dir.iterdir()):
-        manifest_path = run_dir / "audio" / "manifest.json"
         podcast_path = run_dir / "audio" / "podcast.mp3"
-        if manifest_path.exists() and podcast_path.exists():
-            with open(manifest_path) as f:
-                manifest = json.load(f)
-            title = manifest.get("title", run_dir.name)
-            novel = title.replace(": A Literary Discussion", "")
-            # Determine pipeline condition from run name
-            name = run_dir.name
-            if "_nop_" in name or name.startswith("nop_"):
-                condition = "no passages"
-            elif "_emb_" in name or name.startswith("emb_"):
-                condition = "embedding"
-            elif "_rag_" in name or name.startswith("rag_"):
-                condition = "RAG"
-            elif "_rand_" in name or name.startswith("rand_"):
-                condition = "random"
-            else:
-                condition = "transport"
+        if not podcast_path.exists():
+            continue
 
-            run_info = {
-                "run_id": run_dir.name,
-                "title": title,
-                "novel": novel,
-                "condition": condition,
-                "passage_source": manifest.get("passage_source", "unknown"),
-                "experts": manifest.get("experts", []),
-                "total_duration_ms": manifest.get("total_duration_ms", 0),
-            }
-            novels.setdefault(novel, []).append(run_info)
+        # Load manifest: prefer audio/manifest.json, fall back to run-level
+        audio_manifest = run_dir / "audio" / "manifest.json"
+        run_manifest = run_dir / "manifest.json"
+        manifest_path = audio_manifest if audio_manifest.exists() else run_manifest
+        if not manifest_path.exists():
+            continue
+
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+        title = manifest.get("title", run_dir.name)
+        novel = title.replace(": A Literary Discussion", "")
+        # Determine pipeline condition from run name
+        name = run_dir.name
+        if "_nop_" in name or name.startswith("nop_"):
+            condition = "no passages"
+        elif "_emb_" in name or name.startswith("emb_"):
+            condition = "embedding"
+        elif "_rag_" in name or name.startswith("rag_"):
+            condition = "RAG"
+        elif "_rand_" in name or name.startswith("rand_"):
+            condition = "random"
+        elif "interdisciplinary" in name:
+            condition = "interdisciplinary"
+        else:
+            condition = "transport"
+
+        # Determine panel
+        if "interdisciplinary" in name:
+            panel = "Chen / Martinez / Volkov"
+        elif "_v19_" in name:
+            panel = "Panel B (Trevelyan / Leigh / Rosen)"
+        else:
+            panel = "Panel A (Hartley / Blackstone / Woodcourt)"
+
+        hostprep = "_hostprep" in name
+
+        run_info = {
+            "run_id": run_dir.name,
+            "title": title,
+            "novel": novel,
+            "condition": condition,
+            "panel": panel,
+            "hostprep": hostprep,
+            "passage_source": manifest.get("passage_source", "unknown"),
+            "experts": manifest.get("experts", []),
+            "total_duration_ms": manifest.get("total_duration_ms", 0),
+            "has_host_prep": (run_dir / "phase2_5_host_briefs.json").exists(),
+        }
+        novels.setdefault(novel, []).append(run_info)
     return novels
 
 
