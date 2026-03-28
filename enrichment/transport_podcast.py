@@ -220,6 +220,34 @@ ALTERNATIVE_EXPERTS: dict[str, ExpertProfile] = {
             "prov_narrative_technique": 10,
         },
     ),
+    # --- American interdisciplinary panel ---
+    "chen_nlp": ExpertProfile(
+        name="Sarah Chen",
+        role="computer_scientist",
+        demands={
+            "prov_narrative_technique": 12,
+            "prov_character_development": 10,
+            "prov_thematic_depth": 6,
+        },
+    ),
+    "martinez_astro": ExpertProfile(
+        name="Rebecca Martinez",
+        role="astronomer",
+        demands={
+            "prov_thematic_depth": 12,
+            "prov_atmosphere_setting": 10,
+            "prov_character_development": 6,
+        },
+    ),
+    "volkov_music": ExpertProfile(
+        name="Elena Volkov",
+        role="musicologist",
+        demands={
+            "prov_social_critique": 12,
+            "prov_thematic_depth": 10,
+            "prov_atmosphere_setting": 6,
+        },
+    ),
 }
 
 
