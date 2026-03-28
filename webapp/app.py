@@ -39,9 +39,13 @@ def _discover_runs() -> dict[str, list[dict]]:
     if not runs_dir.exists():
         return novels
     for run_dir in sorted(runs_dir.iterdir()):
+        # A run is playable if it has an audio manifest (timing data)
+        # AND a podcast.mp3 either locally or on the fly volume
         podcast_path = run_dir / "audio" / "podcast.mp3"
         volume_path = AUDIO_VOLUME / run_dir.name / "podcast.mp3"
-        if not podcast_path.exists() and not volume_path.exists():
+        has_audio_manifest = (run_dir / "audio" / "manifest.json").exists()
+        has_podcast = podcast_path.exists() or volume_path.exists()
+        if not has_audio_manifest:
             continue
 
         # Load manifest: prefer audio/manifest.json, fall back to run-level
