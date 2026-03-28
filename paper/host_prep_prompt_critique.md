@@ -124,7 +124,7 @@ genuinely surprising interdisciplinary encounters.
 
 ## Implications for the research
 
-This critique connects to the convergence paradox finding (DH1): the
+This critique connects to the framework dominance finding (DH1): the
 prompt functions as an additional interpretive framework alongside the
 persona. Even when the persona is an astronomer, the prompt pulls her
 toward literary-critical behaviour. This is a concrete example of how

@@ -56,7 +56,7 @@ Removing the "experts react to each other... not parallel monologues" instructio
 
 ---
 
-**H3. Persona dominates content: the convergence paradox.** [ARCH]
+**H3. Persona dominates content: framework dominance.** [ARCH]
 
 Two passage selection algorithms that choose almost entirely different material (passage Jaccard < 0.05) produce scripts with converging vocabulary and character focus, because the persona — not the passage — determines what each expert says about the material. The expert's identity is so strong that it overrides the content it operates on.
 
