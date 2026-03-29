@@ -27,6 +27,8 @@
 
 <p>Expert airtime is stable to &pm;2% across all 15 novels: Hartley 32&ndash;37%, Blackstone 30&ndash;37%, Woodcourt 29&ndash;34%.</p>
 
+<img src="/static/img/pipeline_comparison.png" alt="Quote verification by pipeline" style="max-width:100%; margin:1em 0; border-radius:8px;">
+
 <p><strong>Caveat:</strong> Framework dominance is realised through a pipeline that privileges expert identity at every stage. Whether this reflects interpretive discourse or pipeline engineering is an open question.</p>
 
 <h2>2. The Knowledge Gradient</h2>
@@ -48,8 +50,22 @@
 <tr><td>No Name</td><td>Collins</td><td>0%</td><td>95pp</td></tr>
 </table>
 
+<img src="/static/img/knowledge_gradient.png" alt="Knowledge gradient scatter plot" style="max-width:100%; margin:1em 0; border-radius:8px;">
+
+<h3>Measuring analytical exposure</h3>
+<p>The attention score is a composite of three proxies, each capturing a different facet of a novel's analytical footprint:</p>
+<ol>
+<li><strong>Goodreads ratings count</strong> (log-normalised) &mdash; present-day readership. Range: 548 (Hester) to 261,000 (David Copperfield).</li>
+<li><strong>Wikipedia article word count</strong> (linear-normalised) &mdash; encyclopaedic coverage. Longer articles contain more plot summary and quoted excerpts. Range: ~850 (Miss Marjoribanks) to ~19,000 (David Copperfield).</li>
+<li><strong>Study guide presence</strong> (binary: SparkNotes, LitCharts, etc.) &mdash; curriculum presence. Study guides systematically excerpt key passages, producing the passage-level duplication that Carlini et al. predict will strengthen memorisation.</li>
+</ol>
+<p>The composite is the unweighted mean (0&ndash;100 scale). It correlates with nop verification at r&nbsp;=&nbsp;0.72 (all 15 novels) or r&nbsp;=&nbsp;0.89 excluding the North and South outlier. North and South's Goodreads popularity is inflated by the 2004 BBC adaptation, which generates discussion of the <em>adaptation</em> without reinforcing the <em>novel's</em> specific passages.</p>
+<p>We report the score as one defensible operationalisation, not a validated instrument. Different reasonable choices of proxies or weighting would produce different numbers. All data sourced March 2026.</p>
+
 <h3>Within-author evidence</h3>
 <p>The gradient persists within authors, controlling for prose style:</p>
+
+<img src="/static/img/within_author.png" alt="Within-author gradients" style="max-width:100%; margin:1em 0; border-radius:8px;">
 <ul>
 <li><strong>Dickens:</strong> Bleak House (53%) &gt; David Copperfield (44%) &gt; Hard Times (39%) &gt; Our Mutual Friend (29%)</li>
 <li><strong>Eliot:</strong> Middlemarch (57%) &gt; Mill on the Floss (37%) &gt; Daniel Deronda (30%)</li>
