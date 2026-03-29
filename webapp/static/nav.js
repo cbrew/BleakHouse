@@ -78,4 +78,97 @@
         #site-nav + * { margin-top: 0; }
     `;
     document.head.appendChild(style);
+
+    // --- Feedback footer ---
+    const feedback = document.createElement('div');
+    feedback.id = 'feedback-footer';
+    feedback.innerHTML = `
+        <div class="fb-inner">
+            <span class="fb-label">Was this page useful?</span>
+            <button class="fb-btn fb-up" title="Yes">&#128077;</button>
+            <button class="fb-btn fb-down" title="No">&#128078;</button>
+            <input type="text" class="fb-text" placeholder="Optional comment..." maxlength="500">
+            <button class="fb-send">Send</button>
+            <span class="fb-thanks" style="display:none;color:#6fdc6f;">Thanks!</span>
+        </div>
+    `;
+    document.body.appendChild(feedback);
+
+    const fbStyle = document.createElement('style');
+    fbStyle.textContent = `
+        #feedback-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #0f1623;
+            border-top: 1px solid #1a2744;
+            padding: 6px 1em;
+            z-index: 1000;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 0.85em;
+        }
+        .fb-inner {
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .fb-label { color: #8888aa; white-space: nowrap; }
+        .fb-btn {
+            background: none; border: 1px solid #1a2744; border-radius: 4px;
+            padding: 2px 8px; cursor: pointer; font-size: 1.1em;
+            transition: background 0.15s;
+        }
+        .fb-btn:hover { background: #1a2744; }
+        .fb-btn.selected { background: #16213e; border-color: #e94560; }
+        .fb-text {
+            flex: 1; background: #16213e; border: 1px solid #1a2744;
+            border-radius: 4px; color: #e8e8e8; padding: 4px 8px;
+            font-size: 0.9em; min-width: 100px;
+        }
+        .fb-text::placeholder { color: #555; }
+        .fb-send {
+            background: #16213e; border: 1px solid #0f3460; border-radius: 4px;
+            color: #6fa8dc; padding: 4px 12px; cursor: pointer;
+            font-size: 0.9em;
+        }
+        .fb-send:hover { background: #0f3460; }
+        /* Push page content above the fixed footer */
+        body { padding-bottom: 50px; }
+    `;
+    document.head.appendChild(fbStyle);
+
+    // Feedback logic
+    let selectedRating = null;
+    feedback.querySelector('.fb-up').addEventListener('click', function() {
+        selectedRating = 'up';
+        feedback.querySelector('.fb-up').classList.add('selected');
+        feedback.querySelector('.fb-down').classList.remove('selected');
+    });
+    feedback.querySelector('.fb-down').addEventListener('click', function() {
+        selectedRating = 'down';
+        feedback.querySelector('.fb-down').classList.add('selected');
+        feedback.querySelector('.fb-up').classList.remove('selected');
+    });
+    feedback.querySelector('.fb-send').addEventListener('click', function() {
+        const text = feedback.querySelector('.fb-text').value.trim();
+        if (!selectedRating && !text) return;
+        fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                rating: selectedRating,
+                text: text,
+                page: window.location.pathname,
+            }),
+        }).then(() => {
+            feedback.querySelector('.fb-thanks').style.display = 'inline';
+            feedback.querySelector('.fb-send').style.display = 'none';
+            feedback.querySelector('.fb-text').style.display = 'none';
+            feedback.querySelector('.fb-up').style.display = 'none';
+            feedback.querySelector('.fb-down').style.display = 'none';
+        });
+    });
 })();

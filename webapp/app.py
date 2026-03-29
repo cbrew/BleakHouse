@@ -9,12 +9,16 @@ Usage:
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import asyncio
 import json
 import re
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import StreamingResponse
@@ -163,6 +167,37 @@ async def research_page():
     return FileResponse(str(PAGES_DIR / "research.html"))
 
 
+@app.post("/api/feedback")
+async def submit_feedback(request: Request):
+    """Append feedback to JSONL file on the persistent volume."""
+    import time
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+    rating = body.get("rating")  # "up" or "down"
+    text = (body.get("text") or "")[:1000]  # cap at 1000 chars
+    page = (body.get("page") or "")[:200]
+    if rating not in ("up", "down", None):
+        raise HTTPException(400, "rating must be 'up' or 'down'")
+    if not rating and not text:
+        raise HTTPException(400, "Provide rating and/or text")
+    entry = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "page": page,
+        "rating": rating,
+        "text": text,
+    }
+    try:
+        FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(FEEDBACK_FILE, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except OSError:
+        # Volume might not be mounted locally
+        logger.warning("Could not write feedback: %s", entry)
+    return {"status": "ok"}
+
+
 @app.get("/api/novels")
 async def list_novels():
     return _discover_runs()
@@ -214,6 +249,7 @@ async def script_viewer(run_id: str):
 
 
 AUDIO_VOLUME = Path("/app/audio_volume")
+FEEDBACK_FILE = AUDIO_VOLUME / "feedback.jsonl"  # on the persistent volume
 
 @app.get("/audio/{run_id}/{filename}")
 async def serve_audio(run_id: str, filename: str):
