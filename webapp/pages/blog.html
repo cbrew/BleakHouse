@@ -54,7 +54,7 @@
 
 <p>The no-passages condition is where things get genuinely interesting. With no source passages, the LLM must discuss the novel from prior knowledge alone.</p>
 
-<p>For Middlemarch: 57% of quotes are verifiable. For Hester (Oliphant, 1883): 0%.</p>
+<p>For Middlemarch: 57% of quotes are verifiable. For Hester (Oliphant, 1883): 0%. We also experimented with plain RAG retrieval and random passage selection for Bleak House — these produce intermediate verification rates (~95% and ~94% respectively), confirming that any form of grounding helps but that the <em>method</em> of grounding matters far less than the <em>fact</em> of it.</p>
 
 <p>All fifteen novels are on Project Gutenberg. What varies is the analytical reinforcement — study guides, Wikipedia articles, academic papers that re-quote specific passages. The within-author evidence is compelling: among Dickens's four novels, Bleak House (53%) > David Copperfield (44%) > Hard Times (39%) > Our Mutual Friend (29%). Same prose style, different cultural prominence.</p>
 
@@ -63,6 +63,8 @@
 <p>When the LLM can't quote accurately, it produces <em>pastiche</em>. Of 726 invented quotes, 82% draw 90-100% of their words from the novel's vocabulary. "I am very weak, but I shall begin the world" — every word appears in Bleak House, but this sentence doesn't exist.</p>
 
 <p>Confabulation rate, it turns out, is an instrument for measuring LLM literary knowledge.</p>
+
+<p>This is probably the closest thing we have to a worthwhile academic finding. The direct comparison between grounded and ungrounded generation across 15 novels — including several that have received very little modern critical attention (Oliphant's Hester, Gissing's Odd Women, Collins's No Name) — shows precisely what happens when an LLM is left to its own devices with texts it barely knows. The degradation is not random: it is graduated, vocabulary-preserving, and correlated with measurable proxies for critical-cultural prominence. The within-author gradients (four Dickens novels, three Eliots, two Gaskells) control for prose style and isolate the effect of analytical reinforcement. This is discussed in detail on the <a href="/research">research page</a> and in the <a href="/static/img/knowledge_gradient.png">knowledge gradient chart</a>.</p>
 
 <h2>Try it</h2>
 
