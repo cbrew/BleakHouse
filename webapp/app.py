@@ -143,6 +143,11 @@ async def help_page():
     return FileResponse(str(PAGES_DIR / "help.html"))
 
 
+@app.get("/references", response_class=HTMLResponse)
+async def references_page():
+    return FileResponse(str(PAGES_DIR / "references.html"))
+
+
 @app.get("/research", response_class=HTMLResponse)
 async def research_page():
     return FileResponse(str(PAGES_DIR / "research.html"))
