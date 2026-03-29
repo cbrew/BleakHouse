@@ -6,17 +6,18 @@
 <link rel="stylesheet" href="/static/page_base.css">
 <script src="/static/nav.js" defer></script>
 <style>
-    .hero { text-align: center; padding: 1.5em 0 1em; }
+    .hero { text-align: center; padding: 1.5em 0 0.5em; }
     .hero h1 { font-size: 2.4em; font-style: italic; }
-    .hero .tagline { font-size: 1.1em; color: var(--text-dim); margin-top: 0.3em; }
-    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin: 1.5em 0; }
+    .hero .tagline { font-size: 1.05em; color: var(--text-dim); margin-top: 0.3em; }
+    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin: 1em 0; }
     .card { background: var(--surface); border: 1px solid var(--surface-alt);
-            border-radius: 8px; padding: 1.2em; }
-    .card h3 { color: var(--accent); margin-bottom: 0.4em; }
+            border-radius: 8px; padding: 1em; }
+    .card h3 { color: var(--accent); margin-bottom: 0.3em; font-size: 1em; }
     .card a { color: #6fa8dc; }
+    .card p { font-size: 0.9em; margin: 0; }
     .tools { background: var(--surface); border: 1px solid var(--surface-alt);
-             border-radius: 8px; padding: 1.2em; margin: 1.5em 0; }
-    .tools h3 { color: var(--passage-warm); margin-bottom: 0.5em; }
+             border-radius: 8px; padding: 1em; margin: 1.5em 0; font-size: 0.9em; }
+    .tools h3 { color: var(--passage-warm); margin-bottom: 0.4em; }
     @media (max-width: 700px) { .cards { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -25,80 +26,74 @@
 
 <div class="hero">
     <h1>Not In Our Time</h1>
-    <p class="tagline">Transport-based content selection as an inspectable, manipulable alternative to RAG</p>
+    <p class="tagline">Inspectable, manipulable passage selection for LLM-generated literary discussion</p>
 </div>
 
-<p>Retrieval-Augmented Generation retrieves by embedding similarity and feeds results to an LLM. This is effective but opaque: the user cannot see <em>why</em> a passage was selected, cannot adjust selection criteria, and cannot explore how different editorial priorities reshape the output.</p>
-
-<p>We present an alternative in which passage selection is a <strong>min-cost flow problem</strong>, making every selection decision visible as a cost, a flow, and a constraint. Because solving a flow is cheap compared to regenerating with an LLM, the system gives its user a flexible thinking tool for rapid exploration of alternatives.</p>
-
-<p>We demonstrate it by generating imitation panel discussions in the style of BBC Radio 4's <em>In Our Time</em>, across <strong>15 Victorian and early-modern novels</strong> by seven authors (Dickens, Eliot, Gaskell, Forster, Collins, Gissing, Oliphant) — 60,774 passages, 180 experimental conditions, and 9 rendered audio episodes.</p>
-
-<h2>What the system does</h2>
-
-<p>The system operates over passages enriched by an LLM with structured metadata (20 fields covering narrative function, thematic weight, and emotional register). The first transport problem selects passages to satisfy <em>demand profiles</em> declared by fictional expert personas — a novelist, a legal historian, a close reader, a performer, a Marxist, a traditionalist. The second assigns them to episode segments. An LLM generates multi-voice dialogue with speaking-style annotations for TTS rendering.</p>
-
-<p>The expert personas are, deliberately, <em>stereotypes</em>: the Marxist always finds class struggle; the performer always finds comedy; the close reader always finds prose rhythm. By making these stereotypes explicit and adjustable — encoded as demand vectors rather than implicit in a prompt — the system turns editorial bias into a first-class object that can be inspected, compared, and argued about.</p>
-
-<h2>Conversational flow</h2>
-
-<p>The generated discussions are not free-form LLM output. Conversational flow is controlled through a carefully designed <a href="/prompts">script generation prompt</a> that specifies turn structure, quote handling (setup–reading–commentary pattern), prosodic annotations (speaking rate, pause timing, emphasis), and inter-speaker dynamics (agreement, pushback, building on each other's points). The prompt is visible in full on the <a href="/prompts">Prompts</a> tab — transparency about what the LLM is being told to do is part of the point.</p>
-
-<p>Optionally, a <strong>host preparation</strong> phase intervenes before script generation. The system conducts short pre-interviews with each expert (using a smaller model) to surface their key points, desired quotes, and disagreement angles. A larger model then synthesises these into targeted host questions with steering notes and cross-engagement targets — identifying where experts' views directly contradict or complement each other. The effect is dramatic: question density rises from ~1 to ~11 per segment, uniformly across all 15 novels. The host preparation data is visible in the <a href="/examples">examples</a> and in every hostprep report — expand the "Host preparation" section at the top of each segment to see pre-interviews, planned questions, and editorial strategy.</p>
-
-<h2>Why this matters beyond literature</h2>
-
-<p>The original motivation for this work comes from legal and other professional information services. RAG is now a standard approach for grounding LLM output in source documents — but in professional applications, core RAG is typically complemented by a rich background of metadata, curated secondary material, expert taxonomies, and editorial judgement. The question is: what happens as this supporting infrastructure becomes less available?</p>
-
-<p>Victorian novels provide a safe exploration space for this question. Like legal corpora, they are large, structurally complex, and vary in how much secondary material exists to support retrieval. Some texts (Bleak House, Middlemarch) have extensive critical apparatus — study guides, Wikipedia articles, academic commentary — analogous to the headnotes, annotations, and practice guides that surround well-litigated areas of law. Others (Hester, No Name) have almost none, analogous to emerging or under-documented legal domains. By comparing how the system performs across this spectrum — from richly supported to minimally supported texts — we can observe the degradation patterns that matter for any RAG deployment: when does grounding hold, when does it fail, and what does failure look like?</p>
-
-<p>The answer, as the <a href="/research">research findings</a> show, is that failure is not random. It is graduated, vocabulary-preserving, and correlated with the volume of analytical reinforcement available. Understanding this pattern — and being able to inspect it passage by passage — is the practical contribution of this work.</p>
-
-<h2>Explore</h2>
+<p>180 podcast discussions across 15 novels, generated by a pipeline where every editorial decision — which passages, which experts, which questions — is visible and adjustable. <a href="/player">Listen to the audio</a>, <a href="/tracker">browse the experiment matrix</a>, or <a href="/blog">read the story</a>.</p>
 
 <div class="cards">
     <div class="card">
         <h3><a href="/tracker">&#9638; Experiment Matrix</a></h3>
-        <p>180 conditions: 15 novels &times; 2 panels &times; 3 pipelines &times; 2 host-prep settings. Every cell links to a detailed report.</p>
+        <p>15 novels &times; 2 panels &times; 3 pipelines &times; 2 host-prep = 180 runs. Click any cell for details.</p>
     </div>
     <div class="card">
         <h3><a href="/player">&#9835; Audio Player</a></h3>
-        <p>Listen to 9 rendered podcast episodes including the interdisciplinary panel (an NLP scientist, an astronomer, and a musicologist on Bleak House).</p>
-    </div>
-    <div class="card">
-        <h3><a href="/about">&#9881; Pipeline</a></h3>
-        <p>How a novel becomes a podcast in four phases: enrichment, selection, host preparation, script generation.</p>
-    </div>
-    <div class="card">
-        <h3><a href="/prompts">&#10094;&#10095; Prompts</a></h3>
-        <p>The actual system prompts used at each phase, verbatim from the codebase.</p>
-    </div>
-    <div class="card">
-        <h3><a href="/metrics">&#9776; Metrics</a></h3>
-        <p>Quote verification rates, host prep effects, and episode statistics — computed live from the experiment data.</p>
+        <p>9 podcast episodes. Click any paragraph to hear it. Includes the interdisciplinary panel.</p>
     </div>
     <div class="card">
         <h3><a href="/examples">&#10077; Examples</a></h3>
-        <p>Side-by-side excerpts from literary and interdisciplinary panels, pastiche examples, and host preparation drill-down.</p>
-    </div>
-    <div class="card">
-        <h3><a href="/research">&#9830; Research</a></h3>
-        <p>Key findings: framework dominance, the knowledge gradient, pastiche analysis, and the within-author evidence.</p>
+        <p>Side-by-side panel comparisons, pastiche analysis, host preparation drill-down.</p>
     </div>
     <div class="card">
         <h3><a href="/blog">&#9998; Blog</a></h3>
-        <p>"The Reader Makes the Reading" — a narrative account of what we built and what we found.</p>
+        <p>"The Reader Makes the Reading" — what we built and what we found.</p>
+    </div>
+    <div class="card">
+        <h3><a href="/about">&#9881; Pipeline</a></h3>
+        <p>Enrichment, selection, host preparation, script generation — four phases explained.</p>
+    </div>
+    <div class="card">
+        <h3><a href="/prompts">&#10094;&#10095; Prompts</a></h3>
+        <p>The actual LLM prompts, verbatim from the codebase.</p>
+    </div>
+    <div class="card">
+        <h3><a href="/research">&#9830; Research</a></h3>
+        <p>Framework dominance, the knowledge gradient, pastiche, within-author evidence.</p>
+    </div>
+    <div class="card">
+        <h3><a href="/metrics">&#9776; Metrics</a></h3>
+        <p>Quote verification, host prep effects, episode statistics — live from experiment data.</p>
     </div>
 </div>
 
+<h2>How it works</h2>
+
+<img src="/static/img/pipeline_overview.png" alt="Pipeline overview" style="max-width:100%; border-radius:8px; margin:0.5em 0;">
+
+<p>Each novel is parsed into passages and enriched with structured metadata. Passages are then selected for discussion by one of three methods:</p>
+
+<img src="/static/img/selection_paths.png" alt="Three selection conditions" style="max-width:100%; border-radius:8px; margin:0.5em 0;">
+
+<p><strong>Transport</strong> uses min-cost network flow: each expert declares demand over seven provision dimensions, and the solver finds the cheapest assignment. Zero LLM tokens, under 100ms. <strong>Embedding</strong> retrieves by cosine similarity and curates with Sonnet — following Anthropic's <a href="https://www.anthropic.com/news/contextual-retrieval">Contextual Retrieval</a> approach. <strong>No passages</strong> removes grounding entirely, testing what the LLM knows from memory.</p>
+
+<p>Optionally, <strong>host preparation</strong> intervenes before script generation:</p>
+
+<img src="/static/img/host_prep_detail.png" alt="Host preparation detail" style="max-width:100%; border-radius:8px; margin:0.5em 0;">
+
+<p>Pre-interviews surface each expert's key points, desired quotes, and disagreement angles. Question planning synthesises these into targeted host questions. The effect: question density rises from ~1 to ~11 per segment, uniformly across all 15 novels. See the full data in every <a href="/report/interdisciplinary_trn_hostprep">hostprep report</a>.</p>
+
+<h2>Why novels?</h2>
+
+<p>The motivation comes from legal and professional information services. RAG is standard, but in practice it is complemented by rich metadata, curated secondary material, and editorial judgement. What happens as this supporting infrastructure becomes less available?</p>
+
+<p>Victorian novels are a safe exploration space: they vary from richly supported (Bleak House, Middlemarch — study guides, Wikipedia, academic papers) to minimally supported (Hester, No Name — almost nothing). By comparing across this spectrum we observe the degradation patterns that matter for any RAG deployment. The <a href="/research">research findings</a> show that failure is graduated, vocabulary-preserving, and measurable.</p>
+
 <div class="tools">
 <h3>How this was built</h3>
-<p>This project was built almost entirely through conversation with <a href="https://claude.ai/code">Claude Code</a> (Anthropic's agentic coding tool). The pipeline, the webapp, the experiment orchestration, the paper drafts, and this site were all produced in extended Claude Code sessions using <a href="https://www.beadsfromsteveyegge.com/">Steve Yegge's Beads</a> for issue tracking across sessions.</p>
-<p>The development process follows the patterns described in Simon Willison's <a href="https://simonwillison.net/guides/agentic-engineering-patterns/">Agentic Engineering Patterns</a> guide: iterative refinement, human-in-the-loop decision-making, and systematic verification. Claude Code wrote the code, ran the experiments, generated the reports, drafted the papers, and deployed this site — with the human providing direction, catching errors, and making editorial judgements at every step.</p>
-<p>The code is at <a href="https://github.com/cbrew/BleakHouse">github.com/cbrew/BleakHouse</a>.</p>
+<p>Built through conversation with <a href="https://claude.ai/code">Claude Code</a> using <a href="https://www.beadsfromsteveyegge.com/">Steve Yegge's Beads</a> for issue tracking, following <a href="https://simonwillison.net/guides/agentic-engineering-patterns/">Simon Willison's Agentic Engineering Patterns</a>. Code at <a href="https://github.com/cbrew/BleakHouse">github.com/cbrew/BleakHouse</a>.</p>
 </div>
 
-<p style="color: var(--text-dim); font-size: 0.85em; text-align: center; margin-top: 2em;">
+<p style="color: var(--text-dim); font-size: 0.85em; text-align: center; margin-top: 1.5em;">
 Chris Brew — The Ohio State University &amp; LexisNexis Legal &amp; Professional
 </p>
 
