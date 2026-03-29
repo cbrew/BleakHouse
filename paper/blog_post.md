@@ -28,7 +28,7 @@ This is Fish's thesis — that meaning is reader-constructed, not text-extracted
 
 ## Non-expert experts
 
-The default panelists are literary scholars: a formalist, a social historian, a close reader. Stereotypes, honestly, but useful ones. For fun, I 
+The default panelists are literary scholars: a formalist, a social historian, a close reader. Stereotypes, not actual representations of expertise. For fun, I 
 replaced them with three Americans from outside literary studies: a computer scientist who specialises in speech recognition and NLP, 
 an astronomer who studies stellar formation, and a musicologist who studies Cold War cultural diplomacy. They are experts, but in something else.
 
@@ -40,11 +40,11 @@ This is itself a finding about where creative constraint operates: not just in t
 
 ## Reading without having read
 
-The no-passages condition is where things get genuinely interesting. With no source passages, the LLM must discuss the novel from prior knowledge alone. It's the computational equivalent of the seminar participant who didn't do the reading.
+The no-passages condition is a control. With no source passages, the LLM must discuss the novel from prior knowledge alone. It's the computational equivalent of the seminar participant who didn't do the reading.
 
 Pierre Bayard wrote a delightful book arguing that "non-reading" is a spectrum — books skimmed, books heard about, books forgotten. Our system provides the first computational test of his claim. And the results confirm his intuition, with a twist: we can measure the degradation.
 
-For Middlemarch — canonical, widely taught, endlessly discussed — the LLM produces verifiable quotes 57% of the time. For Hester, an Oliphant novel that barely registers in modern literary culture, the rate drops to zero.
+For Middlemarch — canonical, widely taught, endlessly discussed — the LLM produces verified quotes 57% of the time. For Hester, an Oliphant novel that barely registers in modern literary culture, the rate drops to zero.
 
 All fifteen novels are on Project Gutenberg. The raw text is almost certainly in the training data. What varies is the analytical reinforcement — the volume of study guides, Wikipedia articles, academic papers, and blog posts that quote and re-quote specific passages. Carlini et al. showed that LLM memorisation grows with data duplication. For novels, the relevant duplication isn't the Gutenberg text (which appears once) but its most-quoted passages, duplicated across thousands of secondary sources for canonical works and virtually none for obscure ones.
 
