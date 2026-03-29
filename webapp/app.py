@@ -123,6 +123,16 @@ async def blog_page():
     return FileResponse(str(PAGES_DIR / "blog.html"))
 
 
+@app.get("/blog/{post_id}", response_class=HTMLResponse)
+async def blog_post(post_id: str):
+    if ".." in post_id:
+        raise HTTPException(400, "Invalid path")
+    path = PAGES_DIR / f"blog_{post_id}.html"
+    if not path.exists():
+        raise HTTPException(404, f"Blog post not found: {post_id}")
+    return FileResponse(str(path))
+
+
 @app.get("/prompts", response_class=HTMLResponse)
 async def prompts_page():
     return FileResponse(str(PAGES_DIR / "prompts.html"))

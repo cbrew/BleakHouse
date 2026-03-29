@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Not In Our Time — Enrichment at Scale</title>
+<link rel="stylesheet" href="/static/page_base.css">
+<script src="/static/nav.js" defer></script>
+</head>
+<body>
+<div class="content">
+
+<h1>Enrichment at Scale</h1>
+<p class="subtitle">60,000 passages, 20 fields each — how we prepared 15 novels for discussion</p>
+<p style="color:var(--text-dim);font-size:0.85em;">Part 2 of the <a href="/blog">Not In Our Time</a> series</p>
+
+<p>Before anything interesting can happen — before passage selection, before expert panels, before audio — every passage in every novel needs to be annotated with structured metadata. This is the enrichment phase, and it is both the most expensive and the most consequential step in the pipeline.</p>
+
+<h2>What gets annotated</h2>
+
+<p>Each passage (50–80 words of novel text) is sent to Claude Haiku with a <a href="/prompts">structured output prompt</a> that requests 20 fields:</p>
+
+<ul>
+<li><strong>Interest score</strong> (0–5): how remarkable is this passage? Most Dickens is routine connective prose. A 4 or 5 means a podcast host would want to stop and discuss it.</li>
+<li><strong>Seven provision dimensions</strong>: character_development, plot_advancement, thematic_depth, social_critique, humor_entertainment, atmosphere_setting, narrative_technique — each rated none/weak/strong. These are the currency of the transport selection system: experts declare demand in these dimensions, and the solver matches supply to demand.</li>
+<li><strong>Characters present</strong> and <strong>characters speaking</strong>: canonical names, not abbreviations.</li>
+<li><strong>Narrator</strong>: for dual-narration novels like Bleak House, which voice is this? Esther (first person, past tense) or the omniscient narrator (present tense)?</li>
+<li><strong>Themes</strong>: short lowercase tags (law, poverty, identity, class, secrets...).</li>
+<li><strong>Emotional register</strong>: what the passage feels like.</li>
+<li><strong>Quotability</strong>: would a host read this aloud?</li>
+<li><strong>Best extractable quote</strong>: the single best line, verbatim.</li>
+<li><strong>Summary</strong>: what happens in this passage.</li>
+</ul>
+
+<h2>Why Haiku, not Sonnet</h2>
+
+<p>Cost. At 60,774 passages across 15 novels, enrichment is the most token-intensive phase of the pipeline. Haiku is roughly 10× cheaper than Sonnet per token. The total enrichment cost for all 15 novels is approximately 25M Haiku tokens — still substantial, but manageable. At Sonnet prices it would be prohibitive for exploratory work.</p>
+
+<p>The quality trade-off is real but acceptable. Haiku's interest scores are noisier than Sonnet's would be, and its provision dimension ratings are occasionally inconsistent. But the downstream pipeline is robust to noisy enrichment: the min-cost flow solver optimises over many passages, and individual errors wash out in aggregate.</p>
+
+<h2>Structured output</h2>
+
+<p>We use Anthropic's <code>json_schema</code> structured output format, not tool use. The schema is a Pydantic model (ParagraphEnrichment) that the API enforces at generation time. This eliminates parsing failures — every response is valid JSON matching the schema.</p>
+
+<p>The <a href="/prompts">enrichment prompt</a> includes explicit guidance: "Be discriminating. Most paragraphs in Dickens are routine connective prose (score 0–1). Reserve 4–5 for genuinely remarkable passages." Without this, Haiku rates everything as interesting.</p>
+
+<h2>What goes wrong</h2>
+
+<p><strong>The atmosphere_setting failure.</strong> One of the seven provision dimensions — atmosphere_setting — is uniformly low (&lt;6% of passages rated "strong") across all 15 novels. This is a bias in the enrichment schema: it was designed on Bleak House and reflects Dickensian priorities. Atmosphere is present in these novels but the schema doesn't capture it well. Six dimensions transfer; one doesn't.</p>
+
+<p><strong>The passage length confound.</strong> Novels were originally segmented by paragraph. This produces very different passage lengths: Miss Marjoribanks averages 161 words per passage, Bleak House averages 49. Longer passages are more likely to score "strong" on multiple dimensions simply because they contain more material. We resegmented at 80 words maximum for the newer novels.</p>
+
+<p><strong>Novel-specific prompts.</strong> The enrichment prompt references the novel's narrative structure (e.g. "Esther chapters are odd-numbered starting from Chapter 3" for Bleak House). This means the prompt needs adaptation per novel. For the 15-novel corpus, we created a novel_prompts module that provides title, author, and narrative structure for each novel, selected via the <code>BLEAKHOUSE_NOVEL</code> environment variable.</p>
+
+<h2>The numbers</h2>
+
+<table>
+<tr><th>Novel</th><th>Passages</th><th>Author</th></tr>
+<tr><td>Bleak House</td><td>6,916</td><td>Dickens</td></tr>
+<tr><td>No Name</td><td>6,057</td><td>Collins</td></tr>
+<tr><td>Our Mutual Friend</td><td>5,775</td><td>Dickens</td></tr>
+<tr><td>David Copperfield</td><td>5,621</td><td>Dickens</td></tr>
+<tr><td>Middlemarch</td><td>5,519</td><td>Eliot</td></tr>
+<tr><td>Daniel Deronda</td><td>5,170</td><td>Eliot</td></tr>
+<tr><td>Mill on the Floss</td><td>4,654</td><td>Eliot</td></tr>
+<tr><td>New Grub Street</td><td>3,872</td><td>Gissing</td></tr>
+<tr><td>The Odd Women</td><td>3,395</td><td>Gissing</td></tr>
+<tr><td>Miss Marjoribanks</td><td>3,019</td><td>Oliphant</td></tr>
+<tr><td>North and South</td><td>2,942</td><td>Gaskell</td></tr>
+<tr><td>A Passage to India</td><td>2,556</td><td>Forster</td></tr>
+<tr><td>Hester</td><td>2,279</td><td>Oliphant</td></tr>
+<tr><td>Hard Times</td><td>1,773</td><td>Dickens</td></tr>
+<tr><td>Cranford</td><td>1,226</td><td>Gaskell</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>60,774</strong></td><td></td></tr>
+</table>
+
+<p>The enrichment data is the foundation everything else builds on. If the interest scores are wrong, the transport solver selects boring passages. If the provision dimensions are biased, the expert demand profiles don't match what the novel actually offers. Getting this right — or understanding how it's wrong — is the first and most important engineering decision.</p>
+
+<p style="color:var(--text-dim);font-size:0.85em;margin-top:2em;">Next: <a href="/blog/transport">Min-Cost Flow vs Embeddings: Two Ways to Read a Novel</a></p>
+
+</div>
+</body>
+</html>
