@@ -87,7 +87,8 @@ function selectNovel(novelName) {
         const mins = Math.round(run.total_duration_ms / 60000);
         const names = run.experts.map(e => e.name).join(", ");
         const cond = run.condition ? ` [${run.condition}]` : "";
-        opt.textContent = `${names}${cond} (${mins}m)`;
+        const hp = run.hostprep ? " +hostprep" : "";
+        opt.textContent = `${names}${cond}${hp} (${mins}m)`;
         runSelect.appendChild(opt);
     }
     runSelect.onchange = () => loadRun(runSelect.value);
