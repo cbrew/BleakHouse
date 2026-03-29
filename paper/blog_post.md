@@ -26,9 +26,11 @@ The interpretive framework dominates. The reading strategy doesn't.
 
 This is Fish's thesis — that meaning is reader-constructed, not text-extracted — tested at scale across 15 novels. And it holds. A Marxist reading of Cranford and a Marxist reading of Hard Times select different evidence but produce the same analytical character. The reader makes the reading.
 
-## The friends panel
+## Non-expert experts
 
-The default panelists are literary scholars: a formalist, a social historian, a close reader. Stereotypes, honestly, but useful ones. For fun, I replaced them with three Americans from outside literary studies: a computer scientist who specialises in speech recognition and NLP, an astronomer who studies stellar formation, and a musicologist who studies Cold War cultural diplomacy.
+The default panelists are literary scholars: a formalist, a social historian, a close reader. Stereotypes, honestly, but useful ones. For fun, I 
+replaced them with three Americans from outside literary studies: a computer scientist who specialises in speech recognition and NLP, 
+an astronomer who studies stellar formation, and a musicologist who studies Cold War cultural diplomacy. They are experts, but in something else.
 
 The astronomer reads Dickens's fog as a physical formation condition — opacity is not metaphor but the baseline state of complex systems. The NLP scientist analyses agent deletion in the opening sentences: "There is no main clause. It is a sequence of noun phrases and participial clauses with no finite verb until paragraph two." The musicologist compares Chancery to Soviet institutions that consumed the artists they were supposed to support.
 
@@ -60,7 +62,7 @@ In literary-critical terms, this is pastiche — imitation of an author's manner
 
 ## What I think this means
 
-The system's value isn't in any individual podcast, though some of them are genuinely good (the interdisciplinary panel on Bleak House is my favourite). The value is in making the space of possible interpretations navigable.
+The system's value isn't in any individual podcast, though some of them please me (the interdisciplinary panel on Bleak House is my favourite). The value is in making the space of possible interpretations navigable.
 
 A human editor can swap critical lenses, adjust demand profiles, add or remove scaffolding, compare grounded and ungrounded conditions — and each variation reveals something about the relationship between reader and text. The passage-selection step runs in under 100ms with no LLM calls. You can preview dozens of configurations before committing to the expensive generation step.
 
