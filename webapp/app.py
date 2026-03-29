@@ -104,7 +104,12 @@ PAGES_DIR = Path(__file__).resolve().parent / "pages"
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index():
+async def landing():
+    return FileResponse(str(PAGES_DIR / "landing.html"))
+
+
+@app.get("/player", response_class=HTMLResponse)
+async def player():
     return FileResponse(str(STATIC_DIR / "index.html"))
 
 
@@ -126,6 +131,11 @@ async def prompts_page():
 @app.get("/metrics", response_class=HTMLResponse)
 async def metrics_page():
     return FileResponse(str(PAGES_DIR / "metrics.html"))
+
+
+@app.get("/examples", response_class=HTMLResponse)
+async def examples_page():
+    return FileResponse(str(PAGES_DIR / "examples.html"))
 
 
 @app.get("/research", response_class=HTMLResponse)

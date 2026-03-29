@@ -3,10 +3,11 @@
     const currentPath = window.location.pathname;
     const links = [
         { href: '/tracker', label: 'Matrix', icon: '&#9638;' },
-        { href: '/', label: 'Player', icon: '&#9835;' },
+        { href: '/player', label: 'Player', icon: '&#9835;' },
         { href: '/about', label: 'Pipeline', icon: '&#9881;' },
         { href: '/prompts', label: 'Prompts', icon: '&#10094;&#10095;' },
         { href: '/metrics', label: 'Metrics', icon: '&#9776;' },
+        { href: '/examples', label: 'Examples', icon: '&#10077;' },
         { href: '/research', label: 'Research', icon: '&#9830;' },
         { href: '/blog', label: 'Blog', icon: '&#9998;' },
     ];
@@ -15,7 +16,7 @@
     nav.id = 'site-nav';
     nav.innerHTML = `
         <div class="nav-inner">
-            <a class="nav-brand" href="/tracker">BleakHouse</a>
+            <a class="nav-brand" href="/"><em>Not In Our Time</em></a>
             ${links.map(l => {
                 const active = currentPath === l.href ||
                     (l.href !== '/' && currentPath.startsWith(l.href));
