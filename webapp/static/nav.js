@@ -79,6 +79,25 @@
     `;
     document.head.appendChild(style);
 
+    // --- Provenance badge ---
+    const pageName = currentPath.replace(/^\//, '').replace(/\//g, '_') || 'landing';
+    fetch('/static/provenance.json').then(r => r.json()).then(prov => {
+        const info = prov[pageName];
+        if (!info) return;
+        const colors = { red: '#e94560', yellow: '#e8d44d', green: '#6fdc6f', grey: '#888' };
+        const bgColors = { red: '#3d1515', yellow: '#3d3510', green: '#1e4620', grey: '#333' };
+        const badge = document.createElement('div');
+        badge.style.cssText = `text-align:center;padding:6px;font-size:0.8em;font-family:sans-serif;color:${colors[info.color]};background:${bgColors[info.color]};border-top:1px solid #1a2744;`;
+        badge.innerHTML = `<a href="${info.github_url}" style="color:${colors[info.color]};text-decoration:none;" target="_blank">` +
+            `&#x1F4DD; <strong>${info.badge}</strong> by Claude Code` +
+            ` (${info.total_commits} commit${info.total_commits !== 1 ? 's' : ''})` +
+            ` &mdash; view git history</a>`;
+        // Insert before feedback footer
+        const fb = document.getElementById('feedback-footer');
+        if (fb) document.body.insertBefore(badge, fb);
+        else document.body.appendChild(badge);
+    }).catch(() => {});
+
     // --- Feedback footer ---
     const feedback = document.createElement('div');
     feedback.id = 'feedback-footer';
