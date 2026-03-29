@@ -10,6 +10,7 @@
         { href: '/examples', label: 'Examples', icon: '&#10077;' },
         { href: '/research', label: 'Research', icon: '&#9830;' },
         { href: '/blog', label: 'Blog', icon: '&#9998;' },
+        { href: '/help', label: 'Help', icon: '&#10067;' },
     ];
 
     const nav = document.createElement('nav');

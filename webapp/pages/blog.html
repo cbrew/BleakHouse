@@ -22,9 +22,15 @@
 
 <p>I tested this across 15 novels (Dickens, Eliot, Gaskell, Forster, Collins, Gissing, Oliphant), <a href="/tracker">180 experimental conditions</a>, and about 60,000 passages.</p>
 
+<h2>Two kinds of retrieval</h2>
+
+<p>The embedding-based selection follows the approach described in Anthropic's <a href="https://www.anthropic.com/news/contextual-retrieval">Contextual Retrieval</a> work: each passage is embedded with context from the surrounding chapter, retrieved by cosine similarity to expert profile descriptions, and then curated by an LLM (Sonnet) which selects the most discussion-worthy passages from the candidate pool. This is a strong baseline — it's essentially RAG with LLM-in-the-loop curation.</p>
+
+<p>The transport-based selection takes a completely different approach. Instead of asking "which passages are semantically similar to this expert?", it asks "which passages satisfy this expert's demand for social critique, narrative technique, and character development at minimum cost?" The demand is a vector over seven provision dimensions; the supply is whatever the enrichment schema found in each passage. Min-cost network flow finds the optimal assignment in under 100ms with no LLM calls.</p>
+
 <h2>The finding that shouldn't have surprised me but did</h2>
 
-<p>Two of the passage-selection algorithms — one based on min-cost network flow, the other on contextual embeddings — select almost entirely different passages. Jaccard similarity: 0.057. That's fewer than 6% of passages in common.</p>
+<p>These two methods select almost entirely different passages. Jaccard similarity: 0.057. That's fewer than 6% of passages in common.</p>
 
 <p>The min-cost flow method selects broadly: 59 passages from 28 chapters, weighted toward character development and plot. Call it the <em>synoptic reader</em>.</p>
 
