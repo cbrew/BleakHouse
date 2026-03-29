@@ -100,9 +100,37 @@ def _discover_runs() -> dict[str, list[dict]]:
     return novels
 
 
+PAGES_DIR = Path(__file__).resolve().parent / "pages"
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     return FileResponse(str(STATIC_DIR / "index.html"))
+
+
+@app.get("/about", response_class=HTMLResponse)
+async def about_page():
+    return FileResponse(str(PAGES_DIR / "about.html"))
+
+
+@app.get("/blog", response_class=HTMLResponse)
+async def blog_page():
+    return FileResponse(str(PAGES_DIR / "blog.html"))
+
+
+@app.get("/prompts", response_class=HTMLResponse)
+async def prompts_page():
+    return FileResponse(str(PAGES_DIR / "prompts.html"))
+
+
+@app.get("/metrics", response_class=HTMLResponse)
+async def metrics_page():
+    return FileResponse(str(PAGES_DIR / "metrics.html"))
+
+
+@app.get("/research", response_class=HTMLResponse)
+async def research_page():
+    return FileResponse(str(PAGES_DIR / "research.html"))
 
 
 @app.get("/api/novels")
@@ -553,6 +581,7 @@ TRACKER_HTML = """\
 <head>
 <meta charset="utf-8">
 <title>BleakHouse Experiment Tracker</title>
+<script src="/static/nav.js" defer></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
