@@ -42,4 +42,9 @@ for run in $DEMO_RUNS; do
 done
 
 echo "Staged $count runs"
+
+# Regenerate provenance badges
+echo "Generating provenance data..."
+uv run python scripts/generate_provenance.py > webapp/static/provenance.json
+
 du -sh "$DEST"
