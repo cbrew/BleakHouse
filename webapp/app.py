@@ -470,12 +470,14 @@ def _run_detail(runs_dir: Path, rn: str) -> dict:
         m = _measure(rd / "phase3_episode.json")
         timings = _phase_timings(rd)
         qv = _load_quote_verification(rd)
-        has_audio = (rd / "audio" / "manifest.json").exists()
+        has_gemini = (rd / "audio" / "manifest.json").exists()
         # Also check the 'ext' variant name (older runs used ext instead of trn)
-        if not has_audio and "_trn_" in rn:
+        if not has_gemini and "_trn_" in rn:
             alt_rd = runs_dir / rn.replace("_trn_", "_ext_")
-            has_audio = (alt_rd / "audio" / "manifest.json").exists()
-        return {"name": rn, "status": "done", **(m or {}), "timings": timings, "qv": qv, "has_audio": has_audio}
+            has_gemini = (alt_rd / "audio" / "manifest.json").exists()
+        # audio_state: "gemini" (pre-rendered), "kokoro" (on-demand)
+        audio_state = "gemini" if has_gemini else "kokoro"
+        return {"name": rn, "status": "done", **(m or {}), "timings": timings, "qv": qv, "has_audio": has_gemini, "audio_state": audio_state}
     if not (rd / "config.json").exists():
         return {"name": rn, "status": "missing"}
 
@@ -822,7 +824,8 @@ function render(data) {
             } else {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 const cdata = encodeURIComponent(JSON.stringify(c));
-                const audio = c.has_audio ? '<span style="font-size:0.7em;color:#333" title="audio available">&#9835;</span>' : '';
+                const audio = c.audio_state === 'gemini' ? '<span style="font-size:0.7em;color:#27ae60" title="Gemini TTS audio">&#9835;</span>' :
+                              '<span style="font-size:0.7em;color:#6fa8dc" title="On-demand Kokoro TTS">&#9889;</span>';
                 html += `<td class="d ${cls}" onclick="showRunDetail(event, '${cdata}')">` +
                     `<span class="q">${c.q}</span>${audio}<br>` +
                     `<span class="r">${c.r}</span><br>` +
@@ -914,10 +917,10 @@ function showRunDetail(evt, encoded) {
     const div = document.createElement('div');
     div.id = 'pop';
     div.className = 'popover';
-    const viewUrl = c.has_audio ? `/?run=${c.name}` : `/report/${c.name}`;
-    const viewLabel = c.has_audio ? '&#9654; audio' : '&#9654; report';
-    const reportLink = `<a href="/report/${c.name}" target="_blank" style="font-size:0.8em;color:#5b9bd5;text-decoration:none;margin-left:6px">${viewLabel}</a>`;
-    const audioLink = c.has_audio ? ` <a href="/?run=${c.name}" target="_blank" style="font-size:0.8em;color:#5b9bd5;text-decoration:none;margin-left:4px">&#9835; audio</a>` : '';
+    const reportLink = `<a href="/report/${c.name}" target="_blank" style="font-size:0.8em;color:#5b9bd5;text-decoration:none;margin-left:6px">&#9654; report</a>`;
+    const audioLink = c.audio_state === 'gemini'
+        ? ` <a href="/player?run=${c.name}" target="_blank" style="font-size:0.8em;color:#27ae60;text-decoration:none;margin-left:4px">&#9835; Gemini audio</a>`
+        : ` <a href="/player?run=${c.name}" target="_blank" style="font-size:0.8em;color:#6fa8dc;text-decoration:none;margin-left:4px">&#9889; Kokoro audio</a>`;
     div.innerHTML = `<span class="close" onclick="this.parentElement.remove()">&times;</span>` +
         `<h3>${c.name}${reportLink}${audioLink}</h3>${started}${rows}${metrics}`;
     div.style.left = Math.min(evt.pageX + 10, window.innerWidth - 340) + 'px';
