@@ -21,29 +21,21 @@ VOICES_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/mode
 _model = None
 
 
-def _download_if_missing() -> None:
-    """Download model files to volume if not present."""
-    import urllib.request
-
-    VOLUME_DIR.mkdir(parents=True, exist_ok=True)
-
-    for path, url, label in [
-        (MODEL_FILE, MODEL_URL, "model (310MB)"),
-        (VOICES_FILE, VOICES_URL, "voices (27MB)"),
-    ]:
-        if not path.exists():
-            logger.info("Downloading Kokoro %s to %s...", label, path)
-            urllib.request.urlretrieve(url, str(path))
-            logger.info("Downloaded %s (%d bytes)", label, path.stat().st_size)
-
-
 def get_model():
-    """Return the Kokoro model, loading/downloading on first call."""
+    """Return the Kokoro model, loading from volume on first call.
+
+    Model files must be pre-loaded onto the volume — we don't download
+    at runtime to avoid OOM from the download + load memory spike.
+    """
     global _model
     if _model is not None:
         return _model
 
-    _download_if_missing()
+    if not MODEL_FILE.exists():
+        raise RuntimeError(
+            f"Kokoro model not found at {MODEL_FILE}. "
+            "Upload model files to the fly volume first."
+        )
 
     from kokoro_onnx import Kokoro
 
