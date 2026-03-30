@@ -222,29 +222,13 @@ async function playKokoroSegment(segIdx) {
         return;
     }
 
-    // Not cached — start rendering with progress polling
-    if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ⏳ 0%';
+    // Not cached — start rendering (takes a few minutes)
+    if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ⏳ generating...';
+    timeDisplay.textContent = 'Generating audio — this takes a few minutes';
 
-    // Start the render (non-blocking — browser will wait for response)
-    const audioPromise = fetch(`/api/tts/${currentRunId}/${segIdx}`);
-
-    // Poll progress
-    const pollInterval = setInterval(async () => {
-        try {
-            const prog = await fetch(`/api/tts/${currentRunId}/${segIdx}/status`).then(r => r.json());
-            if (prog.status === 'rendering' && prog.total > 0) {
-                const pct = Math.round(prog.done / prog.total * 100);
-                if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ` ⏳ ${pct}%`;
-            } else if (prog.status === 'ready') {
-                clearInterval(pollInterval);
-            }
-        } catch (e) {}
-    }, 2000);
-
-    // Wait for audio to be ready
+    // Start the render
     try {
-        const resp = await audioPromise;
-        clearInterval(pollInterval);
+        const resp = await fetch(`/api/tts/${currentRunId}/${segIdx}`);
         if (!resp.ok) {
             if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ❌';
             return;
