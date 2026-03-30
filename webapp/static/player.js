@@ -44,7 +44,7 @@ async function init() {
     const params = new URLSearchParams(window.location.search);
     const directRun = params.get("run");
 
-    novels = await fetch("/api/all-runs").then(r => r.json());
+    novels = await fetch("/api/novels").then(r => r.json());
     const novelNames = Object.keys(novels);
 
     if (directRun) {
