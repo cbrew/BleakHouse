@@ -12,7 +12,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 VOLUME_DIR = Path(os.environ.get("KOKORO_MODEL_DIR", "/app/audio_volume/kokoro_model"))
-MODEL_FILE = VOLUME_DIR / "kokoro-v1.0.onnx"
+MODEL_FILE = VOLUME_DIR / "kokoro-v1.0.int8.onnx"
 VOICES_FILE = VOLUME_DIR / "voices-v1.0.bin"
 
 MODEL_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
