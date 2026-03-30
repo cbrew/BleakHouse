@@ -184,7 +184,16 @@
       "Bash(/usr/bin/curl -s --max-time 15 https://bleakhouse-demo.fly.dev/)",
       "Bash(bd memories:*)",
       "Bash(/usr/bin/curl -s --max-time 15 -o /dev/null -w '%{http_code}' https://bleakhouse-demo.fly.dev/help)",
-      "Bash(/usr/bin/curl -s http://localhost:8080/about)"
+      "Bash(/usr/bin/curl -s http://localhost:8080/about)",
+      "WebFetch(domain:pypi.org)",
+      "Bash(KOKORO_MODEL_DIR=data/tts_models uv run python -c \"\nfrom webapp.kokoro_tts import synthesize_turn\nsamples, sr = synthesize_turn\\('The fog is not decoration. It is the Court of Chancery made visible.', 'bm_george', speed=0.96\\)\nprint\\(f'{len\\(samples\\)/sr:.1f}s audio at {sr}Hz'\\)\n\")",
+      "Bash(fly logs:*)",
+      "WebFetch(domain:gist.github.com)",
+      "Bash(for run:*)",
+      "Bash(1 fly:*)",
+      "Bash(1 __NEW_LINE_47dca9c06f54bd08__ for run in motf_nop_v19_all_swapped_hostprep ngs_nop_v19_all_swapped_hostprep)",
+      "Bash(/dev/null echo:*)",
+      "Bash(tar cf:*)"
     ]
   },
   "prompt": "Before starting any work, run 'bd onboard' to understand the current project state and available issues."
