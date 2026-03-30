@@ -308,6 +308,60 @@ async def list_novels():
     return _discover_runs()
 
 
+@app.get("/api/all-runs")
+async def list_all_runs():
+    """List ALL runs with scripts, grouped by novel. Includes audio state."""
+    novels: dict[str, list[dict]] = {}
+    runs_dir = DATA_DIR / "runs"
+    if not runs_dir.exists():
+        return novels
+    for run_dir in sorted(runs_dir.iterdir()):
+        ep_path = run_dir / "phase3_episode.json"
+        if not ep_path.exists():
+            continue
+
+        # Load title from manifest or episode
+        manifest_path = run_dir / "manifest.json"
+        if manifest_path.exists():
+            with open(manifest_path) as f:
+                manifest = json.load(f)
+            title = manifest.get("title", run_dir.name)
+            experts = manifest.get("experts", [])
+        else:
+            with open(ep_path) as f:
+                ep = json.load(f)
+            title = ep.get("title", run_dir.name)
+            experts = []
+
+        novel = title.replace(": A Literary Discussion", "")
+        name = run_dir.name
+
+        # Determine condition and panel
+        if "_nop_" in name or name.startswith("nop_"):
+            condition = "no passages"
+        elif "_emb_" in name or name.startswith("emb_"):
+            condition = "embedding"
+        elif "interdisciplinary" in name:
+            condition = "interdisciplinary"
+        else:
+            condition = "transport"
+
+        has_gemini = (run_dir / "audio" / "manifest.json").exists()
+        audio_state = "gemini" if has_gemini else "kokoro"
+
+        run_info = {
+            "run_id": name,
+            "title": title,
+            "novel": novel,
+            "condition": condition,
+            "hostprep": "_hostprep" in name,
+            "audio_state": audio_state,
+            "experts": experts,
+        }
+        novels.setdefault(novel, []).append(run_info)
+    return novels
+
+
 @app.get("/api/runs/{run_id}/manifest")
 async def get_manifest(run_id: str):
     # Check audio manifest first, then run-level manifest

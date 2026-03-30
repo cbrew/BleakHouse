@@ -20,6 +20,10 @@ let audio = null;
 let currentTurnIdx = -1;
 let speedIdx = 1;
 let openPassageTurnId = null;
+let currentRunId = null;
+let audioState = null;  // "gemini" or "kokoro"
+let kokoroSegAudio = null;  // per-segment Audio element for kokoro mode
+let kokoroSegIdx = -1;
 
 // ── DOM refs ──
 const novelTitle   = document.getElementById("novel-title");
@@ -40,7 +44,7 @@ async function init() {
     const params = new URLSearchParams(window.location.search);
     const directRun = params.get("run");
 
-    novels = await fetch("/api/novels").then(r => r.json());
+    novels = await fetch("/api/all-runs").then(r => r.json());
     const novelNames = Object.keys(novels);
 
     if (directRun) {
@@ -88,7 +92,8 @@ function selectNovel(novelName) {
         const names = run.experts.map(e => e.name).join(", ");
         const cond = run.condition ? ` [${run.condition}]` : "";
         const hp = run.hostprep ? " +hostprep" : "";
-        opt.textContent = `${names}${cond}${hp} (${mins}m)`;
+        const audioTag = run.audio_state === 'gemini' ? ' ♫' : ' ⚡';
+        opt.textContent = `${names}${cond}${hp}${audioTag}`;
         runSelect.appendChild(opt);
     }
     runSelect.onchange = () => loadRun(runSelect.value);
@@ -133,36 +138,99 @@ async function loadRun(runId) {
         btn.className = "seg-tab";
         btn.textContent = seg.title;
         btn.dataset.segIdx = i;
-        btn.addEventListener("click", () => seekToSegment(i));
+        btn.addEventListener("click", () => {
+            if (audioState === 'gemini') {
+                seekToSegment(i);
+            } else {
+                playKokoroSegment(i);
+            }
+        });
         segmentNav.appendChild(btn);
+    }
+
+    // Determine audio state from the run info
+    currentRunId = runId;
+    audioState = null;
+    for (const runs of Object.values(novels)) {
+        const run = runs.find(r => r.run_id === runId);
+        if (run) { audioState = run.audio_state || 'kokoro'; break; }
     }
 
     renderTranscript();
 
-    // Set up audio
+    // Set up audio based on state
     if (audio) { audio.pause(); audio.src = ""; }
-    audio = new Audio(`/audio/${runId}/podcast.mp3`);
-    audio.preload = "auto";
-    audio.playbackRate = SPEEDS[speedIdx];
+    if (kokoroSegAudio) { kokoroSegAudio.pause(); kokoroSegAudio.src = ""; }
+    kokoroSegIdx = -1;
 
-    seekBar.value = 0;
-    timeDisplay.textContent = "0:00 / 0:00";
-    currentTurnIdx = -1;
-    playBtn.textContent = "\u25B6";
+    if (audioState === 'gemini') {
+        // Full pre-rendered audio
+        audio = new Audio(`/audio/${runId}/podcast.mp3`);
+        audio.preload = "auto";
+        audio.playbackRate = SPEEDS[speedIdx];
 
-    audio.addEventListener("loadedmetadata", () => {
-        seekBar.max = audio.duration;
-        loading.style.display = "none";
-    });
-
-    audio.addEventListener("ended", () => {
+        seekBar.value = 0;
+        timeDisplay.textContent = "0:00 / 0:00";
+        currentTurnIdx = -1;
         playBtn.textContent = "\u25B6";
-    });
 
-    if (audio.readyState >= 1) {
-        seekBar.max = audio.duration;
+        audio.addEventListener("loadedmetadata", () => {
+            seekBar.max = audio.duration;
+            loading.style.display = "none";
+        });
+        audio.addEventListener("ended", () => {
+            playBtn.textContent = "\u25B6";
+        });
+        if (audio.readyState >= 1) {
+            seekBar.max = audio.duration;
+            loading.style.display = "none";
+        }
+    } else {
+        // Kokoro on-demand: no full audio, per-segment rendering
+        audio = null;
         loading.style.display = "none";
+        timeDisplay.textContent = "On-demand audio";
+        playBtn.textContent = "\u25B6";
     }
+}
+
+// ── Kokoro per-segment playback ──
+async function playKokoroSegment(segIdx) {
+    if (kokoroSegAudio) { kokoroSegAudio.pause(); }
+    kokoroSegIdx = segIdx;
+
+    // Show loading state on the segment tab
+    const tabs = segmentNav.querySelectorAll('.seg-tab');
+    if (tabs[segIdx]) {
+        tabs[segIdx].textContent = manifest.segments[segIdx].title + ' ⏳';
+    }
+
+    kokoroSegAudio = new Audio(`/api/tts/${currentRunId}/${segIdx}`);
+    kokoroSegAudio.playbackRate = SPEEDS[speedIdx];
+
+    kokoroSegAudio.addEventListener('canplay', () => {
+        if (tabs[segIdx]) {
+            tabs[segIdx].textContent = manifest.segments[segIdx].title + ' 🔊';
+        }
+        kokoroSegAudio.play();
+        playBtn.textContent = "\u23F8";
+    });
+    kokoroSegAudio.addEventListener('ended', () => {
+        playBtn.textContent = "\u25B6";
+        if (tabs[segIdx]) {
+            tabs[segIdx].textContent = manifest.segments[segIdx].title + ' ✓';
+        }
+        // Auto-advance to next segment
+        if (segIdx + 1 < manifest.segments.length) {
+            playKokoroSegment(segIdx + 1);
+        }
+    });
+    kokoroSegAudio.addEventListener('error', () => {
+        if (tabs[segIdx]) {
+            tabs[segIdx].textContent = manifest.segments[segIdx].title + ' ❌';
+        }
+    });
+    kokoroSegAudio.load();
 }
 
 // ── Passage helpers ──
@@ -373,6 +441,19 @@ function renderTranscript() {
 
 // ── Playback controls ──
 playBtn.addEventListener("click", () => {
+    if (audioState === 'kokoro') {
+        // For Kokoro: play/pause current segment, or start from segment 0
+        if (kokoroSegAudio && !kokoroSegAudio.paused) {
+            kokoroSegAudio.pause();
+            playBtn.textContent = "\u25B6";
+        } else if (kokoroSegAudio && kokoroSegAudio.src) {
+            kokoroSegAudio.play();
+            playBtn.textContent = "\u23F8";
+        } else {
+            playKokoroSegment(0);
+        }
+        return;
+    }
     if (!audio) return;
     if (audio.paused) {
         audio.play();
