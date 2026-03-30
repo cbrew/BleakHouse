@@ -972,8 +972,7 @@ function render(data) {
             } else {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 const cdata = encodeURIComponent(JSON.stringify(c));
-                const audio = c.audio_state === 'gemini' ? '<span style="font-size:0.7em;color:#27ae60" title="Gemini TTS audio">&#9835;</span>' :
-                              '<span style="font-size:0.7em;color:#6fa8dc" title="On-demand Kokoro TTS">&#9889;</span>';
+                const audio = c.has_audio ? '<span style="font-size:0.7em;color:#27ae60" title="Audio available">&#9835;</span>' : '';
                 html += `<td class="d ${cls}" onclick="showRunDetail(event, '${cdata}')">` +
                     `<span class="q">${c.q}</span>${audio}<br>` +
                     `<span class="r">${c.r}</span><br>` +
@@ -1066,9 +1065,9 @@ function showRunDetail(evt, encoded) {
     div.id = 'pop';
     div.className = 'popover';
     const reportLink = `<a href="/report/${c.name}" target="_blank" style="font-size:0.8em;color:#5b9bd5;text-decoration:none;margin-left:6px">&#9654; report</a>`;
-    const audioLink = c.audio_state === 'gemini'
-        ? ` <a href="/player?run=${c.name}" target="_blank" style="font-size:0.8em;color:#27ae60;text-decoration:none;margin-left:4px">&#9835; Gemini audio</a>`
-        : ` <a href="/player?run=${c.name}" target="_blank" style="font-size:0.8em;color:#6fa8dc;text-decoration:none;margin-left:4px">&#9889; Kokoro audio</a>`;
+    const audioLink = c.has_audio
+        ? ` <a href="/player?run=${c.name}" target="_blank" style="font-size:0.8em;color:#27ae60;text-decoration:none;margin-left:4px">&#9835; audio</a>`
+        : '';
     div.innerHTML = `<span class="close" onclick="this.parentElement.remove()">&times;</span>` +
         `<h3>${c.name}${reportLink}${audioLink}</h3>${started}${rows}${metrics}`;
     div.style.left = Math.min(evt.pageX + 10, window.innerWidth - 340) + 'px';
