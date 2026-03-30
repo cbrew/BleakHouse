@@ -199,38 +199,73 @@ async function playKokoroSegment(segIdx) {
     if (kokoroSegAudio) { kokoroSegAudio.pause(); }
     kokoroSegIdx = segIdx;
 
-    // Show loading state on the segment tab
     const tabs = segmentNav.querySelectorAll('.seg-tab');
-    if (tabs[segIdx]) {
-        tabs[segIdx].textContent = manifest.segments[segIdx].title + ' ⏳';
+    const segTitle = manifest.segments[segIdx].title;
+
+    // Check if already cached
+    const statusResp = await fetch(`/api/tts/${currentRunId}/${segIdx}/status`).then(r => r.json());
+    if (statusResp.status === 'ready') {
+        // Already rendered — play immediately
+        kokoroSegAudio = new Audio(`/api/tts/${currentRunId}/${segIdx}`);
+        kokoroSegAudio.playbackRate = SPEEDS[speedIdx];
+        kokoroSegAudio.addEventListener('canplay', () => {
+            if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' 🔊';
+            kokoroSegAudio.play();
+            playBtn.textContent = "\u23F8";
+        });
+        kokoroSegAudio.addEventListener('ended', () => {
+            playBtn.textContent = "\u25B6";
+            if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ✓';
+            if (segIdx + 1 < manifest.segments.length) playKokoroSegment(segIdx + 1);
+        });
+        kokoroSegAudio.load();
+        return;
     }
 
-    kokoroSegAudio = new Audio(`/api/tts/${currentRunId}/${segIdx}`);
-    kokoroSegAudio.playbackRate = SPEEDS[speedIdx];
+    // Not cached — start rendering with progress polling
+    if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ⏳ 0%';
 
-    kokoroSegAudio.addEventListener('canplay', () => {
-        if (tabs[segIdx]) {
-            tabs[segIdx].textContent = manifest.segments[segIdx].title + ' 🔊';
+    // Start the render (non-blocking — browser will wait for response)
+    const audioPromise = fetch(`/api/tts/${currentRunId}/${segIdx}`);
+
+    // Poll progress
+    const pollInterval = setInterval(async () => {
+        try {
+            const prog = await fetch(`/api/tts/${currentRunId}/${segIdx}/status`).then(r => r.json());
+            if (prog.status === 'rendering' && prog.total > 0) {
+                const pct = Math.round(prog.done / prog.total * 100);
+                if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ` ⏳ ${pct}%`;
+            } else if (prog.status === 'ready') {
+                clearInterval(pollInterval);
+            }
+        } catch (e) {}
+    }, 2000);
+
+    // Wait for audio to be ready
+    try {
+        const resp = await audioPromise;
+        clearInterval(pollInterval);
+        if (!resp.ok) {
+            if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ❌';
+            return;
         }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        kokoroSegAudio = new Audio(url);
+        kokoroSegAudio.playbackRate = SPEEDS[speedIdx];
+        if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' 🔊';
         kokoroSegAudio.play();
         playBtn.textContent = "\u23F8";
-    });
-    kokoroSegAudio.addEventListener('ended', () => {
-        playBtn.textContent = "\u25B6";
-        if (tabs[segIdx]) {
-            tabs[segIdx].textContent = manifest.segments[segIdx].title + ' ✓';
-        }
-        // Auto-advance to next segment
-        if (segIdx + 1 < manifest.segments.length) {
-            playKokoroSegment(segIdx + 1);
-        }
-    });
-    kokoroSegAudio.addEventListener('error', () => {
-        if (tabs[segIdx]) {
-            tabs[segIdx].textContent = manifest.segments[segIdx].title + ' ❌';
-        }
-    });
-    kokoroSegAudio.load();
+        kokoroSegAudio.addEventListener('ended', () => {
+            playBtn.textContent = "\u25B6";
+            if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ✓';
+            URL.revokeObjectURL(url);
+            if (segIdx + 1 < manifest.segments.length) playKokoroSegment(segIdx + 1);
+        });
+    } catch (e) {
+        clearInterval(pollInterval);
+        if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ❌';
+    }
 }
 
 // ── Passage helpers ──
