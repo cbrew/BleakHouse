@@ -79,6 +79,16 @@
     `;
     document.head.appendChild(style);
 
+    // --- Page view tracking ---
+    fetch('/api/pageview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            page: window.location.pathname,
+            ref: document.referrer || null,
+        }),
+    }).catch(() => {});
+
     // --- Provenance badge ---
     const pageName = currentPath.replace(/^\//, '').replace(/\//g, '_') || 'landing';
     fetch('/static/provenance.json').then(r => r.json()).then(prov => {

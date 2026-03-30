@@ -167,6 +167,32 @@ async def research_page():
     return FileResponse(str(PAGES_DIR / "research.html"))
 
 
+@app.post("/api/pageview")
+async def log_pageview(request: Request):
+    """Log a page view to JSONL on the persistent volume."""
+    import time
+    try:
+        body = await request.json()
+    except Exception:
+        return {"status": "ok"}
+    page = (body.get("page") or "")[:200]
+    ref = (body.get("ref") or "")[:500]
+    if not page:
+        return {"status": "ok"}
+    entry = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "page": page,
+        "ref": ref,
+    }
+    try:
+        PAGEVIEW_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(PAGEVIEW_FILE, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except OSError:
+        pass  # volume not mounted locally
+    return {"status": "ok"}
+
+
 @app.post("/api/feedback")
 async def submit_feedback(request: Request):
     """Append feedback to JSONL file on the persistent volume."""
@@ -250,6 +276,7 @@ async def script_viewer(run_id: str):
 
 AUDIO_VOLUME = Path("/app/audio_volume")
 FEEDBACK_FILE = AUDIO_VOLUME / "feedback.jsonl"  # on the persistent volume
+PAGEVIEW_FILE = AUDIO_VOLUME / "pageviews.jsonl"
 
 @app.get("/audio/{run_id}/{filename}")
 async def serve_audio(run_id: str, filename: str):
