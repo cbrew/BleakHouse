@@ -183,7 +183,8 @@ async def tts_status(run_id: str, segment_idx: int):
 
 @app.get("/api/tts/{run_id}/{segment_idx}")
 async def tts_segment(run_id: str, segment_idx: int):
-    """Render one segment via Kokoro TTS. Cached on volume after first render."""
+    """Render one segment via Kokoro TTS. Runs in a thread so status polls work."""
+    import asyncio
     if ".." in run_id:
         raise HTTPException(400, "Invalid path")
 
@@ -210,61 +211,53 @@ async def tts_segment(run_id: str, segment_idx: int):
     progress_key = f"{run_id}/{segment_idx}"
     _tts_progress[progress_key] = {"status": "rendering", "done": 0, "total": total_turns}
 
-    # Render each turn, concatenate
-    import numpy as np
+    def _render():
+        import numpy as np
+        from webapp.kokoro_voices import get_kokoro_voice
+        from webapp.kokoro_tts import synthesize_turn
 
-    from webapp.kokoro_voices import get_kokoro_voice
-    from webapp.kokoro_tts import synthesize_turn
+        sample_rate = 24000
+        all_samples = []
 
-    sample_rate = 24000
-    all_samples = []
+        for turn_i, turn in enumerate(turns):
+            speaker = turn.get("speaker", "Host")
+            voice, _lang = get_kokoro_voice(speaker)
+            text = " ".join(u.get("text", "") for u in turn.get("utterances", []))
+            if not text.strip():
+                continue
+            rate = 1.0
+            if turn.get("utterances"):
+                rate = turn["utterances"][0].get("rate", 1.0)
+            try:
+                samples, sr = synthesize_turn(text, voice, speed=rate)
+                if sr != sample_rate:
+                    samples = np.interp(
+                        np.linspace(0, len(samples), int(len(samples) * sample_rate / sr)),
+                        np.arange(len(samples)), samples
+                    ).astype(np.float32)
+                all_samples.append(samples)
+            except Exception as e:
+                logger.warning("TTS failed for %s turn by %s: %s", run_id, speaker, e)
+                continue
+            all_samples.append(np.zeros(int(sample_rate * 0.2), dtype=np.float32))
+            _tts_progress[progress_key] = {"status": "rendering", "done": turn_i + 1, "total": total_turns}
 
-    for turn_i, turn in enumerate(turns):
-        speaker = turn.get("speaker", "Host")
-        voice, _lang = get_kokoro_voice(speaker)
+        if not all_samples:
+            return None
+        combined = np.concatenate(all_samples)
+        import soundfile as sf
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        sf.write(str(cache_path), combined, sample_rate)
+        logger.info("Kokoro: rendered %s segment %d (%.1fs audio)", run_id, segment_idx, len(combined) / sample_rate)
+        return cache_path
 
-        # Build turn text from utterances
-        text = " ".join(u.get("text", "") for u in turn.get("utterances", []))
-        if not text.strip():
-            continue
-
-        # Get speed from first utterance's rate annotation, default 1.0
-        rate = 1.0
-        if turn.get("utterances"):
-            rate = turn["utterances"][0].get("rate", 1.0)
-
-        try:
-            samples, sr = synthesize_turn(text, voice, speed=rate)
-            if sr != sample_rate:
-                # Resample if needed (shouldn't happen with Kokoro)
-                samples = np.interp(
-                    np.linspace(0, len(samples), int(len(samples) * sample_rate / sr)),
-                    np.arange(len(samples)), samples
-                ).astype(np.float32)
-            all_samples.append(samples)
-        except Exception as e:
-            logger.warning("TTS failed for %s turn by %s: %s", run_id, speaker, e)
-            continue
-
-        # Inter-turn pause (200ms)
-        all_samples.append(np.zeros(int(sample_rate * 0.2), dtype=np.float32))
-
-        _tts_progress[progress_key] = {"status": "rendering", "done": turn_i + 1, "total": total_turns}
-
-    if not all_samples:
-        raise HTTPException(500, "No audio generated")
-
-    combined = np.concatenate(all_samples)
-
-    # Save to cache
-    import soundfile as sf
-
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    sf.write(str(cache_path), combined, sample_rate)
-    logger.info("Kokoro: rendered %s segment %d (%.1fs audio)", run_id, segment_idx, len(combined) / sample_rate)
+    # Run in thread so status polls can be served concurrently
+    result = await asyncio.get_event_loop().run_in_executor(None, _render)
     _tts_progress.pop(progress_key, None)
 
-    return FileResponse(str(cache_path), media_type="audio/wav")
+    if result is None:
+        raise HTTPException(500, "No audio generated")
+    return FileResponse(str(result), media_type="audio/wav")
 
 
 @app.post("/api/pageview")
