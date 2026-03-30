@@ -12,9 +12,20 @@
 <h1>The Reader Makes the Reading</h1>
 <p class="subtitle">What happens when you give an LLM fifteen novels, three critics, and a microphone</p>
 
-<p>I've spent the last few months building a system that generates literary discussion podcasts. Not summaries, not reviews — actual multi-voice conversations in which three expert panelists and a host discuss novels, quote passages, disagree with each other, and occasionally say things that surprise me.</p>
+<p>I've spent the last few weeks expanding a system that generates literary discussion podcasts. Not summaries, not reviews — actual multi-voice conversations in which
+    three expert panelists and a host discuss novels, quote passages, disagree with each other, and occasionally say things that surprise me. There was an early draft a year
+    ago. Claude Code makes it possible to do this kind of thing much faster.
+</p>
 
-<p>The system works well enough that you can <a href="/">listen to the results</a>. But the interesting part isn't the podcasts themselves. It's what the experiments revealed about how interpretation works — or more precisely, about where the creative agency sits when an LLM is doing the interpreting.</p>
+<p>The system works well enough that you can <a href="/">listen to the results</a>. If you enjoy it, good. For me, it matters more that the system provides a tool for
+    playing with the creative processes that are involved. The host and the expert panelists are realized using an LLM, obviously. But the system design reflects my priorities
+    and judgments. Very much a first cut. I've just scratched the surface of what can be done so far.
+</p>
+
+    <p>
+        If I'm being grandiose, I might claim that this effort provides insight into real creative processes, or into the capabilities of current LLMs. That's a stretch, a snare
+        and possibly a delusion. Let's all try to avoid being fooled.
+    </p>
 
 <h2>The setup</h2>
 
@@ -36,11 +47,12 @@
 
 <p>The embedding method selects narrowly: 32 passages from 20 chapters, weighted toward social critique and thematic depth. Call it the <em>analytical reader</em>.</p>
 
-<p>These are recognisably different scholarly strategies. In a seminar room you'd notice the difference. But in the generated discussions, you can barely tell them apart. Expert airtime varies by less than 2 percentage points regardless of which algorithm did the selecting.</p>
+<p>These are recognisably different scholarly strategies. In a seminar room you'd notice the difference. But in the generated discussions, you can barely tell them apart.
+    Other factors seem to have larger impact, as we will see. It looks as if the setup of the podcast as a panel discussion is the most important.
+    This is hard to measure, so we measure shallow properties that can stand in as plausible proxies.
+    Expert airtime varies by less than 2 percentage points regardless of which algorithm did the selecting.</p>
 
-<p>The interpretive framework dominates. The reading strategy doesn't.</p>
-
-<p>A caveat: this framework dominance is realised through a pipeline that consistently privileges expert identity at every stage — enrichment dimensions match demand profiles, the selector optimises for demand, host prep interviews each expert individually, and the script prompt instructs distinctive perspectives. Whether the finding reflects interpretive discourse or pipeline engineering is an open question.</p>
+<p>A caveat. This isn't really a finding, it is arguably baked in by design — enrichment dimensions match demand profiles, the selector optimises for demand, host prep interviews each expert individually, and the script prompt instructs distinctive perspectives. Whether the finding reflects interpretive discourse or pipeline engineering is an open question.</p>
 
 <h2>Non-expert experts</h2>
 
@@ -64,7 +76,7 @@
 
 <p>Confabulation rate, it turns out, is an instrument for measuring LLM literary knowledge.</p>
 
-<p>This is probably the closest thing we have to a worthwhile academic finding. The direct comparison between grounded and ungrounded generation across 15 novels — including several that have received very little modern critical attention (Oliphant's Hester, Gissing's Odd Women, Collins's No Name) — shows precisely what happens when an LLM is left to its own devices with texts it barely knows. The degradation is not random: it is graduated, vocabulary-preserving, and correlated with measurable proxies for critical-cultural prominence. The within-author gradients (four Dickens novels, three Eliots, two Gaskells) control for prose style and isolate the effect of analytical reinforcement. This is discussed in detail on the <a href="/research">research page</a> and in the <a href="/static/img/knowledge_gradient.png">knowledge gradient chart</a>.</p>
+<p>The direct comparison between grounded and ungrounded generation across 15 novels — including several that have received very little modern critical attention (Oliphant's Hester, Gissing's Odd Women, Collins's No Name) — shows precisely what happens when an LLM is left to its own devices with texts it barely knows. The degradation is not random: it is graduated, vocabulary-preserving, and correlated with measurable proxies for critical-cultural prominence. The within-author gradients (four Dickens novels, three Eliots, two Gaskells) control for prose style and isolate the effect of analytical reinforcement. This is discussed in detail on the <a href="/research">research page</a> and in the <a href="/static/img/knowledge_gradient.png">knowledge gradient chart</a>.</p>
 
 <h2>Try it</h2>
 
