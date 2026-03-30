@@ -167,6 +167,85 @@ async def research_page():
     return FileResponse(str(PAGES_DIR / "research.html"))
 
 
+@app.get("/api/tts/{run_id}/{segment_idx}")
+async def tts_segment(run_id: str, segment_idx: int):
+    """Render one segment via Kokoro TTS. Cached on volume after first render."""
+    if ".." in run_id:
+        raise HTTPException(400, "Invalid path")
+
+    # Cache on volume (fly) or /tmp (local dev)
+    cache_dir = AUDIO_VOLUME / "kokoro_cache" if AUDIO_VOLUME.exists() else Path("/tmp/kokoro_cache")
+    cache_path = cache_dir / run_id / f"segment_{segment_idx}.wav"
+    if cache_path.exists():
+        return FileResponse(str(cache_path), media_type="audio/wav")
+
+    # Load episode
+    ep_path = DATA_DIR / "runs" / run_id / "phase3_episode.json"
+    if not ep_path.exists():
+        raise HTTPException(404, f"No episode for {run_id}")
+    with open(ep_path) as f:
+        episode = json.load(f)
+
+    segments = episode.get("segments", [])
+    if segment_idx < 0 or segment_idx >= len(segments):
+        raise HTTPException(404, f"Segment {segment_idx} not found (have {len(segments)})")
+
+    seg = segments[segment_idx]
+
+    # Render each turn, concatenate
+    import numpy as np
+
+    from webapp.kokoro_voices import get_kokoro_voice
+    from webapp.kokoro_tts import synthesize_turn
+
+    sample_rate = 24000
+    all_samples = []
+
+    for turn in seg.get("turns", []):
+        speaker = turn.get("speaker", "Host")
+        voice, _lang = get_kokoro_voice(speaker)
+
+        # Build turn text from utterances
+        text = " ".join(u.get("text", "") for u in turn.get("utterances", []))
+        if not text.strip():
+            continue
+
+        # Get speed from first utterance's rate annotation, default 1.0
+        rate = 1.0
+        if turn.get("utterances"):
+            rate = turn["utterances"][0].get("rate", 1.0)
+
+        try:
+            samples, sr = synthesize_turn(text, voice, speed=rate)
+            if sr != sample_rate:
+                # Resample if needed (shouldn't happen with Kokoro)
+                samples = np.interp(
+                    np.linspace(0, len(samples), int(len(samples) * sample_rate / sr)),
+                    np.arange(len(samples)), samples
+                ).astype(np.float32)
+            all_samples.append(samples)
+        except Exception as e:
+            logger.warning("TTS failed for %s turn by %s: %s", run_id, speaker, e)
+            continue
+
+        # Inter-turn pause (200ms)
+        all_samples.append(np.zeros(int(sample_rate * 0.2), dtype=np.float32))
+
+    if not all_samples:
+        raise HTTPException(500, "No audio generated")
+
+    combined = np.concatenate(all_samples)
+
+    # Save to cache
+    import soundfile as sf
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(str(cache_path), combined, sample_rate)
+    logger.info("Kokoro: rendered %s segment %d (%.1fs audio)", run_id, segment_idx, len(combined) / sample_rate)
+
+    return FileResponse(str(cache_path), media_type="audio/wav")
+
+
 @app.post("/api/pageview")
 async def log_pageview(request: Request):
     """Log a page view to JSONL on the persistent volume."""
@@ -277,6 +356,7 @@ async def script_viewer(run_id: str):
 AUDIO_VOLUME = Path("/app/audio_volume")
 FEEDBACK_FILE = AUDIO_VOLUME / "feedback.jsonl"  # on the persistent volume
 PAGEVIEW_FILE = AUDIO_VOLUME / "pageviews.jsonl"
+KOKORO_CACHE = AUDIO_VOLUME / "kokoro_cache"
 
 @app.get("/audio/{run_id}/{filename}")
 async def serve_audio(run_id: str, filename: str):
