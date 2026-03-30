@@ -20,10 +20,6 @@ let audio = null;
 let currentTurnIdx = -1;
 let speedIdx = 1;
 let openPassageTurnId = null;
-let currentRunId = null;
-let audioState = null;  // "gemini" or "kokoro"
-let kokoroSegAudio = null;  // per-segment Audio element for kokoro mode
-let kokoroSegIdx = -1;
 
 // ── DOM refs ──
 const novelTitle   = document.getElementById("novel-title");
@@ -92,8 +88,7 @@ function selectNovel(novelName) {
         const names = run.experts.map(e => e.name).join(", ");
         const cond = run.condition ? ` [${run.condition}]` : "";
         const hp = run.hostprep ? " +hostprep" : "";
-        const audioTag = run.audio_state === 'gemini' ? ' ♫' : ' ⚡';
-        opt.textContent = `${names}${cond}${hp}${audioTag}`;
+        opt.textContent = `${names}${cond}${hp} (${mins}m)`;
         runSelect.appendChild(opt);
     }
     runSelect.onchange = () => loadRun(runSelect.value);
@@ -138,117 +133,35 @@ async function loadRun(runId) {
         btn.className = "seg-tab";
         btn.textContent = seg.title;
         btn.dataset.segIdx = i;
-        btn.addEventListener("click", () => {
-            if (audioState === 'gemini') {
-                seekToSegment(i);
-            } else {
-                playKokoroSegment(i);
-            }
-        });
+        btn.addEventListener("click", () => seekToSegment(i));
         segmentNav.appendChild(btn);
-    }
-
-    // Determine audio state from the run info
-    currentRunId = runId;
-    audioState = null;
-    for (const runs of Object.values(novels)) {
-        const run = runs.find(r => r.run_id === runId);
-        if (run) { audioState = run.audio_state || 'kokoro'; break; }
     }
 
     renderTranscript();
 
-    // Set up audio based on state
+    // Set up audio
     if (audio) { audio.pause(); audio.src = ""; }
-    if (kokoroSegAudio) { kokoroSegAudio.pause(); kokoroSegAudio.src = ""; }
-    kokoroSegIdx = -1;
+    audio = new Audio(`/audio/${runId}/podcast.mp3`);
+    audio.preload = "auto";
+    audio.playbackRate = SPEEDS[speedIdx];
 
-    if (audioState === 'gemini') {
-        // Full pre-rendered audio
-        audio = new Audio(`/audio/${runId}/podcast.mp3`);
-        audio.preload = "auto";
-        audio.playbackRate = SPEEDS[speedIdx];
+    seekBar.value = 0;
+    timeDisplay.textContent = "0:00 / 0:00";
+    currentTurnIdx = -1;
+    playBtn.textContent = "\u25B6";
 
-        seekBar.value = 0;
-        timeDisplay.textContent = "0:00 / 0:00";
-        currentTurnIdx = -1;
-        playBtn.textContent = "\u25B6";
-
-        audio.addEventListener("loadedmetadata", () => {
-            seekBar.max = audio.duration;
-            loading.style.display = "none";
-        });
-        audio.addEventListener("ended", () => {
-            playBtn.textContent = "\u25B6";
-        });
-        if (audio.readyState >= 1) {
-            seekBar.max = audio.duration;
-            loading.style.display = "none";
-        }
-    } else {
-        // Kokoro on-demand: no full audio, per-segment rendering
-        audio = null;
+    audio.addEventListener("loadedmetadata", () => {
+        seekBar.max = audio.duration;
         loading.style.display = "none";
-        timeDisplay.textContent = "On-demand audio";
+    });
+
+    audio.addEventListener("ended", () => {
         playBtn.textContent = "\u25B6";
-    }
-}
+    });
 
-// ── Kokoro per-segment playback ──
-async function playKokoroSegment(segIdx) {
-    if (kokoroSegAudio) { kokoroSegAudio.pause(); }
-    kokoroSegIdx = segIdx;
-
-    const tabs = segmentNav.querySelectorAll('.seg-tab');
-    const segTitle = manifest.segments[segIdx].title;
-
-    // Check if already cached
-    const statusResp = await fetch(`/api/tts/${currentRunId}/${segIdx}/status`).then(r => r.json());
-    if (statusResp.status === 'ready') {
-        // Already rendered — play immediately
-        kokoroSegAudio = new Audio(`/api/tts/${currentRunId}/${segIdx}`);
-        kokoroSegAudio.playbackRate = SPEEDS[speedIdx];
-        kokoroSegAudio.addEventListener('canplay', () => {
-            if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' 🔊';
-            kokoroSegAudio.play();
-            playBtn.textContent = "\u23F8";
-        });
-        kokoroSegAudio.addEventListener('ended', () => {
-            playBtn.textContent = "\u25B6";
-            if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ✓';
-            if (segIdx + 1 < manifest.segments.length) playKokoroSegment(segIdx + 1);
-        });
-        kokoroSegAudio.load();
-        return;
-    }
-
-    // Not cached — start rendering (takes a few minutes)
-    if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ⏳ generating...';
-    timeDisplay.textContent = 'Generating audio — this takes a few minutes';
-
-    // Start the render
-    try {
-        const resp = await fetch(`/api/tts/${currentRunId}/${segIdx}`);
-        if (!resp.ok) {
-            if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ❌';
-            return;
-        }
-        const blob = await resp.blob();
-        const url = URL.createObjectURL(blob);
-        kokoroSegAudio = new Audio(url);
-        kokoroSegAudio.playbackRate = SPEEDS[speedIdx];
-        if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' 🔊';
-        kokoroSegAudio.play();
-        playBtn.textContent = "\u23F8";
-        kokoroSegAudio.addEventListener('ended', () => {
-            playBtn.textContent = "\u25B6";
-            if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ✓';
-            URL.revokeObjectURL(url);
-            if (segIdx + 1 < manifest.segments.length) playKokoroSegment(segIdx + 1);
-        });
-    } catch (e) {
-        clearInterval(pollInterval);
-        if (tabs[segIdx]) tabs[segIdx].textContent = segTitle + ' ❌';
+    if (audio.readyState >= 1) {
+        seekBar.max = audio.duration;
+        loading.style.display = "none";
     }
 }
 
@@ -460,19 +373,6 @@ function renderTranscript() {
 
 // ── Playback controls ──
 playBtn.addEventListener("click", () => {
-    if (audioState === 'kokoro') {
-        // For Kokoro: play/pause current segment, or start from segment 0
-        if (kokoroSegAudio && !kokoroSegAudio.paused) {
-            kokoroSegAudio.pause();
-            playBtn.textContent = "\u25B6";
-        } else if (kokoroSegAudio && kokoroSegAudio.src) {
-            kokoroSegAudio.play();
-            playBtn.textContent = "\u23F8";
-        } else {
-            playKokoroSegment(0);
-        }
-        return;
-    }
     if (!audio) return;
     if (audio.paused) {
         audio.play();
