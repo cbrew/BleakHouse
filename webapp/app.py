@@ -167,6 +167,20 @@ async def research_page():
     return FileResponse(str(PAGES_DIR / "research.html"))
 
 
+_tts_progress: dict[str, dict] = {}  # run_id/seg_idx -> {done, total, status}
+
+
+@app.get("/api/tts/{run_id}/{segment_idx}/status")
+async def tts_status(run_id: str, segment_idx: int):
+    """Check rendering progress for a segment."""
+    key = f"{run_id}/{segment_idx}"
+    cache_dir = AUDIO_VOLUME / "kokoro_cache" if AUDIO_VOLUME.exists() else Path("/tmp/kokoro_cache")
+    cache_path = cache_dir / run_id / f"segment_{segment_idx}.wav"
+    if cache_path.exists():
+        return {"status": "ready"}
+    return _tts_progress.get(key, {"status": "pending", "done": 0, "total": 0})
+
+
 @app.get("/api/tts/{run_id}/{segment_idx}")
 async def tts_segment(run_id: str, segment_idx: int):
     """Render one segment via Kokoro TTS. Cached on volume after first render."""
@@ -191,6 +205,10 @@ async def tts_segment(run_id: str, segment_idx: int):
         raise HTTPException(404, f"Segment {segment_idx} not found (have {len(segments)})")
 
     seg = segments[segment_idx]
+    turns = seg.get("turns", [])
+    total_turns = len(turns)
+    progress_key = f"{run_id}/{segment_idx}"
+    _tts_progress[progress_key] = {"status": "rendering", "done": 0, "total": total_turns}
 
     # Render each turn, concatenate
     import numpy as np
@@ -201,7 +219,7 @@ async def tts_segment(run_id: str, segment_idx: int):
     sample_rate = 24000
     all_samples = []
 
-    for turn in seg.get("turns", []):
+    for turn_i, turn in enumerate(turns):
         speaker = turn.get("speaker", "Host")
         voice, _lang = get_kokoro_voice(speaker)
 
@@ -231,6 +249,8 @@ async def tts_segment(run_id: str, segment_idx: int):
         # Inter-turn pause (200ms)
         all_samples.append(np.zeros(int(sample_rate * 0.2), dtype=np.float32))
 
+        _tts_progress[progress_key] = {"status": "rendering", "done": turn_i + 1, "total": total_turns}
+
     if not all_samples:
         raise HTTPException(500, "No audio generated")
 
@@ -242,6 +262,7 @@ async def tts_segment(run_id: str, segment_idx: int):
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     sf.write(str(cache_path), combined, sample_rate)
     logger.info("Kokoro: rendered %s segment %d (%.1fs audio)", run_id, segment_idx, len(combined) / sample_rate)
+    _tts_progress.pop(progress_key, None)
 
     return FileResponse(str(cache_path), media_type="audio/wav")
 
