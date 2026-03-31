@@ -20,6 +20,7 @@ import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 import anthropic
 
@@ -147,6 +148,110 @@ def run_pre_interview(
     return result
 
 
+_INTERVIEW_TOOLS_ADDENDUM = """
+
+You have search tools available.  Use `search_openalex` to find scholarly works \
+(criticism, historical studies, theoretical texts) relevant to your analysis, and \
+`search_wikipedia` for factual background.  Your core reading list includes:
+{touchstone_works}
+
+Verify claims before citing.  Search 2–3 times, no more.  When you propose a \
+reference, give author, title, and year."""
+
+
+MAX_TOOL_CALLS = 4
+
+
+def run_pre_interview_with_tools(
+    client: anthropic.Anthropic,
+    expert: ExpertPersona,
+    other_expert_names: list[str],
+    segment_name: str,
+    assignments: list[dict],
+    novel_title: str,
+    novel_author: str,
+    model: str = "claude-sonnet-4-6",
+) -> PreInterviewResponse:
+    """Run a pre-interview with scholarly search tools enabled."""
+    from enrichment.reference_tools import ALL_TOOLS, dispatch_tool  # pyright: ignore[reportMissingImports]
+
+    touchstone_block = "\n".join(f"- {w}" for w in expert.touchstone_works) if expert.touchstone_works else "(none)"
+
+    system = _INTERVIEW_SYSTEM.format(
+        novel_title=novel_title,
+        novel_author=novel_author,
+        expert_name=expert.name,
+        expert_description=expert.description,
+        other_experts=", ".join(other_expert_names),
+    ) + _INTERVIEW_TOOLS_ADDENDUM.format(touchstone_works=touchstone_block)
+
+    user = _INTERVIEW_USER.format(
+        segment_name=segment_name,
+        passage_block=_build_passage_summary(assignments),
+    )
+
+    messages: list[dict] = [{"role": "user", "content": user}]
+    tool_count = 0
+
+    while True:
+        tool_choice = {"type": "auto"} if tool_count < MAX_TOOL_CALLS else {"type": "none"}
+        response = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            system=system,
+            messages=messages,
+            tools=ALL_TOOLS,
+            tool_choice=tool_choice,
+        )
+
+        if response.stop_reason != "tool_use":
+            break
+
+        # Process tool calls
+        tool_results = []
+        for block in response.content:
+            if block.type == "tool_use":
+                result_text = dispatch_tool(block.name, block.input)
+                logger.info("    Tool %s(%s): %d chars", block.name,
+                            block.input.get("query", "")[:40], len(result_text))
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result_text,
+                })
+                tool_count += 1
+
+        messages.append({"role": "assistant", "content": response.content})
+        messages.append({"role": "user", "content": tool_results})
+
+    # Extract final text from the response
+    final_text = "\n".join(
+        block.text for block in response.content if hasattr(block, "text")
+    )
+
+    # Parse into structured output with a follow-up call
+    parse_response = client.messages.parse(
+        model=model,
+        max_tokens=1024,
+        system=(
+            "Extract the pre-interview response from this expert's analysis. "
+            "Include any scholarly references they proposed in proposed_references."
+        ),
+        messages=[{"role": "user", "content": final_text}],
+        output_format=PreInterviewResponse,
+    )
+
+    assert parse_response.parsed_output is not None
+    result = parse_response.parsed_output
+    result.expert_name = expert.name
+    logger.info(
+        "  Pre-interview (tools) %s × %s: %d points, %d refs, %d tool calls",
+        expert.name, segment_name,
+        len(result.key_points), len(result.proposed_references), tool_count,
+    )
+    return result
+
+
 def run_all_pre_interviews(
     client: anthropic.Anthropic,
     personas: list[ExpertPersona],
@@ -156,6 +261,7 @@ def run_all_pre_interviews(
     novel_author: str,
     model: str = "claude-haiku-4-5-20251001",
     max_workers: int = 6,
+    use_reference_tools: bool = False,
 ) -> list[list[PreInterviewResponse]]:
     """Run pre-interviews for all expert×segment pairs in parallel.
 
@@ -164,17 +270,23 @@ def run_all_pre_interviews(
     all_interviews: list[list[PreInterviewResponse]] = [[] for _ in segments]
     expert_names = [p.name for p in personas]
 
+    # Tool-calling interviews use Sonnet (more capable), non-tool use the given model
+    interview_fn = run_pre_interview_with_tools if use_reference_tools else run_pre_interview
+    interview_model = "claude-sonnet-4-6" if use_reference_tools else model
+    # Fewer parallel workers for tool interviews (more API calls per interview)
+    workers = min(max_workers, 3) if use_reference_tools else max_workers
+
     futures = {}
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         for si, seg in enumerate(segments):
             seg_name = seg.get("name", seg.get("template", {}).get("name", f"Segment {si}"))
             seg_assignments = assignments_by_segment[si]
             for expert in personas:
                 others = [n for n in expert_names if n != expert.name]
                 fut = pool.submit(
-                    run_pre_interview,
+                    interview_fn,
                     client, expert, others, seg_name,
-                    seg_assignments, novel_title, novel_author, model,
+                    seg_assignments, novel_title, novel_author, interview_model,
                 )
                 futures[fut] = si
 
@@ -290,18 +402,55 @@ def run_host_prep(
     novel_author: str,
     interview_model: str = "claude-haiku-4-5-20251001",
     planning_model: str = "claude-sonnet-4-6",
+    use_reference_tools: bool = False,
+    run_dir: Path | None = None,
 ) -> tuple[list[HostBrief], list[list[PreInterviewResponse]]]:
     """Run the full Phase 2.5 pipeline: pre-interviews + question planning.
 
     Returns (briefs, interviews) where interviews[seg_idx] is a list of
     PreInterviewResponse per expert.
     """
-    logger.info("Phase 2.5a: pre-interviews (%d experts × %d segments)",
-                len(personas), len(segments))
+    tools_label = " with reference tools" if use_reference_tools else ""
+    logger.info("Phase 2.5a: pre-interviews%s (%d experts × %d segments)",
+                tools_label, len(personas), len(segments))
     interviews = run_all_pre_interviews(
         client, personas, segments, assignments_by_segment,
         novel_title, novel_author, interview_model,
+        use_reference_tools=use_reference_tools,
     )
+
+    # Verify proposed references if tools were used
+    if use_reference_tools:
+        from enrichment.reference_tools import verify_references  # pyright: ignore[reportMissingImports]
+
+        all_touchstones = []
+        for p in personas:
+            all_touchstones.extend(p.touchstone_works)
+
+        proposed = []
+        for si, seg_interviews in enumerate(interviews):
+            seg_name = segments[si].get("name", segments[si].get("template", {}).get("name", f"Segment {si}"))
+            for iv in seg_interviews:
+                for ref_text in iv.proposed_references:
+                    proposed.append({
+                        "raw_text": ref_text,
+                        "expert_name": iv.expert_name,
+                        "segment_name": seg_name,
+                    })
+
+        if proposed:
+            logger.info("Phase 2.5a+: verifying %d proposed references", len(proposed))
+            reading_list = verify_references(proposed, all_touchstones)
+            logger.info(
+                "  Verification: %d/%d (%.0f%%) verified",
+                reading_list.total_verified, reading_list.total_proposed,
+                reading_list.verification_rate * 100,
+            )
+            if run_dir:
+                import json as _json
+                with open(run_dir / "phase2_5_reading_list.json", "w") as f:
+                    _json.dump(reading_list.model_dump(), f, indent=2)
+                logger.info("  Saved reading list to %s", run_dir / "phase2_5_reading_list.json")
 
     logger.info("Phase 2.5b: question planning (%d segments)", len(segments))
     briefs = []

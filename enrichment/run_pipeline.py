@@ -312,6 +312,7 @@ def run_phase_2_5(
     run_dir: Path,
     interview_model: str = "claude-haiku-4-5-20251001",
     planning_model: str = "claude-sonnet-4-6",
+    use_reference_tools: bool = False,
 ) -> list[HostBrief]:
     """Phase 2.5: host preparation (pre-interviews + question planning)."""
     from enrichment.host_prep import run_host_prep  # pyright: ignore[reportMissingImports]
@@ -332,6 +333,8 @@ def run_phase_2_5(
         novel_title, novel_author,
         interview_model=interview_model,
         planning_model=planning_model,
+        use_reference_tools=use_reference_tools,
+        run_dir=run_dir,
     )
 
     with open(run_dir / "phase2_5_host_briefs.json", "w") as f:
@@ -421,6 +424,10 @@ Examples:
     # Host preparation (Phase 2.5)
     parser.add_argument("--host-prep", action="store_true")
     parser.add_argument("--interview-model", default="claude-haiku-4-5-20251001")
+    parser.add_argument(
+        "--reference-tools", action="store_true",
+        help="Enable scholarly reference search tools in pre-interviews (requires --host-prep)",
+    )
 
     args = parser.parse_args()
 
@@ -556,6 +563,7 @@ Examples:
             novel_cfg.title, novel_cfg.author, run_dir,
             interview_model=args.interview_model,
             planning_model=args.model,
+            use_reference_tools=args.reference_tools,
         )
 
     # ── Phase 3: Script generation ──
