@@ -286,6 +286,13 @@ class ExpertPersona(BaseModel):
             "and voice, not methods. Falls back to description when empty."
         ),
     )
+    touchstone_works: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Discipline-specific canonical works this expert knows well and "
+            "may cite. Injected into pre-interview prompts as a home library."
+        ),
+    )
 
 
 DEFAULT_PERSONAS = [
@@ -310,6 +317,13 @@ DEFAULT_PERSONAS = [
             "when she spots something she would teach.  Notices craft: load-bearing "
             "sentences, image patterns, the effect of tense and point of view."
         ),
+        touchstone_works=[
+            "E.M. Forster, Aspects of the Novel (1927)",
+            "James Wood, How Fiction Works (2008)",
+            "Wayne C. Booth, The Rhetoric of Fiction (1961)",
+            "David Lodge, The Art of Fiction (1992)",
+            "Francine Prose, Reading Like a Writer (2006)",
+        ],
         voice_policy=VoicePolicy(
             rate=1.01,
             energy="medium_high",
@@ -343,6 +357,12 @@ DEFAULT_PERSONAS = [
             "Gets genuinely angry about injustice, but his anger is grounded in evidence.  "
             "Names specific Acts, cases, dates."
         ),
+        touchstone_works=[
+            "John Butt and Kathleen Tillotson, Dickens at Work (1957)",
+            "Humphry House, The Dickens World (1941)",
+            "E.P. Thompson, The Making of the English Working Class (1963)",
+            "A.W.B. Simpson, Leading Cases in the Common Law (1995)",
+        ],
         voice_policy=VoicePolicy(
             rate=0.96,
             energy="medium_low",
@@ -377,6 +397,12 @@ DEFAULT_PERSONAS = [
             "Tracks her own identification — which character she roots for and when that "
             "shifts — as evidence about the novel's moral design.  Emotionally engaged."
         ),
+        touchstone_works=[
+            "Dorothy Van Ghent, The English Novel: Form and Function (1953)",
+            "J. Hillis Miller, Charles Dickens: The World of His Novels (1958)",
+            "John Carey, The Violent Effigy: A Study of Dickens' Imagination (1973)",
+            "Q.D. Leavis, Fiction and the Reading Public (1932)",
+        ],
         voice_policy=VoicePolicy(
             rate=0.97,
             energy="medium",
@@ -419,6 +445,12 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             "which virtue is tested, where does weakness of will shade into wickedness.  "
             "Beautifully spoken, occasionally withering, always courteous."
         ),
+        touchstone_works=[
+            "Samuel Johnson, Preface to Shakespeare (1765)",
+            "Lionel Trilling, The Liberal Imagination (1950)",
+            "F.R. Leavis, The Great Tradition (1948)",
+            "Alasdair MacIntyre, After Virtue (1981)",
+        ],
         speaking_style=(
             "Stately, carefully composed sentences.  Unhurried.  Applies named "
             "philosophical frameworks to specific passages.  Occasional "
@@ -453,6 +485,12 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             "Cites specific historical data — wages, rents, costs.  Can be fierce but "
             "earns his anger with evidence."
         ),
+        touchstone_works=[
+            "Raymond Williams, Culture and Society (1958)",
+            "Terry Eagleton, The English Novel: An Introduction (2004)",
+            "E.P. Thompson, The Making of the English Working Class (1963)",
+            "Mary Poovey, Making a Social Body (1995)",
+        ],
         speaking_style=(
             "Precise, purposeful sentences that build an argument.  Cites economic "
             "data and historical conditions.  Bursts of controlled intensity.  "
@@ -488,6 +526,12 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             "passages that only make sense as speech acts.  Natural raconteur with "
             "theatrical relish."
         ),
+        touchstone_works=[
+            "Charles Dickens, public readings scripts (1858-1870)",
+            "Simon Callow, Charles Dickens and the Great Theatre of the World (2012)",
+            "Malcolm Andrews, Charles Dickens and His Performing Selves (2006)",
+            "Philip Collins, Dickens and Crime (1962)",
+        ],
         speaking_style=(
             "Natural raconteur rhythm — varied sentence lengths, comic timing "
             "built into the phrasing.  Proposes staging and vocal analysis.  "
@@ -527,6 +571,12 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             "agents disappear, where vocabulary narrows, where the prose rhythm changes.  "
             "Precise with terminology.  American, direct."
         ),
+        touchstone_works=[
+            "Daniel Jurafsky and James H. Martin, Speech and Language Processing (2024)",
+            "Franco Moretti, Distant Reading (2013)",
+            "Matthew Jockers, Macroanalysis: Digital Methods and Literary History (2013)",
+            "Douglas Biber, Variation Across Speech and Writing (1988)",
+        ],
         speaking_style=(
             "Precise, direct.  Proposes specific analyses: 'if we parsed this, "
             "we would find...'  Uses linguistic terms correctly.  Will gently "
@@ -565,6 +615,12 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             "Comfortable with uncertainty and null results.  Thoughtful, unhurried.  "
             "Grew up in New Mexico."
         ),
+        touchstone_works=[
+            "Franco Moretti, Graphs, Maps, Trees (2005)",
+            "Matthew Jockers, Macroanalysis: Digital Methods and Literary History (2013)",
+            "Ted Underwood, Distant Horizons: Digital Evidence and Literary Change (2019)",
+            "Ben Schmidt, Sapping Attention blog (2010-present)",
+        ],
         speaking_style=(
             "Thoughtful, unhurried.  Proposes hypotheses and tests them.  "
             "'Let us check...'  'What would we predict?'  "
@@ -603,6 +659,12 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             "repetition accrues weight, how institutional power consumes individuals.  "
             "Sharp, politically engaged.  Trained at Juilliard and Columbia."
         ),
+        touchstone_works=[
+            "Richard Taruskin, The Oxford History of Western Music (2005)",
+            "Marina Frolova-Walker, Stalin's Music Prize (2016)",
+            "Kiril Tomoff, Creative Union: The Professional Organization of Soviet Composers (2006)",
+            "Penny Von Eschen, Satchmo Blows Up the World: Jazz Ambassadors Play the Cold War (2004)",
+        ],
         speaking_style=(
             "Intellectually precise.  Names specific historical cases and dates.  "
             "Analyses prose rhythm using musical terminology.  Speaks with conviction "
@@ -633,6 +695,13 @@ class PreInterviewResponse(BaseModel):
     strongest_take: str = Field(
         default="",
         description="The single most interesting or provocative thing this expert wants to say"
+    )
+    proposed_references: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Scholarly references the expert proposed during pre-interview. "
+            "Format: 'Author, Title (Year)'. Empty if tools were not used."
+        ),
     )
 
 
