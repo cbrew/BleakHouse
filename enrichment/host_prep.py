@@ -244,7 +244,7 @@ def run_pre_interview_with_tools(
     # Parse into structured output with a follow-up call
     parse_response = client.messages.parse(
         model=model,
-        max_tokens=1024,
+        max_tokens=2048,
         system=(
             "Extract the pre-interview response from this expert's analysis. "
             "Include any scholarly references they proposed in proposed_references."
