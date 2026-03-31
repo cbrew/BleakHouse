@@ -439,9 +439,14 @@ def run_host_prep(
         use_reference_tools=use_reference_tools,
     )
 
-    # Verify proposed references if tools were used
+    # Verify and winnow proposed references if tools were used
+    winnowed_recommendations: list[str] = []
+    refs_by_segment: dict[str, list[str]] = {}
     if use_reference_tools:
-        from enrichment.reference_tools import verify_references  # pyright: ignore[reportMissingImports]
+        from enrichment.reference_tools import (  # pyright: ignore[reportMissingImports]
+            verify_references,
+            winnow_reading_list,
+        )
 
         all_touchstones = []
         for p in personas:
@@ -450,6 +455,7 @@ def run_host_prep(
         proposed = []
         for si, seg_interviews in enumerate(interviews):
             seg_name = segments[si].get("name", segments[si].get("template", {}).get("name", f"Segment {si}"))
+            seg_refs = []
             for iv in seg_interviews:
                 for ref_text in iv.proposed_references:
                     proposed.append({
@@ -457,6 +463,9 @@ def run_host_prep(
                         "expert_name": iv.expert_name,
                         "segment_name": seg_name,
                     })
+                    seg_refs.append(ref_text)
+            if seg_refs:
+                refs_by_segment[seg_name] = seg_refs
 
         if proposed:
             logger.info("Phase 2.5a+: verifying %d proposed references", len(proposed))
@@ -466,24 +475,23 @@ def run_host_prep(
                 reading_list.total_verified, reading_list.total_proposed,
                 reading_list.verification_rate * 100,
             )
+
+            # Winnow to listener-friendly recommendations
+            logger.info("Phase 2.5a++: winnowing to listener-friendly recommendations")
+            winnowed = winnow_reading_list(
+                client, reading_list, novel_title, novel_author,
+            )
+            winnowed_recommendations = winnowed.recommended
+
             if run_dir:
                 with open(run_dir / "phase2_5_reading_list.json", "w") as f:
-                    json.dump(reading_list.model_dump(), f, indent=2)
-                logger.info("  Saved reading list to %s", run_dir / "phase2_5_reading_list.json")
-
-    # Build per-segment reference lists from reading list
-    refs_by_segment: dict[str, list[str]] = {}
-    if use_reference_tools and 'reading_list' in dir():
-        pass  # reading_list was set above in the verification block
-    # Collect from interviews directly (proposed_references grouped by segment)
-    if use_reference_tools:
-        for si, seg_interviews in enumerate(interviews):
-            seg_name = segments[si].get("name", segments[si].get("template", {}).get("name", f"Segment {si}"))
-            seg_refs = []
-            for iv in seg_interviews:
-                seg_refs.extend(iv.proposed_references)
-            if seg_refs:
-                refs_by_segment[seg_name] = seg_refs
+                    json.dump({
+                        **reading_list.model_dump(),
+                        "recommended": winnowed.recommended,
+                        "total_before_winnowing": winnowed.total_before_winnowing,
+                    }, f, indent=2)
+                logger.info("  Saved reading list (%d recommended) to %s",
+                            len(winnowed.recommended), run_dir / "phase2_5_reading_list.json")
 
     logger.info("Phase 2.5b: question planning (%d segments)", len(segments))
     briefs = []
@@ -495,9 +503,9 @@ def run_host_prep(
             novel_title, novel_author, planning_model,
             verified_references=seg_refs,
         )
-        # Populate recommended_reading from verified references
-        if seg_refs:
-            brief.recommended_reading = seg_refs
+        # Use winnowed recommendations (listener-friendly, deduplicated)
+        if winnowed_recommendations:
+            brief.recommended_reading = winnowed_recommendations
         briefs.append(brief)
 
     return briefs, interviews

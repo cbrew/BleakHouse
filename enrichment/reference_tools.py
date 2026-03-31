@@ -371,3 +371,99 @@ def verify_references(
         total_verified=len(verified_list),
         verification_rate=len(verified_list) / total if total > 0 else 0.0,
     )
+
+
+# ---------------------------------------------------------------------------
+# Winnowing: select listener-friendly recommendations
+# ---------------------------------------------------------------------------
+
+class WinnowedReadingList(BaseModel):
+    """Reading list after winnowing to listener-friendly recommendations."""
+
+    recommended: list[str] = Field(
+        description="3-5 works a radio listener could realistically find and read"
+    )
+    full_verified: list[VerifiedReference] = Field(default_factory=list)
+    full_unverified: list[VerifiedReference] = Field(default_factory=list)
+    total_before_winnowing: int = 0
+
+
+_WINNOW_SYSTEM = """\
+You are a radio producer preparing the reading list for a literary \
+discussion podcast about **{novel_title}** by **{novel_author}**.
+
+Your experts proposed these references during pre-interviews.  Your job \
+is to select 3–5 that a normal listener — someone driving home who \
+enjoyed the discussion — would actually seek out.
+
+Criteria:
+- Available in a public library or bookshop (not journal articles, \
+  not Acts of Parliament, not archival documents, not dissertations)
+- Readable by a general audience (not specialist academic monographs \
+  unless they are famously readable)
+- Genuinely illuminating about the novel under discussion
+- Diverse: not all by the same author or on the same narrow topic
+
+Return ONLY the selected works, one per line, in "Author, Title (Year)" \
+format.  No commentary.  If fewer than 3 works qualify, return what you have."""
+
+
+def winnow_reading_list(
+    client: object,
+    reading_list: ReadingList,
+    novel_title: str,
+    novel_author: str,
+    model: str = "claude-haiku-4-5-20251001",
+) -> WinnowedReadingList:
+    """Winnow verified references to 3-5 listener-friendly recommendations."""
+    if not reading_list.verified:
+        return WinnowedReadingList(
+            recommended=[],
+            full_verified=reading_list.verified,
+            full_unverified=reading_list.unverified,
+            total_before_winnowing=reading_list.total_proposed,
+        )
+
+    # Deduplicate verified references by normalized title
+    seen: set[str] = set()
+    unique_refs: list[str] = []
+    for ref in reading_list.verified:
+        key = _normalize(ref.raw_text)
+        if key not in seen:
+            seen.add(key)
+            unique_refs.append(ref.raw_text)
+
+    system = _WINNOW_SYSTEM.format(
+        novel_title=novel_title,
+        novel_author=novel_author,
+    )
+    user = "References proposed by experts:\n\n" + "\n".join(
+        f"- {ref}" for ref in unique_refs
+    )
+
+    response = client.messages.create(
+        model=model,
+        max_tokens=512,
+        system=system,
+        messages=[{"role": "user", "content": user}],
+    )
+
+    # Parse the response: one work per line
+    text = response.content[0].text if response.content else ""
+    recommended = [
+        line.lstrip("- ").strip()
+        for line in text.strip().split("\n")
+        if line.strip() and not line.startswith("#")
+    ]
+
+    logger.info(
+        "  Winnowed %d unique → %d recommended",
+        len(unique_refs), len(recommended),
+    )
+
+    return WinnowedReadingList(
+        recommended=recommended,
+        full_verified=reading_list.verified,
+        full_unverified=reading_list.unverified,
+        total_before_winnowing=reading_list.total_proposed,
+    )
