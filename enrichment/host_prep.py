@@ -158,38 +158,7 @@ You have search tools available.  Use `search_openalex` to find scholarly works 
 Verify claims before citing.  Search 2–3 times, no more.  When you propose a \
 reference, give author, title, and year."""
 
-
-def _make_search_tools():
-    """Create @beta_tool decorated search functions for the tool runner."""
-    from anthropic import beta_tool
-    from enrichment.reference_tools import (  # pyright: ignore[reportMissingImports]
-        execute_search_openalex,
-        execute_search_wikipedia,
-    )
-
-    @beta_tool
-    def search_openalex(query: str) -> str:
-        """Search OpenAlex for scholarly works (books, journal articles, chapters).
-
-        Args:
-            query: Search query — author name, title keywords, or topic
-        """
-        result = execute_search_openalex(query)
-        logger.info("    Tool search_openalex(%s): %d chars", query[:40], len(result))
-        return result
-
-    @beta_tool
-    def search_wikipedia(query: str) -> str:
-        """Search Wikipedia for background context on a topic, person, or event.
-
-        Args:
-            query: Search query
-        """
-        result = execute_search_wikipedia(query)
-        logger.info("    Tool search_wikipedia(%s): %d chars", query[:40], len(result))
-        return result
-
-    return [search_openalex, search_wikipedia]
+MAX_TOOL_CALLS = 4
 
 
 def run_pre_interview_with_tools(
@@ -202,7 +171,14 @@ def run_pre_interview_with_tools(
     novel_author: str,
     model: str = "claude-sonnet-4-6",
 ) -> PreInterviewResponse:
-    """Run a pre-interview with scholarly search tools via the SDK tool runner."""
+    """Run a pre-interview with scholarly search tools (stable API, manual loop)."""
+    from enrichment.reference_tools import (  # pyright: ignore[reportMissingImports]
+        SEARCH_OPENALEX_TOOL,
+        SEARCH_WIKIPEDIA_TOOL,
+        dispatch_tool,
+    )
+
+    tools = [SEARCH_OPENALEX_TOOL, SEARCH_WIKIPEDIA_TOOL]
     touchstone_block = "\n".join(f"- {w}" for w in expert.touchstone_works) if expert.touchstone_works else "(none)"
 
     system = _INTERVIEW_SYSTEM.format(
@@ -218,20 +194,47 @@ def run_pre_interview_with_tools(
         passage_block=_build_passage_summary(assignments),
     )
 
-    tools = _make_search_tools()
-    runner = client.beta.messages.tool_runner(
-        model=model,
-        max_tokens=4096,
-        system=system,
-        tools=tools,
-        messages=[{"role": "user", "content": user}],
-    )
-    final_message = runner.until_done()
+    # Agentic tool loop (stable API, not beta)
+    messages: list = [{"role": "user", "content": user}]
+    tool_count = 0
+    all_text: list[str] = []
 
-    # Extract text from the final message
-    final_text = "\n".join(
-        block.text for block in final_message.content if hasattr(block, "text")
-    )
+    for _iteration in range(MAX_TOOL_CALLS + 1):
+        response = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            system=system,
+            messages=messages,
+            tools=tools,
+        )
+
+        # Collect any text from this response
+        for block in response.content:
+            if block.type == "text":
+                all_text.append(block.text)
+
+        if response.stop_reason != "tool_use":
+            break
+
+        # Process tool calls, build tool_result blocks
+        tool_results = []
+        for block in response.content:
+            if block.type == "tool_use":
+                result_text = dispatch_tool(block.name, block.input)
+                logger.info("    Tool %s(%s): %d chars",
+                            block.name, block.input.get("query", "")[:40], len(result_text))
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result_text,
+                })
+                tool_count += 1
+
+        # Append assistant response + tool results to conversation
+        messages.append({"role": "assistant", "content": response.content})
+        messages.append({"role": "user", "content": tool_results})
+
+    final_text = "\n".join(all_text)
     if not final_text.strip():
         final_text = (
             f"Expert {expert.name} was interviewed about segment '{segment_name}' "
@@ -254,9 +257,9 @@ def run_pre_interview_with_tools(
     result = parse_response.parsed_output
     result.expert_name = expert.name
     logger.info(
-        "  Pre-interview (tools) %s × %s: %d points, %d refs",
+        "  Pre-interview (tools) %s × %s: %d points, %d refs, %d tool calls",
         expert.name, segment_name,
-        len(result.key_points), len(result.proposed_references),
+        len(result.key_points), len(result.proposed_references), tool_count,
     )
     return result
 
