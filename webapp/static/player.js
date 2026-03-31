@@ -20,6 +20,8 @@ let audio = null;
 let currentTurnIdx = -1;
 let speedIdx = 1;
 let openPassageTurnId = null;
+let currentBaseName = null;  // base run name (without version suffix)
+let runsByBase = {};   // { base_name: [{run_id, version, ...}, ...] }
 
 // ── DOM refs ──
 const novelTitle   = document.getElementById("novel-title");
@@ -80,21 +82,73 @@ function selectNovel(novelName) {
     document.title = novelName + " — Literary Podcast";
 
     const runs = novels[novelName] || [];
-    runSelect.innerHTML = "";
+
+    // Group runs by base_name, picking best version for dropdown label
+    runsByBase = {};
     for (const run of runs) {
+        const base = run.base_name || run.run_id;
+        if (!runsByBase[base]) runsByBase[base] = [];
+        runsByBase[base].push(run);
+    }
+
+    // Populate run dropdown with one entry per base run (use first version for label)
+    runSelect.innerHTML = "";
+    for (const [base, versions] of Object.entries(runsByBase)) {
+        // Sort versions so latest is last
+        versions.sort((a, b) => a.version.localeCompare(b.version));
+        const rep = versions[0];
         const opt = document.createElement("option");
-        opt.value = run.run_id;
-        const mins = Math.round(run.total_duration_ms / 60000);
-        const names = run.experts.map(e => e.name).join(", ");
-        const cond = run.condition ? ` [${run.condition}]` : "";
-        const hp = run.hostprep ? " +hostprep" : "";
-        opt.textContent = `${names}${cond}${hp} (${mins}m)`;
+        opt.value = base;
+        const names = rep.experts.map(e => e.name).join(", ");
+        const cond = rep.condition ? ` [${rep.condition}]` : "";
+        const hp = rep.hostprep ? " +hostprep" : "";
+        opt.textContent = `${names}${cond}${hp}`;
         runSelect.appendChild(opt);
     }
-    runSelect.onchange = () => loadRun(runSelect.value);
-    if (runs.length > 0) {
-        loadRun(runs[0].run_id);
+    runSelect.onchange = () => selectBaseRun(runSelect.value);
+
+    const bases = Object.keys(runsByBase);
+    if (bases.length > 0) {
+        selectBaseRun(bases[0]);
     }
+}
+
+function selectBaseRun(baseName) {
+    currentBaseName = baseName;
+    const versions = runsByBase[baseName] || [];
+    const versionBar = document.getElementById("version-bar");
+
+    if (versions.length <= 1) {
+        // Single version — hide pills, load directly
+        versionBar.style.display = "none";
+        loadRun(versions[0].run_id);
+        return;
+    }
+
+    // Show version pills
+    versionBar.style.display = "flex";
+    versionBar.innerHTML = "";
+    const label = document.createElement("span");
+    label.textContent = "Version:";
+    label.style.cssText = "color:#8888aa;font-size:0.85em;margin-right:0.4em;";
+    versionBar.appendChild(label);
+
+    // Default to latest version
+    const latest = versions[versions.length - 1];
+    for (const v of versions) {
+        const pill = document.createElement("button");
+        pill.className = "version-pill" + (v === latest ? " active" : "");
+        pill.textContent = v.version;
+        if (!v.has_audio) pill.textContent += " (script)";
+        pill.dataset.runId = v.run_id;
+        pill.addEventListener("click", () => {
+            versionBar.querySelectorAll(".version-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            loadRun(v.run_id);
+        });
+        versionBar.appendChild(pill);
+    }
+    loadRun(latest.run_id);
 }
 
 async function loadRun(runId) {
@@ -139,28 +193,41 @@ async function loadRun(runId) {
 
     renderTranscript();
 
-    // Set up audio
-    if (audio) { audio.pause(); audio.src = ""; }
-    audio = new Audio(`/audio/${runId}/podcast.mp3`);
-    audio.preload = "auto";
-    audio.playbackRate = SPEEDS[speedIdx];
+    // Determine if this run has audio
+    const runMeta = Object.values(runsByBase).flat().find(r => r.run_id === runId);
+    const hasAudio = runMeta ? runMeta.has_audio : true;
+    const playerBar = document.getElementById("player-bar");
 
-    seekBar.value = 0;
-    timeDisplay.textContent = "0:00 / 0:00";
-    currentTurnIdx = -1;
-    playBtn.textContent = "\u25B6";
+    if (hasAudio) {
+        playerBar.style.display = "";
+        // Set up audio
+        if (audio) { audio.pause(); audio.src = ""; }
+        audio = new Audio(`/audio/${runId}/podcast.mp3`);
+        audio.preload = "auto";
+        audio.playbackRate = SPEEDS[speedIdx];
 
-    audio.addEventListener("loadedmetadata", () => {
-        seekBar.max = audio.duration;
-        loading.style.display = "none";
-    });
-
-    audio.addEventListener("ended", () => {
+        seekBar.value = 0;
+        timeDisplay.textContent = "0:00 / 0:00";
+        currentTurnIdx = -1;
         playBtn.textContent = "\u25B6";
-    });
 
-    if (audio.readyState >= 1) {
-        seekBar.max = audio.duration;
+        audio.addEventListener("loadedmetadata", () => {
+            seekBar.max = audio.duration;
+            loading.style.display = "none";
+        });
+
+        audio.addEventListener("ended", () => {
+            playBtn.textContent = "\u25B6";
+        });
+
+        if (audio.readyState >= 1) {
+            seekBar.max = audio.duration;
+            loading.style.display = "none";
+        }
+    } else {
+        // Script-only: hide audio controls, show transcript immediately
+        playerBar.style.display = "none";
+        if (audio) { audio.pause(); audio.src = ""; audio = null; }
         loading.style.display = "none";
     }
 }

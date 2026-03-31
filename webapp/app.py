@@ -31,68 +31,92 @@ app = FastAPI(title="Literary Podcast Player")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
-def _discover_runs() -> dict[str, list[dict]]:
+VERSION_PATTERN = re.compile(r"_v1_(\d+)$")
+
+
+def _parse_version(run_name: str) -> tuple[str, str]:
+    """Extract (base_name, version) from a run name.
+
+    Returns ("ext_v01_baseline_hostprep", "v1.0") for unversioned runs,
+    ("ext_v01_baseline_hostprep", "v1.2") for runs ending in _v1_2.
+    """
+    m = VERSION_PATTERN.search(run_name)
+    if m:
+        return run_name[: m.start()], f"v1.{m.group(1)}"
+    return run_name, "v1.0"
+
+
+def _classify_run(name: str) -> tuple[str, str, bool]:
+    """Return (condition, panel, hostprep) from a run directory name."""
+    if "_nop_" in name or name.startswith("nop_"):
+        condition = "no passages"
+    elif "_emb_" in name or name.startswith("emb_"):
+        condition = "embedding"
+    elif "_rag_" in name or name.startswith("rag_"):
+        condition = "RAG"
+    elif "_rand_" in name or name.startswith("rand_"):
+        condition = "random"
+    elif "interdisciplinary" in name:
+        condition = "interdisciplinary"
+    else:
+        condition = "transport"
+
+    if "interdisciplinary" in name:
+        panel = "Chen / Martinez / Volkov"
+    elif "_v19_" in name:
+        panel = "Panel B (Trevelyan / Leigh / Rosen)"
+    else:
+        panel = "Panel A (Hartley / Blackstone / Woodcourt)"
+
+    hostprep = "_hostprep" in name
+    return condition, panel, hostprep
+
+
+def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]:
     """Find runs grouped by novel title.
 
-    Discovers runs with audio (podcast.mp3), using either
-    audio/manifest.json or a run-level manifest.json for metadata.
+    Discovers runs with audio (audio/manifest.json) by default.
+    If include_scriptonly=True, also includes runs with only a
+    manifest.json (no audio) — these get has_audio=False.
     """
     novels: dict[str, list[dict]] = {}
     runs_dir = DATA_DIR / "runs"
     if not runs_dir.exists():
         return novels
     for run_dir in sorted(runs_dir.iterdir()):
-        # A run is playable if it has an audio manifest (timing data)
-        # Require an audio manifest to list the run
-        if not (run_dir / "audio" / "manifest.json").exists():
-            continue
-
-        # Load manifest: prefer audio/manifest.json, fall back to run-level
         audio_manifest = run_dir / "audio" / "manifest.json"
         run_manifest = run_dir / "manifest.json"
-        manifest_path = audio_manifest if audio_manifest.exists() else run_manifest
+
+        has_audio = audio_manifest.exists()
+        if not has_audio and not include_scriptonly:
+            continue
+
+        manifest_path = audio_manifest if has_audio else run_manifest
         if not manifest_path.exists():
             continue
 
         with open(manifest_path) as f:
-            manifest = json.load(f)
-        title = manifest.get("title", run_dir.name)
+            mf = json.load(f)
+        title = mf.get("title", run_dir.name)
         novel = title.replace(": A Literary Discussion", "")
-        # Determine pipeline condition from run name
+
         name = run_dir.name
-        if "_nop_" in name or name.startswith("nop_"):
-            condition = "no passages"
-        elif "_emb_" in name or name.startswith("emb_"):
-            condition = "embedding"
-        elif "_rag_" in name or name.startswith("rag_"):
-            condition = "RAG"
-        elif "_rand_" in name or name.startswith("rand_"):
-            condition = "random"
-        elif "interdisciplinary" in name:
-            condition = "interdisciplinary"
-        else:
-            condition = "transport"
-
-        # Determine panel
-        if "interdisciplinary" in name:
-            panel = "Chen / Martinez / Volkov"
-        elif "_v19_" in name:
-            panel = "Panel B (Trevelyan / Leigh / Rosen)"
-        else:
-            panel = "Panel A (Hartley / Blackstone / Woodcourt)"
-
-        hostprep = "_hostprep" in name
+        base_name, version = _parse_version(name)
+        condition, panel, hostprep = _classify_run(name)
 
         run_info = {
-            "run_id": run_dir.name,
+            "run_id": name,
+            "base_name": base_name,
+            "version": version,
             "title": title,
             "novel": novel,
             "condition": condition,
             "panel": panel,
             "hostprep": hostprep,
-            "passage_source": manifest.get("passage_source", "unknown"),
-            "experts": manifest.get("experts", []),
-            "total_duration_ms": manifest.get("total_duration_ms", 0),
+            "passage_source": mf.get("passage_source", "unknown"),
+            "experts": mf.get("experts", []),
+            "total_duration_ms": mf.get("total_duration_ms", 0),
+            "has_audio": has_audio,
             "has_host_prep": (run_dir / "phase2_5_host_briefs.json").exists(),
         }
         novels.setdefault(novel, []).append(run_info)
@@ -314,7 +338,7 @@ async def submit_feedback(request: Request):
 
 @app.get("/api/novels")
 async def list_novels():
-    return _discover_runs()
+    return _discover_runs(include_scriptonly=True)
 
 
 @app.get("/api/all-runs")
