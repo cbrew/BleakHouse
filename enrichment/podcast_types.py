@@ -735,6 +735,10 @@ class HostBrief(BaseModel):
         default_factory=list,
         description="Specific points where experts should be encouraged to respond to each other"
     )
+    recommended_reading: list[str] = Field(
+        default_factory=list,
+        description="Verified scholarly references relevant to this segment, for the host's sign-off"
+    )
 
 
 HOST_VOICE_POLICY = VoicePolicy(

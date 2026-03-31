@@ -321,6 +321,43 @@ def build_report_html(manifest: dict) -> str:
                 f'</div>'
             )
 
+    # Reading list section
+    reading_list = (host_prep or {}).get("reading_list")
+    if reading_list:
+        verified = reading_list.get("verified", [])
+        unverified = reading_list.get("unverified", [])
+        rate = reading_list.get("verification_rate", 0)
+        body_parts.append(
+            '<h2 class="seg-title">Reading List '
+            f'<span class="seg-type">({len(verified)} verified, '
+            f'{len(unverified)} unverified, {rate:.0%} rate)</span></h2>'
+        )
+        if verified:
+            body_parts.append('<div class="reading-list"><h3>Verified references</h3><ul>')
+            for ref in verified:
+                source = ref.get("verification_source", "")
+                expert = ref.get("expert_name", "")
+                raw = ref.get("raw_text", "")
+                oa_title = ref.get("openalex_title", "")
+                cited = ref.get("openalex_cited_by", 0)
+                label = f"{escape(raw)}"
+                if oa_title and oa_title != raw:
+                    label += f' <span class="seg-type">[{escape(oa_title)}]</span>'
+                if cited:
+                    label += f' <span class="seg-type">(cited {cited}×)</span>'
+                body_parts.append(
+                    f'<li>{label} — <em>{escape(expert)}</em> '
+                    f'<span class="match-badge">{escape(source)}</span></li>'
+                )
+            body_parts.append('</ul></div>')
+        if unverified:
+            body_parts.append('<div class="reading-list"><h3>Unverified references</h3><ul>')
+            for ref in unverified:
+                expert = ref.get("expert_name", "")
+                raw = ref.get("raw_text", "")
+                body_parts.append(f'<li>{escape(raw)} — <em>{escape(expert)}</em></li>')
+            body_parts.append('</ul></div>')
+
     source_label = "No passages (prior knowledge)" if is_ungrounded else f"Passage-grounded ({passage_source})"
 
     return _TEMPLATE.format(

@@ -355,11 +355,22 @@ once for context; findings and insights should dominate every turn.**
             f"bridges to that topic — a brief tease, not a full introduction."
         )
     elif not is_first_segment:
-        user_parts.append(
+        closing = (
             "\n**This is the FINAL segment of the episode.**  End with a warm "
             "sign-off: the host thanks the experts by name, reflects briefly on "
             "what was covered, and thanks the listeners.  No forward tease."
         )
+        # Collect recommended reading across all briefs for the sign-off
+        if host_brief and host_brief.recommended_reading:
+            reading = host_brief.recommended_reading[:5]
+            closing += (
+                "\n\nBefore signing off, the host should mention one or two works "
+                "for listeners who want to explore further: "
+                + "; ".join(reading[:2])
+                + ".  Keep it brief and natural — 'If you want to read further, "
+                "our experts recommend...' — not a bibliography."
+            )
+        user_parts.append(closing)
 
     if segment.assignments:
         user_parts.extend([
