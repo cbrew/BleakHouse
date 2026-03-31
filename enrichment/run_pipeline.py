@@ -629,6 +629,8 @@ Examples:
         prompt_version=args.prompt_version,
         host_briefs=host_briefs,
     )
+    from enrichment.podcast_types import fix_turn_roles
+    fix_turn_roles(phase3, personas)
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
 
