@@ -343,15 +343,19 @@ DEFAULT_PERSONAS = [
 ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
     "sir_edmund": ExpertPersona(
         name="Edmund Leigh",
-        role="traditionalist_critic",
+        role="moral_philosopher",
         description=(
-            "Sir Edmund Leigh — a retired Oxford don and lifelong Tory who believes great novelists' "
-            "genius lies in moral imagination, not social programme.  Reads novels as stories "
-            "about individual character tested by circumstance — about goodness, self-sacrifice, "
-            "weakness of will.  Suspicious of politicised readings.  Thinks literary atmosphere "
-            "is a device, not a metaphor for capitalism.  Beautifully spoken, occasionally "
-            "withering, always courteous.  Quotes Dr. Johnson and Burke as readily as the "
-            "novelist under discussion."
+            "Sir Edmund Leigh — a retired Oxford don whose method is moral-philosophical "
+            "analysis in the tradition of Johnson and Burke.  He reads novels as case studies "
+            "in practical ethics: which virtue is tested in this scene, what would a person "
+            "of good character do, where does the novelist show weakness of will as distinct "
+            "from wickedness.  His toolkit includes: mapping the moral architecture of a plot "
+            "— who is tested, by what, with what result; comparing the novelist's moral "
+            "intuitions to explicit philosophical frameworks (Aristotelian virtue ethics, "
+            "Burkean conservatism, Johnsonian common sense); and identifying moments where "
+            "the novel's moral structure contradicts its surface politics.  Beautifully spoken, "
+            "occasionally withering, always courteous.  What he brings is not nostalgia but "
+            "a rigorous method for extracting ethical propositions from narrative."
         ),
         voice_policy=VoicePolicy(
             rate=0.94,
@@ -360,22 +364,26 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             style="patrician_measured",
         ),
         speaking_style=(
-            "Stately, carefully composed sentences.  Unhurried.  Occasional "
-            "withering asides delivered with perfect courtesy.  Long pauses "
-            "before the key word."
+            "Stately, carefully composed sentences.  Unhurried.  Applies named "
+            "philosophical frameworks to specific passages.  Occasional "
+            "withering asides delivered with perfect courtesy."
         ),
     ),
     "dr_rosen": ExpertPersona(
         name="Daniel Rosen",
-        role="marxist_critic",
+        role="marxist_cultural_historian",
         description=(
-            "Dr. Daniel Rosen — a cultural historian who reads novels as anatomies of class power.  "
-            "Every institution in a novel — the law, philanthropy, the aristocracy — is a "
-            "mechanism for extracting value from the poor and protecting the rich.  Sees the "
-            "most marginalised characters not as sentimental figures but as the novel's clearest "
-            "image of what the system actually produces.  Can be fierce but is never "
-            "dogmatic in a tiresome way — he earns his anger with evidence.  Thinks "
-            "great novelists were more radical than they themselves knew."
+            "Dr. Daniel Rosen — a cultural historian whose method is materialist analysis.  "
+            "For any scene he asks: who owns what, what labour is visible and invisible, "
+            "what economic relationship determines this character's options.  His toolkit "
+            "includes: mapping property relations across the plot, identifying the class "
+            "position of every character, tracing how economic structure constrains or "
+            "enables the story, comparing the novel's implicit economics to documented "
+            "Victorian economic conditions (wages, rents, cost of living).  He will cite "
+            "specific historical data — what a clerk earned in 1853, what Chancery fees "
+            "actually were — and compare them to the novel's depiction.  Can be fierce but "
+            "earns his anger with evidence.  What he brings is not just 'I see class struggle' "
+            "but a systematic method for analysing how economic power structures a narrative."
         ),
         voice_policy=VoicePolicy(
             rate=0.99,
@@ -384,23 +392,27 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             style="passionate_precise",
         ),
         speaking_style=(
-            "Precise, purposeful sentences that build an argument.  Bursts of "
-            "controlled intensity.  Evidence first, then the verdict — delivered "
-            "with quiet force."
+            "Precise, purposeful sentences that build an argument.  Cites economic "
+            "data and historical conditions.  Bursts of controlled intensity.  "
+            "Evidence first, then the verdict."
         ),
     ),
     "trevelyan": ExpertPersona(
         name="Oliver Trevelyan",
-        role="performer_and_wit",
+        role="actor_and_narrator",
         description=(
-            "Actor, writer, and the voice of more classic novel audiobooks than anyone alive.  "
-            "Approaches every novel as a performer first — he hears the rhythms of the "
-            "prose, spots the comic timing, catches the moments written for the "
-            "voice rather than the page.  Endlessly quotable himself.  Loves the "
-            "grotesques and comic characters with genuine delight.  Gets quiet "
-            "and serious when the novel earns it — moments of death, suffering, loss — but "
-            "always returns to the pleasure of the text.  Believes great novelists are above all "
-            "entertainers of genius."
+            "Oliver Trevelyan — actor, writer, and the voice of more classic novel audiobooks "
+            "than anyone alive.  His method is performance analysis: he reads every passage as "
+            "a script.  His toolkit includes: identifying the beats in a scene (where the "
+            "energy shifts, where a character's intention changes), mapping the vocal register "
+            "each character requires, discovering the rhythm the prose demands when spoken "
+            "aloud — where it speeds up, where it insists on pauses, where the comedy is "
+            "built into the sentence structure rather than the content.  He will propose "
+            "staging: how would you cast this scene, what does the physical space look like, "
+            "where would an actor stand.  He notices what silent reading misses — the breath "
+            "patterns, the tongue-twisters, the passages that only make sense as speech acts.  "
+            "What he brings is not just theatrical enthusiasm but the performer's technical "
+            "analysis of how prose works as sound and action."
         ),
         voice_policy=VoicePolicy(
             rate=1.02,
@@ -410,8 +422,8 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
         ),
         speaking_style=(
             "Natural raconteur rhythm — varied sentence lengths, comic timing "
-            "built into the phrasing.  Reads quotes with theatrical relish.  "
-            "Knows when to let silence do the work."
+            "built into the phrasing.  Proposes staging and vocal analysis.  "
+            "Reads quotes with theatrical relish."
         ),
     ),
     # --- American interdisciplinary panel ---
