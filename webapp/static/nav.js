@@ -5,7 +5,7 @@
         { href: '/tracker', label: 'Matrix', icon: '&#9638;' },
         { href: '/versions', label: 'Versions', icon: '&#916;' },
         { href: '/player', label: 'Player', icon: '&#9835;' },
-        { href: '/about', label: 'Pipeline', icon: '&#9881;' },
+        { href: '/about', label: 'How It Works', icon: '&#9881;' },
         { href: '/prompts', label: 'Prompts', icon: '&#10094;&#10095;' },
         { href: '/metrics', label: 'Metrics', icon: '&#9776;' },
         { href: '/examples', label: 'Examples', icon: '&#10077;' },
