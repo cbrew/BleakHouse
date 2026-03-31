@@ -20,14 +20,12 @@ import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 
 import anthropic
 
 from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     ExpertPersona,
     HostBrief,
-    HostQuestion,
     PreInterviewResponse,
 )
 

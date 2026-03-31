@@ -20,7 +20,6 @@ import argparse
 import json
 import logging
 import subprocess
-import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -468,16 +467,16 @@ def main() -> None:
     grounded_rate = grounded_v / grounded_t * 100 if grounded_t > 0 else 0
     ungrounded_rate = ungrounded_v / ungrounded_t * 100 if ungrounded_t > 0 else 0
 
-    lines.append(f"  Grounded conditions (ext/trn/emb/rag/rand/hia):")
+    lines.append("  Grounded conditions (ext/trn/emb/rag/rand/hia):")
     lines.append(f"    Rate: {grounded_rate:.1f}%  ({grounded_v}/{grounded_t} quotes)")
     lines.append(f"    Claim: > 90%  -->  {'SUPPORTED' if grounded_rate > 90 else 'NOT SUPPORTED'}")
-    lines.append(f"")
-    lines.append(f"  Ungrounded condition (nop):")
+    lines.append("")
+    lines.append("  Ungrounded condition (nop):")
     lines.append(f"    Rate: {ungrounded_rate:.1f}%  ({ungrounded_v}/{ungrounded_t} quotes)")
     lines.append(f"    Claim: < 50%  -->  {'SUPPORTED' if ungrounded_rate < 50 else 'NOT SUPPORTED'}")
-    lines.append(f"")
+    lines.append("")
     lines.append(f"  Gap: {grounded_rate - ungrounded_rate:+.1f} percentage points")
-    lines.append(f"")
+    lines.append("")
 
     # Per-condition breakdown for verdict
     lines.append("  Per-condition rates:")

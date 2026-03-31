@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -152,9 +151,9 @@ def main() -> None:
     lines.append("")
     lines.append(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
     lines.append(f"Git hash: {git_hash}")
-    lines.append(f"Method: ext_ (transport/min-cost-flow) runs only")
-    lines.append(f"Metric: Jaccard similarity = |intersection| / |union|")
-    lines.append(f"H8 threshold: Jaccard < 0.55 indicates substantial reshaping")
+    lines.append("Method: ext_ (transport/min-cost-flow) runs only")
+    lines.append("Metric: Jaccard similarity = |intersection| / |union|")
+    lines.append("H8 threshold: Jaccard < 0.55 indicates substantial reshaping")
     lines.append("")
 
     # ---- Section 1: Bleak House detailed analysis ----
@@ -174,7 +173,7 @@ def main() -> None:
     for baseline_run, variant_run, label in BH_PAIRS:
         variant_demands = load_expert_demands(variant_run)
         lines.append(f"--- {label} ({variant_run}) ---")
-        lines.append(f"Variant expert demands:")
+        lines.append("Variant expert demands:")
         lines.append(format_demands(variant_demands))
         lines.append("")
 
@@ -301,9 +300,6 @@ def main() -> None:
     lines.append("")
 
     # Verdict
-    all_passage_jaccards = [float(str(r["passage_jaccard"])) for r in all_results]
-    n_total_below = sum(1 for j in all_passage_jaccards if j < 0.55)
-
     lines.append("H8 Verdict:")
     lines.append("")
 
