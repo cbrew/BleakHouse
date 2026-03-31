@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BleakHouse — What Have You Been Reading?</title>
+<link rel="stylesheet" href="/static/page_base.css">
+<script src="/static/nav.js" defer></script>
+</head>
+<body>
+<div class="content">
+
+<h1>What Have You Been Reading?</h1>
+<p class="subtitle">Giving fictional experts access to real scholarship</p>
+
+<p>The experts in our podcast discussions are fictional. Eleanor Hartley, James Blackstone, Caroline Woodcourt &mdash; they don't exist. But the novels they discuss are real, and there is a real scholarly literature about those novels. Until now, our experts couldn't access it. They "cited" works from the LLM's training data, with no way to verify whether those works existed or to engage with what they actually said.</p>
+
+<p>This felt like a missed opportunity, and also a honesty problem. If Blackstone cites "the Chancery Commission Report of 1826," did that report exist? If Chen references a computational stylistics paper, is it real? We were generating the appearance of scholarship without the substance.</p>
+
+<h2>The idea</h2>
+
+<p>What if the experts could search for real references during their preparation? Not during the live discussion &mdash; that would be awkward, like someone Googling at the dinner table &mdash; but during the pre-interview phase, where each expert is asked privately what they think about the upcoming segment's passages.</p>
+
+<p>The pre-interview already exists (it's what makes the host-prepared episodes so much better than the unprepared ones). We just needed to give the experts tools to search with, and then verify what they found.</p>
+
+<h2>How it works</h2>
+
+<p>Each expert now has two search tools available during their pre-interview:</p>
+
+<ul>
+<li><strong>OpenAlex</strong> &mdash; a free scholarly database covering journal articles, books, and chapters. When an expert searches, they see titles, authors, years, citation counts, and &mdash; crucially &mdash; abstracts. They can read what a paper actually argues.</li>
+<li><strong>Wikipedia</strong> &mdash; for factual background on institutions, historical events, and people. When an expert searches, they get the opening paragraphs of the article, not just a title.</li>
+</ul>
+
+<p>Each expert also has a "home library" of 4&ndash;5 touchstone works &mdash; canonical texts from their discipline that they know well and can draw on without searching. Hartley knows James Wood's <em>How Fiction Works</em>; Blackstone knows E.P. Thompson's <em>Making of the English Working Class</em>; Volkov knows Taruskin's <em>Oxford History of Western Music</em>.</p>
+
+<h2>What happens next</h2>
+
+<p>After all the pre-interviews, we verify every proposed citation. This is deterministic &mdash; no LLM involved, just API lookups:</p>
+
+<ol>
+<li>Check against the touchstone works (automatic match)</li>
+<li>Search OpenAlex for a title and author match</li>
+<li>Search Wikipedia as a fallback</li>
+<li>Mark anything we can't confirm as "unverified"</li>
+</ol>
+
+<p>Verification rates range from 50% to 88% depending on the panel. The unverified references aren't necessarily fake &mdash; many are real but too specific for the APIs to find (a particular Hansard debate, an archival file reference). But we're honest about what we can and can't confirm.</p>
+
+<h2>The winnowing step</h2>
+
+<p>Blackstone, given search tools, will cite every Act of Parliament he can find. For the Bleak House discussion, Panel A proposed 28 references &mdash; many of them legislation like "Poor Law Amendment Act 1834 (4 &amp; 5 Will. IV c. 76)." Fascinating for a legal historian, useless for a radio listener.</p>
+
+<p>So we added a winnowing step. A separate LLM call (Haiku, cheap and fast) plays the role of a radio producer: "From these 28 verified references, which 3&ndash;5 would a listener driving home actually seek out? Not Acts of Parliament. Not journal articles. Books they could find in a library."</p>
+
+<p>The results are good. For Bleak House Panel A, the producer selected:</p>
+<ul>
+<li>Humphry House, <em>The Dickens World</em> (1941)</li>
+<li>E.P. Thompson, <em>The Making of the English Working Class</em> (1963)</li>
+<li>Henry Mayhew, <em>London Labour and the London Poor</em> (1851)</li>
+<li>James Wood, <em>How Fiction Works</em> (2008)</li>
+<li>J. Hillis Miller, <em>Charles Dickens: The World of His Novels</em> (1958)</li>
+</ul>
+
+<p>That's a reading list I'd be happy to give anyone interested in Dickens.</p>
+
+<h2>Does it change the conversation?</h2>
+
+<p>Three ways the scholarship flows into the actual discussion:</p>
+
+<ol>
+<li><strong>The host's questions are better.</strong> Verified references are injected into the question-planning phase. Instead of generic questions, the host can say: "Scholars like Levine have argued this novel is a 'network of networks' &mdash; do you agree?"</li>
+<li><strong>The host recommends reading in the sign-off.</strong> The final segment ends with "If you want to explore further, our experts recommend..." &mdash; a natural podcast convention, backed by real verified works.</li>
+<li><strong>The report includes a reading list.</strong> The inspectable report for each episode now has a reading list section showing verified and unverified references with their sources.</li>
+</ol>
+
+<p>What the scholarship does <em>not</em> do is take over the discussion. The experts still talk about the novel, not about the criticism. The secondary literature informs the conversation without dominating it &mdash; which is, after all, how it works on a good radio programme.</p>
+
+<h2>What we learned</h2>
+
+<p><strong>Different panels cite differently.</strong> Blackstone (the historian) cites Acts of Parliament and commission reports. Chen (the computational linguist) cites NLP textbooks and digital humanities papers. Volkov (the musicologist) cites archival file series and Cold War cultural histories. The reading lists are genuinely shaped by the expertise, not generic.</p>
+
+<p><strong>Different novels produce different scholarship.</strong> The Bleak House reading list centres on Dickens criticism and legal history. The Passage to India list centres on postcolonial theory and Forster criticism. This is obvious in hindsight but confirms that the tool-calling is responsive to context, not formulaic.</p>
+
+<p><strong>The verification rate is a useful quality signal.</strong> Panels that cite widely-known works (touchstones) verify at 80%+. Panels that cite obscure archival sources verify at 50&ndash;60%. The gap tells us something about how the experts use their training data &mdash; and about the limits of open scholarly APIs for humanities coverage.</p>
+
+<p><strong>Abstracts matter.</strong> When the search tools returned only titles and metadata, the experts cited works but couldn't engage with their arguments. When we added abstracts (from OpenAlex's inverted index) and article extracts (from Wikipedia), the pre-interviews became noticeably more substantive. The expert reads an abstract and responds to its actual claims, rather than name-dropping.</p>
+
+<p>The full version history, with reading lists and reports, is on the <a href="/versions">versions page</a>.</p>
+
+<p><a href="/blog">&larr; Back to blog</a></p>
+
+</div>
+</body>
+</html>
