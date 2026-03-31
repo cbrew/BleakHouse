@@ -58,9 +58,10 @@ def _build_persona_block(personas: list[ExpertPersona]) -> str:
     """Format expert personas for the system prompt."""
     lines: list[str] = []
     for p in personas:
+        desc = p.script_description or p.description
         vp = p.voice_policy
         lines.append(
-            f"**{p.name}** ({p.role}): {p.description}\n"
+            f"**{p.name}** ({p.role}): {desc}\n"
             f"  Voice: rate={vp.rate}, energy={vp.energy}, "
             f"pause_bias={vp.pause_bias_ms}ms, style={vp.style}"
         )
@@ -161,6 +162,10 @@ style=presenter_warm.
   relish, then unpack why they're wonderful.{quote_sourcing}
 - No gimmicky filler words.  No "so," "well," "you know" padding.  \
   Every sentence should earn its place.
+- Experts bring distinct perspectives, not method demonstrations.  An expert \
+  may mention a method once if it illuminates a point, but should not repeat \
+  the same methodological framing across multiple turns.  The discussion is \
+  about the novel, informed by expertise — not about the methods themselves.
 
 **For the first segment of the episode**, the host should open by \
 welcoming listeners, briefly introducing the show's premise, and then \
@@ -313,6 +318,13 @@ These questions are provided below in the user message.  The host should:
   respond directly to each other.
 - Keep the energy informal and conversational — pub with smart friends, \
   not conference panel.  The host is well-prepared but not scripted.
+
+**The experts have already done their methodological homework in pre-interviews.  \
+The host's questions carry forward the *findings* of that work.  In the discussion, \
+experts should talk about what they found, not re-perform the analysis.  If an \
+expert's pre-interview revealed a specific pattern or structure, they should describe \
+the finding — not re-explain the method that produced it.  Method names may appear \
+once for context; findings and insights should dominate every turn.**
 """
 
     user_parts: list[str] = [
@@ -373,7 +385,15 @@ These questions are provided below in the user message.  The host should:
 
     # Inject HostBrief questions when host prep is active
     if host_brief is not None:
-        user_parts.extend(["", "## Host Preparation: Planned Questions", ""])
+        user_parts.extend([
+            "",
+            "## Host Preparation: Questions Based on Pre-Interview Findings",
+            "",
+            "The host has already interviewed each expert about this segment's material.  "
+            "The questions below are informed by what each expert found most interesting.  "
+            "Experts should discuss their findings and insights, not re-explain their methods.",
+            "",
+        ])
         if host_brief.steering_notes:
             user_parts.append(f"**Steering notes:** {host_brief.steering_notes}")
             user_parts.append("")

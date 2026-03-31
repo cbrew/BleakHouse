@@ -45,6 +45,11 @@ Your goal is to find out:
 2. Which passage would they most want to quote aloud, and why?
 3. Where might they disagree with or challenge the other experts ({other_experts})?
 4. What is the single most interesting or provocative claim they want to make?
+5. What specific finding emerges when they apply their own methods to these \
+passages?  Be concrete: if they would parse a sentence, show the parse.  \
+If they would compute a ratio, estimate it.  If they would cite a historical \
+source, name it.  This is the place to demonstrate what their discipline \
+actually reveals about the text.
 
 Be specific.  Reference passage IDs and actual text.  Think about what \
 will make good radio — moments of genuine intellectual excitement, \
@@ -59,7 +64,12 @@ The passages assigned to this segment are:
 
 What are your thoughts?  What strikes you?  Where would you push back \
 against the other panelists?  Which passage would you most want to \
-read aloud?"""
+read aloud?
+
+Apply your specific methods to these passages.  Show your working — not \
+just "I would use dependency parsing" but "the structure is X and it \
+reveals Y."  Be concrete and specific.  This is your chance to do the \
+methodological work before the live discussion."""
 
 
 def _build_passage_summary(assignments: list[dict]) -> str:
@@ -197,6 +207,13 @@ plan 3–5 targeted questions that will:
 Each question should name a specific expert.  After that expert responds, \
 the others should feel free to jump in.  Your questions open threads, \
 not slots for single answers.
+
+When crafting questions, focus on the *findings* from each expert's \
+pre-interview, not their methods.  Instead of "can you tell us about \
+the dependency parsing?" write "you noticed that Dickens strips the \
+agent from every sentence here — what does that do to us as readers?"  \
+The host never asks an expert to demonstrate a method — the host asks \
+about what the method revealed.
 
 Also note any cross-engagement opportunities: places where one expert's \
 pre-interview response directly contradicts or complements another's."""
