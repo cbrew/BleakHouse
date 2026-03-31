@@ -222,8 +222,8 @@ def _verify_via_openalex(raw_text: str) -> VerifiedReference | None:
                 openalex_title=title,
                 openalex_authors=authors,
                 openalex_year=work.get("publication_year"),
-                openalex_doi=work.get("doi", ""),
-                openalex_cited_by=work.get("cited_by_count", 0),
+                openalex_doi=work.get("doi") or "",
+                openalex_cited_by=work.get("cited_by_count") or 0,
             )
     return None
 
