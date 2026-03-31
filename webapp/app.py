@@ -823,6 +823,101 @@ async def tracker_data():
     return _build_matrix_data()
 
 
+def _build_version_data() -> dict:
+    """Build data for the version comparison view (v1.1+)."""
+    runs_dir = DATA_DIR / "runs"
+    if not runs_dir.exists():
+        return {"versions": {}, "runs": []}
+
+    runs_by_version: dict[str, list[dict]] = {}
+    for run_dir in sorted(runs_dir.iterdir()):
+        if not run_dir.is_dir():
+            continue
+        name = run_dir.name
+        base, version = _parse_version(name)
+        if version == "v1.0":
+            continue  # Matrix handles v1.0
+
+        episode = run_dir / "phase3_episode.json"
+        reading_list_path = run_dir / "phase2_5_reading_list.json"
+        report_path = run_dir / "report.html"
+
+        # Classify
+        condition, panel, hostprep = _classify_run(name)
+
+        # Determine novel from config or name
+        novel = "Unknown"
+        config_path = run_dir / "config.json"
+        if config_path.exists():
+            with open(config_path) as f:
+                cfg = json.load(f)
+            novel = cfg.get("novel", "unknown").replace("_", " ").title()
+        elif "pti_" in name or "passage_to_india" in name:
+            novel = "Passage To India"
+        elif name.startswith("ext_") or name.startswith("interdisciplinary"):
+            novel = "Bleak House"
+
+        # Metrics
+        metrics: dict = {}
+        if episode.exists():
+            with open(episode) as f:
+                ep = json.load(f)
+            total_words = sum(
+                len(u.get("text", "").split())
+                for seg in ep.get("segments", [])
+                for turn in seg.get("turns", [])
+                for u in turn.get("utterances", [])
+            )
+            total_turns = sum(
+                len(seg.get("turns", []))
+                for seg in ep.get("segments", [])
+            )
+            metrics = {"words": total_words, "turns": total_turns,
+                       "segments": len(ep.get("segments", []))}
+
+        # Reading list summary
+        reading: dict = {}
+        if reading_list_path.exists():
+            with open(reading_list_path) as f:
+                rl = json.load(f)
+            reading = {
+                "verified": rl.get("total_verified", 0),
+                "total": rl.get("total_proposed", 0),
+                "rate": rl.get("verification_rate", 0),
+                "recommended": rl.get("recommended", []),
+            }
+
+        run_info = {
+            "run_id": name,
+            "base_name": base,
+            "version": version,
+            "novel": novel,
+            "condition": condition,
+            "panel": panel,
+            "hostprep": hostprep,
+            "has_episode": episode.exists(),
+            "has_report": report_path.exists(),
+            "has_reading_list": reading_list_path.exists(),
+            "has_audio": (run_dir / "audio" / "manifest.json").exists(),
+            "metrics": metrics,
+            "reading": reading,
+        }
+        runs_by_version.setdefault(version, []).append(run_info)
+
+    return {"versions": {v: len(r) for v, r in runs_by_version.items()},
+            "runs": [r for runs in runs_by_version.values() for r in runs]}
+
+
+@app.get("/tracker/versions")
+async def tracker_versions_data():
+    return _build_version_data()
+
+
+@app.get("/versions", response_class=HTMLResponse)
+async def versions_page():
+    return HTMLResponse(VERSIONS_HTML)
+
+
 @app.get("/tracker/stream")
 async def tracker_stream():
     async def event_generator():
@@ -1216,6 +1311,191 @@ function esc(s) {
     d.textContent = s;
     return d.innerHTML;
 }
+</script>
+</body>
+</html>
+"""
+
+VERSIONS_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Version Comparison — Not In Our Time</title>
+<script src="/static/nav.js" defer></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0a0f1e; color: #e8e8e8; padding: 2em;
+}
+h1 { font-size: 1.4em; margin-bottom: 0.3em; color: #e94560; }
+.sub { color: #8888aa; font-size: 0.9em; margin-bottom: 1.5em; }
+.sub a { color: #6fa8dc; }
+.version-tabs { display: flex; gap: 0.5em; margin-bottom: 1.5em; flex-wrap: wrap; }
+.vtab {
+    padding: 0.4em 1em; border-radius: 16px; cursor: pointer;
+    background: #1a2744; border: 1px solid #0f3460; color: #8888aa;
+    font-size: 0.85em; font-family: inherit;
+}
+.vtab.active { background: #e94560; border-color: #e94560; color: white; }
+.vtab:hover:not(.active) { border-color: #e94560; color: #e8e8e8; }
+.vtab .count { font-size: 0.8em; opacity: 0.7; }
+.novel-group { margin-bottom: 2em; }
+.novel-group h2 { font-size: 1.1em; color: #d4c5a0; margin-bottom: 0.8em;
+    border-bottom: 1px solid #1a2744; padding-bottom: 0.3em; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1em; }
+.card {
+    background: #16213e; border: 1px solid #0f3460; border-radius: 8px;
+    padding: 1em; font-size: 0.85em; transition: border-color 0.15s;
+}
+.card:hover { border-color: #e94560; }
+.card-header { display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 0.6em; }
+.card-panel { color: #e94560; font-weight: 600; font-size: 0.95em; }
+.card-condition { color: #8888aa; font-size: 0.85em; }
+.card-badges { display: flex; gap: 0.3em; flex-wrap: wrap; margin-bottom: 0.6em; }
+.badge {
+    display: inline-block; padding: 0.15em 0.5em; border-radius: 10px;
+    font-size: 0.75em; font-weight: 500;
+}
+.badge-script { background: #1b4332; color: #95d5b2; }
+.badge-refs { background: #3d2b1f; color: #e8a87c; }
+.badge-report { background: #1a2744; color: #6fa8dc; }
+.badge-audio { background: #2d1b2e; color: #d4a5d4; }
+.card-metrics { color: #8888aa; font-size: 0.8em; margin-bottom: 0.5em; }
+.card-reading { margin-top: 0.5em; }
+.card-reading h4 { color: #d4c5a0; font-size: 0.85em; margin-bottom: 0.3em; }
+.card-reading ul { list-style: none; padding: 0; }
+.card-reading li { color: #aaa; font-size: 0.8em; padding: 0.15em 0;
+    border-bottom: 1px solid #0f3460; }
+.card-reading li:last-child { border-bottom: none; }
+.card-links { margin-top: 0.6em; display: flex; gap: 0.5em; }
+.card-links a {
+    color: #6fa8dc; text-decoration: none; font-size: 0.8em;
+    padding: 0.2em 0.6em; border: 1px solid #0f3460; border-radius: 4px;
+}
+.card-links a:hover { border-color: #6fa8dc; }
+.empty { color: #555; font-style: italic; text-align: center; padding: 3em; }
+</style>
+</head>
+<body>
+<h1>Version Comparison</h1>
+<div class="sub">Experimental versions with persona revisions, reference tools, and reading lists.
+    <a href="/tracker">Back to v1.0 matrix</a></div>
+<div class="version-tabs" id="vtabs"></div>
+<div id="content"></div>
+<script>
+let allData = null;
+let activeVersion = null;
+
+async function init() {
+    const resp = await fetch('/tracker/versions');
+    allData = await resp.json();
+
+    const versions = Object.entries(allData.versions).sort();
+    if (versions.length === 0) {
+        document.getElementById('content').innerHTML =
+            '<div class="empty">No versioned runs found.</div>';
+        return;
+    }
+
+    const tabs = document.getElementById('vtabs');
+    const allTab = document.createElement('button');
+    allTab.className = 'vtab active';
+    allTab.innerHTML = 'All <span class="count">(' + allData.runs.length + ')</span>';
+    allTab.onclick = () => selectVersion(null);
+    tabs.appendChild(allTab);
+
+    for (const [ver, count] of versions) {
+        const btn = document.createElement('button');
+        btn.className = 'vtab';
+        btn.innerHTML = ver + ' <span class="count">(' + count + ')</span>';
+        btn.onclick = () => selectVersion(ver);
+        tabs.appendChild(btn);
+    }
+    selectVersion(null);
+}
+
+function selectVersion(ver) {
+    activeVersion = ver;
+    document.querySelectorAll('.vtab').forEach((t, i) => {
+        t.classList.toggle('active', ver === null ? i === 0 : t.textContent.startsWith(ver));
+    });
+    renderCards();
+}
+
+function renderCards() {
+    const runs = activeVersion
+        ? allData.runs.filter(r => r.version === activeVersion)
+        : allData.runs;
+
+    if (runs.length === 0) {
+        document.getElementById('content').innerHTML =
+            '<div class="empty">No runs for this version.</div>';
+        return;
+    }
+
+    const byNovel = {};
+    for (const r of runs) {
+        if (!byNovel[r.novel]) byNovel[r.novel] = [];
+        byNovel[r.novel].push(r);
+    }
+
+    let html = '';
+    for (const [novel, novelRuns] of Object.entries(byNovel).sort()) {
+        html += '<div class="novel-group"><h2>' + novel + '</h2><div class="cards">';
+        for (const r of novelRuns) { html += renderCard(r); }
+        html += '</div></div>';
+    }
+    document.getElementById('content').innerHTML = html;
+}
+
+function renderCard(r) {
+    let badges = '';
+    if (r.has_episode) badges += '<span class="badge badge-script">script</span>';
+    if (r.has_reading_list) badges += '<span class="badge badge-refs">refs</span>';
+    if (r.has_report) badges += '<span class="badge badge-report">report</span>';
+    if (r.has_audio) badges += '<span class="badge badge-audio">audio</span>';
+    if (!r.has_episode && !r.has_reading_list)
+        badges += '<span class="badge" style="background:#2a1a1a;color:#e88">in progress</span>';
+
+    let metrics = '';
+    if (r.metrics && r.metrics.words)
+        metrics = r.metrics.segments + ' seg, ' + r.metrics.turns + ' turns, ' +
+            Math.round(r.metrics.words / 1000) + 'k words';
+
+    let reading = '';
+    if (r.reading && r.reading.recommended && r.reading.recommended.length > 0) {
+        reading = '<div class="card-reading"><h4>Recommended (' +
+            r.reading.verified + '/' + r.reading.total +
+            ' verified, ' + Math.round(r.reading.rate * 100) + '%)</h4><ul>';
+        for (const ref of r.reading.recommended)
+            reading += '<li>' + ref + '</li>';
+        reading += '</ul></div>';
+    } else if (r.reading && r.reading.verified > 0) {
+        reading = '<div class="card-reading"><h4>' +
+            r.reading.verified + '/' + r.reading.total + ' refs verified</h4></div>';
+    }
+
+    let links = '<div class="card-links">';
+    if (r.has_report) links += '<a href="/report/' + r.run_id + '">Report</a>';
+    if (r.has_audio) links += '<a href="/player?run=' + r.run_id + '">Listen</a>';
+    links += '</div>';
+
+    return '<div class="card">' +
+        '<div class="card-header">' +
+            '<span class="card-panel">' + r.panel + '</span>' +
+            '<span class="card-condition">' + r.version + ' &middot; ' +
+                r.condition + (r.hostprep ? ' +hp' : '') + '</span>' +
+        '</div>' +
+        '<div class="card-badges">' + badges + '</div>' +
+        (metrics ? '<div class="card-metrics">' + metrics + '</div>' : '') +
+        reading + links +
+    '</div>';
+}
+
+init();
 </script>
 </body>
 </html>
