@@ -459,9 +459,8 @@ def run_host_prep(
                 reading_list.verification_rate * 100,
             )
             if run_dir:
-                import json as _json
                 with open(run_dir / "phase2_5_reading_list.json", "w") as f:
-                    _json.dump(reading_list.model_dump(), f, indent=2)
+                    json.dump(reading_list.model_dump(), f, indent=2)
                 logger.info("  Saved reading list to %s", run_dir / "phase2_5_reading_list.json")
 
     logger.info("Phase 2.5b: question planning (%d segments)", len(segments))
