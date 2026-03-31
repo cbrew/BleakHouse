@@ -16,30 +16,22 @@ import argparse
 import json
 import logging
 import os
-from copy import deepcopy
 from pathlib import Path
 
 import anthropic
 from dotenv import load_dotenv
 
 from enrichment.design_segments import design_segments  # pyright: ignore[reportMissingImports]
-from enrichment.generate_podcast import (  # pyright: ignore[reportMissingImports]
-    assemble_episode,
-    generate_segment_script,
-)
 from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     ALTERNATIVE_PERSONAS,
     DEFAULT_PERSONAS,
     DEFAULT_SEGMENT_TEMPLATES,
-    EpisodeSegment,
     ExpertPersona,
     HostBrief,
     SegmentTemplate,
 )
 from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]
     PassageAssignment,
-    PlannedSegment,
-    SegmentPlan,
     build_passage_assignments,
     solve_segment_assignment,
 )
@@ -168,7 +160,6 @@ def run_phases_1_2_transport(
 ) -> tuple[dict, dict]:
     """Phases 1+2 for transport pipeline: min-cost flow."""
     from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
-        ProducerConfig,
         load_passages,
         run_pipeline,
     )
@@ -349,61 +340,6 @@ def run_phase_2_5(
         json.dump([[iv.model_dump() for iv in seg] for seg in interviews], f, indent=2)
     logger.info("Saved %d host briefs + %d interview sets", len(briefs), len(interviews))
     return briefs
-
-
-# ---------------------------------------------------------------------------
-# Phase 3: Script generation (shared across all pipelines)
-# ---------------------------------------------------------------------------
-
-
-def run_phase3(
-    phase2_data: dict,
-    phase1_data: dict,
-    model: str,
-    personas: list[ExpertPersona],
-    prompt_version: int = 2,
-    host_briefs: list[HostBrief] | None = None,
-) -> dict:
-    """Phase 3: script generation. Shared by all pipeline types."""
-    planned_segments = []
-    pa_lookup = {a["passage_id"]: a for a in phase1_data.get("assignments", [])}
-    for seg_data in phase2_data["segments"]:
-        template = SegmentTemplate.model_validate(seg_data["template"])
-        seg_assignments = []
-        for a in seg_data.get("assignments", []):
-            full = pa_lookup.get(a.get("passage_id", ""), a)
-            seg_assignments.append(PassageAssignment(**full))  # pyright: ignore[reportCallIssue]
-        planned_segments.append(PlannedSegment(template, seg_assignments))
-
-    plan = SegmentPlan(
-        segments=planned_segments,
-        unassigned=[],
-        total_null_flow=phase2_data.get("total_null_flow", 0),
-    )
-
-    client = anthropic.Anthropic()
-    episode_segments: list[EpisodeSegment] = []
-    for i, seg in enumerate(plan.segments):
-        prev_title = plan.segments[i - 1].template.name if i > 0 else None
-        next_title = plan.segments[i + 1].template.name if i < len(plan.segments) - 1 else None
-        brief = host_briefs[i] if host_briefs else None
-        episode_seg = generate_segment_script(
-            seg, client, model, personas,
-            is_first_segment=(i == 0),
-            prompt_version=prompt_version,
-            previous_segment_title=prev_title,
-            next_segment_title=next_title,
-            host_brief=brief,
-        )
-        episode_segments.append(episode_seg)
-        logger.info(
-            "  Segment '%s': %d turns",
-            episode_seg.title,
-            len(episode_seg.turns),
-        )
-
-    episode = assemble_episode(episode_segments, plan)
-    return episode.model_dump()
 
 
 # ---------------------------------------------------------------------------
@@ -624,13 +560,12 @@ Examples:
 
     # ── Phase 3: Script generation ──
     logger.info("Phase 3: script generation (model=%s)", args.model)
+    from enrichment.generate_podcast import run_phase3  # pyright: ignore[reportMissingImports]
     phase3 = run_phase3(
         phase2, phase1, args.model, personas,
         prompt_version=args.prompt_version,
         host_briefs=host_briefs,
     )
-    from enrichment.podcast_types import fix_turn_roles
-    fix_turn_roles(phase3, personas)
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
 

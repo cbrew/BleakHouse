@@ -32,10 +32,7 @@ from enrichment.embedding_podcast import (  # pyright: ignore[reportMissingImpor
     curate_passages,
     retrieve_candidate_pool,
 )
-from enrichment.generate_podcast import (  # pyright: ignore[reportMissingImports]
-    assemble_episode,
-    generate_segment_script,
-)
+from enrichment.generate_podcast import run_phase3  # pyright: ignore[reportMissingImports]  # noqa: F401 — re-exported
 from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     DEFAULT_PERSONAS,
     ALTERNATIVE_PERSONAS,
@@ -43,11 +40,6 @@ from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     SegmentTemplate,
 )
 from enrichment.run_config import RUNS_DIR  # pyright: ignore[reportMissingImports]
-from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]
-    PassageAssignment,
-    PlannedSegment,
-    SegmentPlan,
-)
 from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
     ALTERNATIVE_EXPERTS,
     ArcDemand,
@@ -129,57 +121,6 @@ def run_embedding_phases(
     }
 
     return phase1_data, phase2_data, artifacts
-
-
-def run_phase3(
-    phase2_data: dict,
-    phase1_data: dict,
-    model: str,
-    personas: list[ExpertPersona],
-    prompt_version: int = 2,
-    host_briefs: list | None = None,
-) -> dict:
-    """Phase 3: script generation (identical to transport pipeline)."""
-    import anthropic
-
-    planned_segments = []
-    for seg_data in phase2_data["segments"]:
-        template = SegmentTemplate.model_validate(seg_data["template"])
-        seg_assignments = []
-        pa_lookup = {a["passage_id"]: a for a in phase1_data["assignments"]}
-        for a in seg_data["assignments"]:
-            full = pa_lookup.get(a["passage_id"], a)
-            seg_assignments.append(PassageAssignment(**full))  # pyright: ignore[reportCallIssue]
-        planned_segments.append(PlannedSegment(template, seg_assignments))
-
-    plan = SegmentPlan(
-        segments=planned_segments,
-        unassigned=[],
-        total_null_flow=phase2_data.get("total_null_flow", 0),
-    )
-
-    client = anthropic.Anthropic()
-    episode_segments = []
-    for i, seg in enumerate(plan.segments):
-        prev_title = plan.segments[i - 1].template.name if i > 0 else None
-        next_title = plan.segments[i + 1].template.name if i < len(plan.segments) - 1 else None
-        brief = host_briefs[i] if host_briefs else None
-        episode_seg = generate_segment_script(
-            seg, client, model, personas, is_first_segment=(i == 0),
-            prompt_version=prompt_version,
-            previous_segment_title=prev_title,
-            next_segment_title=next_title,
-            host_brief=brief,
-        )
-        episode_segments.append(episode_seg)
-        logger.info(
-            "  Segment '%s': %d turns",
-            episode_seg.title,
-            len(episode_seg.turns),
-        )
-
-    episode = assemble_episode(episode_segments, plan)
-    return episode.model_dump()
 
 
 # ---------------------------------------------------------------------------
@@ -398,8 +339,6 @@ def main() -> None:
     # Phase 3: script generation (identical to transport pipeline)
     logger.info("Phase 3: script generation (model=%s)", args.model)
     phase3 = run_phase3(phase2, phase1, args.model, personas, prompt_version=args.prompt_version)
-    from enrichment.podcast_types import fix_turn_roles
-    fix_turn_roles(phase3, personas)
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
 

@@ -189,8 +189,6 @@ def main() -> None:
     # Phase 3: script generation (identical to other pipelines)
     logger.info("Phase 3: script generation (model=%s)", args.model)
     phase3 = run_phase3(phase2, phase1, args.model, personas)
-    from enrichment.podcast_types import fix_turn_roles
-    fix_turn_roles(phase3, personas)
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
 

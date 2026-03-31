@@ -26,6 +26,8 @@ from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     ExpertPersona,
     HostBrief,
     PodcastEpisode,
+    SegmentTemplate,
+    fix_turn_roles,
 )
 from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]
     PassageAssignment,
@@ -490,6 +492,63 @@ def assemble_episode(
             generation_tag=tag,
         ),
     )
+
+
+def run_phase3(
+    phase2_data: dict,
+    phase1_data: dict,
+    model: str,
+    personas: list[ExpertPersona],
+    prompt_version: int = 2,
+    host_briefs: list[HostBrief] | None = None,
+) -> dict:
+    """Phase 3: script generation. Shared by all pipeline types.
+
+    Reconstructs the segment plan from Phase 1+2 outputs, generates a
+    multi-voice script for each segment, assembles into an episode,
+    and normalises turn roles from the persona definitions.
+    """
+    planned_segments = []
+    pa_lookup = {a["passage_id"]: a for a in phase1_data.get("assignments", [])}
+    for seg_data in phase2_data["segments"]:
+        template = SegmentTemplate.model_validate(seg_data["template"])
+        seg_assignments = []
+        for a in seg_data.get("assignments", []):
+            full = pa_lookup.get(a.get("passage_id", ""), a)
+            seg_assignments.append(PassageAssignment(**full))  # pyright: ignore[reportCallIssue]
+        planned_segments.append(PlannedSegment(template, seg_assignments))
+
+    plan = SegmentPlan(
+        segments=planned_segments,
+        unassigned=[],
+        total_null_flow=phase2_data.get("total_null_flow", 0),
+    )
+
+    client = anthropic.Anthropic()
+    episode_segments: list[EpisodeSegment] = []
+    for i, seg in enumerate(plan.segments):
+        prev_title = plan.segments[i - 1].template.name if i > 0 else None
+        next_title = plan.segments[i + 1].template.name if i < len(plan.segments) - 1 else None
+        brief = host_briefs[i] if host_briefs else None
+        episode_seg = generate_segment_script(
+            seg, client, model, personas,
+            is_first_segment=(i == 0),
+            prompt_version=prompt_version,
+            previous_segment_title=prev_title,
+            next_segment_title=next_title,
+            host_brief=brief,
+        )
+        episode_segments.append(episode_seg)
+        logger.info(
+            "  Segment '%s': %d turns",
+            episode_seg.title,
+            len(episode_seg.turns),
+        )
+
+    episode = assemble_episode(episode_segments, plan)
+    result = episode.model_dump()
+    fix_turn_roles(result, personas)
+    return result
 
 
 def _make_tag() -> str:
