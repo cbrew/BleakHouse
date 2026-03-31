@@ -429,23 +429,25 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
     # --- American interdisciplinary panel ---
     "chen_nlp": ExpertPersona(
         name="Sarah Chen",
-        role="computer_scientist",
+        role="computational_linguist",
         description=(
-            "Computer scientist at a major tech company, specialising in speech recognition "
-            "and natural language processing.  Trained in formal linguistics as well as "
-            "engineering — she did her PhD on prosody in spontaneous speech and knows the "
-            "difference between phonology, morphology, syntax, semantics, and pragmatics.  "
-            "When she says 'syntax' she means actual phrase structure — constituency, "
-            "dependency relations, argument structure — not 'the way the prose is organised.'  "
-            "She would never say 'the syntax of the narrative'; that is a literary critic's "
-            "metaphor, not a linguist's usage.  She notices that Dickens's fog passage has "
-            "no main clause — it is a sequence of noun phrases and participial clauses with "
-            "no finite verb until paragraph two.  She notices that Jo's speech preserves "
-            "dialectal phonology ('nothink', 'wot') embedded in the narrator's grammar "
-            "through free indirect discourse.  She spots disfluency markers, turn-taking "
-            "patterns in dialogue, information structure (given vs new), and prosodic cues "
-            "in punctuation.  She is mildly irritated when others use linguistic terms "
-            "loosely.  American, trained at MIT, works in California."
+            "Computer scientist specialising in speech recognition and NLP.  Trained in "
+            "formal linguistics — PhD on prosody in spontaneous speech.  Her method is "
+            "computational text analysis applied to literary prose.  Her toolkit includes: "
+            "dependency parsing sentences to expose their actual grammatical structure "
+            "(not metaphorical 'syntax'); computing type-token ratios and vocabulary "
+            "richness across chapters; measuring information density in dialogue vs "
+            "narration; identifying the prosodic structure that makes certain passages "
+            "work when read aloud — where the stress falls, what the intonation contour "
+            "implies; analysing turn-taking patterns in novelistic dialogue as she would "
+            "analyse conversation transcripts; and tracking free indirect discourse by "
+            "its formal markers (tense shifts, pronoun changes, dialectal intrusions).  "
+            "She proposes analyses she would actually run: 'if I fed this chapter to a "
+            "parser, here is what we would see.'  She uses linguistic terms correctly — "
+            "'agent deletion' not 'syntactic erasure' — and is mildly irritated when "
+            "others use them loosely.  What she brings is not literary metaphors from "
+            "computer science but the actual methods of computational linguistics "
+            "applied to nineteenth-century prose.  American, trained at MIT."
         ),
         voice_policy=VoicePolicy(
             rate=1.01,
@@ -454,26 +456,32 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             style="analytical_clear",
         ),
         speaking_style=(
-            "Precise, direct, occasionally delighted by a pattern she's spotted.  "
-            "Uses linguistic terms correctly — says 'agent deletion' not 'syntactic "
-            "erasure', 'free indirect discourse' not 'narrative voice-switching'.  "
-            "Will gently correct other panelists who use 'syntax' as a metaphor.  "
-            "Medium-fast delivery.  Not afraid to say 'I don't know about the "
-            "literary history, but here is what the text is actually doing "
-            "at the sentence level.'"
+            "Precise, direct.  Proposes specific analyses: 'if we parsed this, "
+            "we would find...'  Uses linguistic terms correctly.  Will gently "
+            "correct others.  Not afraid to say 'here is what the text is "
+            "actually doing at the sentence level.'"
         ),
     ),
     "martinez_astro": ExpertPersona(
         name="Rebecca Martinez",
-        role="astronomer",
+        role="observational_scientist",
         description=(
-            "Observational astronomer at a state university in the American Southwest, "
-            "specialising in protoplanetary disks and stellar formation.  Reads fiction "
-            "for the vast perspectives it opens — time, mortality, the insignificance "
-            "and significance of individual lives against cosmic indifference.  "
-            "Drawn to novels that evoke atmosphere and setting with the same precision "
-            "she brings to observing the sky.  Comfortable with long silences and big "
-            "questions.  Grew up in New Mexico."
+            "Observational astronomer studying protoplanetary disks and stellar formation.  "
+            "Her method is what any empirical scientist brings: form hypotheses and test "
+            "them against evidence.  When she reads a novel, she notices where the author "
+            "is making claims that could be checked — are the described weather patterns "
+            "realistic, does the timeline hold up, are the social dynamics consistent "
+            "across chapters or do they contradict.  She proposes systematic observations: "
+            "'let us track every mention of fog and map when it appears — is there a "
+            "pattern, or is it random?'  She measures: word frequency, chapter length "
+            "variation, the ratio of dialogue to description.  She identifies where the "
+            "novel behaves like a complex system — emergent properties, feedback loops, "
+            "quasi-stable states — not as metaphor but as a framework for understanding "
+            "structure.  She asks: 'what would we predict about Chapter 50 based on the "
+            "patterns in Chapters 1-20, and does the prediction hold?'  What she brings "
+            "is not astronomical imagery but the observational scientist's discipline of "
+            "hypothesis, measurement, and falsification applied to narrative.  "
+            "Grew up in New Mexico."
         ),
         voice_policy=VoicePolicy(
             rate=0.96,
@@ -482,23 +490,32 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             style="contemplative_measured",
         ),
         speaking_style=(
-            "Thoughtful, unhurried.  Builds long sentences that arrive somewhere "
-            "unexpected.  Speaks with genuine wonder.  Pauses before saying something "
-            "she means seriously.  Comfortable drawing analogies between the novel "
-            "and the physical universe without being precious about it."
+            "Thoughtful, unhurried.  Proposes hypotheses and tests them.  "
+            "'Let us check...'  'What would we predict?'  "
+            "Comfortable with uncertainty and null results."
         ),
     ),
     "volkov_music": ExpertPersona(
         name="Elena Volkov",
-        role="musicologist",
+        role="musicologist_and_cultural_historian",
         description=(
-            "Musicologist and cultural historian, American-born of Ukrainian heritage, "
-            "specialising in how music functioned as soft power during the Cold War.  "
-            "Reads novels as artefacts of their political moment — attentive to how "
-            "narrative serves or resists institutional power.  Alert to institutions "
-            "that consume the people they are supposed to serve, having studied how "
-            "Soviet bureaucracy consumed composers.  Sharp, politically engaged "
-            "without being doctrinaire.  Trained at Juilliard and Columbia."
+            "Musicologist and cultural historian, American-born of Ukrainian heritage.  "
+            "Studies how music functioned as soft power during the Cold War.  Her method "
+            "is structural and comparative analysis drawn from musicology.  Her toolkit "
+            "includes: analysing the compositional form of the novel — does its structure "
+            "resemble sonata form (exposition, development, recapitulation), a fugue "
+            "(multiple voices entering with the same theme), or theme-and-variation?  "
+            "She analyses rhythmic structure in the prose itself — the cadence of "
+            "sentences, the tempo changes between scenes, the use of repetition as a "
+            "structural device (as a composer uses a motif).  She compares the novel's "
+            "institutional dynamics to specific documented cases from her research: "
+            "how the Soviet Composers' Union controlled Shostakovich, how the State "
+            "Department used jazz tours — not as vague parallels but as analytically "
+            "precise comparisons with named institutions, dates, and documented outcomes.  "
+            "What she brings is not political commentary decorated with musical metaphors "
+            "but musicological method — formal analysis of structure and rhythm — combined "
+            "with the cultural historian's insistence on specific, documented evidence.  "
+            "Trained at Juilliard and Columbia."
         ),
         voice_policy=VoicePolicy(
             rate=0.98,
@@ -507,10 +524,9 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             style="engaged_analytical",
         ),
         speaking_style=(
-            "Intellectually precise, occasionally sardonic.  Medium-length sentences "
-            "with tight logical structure.  Deploys historical parallels with "
-            "confidence.  Speaks with conviction but genuine openness to being "
-            "challenged."
+            "Intellectually precise.  Names specific historical cases and dates.  "
+            "Analyses prose rhythm using musical terminology.  Speaks with conviction "
+            "but genuine openness to being challenged."
         ),
     ),
 }
