@@ -693,7 +693,7 @@ def _check_process_alive() -> dict | None:
     import subprocess
     try:
         result = subprocess.run(
-            ["pgrep", "-fl", "enrichment.run_pipeline|enrichment.embedding_run|enrichment.no_passages_run|enrichment.run_novel|run_full_matrix"],
+            ["pgrep", "-fl", "enrichment.run_pipeline|enrichment.embedding_run|enrichment.run_novel|run_full_matrix"],
             capture_output=True, text=True, timeout=5,
         )
         lines = [ln for ln in result.stdout.strip().split("\n") if ln and "pgrep" not in ln]

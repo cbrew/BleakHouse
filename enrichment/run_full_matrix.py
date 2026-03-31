@@ -132,21 +132,14 @@ def run_pipeline(
     """Execute a single pipeline run."""
     name = run_name(novel_key, pipeline, panel, hostprep)
 
-    if pipeline == "no_passages":
-        cmd = [
-            sys.executable, "-m", "enrichment.no_passages_run",
-            "--name", name,
-            "--novel", novel_key,
-            "--prompt-version", "2",
-        ]
-    else:
-        cmd = [
-            sys.executable, "-m", "enrichment.run_pipeline",
-            "--name", name,
-            "--novel", novel_key,
-            "--pipeline", pipeline,
-            "--prompt-version", "2",
-        ]
+    pipeline_arg = "no-passages" if pipeline == "no_passages" else pipeline
+    cmd = [
+        sys.executable, "-m", "enrichment.run_pipeline",
+        "--name", name,
+        "--novel", novel_key,
+        "--pipeline", pipeline_arg,
+        "--prompt-version", "2",
+    ]
 
     for replacement in PANEL_REPLACEMENTS[panel]:
         cmd.extend(["--replace-expert", replacement])
