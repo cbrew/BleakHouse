@@ -224,10 +224,26 @@ def run_pre_interview_with_tools(
         messages.append({"role": "assistant", "content": response.content})
         messages.append({"role": "user", "content": tool_results})
 
-    # Extract final text from the response
-    final_text = "\n".join(
-        block.text for block in response.content if hasattr(block, "text")
-    )
+    # Build full conversation text from all assistant messages
+    all_text_parts = []
+    for msg in messages:
+        if msg.get("role") == "assistant":
+            content = msg.get("content", [])
+            if hasattr(content, "__iter__") and not isinstance(content, str):
+                for block in content:
+                    if hasattr(block, "text"):
+                        all_text_parts.append(block.text)
+    # Also include the final response
+    for block in response.content:
+        if hasattr(block, "text"):
+            all_text_parts.append(block.text)
+
+    final_text = "\n".join(all_text_parts)
+    if not final_text.strip():
+        final_text = (
+            f"Expert {expert.name} was interviewed about segment '{segment_name}' "
+            f"but produced no text response. Please generate a default response."
+        )
 
     # Parse into structured output with a follow-up call
     parse_response = client.messages.parse(
