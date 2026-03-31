@@ -66,7 +66,7 @@ def _autopsy_html(utt: dict) -> str:
     pct = autopsy.get("pct_in_novel", 0)
     distinctive = autopsy.get("distinctive_absent", [])
 
-    parts = [f'<div class="autopsy">']
+    parts = ['<div class="autopsy">']
     parts.append(f'<div class="autopsy-stat">Of {quote_words} unique words, '
                  f'{in_novel} ({pct}%) appear somewhere in the novel, '
                  f'{absent} do not.</div>')
@@ -150,7 +150,7 @@ def _host_prep_html(brief: dict | None, interviews: list[dict] | None, passages:
         parts.append('<h4>Pre-interviews</h4>')
         for iv in interviews:
             name = iv.get("expert_name", "Expert")
-            parts.append(f'<details class="hp-interview">')
+            parts.append('<details class="hp-interview">')
             parts.append(f'<summary>{escape(name)}</summary>')
 
             strongest = iv.get("strongest_take", "")
@@ -192,7 +192,7 @@ def _host_prep_html(brief: dict | None, interviews: list[dict] | None, passages:
                 question = q.get("question", "")
                 intent = q.get("intent", "")
                 follow = q.get("follow_up_for", [])
-                parts.append(f'<div class="hp-q">')
+                parts.append('<div class="hp-q">')
                 parts.append(f'<div class="hp-q-target">{escape(target)}</div>')
                 parts.append(f'<div class="hp-q-text">{escape(question)}</div>')
                 if intent:

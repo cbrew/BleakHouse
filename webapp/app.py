@@ -9,12 +9,9 @@ Usage:
 
 from __future__ import annotations
 
-import logging
-
-logger = logging.getLogger(__name__)
-
 import asyncio
 import json
+import logging
 import re
 from pathlib import Path
 
@@ -22,6 +19,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import StreamingResponse
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
@@ -44,12 +43,8 @@ def _discover_runs() -> dict[str, list[dict]]:
         return novels
     for run_dir in sorted(runs_dir.iterdir()):
         # A run is playable if it has an audio manifest (timing data)
-        # AND a podcast.mp3 either locally or on the fly volume
-        podcast_path = run_dir / "audio" / "podcast.mp3"
-        volume_path = AUDIO_VOLUME / run_dir.name / "podcast.mp3"
-        has_audio_manifest = (run_dir / "audio" / "manifest.json").exists()
-        has_podcast = podcast_path.exists() or volume_path.exists()
-        if not has_audio_manifest:
+        # Require an audio manifest to list the run
+        if not (run_dir / "audio" / "manifest.json").exists():
             continue
 
         # Load manifest: prefer audio/manifest.json, fall back to run-level

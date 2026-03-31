@@ -64,7 +64,6 @@ def _extract_segment_keywords(turns: list[dict]) -> set[str]:
     words: set[str] = set()
     for turn in turns:
         for utt in turn["utterances"]:
-            text = utt["text"].lower()
             # Extract capitalised words as potential character/place names
             for word in utt["text"].split():
                 cleaned = word.strip(".,;:!?\"'—()[]")
