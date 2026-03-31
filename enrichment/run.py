@@ -506,6 +506,8 @@ def main() -> None:
     # Phase 3
     logger.info("Phase 3: script generation (model=%s)", config.model)
     phase3 = run_phase3(config, phase2, phase1, host_briefs=host_briefs)
+    from enrichment.podcast_types import fix_turn_roles
+    fix_turn_roles(phase3, config.personas)
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
 

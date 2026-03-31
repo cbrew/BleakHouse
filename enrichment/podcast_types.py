@@ -229,6 +229,32 @@ class PodcastEpisode(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Post-generation role normalisation
+# ---------------------------------------------------------------------------
+
+
+def fix_turn_roles(
+    episode_dict: dict,
+    personas: list["ExpertPersona"],
+) -> dict:
+    """Overwrite each turn's ``role`` field with the persona's canonical role.
+
+    The LLM sometimes invents roles like ``close_reader`` or ``social_historian``
+    instead of using the persona's actual role.  This fixes them in-place.
+    """
+    name_to_role: dict[str, str] = {p.name: p.role for p in personas}
+    name_to_role["Host"] = "host"
+    name_to_role["Narrator"] = "narrator"
+
+    for seg in episode_dict.get("segments", []):
+        for turn in seg.get("turns", []):
+            speaker = turn.get("speaker", "")
+            if speaker in name_to_role:
+                turn["role"] = name_to_role[speaker]
+    return episode_dict
+
+
+# ---------------------------------------------------------------------------
 # Expert personas and voice policies (used in Phase 3 prompts)
 # ---------------------------------------------------------------------------
 
