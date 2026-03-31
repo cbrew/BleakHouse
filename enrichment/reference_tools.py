@@ -93,15 +93,52 @@ def execute_search_openalex(query: str, max_results: int = 3) -> str:
                 for a in work.get("authorships", [])[:3]
             ]
             author_str = ", ".join(authors)
-            doi = work.get("doi", "")
+            doi = work.get("doi") or ""
             lines.append(
                 f"- {author_str}. \"{title}\" ({year}). "
                 f"Cited by {cited}.{f' DOI: {doi}' if doi else ''}"
             )
+            # Reconstruct abstract from inverted index if available
+            abstract_ii = work.get("abstract_inverted_index")
+            if abstract_ii and isinstance(abstract_ii, dict):
+                word_positions: list[tuple[int, str]] = []
+                for word, positions in abstract_ii.items():
+                    for pos in positions:
+                        word_positions.append((pos, word))
+                word_positions.sort()
+                abstract = " ".join(w for _, w in word_positions[:200])
+                lines.append(f"  Abstract: {abstract}")
         return "\n".join(lines)
     except Exception as e:
         logger.warning("OpenAlex search failed for '%s': %s", query, e)
         return f"Search failed: {e}"
+
+
+def _fetch_wikipedia_extract(title: str, sentences: int = 8) -> str:
+    """Fetch the opening sentences of a Wikipedia article by exact title."""
+    try:
+        resp = requests.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={
+                "action": "query",
+                "titles": title,
+                "prop": "extracts",
+                "exsentences": sentences,
+                "explaintext": "1",
+                "format": "json",
+            },
+            headers={"User-Agent": _USER_AGENT},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        pages = resp.json().get("query", {}).get("pages", {})
+        for page in pages.values():
+            extract = page.get("extract", "")
+            if extract:
+                return extract[:800]
+    except Exception as e:
+        logger.debug("Wikipedia extract failed for '%s': %s", title, e)
+    return ""
 
 
 def execute_search_wikipedia(query: str, max_results: int = 3) -> str:
@@ -130,6 +167,11 @@ def execute_search_wikipedia(query: str, max_results: int = 3) -> str:
             title = item.get("title", "Unknown")
             snippet = re.sub(r"<[^>]+>", "", item.get("snippet", ""))
             lines.append(f"- **{title}**: {snippet}")
+
+            # Fetch the first ~500 words of the top result
+            extract = _fetch_wikipedia_extract(title)
+            if extract:
+                lines.append(f"  Content: {extract}")
         return "\n".join(lines)
     except Exception as e:
         logger.warning("Wikipedia search failed for '%s': %s", query, e)
