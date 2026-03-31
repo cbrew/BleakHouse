@@ -279,6 +279,13 @@ class ExpertPersona(BaseModel):
         default="",
         description="TTS-level sentence style guidance for this speaker",
     )
+    script_description: str = Field(
+        default="",
+        description=(
+            "Shorter description for Phase 3 script generation — perspective "
+            "and voice, not methods. Falls back to description when empty."
+        ),
+    )
 
 
 DEFAULT_PERSONAS = [
@@ -296,6 +303,12 @@ DEFAULT_PERSONAS = [
             "why this choice and not another.  She gets visibly excited when she spots "
             "something she would teach.  What she brings is not just admiration for craft "
             "but a toolkit for reverse-engineering it."
+        ),
+        script_description=(
+            "Novelist and creative writing teacher.  Reads as a maker — every structural "
+            "choice is a decision that could have gone differently.  Gets visibly excited "
+            "when she spots something she would teach.  Notices craft: load-bearing "
+            "sentences, image patterns, the effect of tense and point of view."
         ),
         voice_policy=VoicePolicy(
             rate=1.01,
@@ -324,6 +337,12 @@ DEFAULT_PERSONAS = [
             "rhetoric.  What he brings is not just context but the historian's discipline "
             "of checking claims against the record."
         ),
+        script_description=(
+            "Legal and social historian who works with primary sources.  When the novel "
+            "depicts an institution, he knows what the historical record says about it.  "
+            "Gets genuinely angry about injustice, but his anger is grounded in evidence.  "
+            "Names specific Acts, cases, dates."
+        ),
         voice_policy=VoicePolicy(
             rate=0.96,
             energy="medium_low",
@@ -351,6 +370,12 @@ DEFAULT_PERSONAS = [
             "she roots for and when that shifts — as data about the novel's moral "
             "design.  What she brings is not just feeling but the discipline of noticing "
             "what reading actually does to a reader."
+        ),
+        script_description=(
+            "Book critic who has read this novel many times over decades.  Notices what "
+            "struck her at different ages, what only becomes visible on re-reading.  "
+            "Tracks her own identification — which character she roots for and when that "
+            "shifts — as evidence about the novel's moral design.  Emotionally engaged."
         ),
         voice_policy=VoicePolicy(
             rate=0.97,
@@ -389,6 +414,11 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             pause_bias_ms=280,
             style="patrician_measured",
         ),
+        script_description=(
+            "Retired Oxford don.  Reads novels as case studies in practical ethics — "
+            "which virtue is tested, where does weakness of will shade into wickedness.  "
+            "Beautifully spoken, occasionally withering, always courteous."
+        ),
         speaking_style=(
             "Stately, carefully composed sentences.  Unhurried.  Applies named "
             "philosophical frameworks to specific passages.  Occasional "
@@ -416,6 +446,12 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             energy="medium_high",
             pause_bias_ms=200,
             style="passionate_precise",
+        ),
+        script_description=(
+            "Cultural historian who asks: who owns what, what labour is visible and "
+            "invisible, what economic relationship determines this character's options.  "
+            "Cites specific historical data — wages, rents, costs.  Can be fierce but "
+            "earns his anger with evidence."
         ),
         speaking_style=(
             "Precise, purposeful sentences that build an argument.  Cites economic "
@@ -445,6 +481,12 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             energy="medium_high",
             pause_bias_ms=190,
             style="raconteur_warm",
+        ),
+        script_description=(
+            "Actor, writer, and the voice of more classic novel audiobooks than anyone "
+            "alive.  Notices what silent reading misses — breath patterns, tongue-twisters, "
+            "passages that only make sense as speech acts.  Natural raconteur with "
+            "theatrical relish."
         ),
         speaking_style=(
             "Natural raconteur rhythm — varied sentence lengths, comic timing "
@@ -481,6 +523,12 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             pause_bias_ms=180,
             style="analytical_clear",
         ),
+        script_description=(
+            "Computer scientist and formal linguist (PhD on prosody, trained at MIT).  "
+            "Notices what sentences are actually doing at the structural level — where "
+            "agents disappear, where vocabulary narrows, where the prose rhythm changes.  "
+            "Precise with terminology.  American, direct."
+        ),
         speaking_style=(
             "Precise, direct.  Proposes specific analyses: 'if we parsed this, "
             "we would find...'  Uses linguistic terms correctly.  Will gently "
@@ -515,6 +563,12 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             pause_bias_ms=250,
             style="contemplative_measured",
         ),
+        script_description=(
+            "Observational astronomer.  Brings a scientist's habits: notices where claims "
+            "could be tested, where timelines contradict, where patterns emerge or break down.  "
+            "Comfortable with uncertainty and null results.  Thoughtful, unhurried.  "
+            "Grew up in New Mexico."
+        ),
         speaking_style=(
             "Thoughtful, unhurried.  Proposes hypotheses and tests them.  "
             "'Let us check...'  'What would we predict?'  "
@@ -548,6 +602,12 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
             energy="medium",
             pause_bias_ms=210,
             style="engaged_analytical",
+        ),
+        script_description=(
+            "Musicologist and cultural historian, American-born of Ukrainian heritage.  "
+            "Attentive to structure and rhythm in prose — where scenes accelerate, where "
+            "repetition accrues weight, how institutional power consumes individuals.  "
+            "Sharp, politically engaged.  Trained at Juilliard and Columbia."
         ),
         speaking_style=(
             "Intellectually precise.  Names specific historical cases and dates.  "
