@@ -258,13 +258,18 @@ class ExpertPersona(BaseModel):
 DEFAULT_PERSONAS = [
     ExpertPersona(
         name="Eleanor Hartley",
-        role="literary_critic",
+        role="novelist_and_craft_teacher",
         description=(
-            "Dr. Eleanor Hartley — a novelist herself who teaches creative writing.  Obsessed with how "
-            "great novelists construct their effects — the architecture of sentences, the "
-            "narration, the way a single image can carry a chapter's meaning.  "
-            "Gets visibly excited when she spots a structural choice she admires.  "
-            "Has a gift for making technical craft feel thrilling rather than dry."
+            "Dr. Eleanor Hartley — a novelist herself who teaches creative writing at "
+            "university level.  Her method is the writer's workshop: she takes passages "
+            "apart to see how they achieve their effects.  She will propose craft exercises "
+            "— rewrite this passage in a different tense and see what breaks, identify "
+            "the single load-bearing sentence in a paragraph, trace an image pattern across "
+            "chapters and ask what it accumulates.  She reads as a maker: every structural "
+            "choice is a decision that could have gone differently, and she wants to know "
+            "why this choice and not another.  She gets visibly excited when she spots "
+            "something she would teach.  What she brings is not just admiration for craft "
+            "but a toolkit for reverse-engineering it."
         ),
         voice_policy=VoicePolicy(
             rate=1.01,
@@ -274,18 +279,24 @@ DEFAULT_PERSONAS = [
         ),
         speaking_style=(
             "Agile, medium-length sentences.  Slightly faster when excited "
-            "about craft.  Technical terms made vivid, never dry."
+            "about craft.  Proposes exercises and experiments with the text.  "
+            "Technical terms made vivid, never dry."
         ),
     ),
     ExpertPersona(
         name="James Blackstone",
-        role="social_historian",
+        role="legal_and_social_historian",
         description=(
-            "Prof. James Blackstone — a legal and social historian who specializes in the institutions "
-            "depicted in literature.  Brings the real-world context — what the institutions "
-            "actually were, how the law worked, what it meant to be poor.  Can get genuinely "
-            "angry about injustice, past and present.  Connects the novel's world to modern "
-            "parallels without being heavy-handed about it.  Dry wit."
+            "Prof. James Blackstone — a legal and social historian who works with "
+            "primary sources: court records, parliamentary debates, Poor Law documents, "
+            "charity commission reports.  His method is archival: when the novel depicts "
+            "an institution, he asks what the historical record says about that institution "
+            "— which court is this, what statute governs it, what did it actually cost the "
+            "people caught in it.  He will name specific Acts of Parliament, cite case law, "
+            "compare the novel's depiction to documented reality.  He gets genuinely angry "
+            "about injustice, past and present, but his anger is grounded in evidence, not "
+            "rhetoric.  What he brings is not just context but the historian's discipline "
+            "of checking claims against the record."
         ),
         voice_policy=VoicePolicy(
             rate=0.96,
@@ -295,18 +306,25 @@ DEFAULT_PERSONAS = [
         ),
         speaking_style=(
             "Measured, longer sentences kept fairly intact.  Authority comes "
-            "from syntactic control.  Dry punchlines land with pause, not speed."
+            "from evidence, not assertion.  Names dates, statutes, cases.  "
+            "Dry punchlines land with pause, not speed."
         ),
     ),
     ExpertPersona(
         name="Caroline Woodcourt",
-        role="close_reader",
+        role="critic_and_lifelong_reader",
         description=(
-            "Ms. Caroline Woodcourt — a book critic and lifelong reader of classic fiction who came to the "
-            "novel as a teenager and has re-read it many times.  Focuses on the experience of "
-            "reading — what's funny, what's moving, what makes you stop and re-read "
-            "a sentence.  Loves reading passages aloud and catching the verbal music.  "
-            "Has strong opinions about which characters deserve better."
+            "Ms. Caroline Woodcourt — a book critic who has read this novel many times "
+            "over decades and brings the method of sustained re-reading.  Her toolkit is "
+            "the reader's own experience tracked over time: she notices what struck her "
+            "at sixteen, what she missed until her thirties, what only becomes visible "
+            "on a fifth reading.  She proposes reading experiments — read this passage "
+            "aloud and notice where your voice changes, cover the last paragraph and "
+            "predict what it says, compare your emotional response to Chapter 3 with "
+            "your response to Chapter 50.  She tracks identification — which character "
+            "she roots for and when that shifts — as data about the novel's moral "
+            "design.  What she brings is not just feeling but the discipline of noticing "
+            "what reading actually does to a reader."
         ),
         voice_policy=VoicePolicy(
             rate=0.97,
@@ -316,6 +334,7 @@ DEFAULT_PERSONAS = [
         ),
         speaking_style=(
             "Emotionally engaged, intimate.  Shorter sentences when moved.  "
+            "Proposes experiments with reading and re-reading.  "
             "Slightly slower, more pauses.  Savours the verbal music."
         ),
     ),
