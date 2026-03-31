@@ -359,10 +359,14 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
         if interviews_path.exists():
             with open(interviews_path) as f:
                 interviews_data = json.load(f)
-        host_prep = {
+        host_prep: dict = {
             "briefs": briefs_data,
             "interviews": interviews_data,
         }
+        reading_list_path = run_dir / "phase2_5_reading_list.json"
+        if reading_list_path.exists():
+            with open(reading_list_path) as f:
+                host_prep["reading_list"] = json.load(f)
 
     manifest = {
         "run_id": run_id,

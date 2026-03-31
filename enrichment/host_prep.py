@@ -376,6 +376,7 @@ def plan_questions(
     novel_title: str,
     novel_author: str,
     model: str = "claude-sonnet-4-6",
+    verified_references: list[str] | None = None,
 ) -> HostBrief:
     """Plan questions for one segment based on pre-interviews."""
     system = _QUESTION_PLANNING_SYSTEM.format(
@@ -386,6 +387,13 @@ def plan_questions(
         segment_name=segment_name,
         interview_block=_format_interviews(interviews),
     )
+    if verified_references:
+        user += "\n\n## Verified scholarly references for this segment\n\n"
+        user += "These works were found and verified during pre-interviews. "
+        user += "The host may draw on them when framing questions — referencing "
+        user += "what scholars have argued, not asking experts to demonstrate methods.\n\n"
+        for ref in verified_references:
+            user += f"- {ref}\n"
 
     response = client.messages.parse(
         model=model,
@@ -463,14 +471,33 @@ def run_host_prep(
                     json.dump(reading_list.model_dump(), f, indent=2)
                 logger.info("  Saved reading list to %s", run_dir / "phase2_5_reading_list.json")
 
+    # Build per-segment reference lists from reading list
+    refs_by_segment: dict[str, list[str]] = {}
+    if use_reference_tools and 'reading_list' in dir():
+        pass  # reading_list was set above in the verification block
+    # Collect from interviews directly (proposed_references grouped by segment)
+    if use_reference_tools:
+        for si, seg_interviews in enumerate(interviews):
+            seg_name = segments[si].get("name", segments[si].get("template", {}).get("name", f"Segment {si}"))
+            seg_refs = []
+            for iv in seg_interviews:
+                seg_refs.extend(iv.proposed_references)
+            if seg_refs:
+                refs_by_segment[seg_name] = seg_refs
+
     logger.info("Phase 2.5b: question planning (%d segments)", len(segments))
     briefs = []
     for si, seg in enumerate(segments):
         seg_name = seg.get("name", seg.get("template", {}).get("name", f"Segment {si}"))
+        seg_refs = refs_by_segment.get(seg_name)
         brief = plan_questions(
             client, seg_name, interviews[si],
             novel_title, novel_author, planning_model,
+            verified_references=seg_refs,
         )
+        # Populate recommended_reading from verified references
+        if seg_refs:
+            brief.recommended_reading = seg_refs
         briefs.append(brief)
 
     return briefs, interviews
