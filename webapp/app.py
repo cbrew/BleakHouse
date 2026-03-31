@@ -985,7 +985,7 @@ td.lo { background:#f8d7da; }
 <h1>BleakHouse Experiment Matrix</h1>
 <div class="sub">15 novels &times; 2 panels &times; 3 pipelines &times; 2 host-prep = 180 runs
  &mdash; <span id="status">connecting...</span></div>
-<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.8em">Click any cell to see details and links. Columns: A/B = expert panels, HP = with host preparation. <a href="/help" style="color:#6fa8dc">More help</a></div>
+<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.8em">Click any cell to see details and links. Columns: A/B = expert panels, HP = with host preparation. <a href="/help" style="color:#6fa8dc">More help</a> &middot; <a href="/versions" style="color:#e94560">Version comparison (v1.1+) &rarr;</a></div>
 <div id="progress"></div>
 <div id="procinfo" style="font-size:0.85em; color:#555; margin-bottom:1em;"></div>
 <table>

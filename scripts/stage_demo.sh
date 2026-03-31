@@ -10,12 +10,21 @@ echo "Staging demo data to $DEST/"
 rm -rf "$DEST"
 mkdir -p "$DEST/runs"
 
-# Generate the list of demo runs (180 tracker grid + 3 interdisciplinary)
+# Generate the list of demo runs (180 tracker grid + 3 interdisciplinary + versioned)
 DEMO_RUNS=$(python3 -c "
+import re
+from pathlib import Path
 from enrichment.run_full_matrix import build_matrix
 grid = {r['name'] for r in build_matrix()}
 inter = {'interdisciplinary_trn_hostprep', 'interdisciplinary_emb_hostprep', 'interdisciplinary_nop_hostprep'}
-for name in sorted(grid | inter):
+# Include versioned runs (v1_1, v1_2, etc.) that have a phase3_episode.json or reading list
+versioned = set()
+for d in Path('data/runs').iterdir():
+    if re.search(r'_v1_\d+$', d.name) and (
+        (d / 'phase3_episode.json').exists() or (d / 'phase2_5_reading_list.json').exists()
+    ):
+        versioned.add(d.name)
+for name in sorted(grid | inter | versioned):
     print(name)
 ")
 
