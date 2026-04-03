@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -46,6 +47,11 @@ def _parse_version(run_name: str) -> tuple[str, str]:
     return run_name, "v1.0"
 
 
+def _version_sort_key(version: str) -> tuple[int, ...]:
+    nums = [int(part) for part in re.findall(r"\d+", version)]
+    return tuple(nums or [0])
+
+
 def _classify_run(name: str) -> tuple[str, str, bool]:
     """Return (condition, panel, hostprep) from a run directory name."""
     if "_nop_" in name or name.startswith("nop_"):
@@ -70,6 +76,14 @@ def _classify_run(name: str) -> tuple[str, str, bool]:
 
     hostprep = "_hostprep" in name
     return condition, panel, hostprep
+
+
+def _load_json(path: Path) -> dict | list | None:
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]:
@@ -338,61 +352,13 @@ async def submit_feedback(request: Request):
 
 @app.get("/api/novels")
 async def list_novels():
-    return _discover_runs(include_scriptonly=True)
+    return await RUN_INDEX.get_novels()
 
 
 @app.get("/api/all-runs")
 async def list_all_runs():
     """List ALL runs with scripts, grouped by novel. Includes audio state."""
-    novels: dict[str, list[dict]] = {}
-    runs_dir = DATA_DIR / "runs"
-    if not runs_dir.exists():
-        return novels
-    for run_dir in sorted(runs_dir.iterdir()):
-        ep_path = run_dir / "phase3_episode.json"
-        if not ep_path.exists():
-            continue
-
-        # Load title from manifest or episode
-        manifest_path = run_dir / "manifest.json"
-        if manifest_path.exists():
-            with open(manifest_path) as f:
-                manifest = json.load(f)
-            title = manifest.get("title", run_dir.name)
-            experts = manifest.get("experts", [])
-        else:
-            with open(ep_path) as f:
-                ep = json.load(f)
-            title = ep.get("title", run_dir.name)
-            experts = []
-
-        novel = title.replace(": A Literary Discussion", "")
-        name = run_dir.name
-
-        # Determine condition and panel
-        if "_nop_" in name or name.startswith("nop_"):
-            condition = "no passages"
-        elif "_emb_" in name or name.startswith("emb_"):
-            condition = "embedding"
-        elif "interdisciplinary" in name:
-            condition = "interdisciplinary"
-        else:
-            condition = "transport"
-
-        has_gemini = (run_dir / "audio" / "manifest.json").exists()
-        audio_state = "gemini" if has_gemini else "kokoro"
-
-        run_info = {
-            "run_id": name,
-            "title": title,
-            "novel": novel,
-            "condition": condition,
-            "hostprep": "_hostprep" in name,
-            "audio_state": audio_state,
-            "experts": experts,
-        }
-        novels.setdefault(novel, []).append(run_info)
-    return novels
+    return await RUN_INDEX.get_all_runs()
 
 
 @app.get("/api/runs/{run_id}/manifest")
@@ -628,38 +594,101 @@ def _load_quote_verification(rd: Path) -> dict | None:
     return None
 
 
-def _run_detail(runs_dir: Path, rn: str) -> dict:
-    """Get status and detail for a run directory."""
-    import time
+@app.get("/tracker", response_class=HTMLResponse)
+async def tracker_page():
+    return HTMLResponse(TRACKER_HTML)
 
-    rd = runs_dir / rn
-    if (rd / "phase3_episode.json").exists():
-        m = _measure(rd / "phase3_episode.json")
-        timings = _phase_timings(rd)
-        qv = _load_quote_verification(rd)
-        has_gemini = (rd / "audio" / "manifest.json").exists()
-        # Also check the 'ext' variant name (older runs used ext instead of trn)
-        if not has_gemini and "_trn_" in rn:
-            alt_rd = runs_dir / rn.replace("_trn_", "_ext_")
-            has_gemini = (alt_rd / "audio" / "manifest.json").exists()
-        # audio_state: "gemini" (pre-rendered), "kokoro" (on-demand)
-        audio_state = "gemini" if has_gemini else "kokoro"
-        return {"name": rn, "status": "done", **(m or {}), "timings": timings, "qv": qv, "has_audio": has_gemini, "audio_state": audio_state}
-    if not (rd / "config.json").exists():
-        return {"name": rn, "status": "missing"}
 
-    # In progress — determine phase and progress
-    has_p0 = (rd / "phase0_segments.json").exists()
-    has_p1 = (rd / "phase1_assignments.json").exists()
-    has_p2 = (rd / "phase2_plan.json").exists()
-    has_hp = (rd / "phase2_5_host_briefs.json").exists()
+@app.get("/tracker/data")
+async def tracker_data():
+    return await RUN_INDEX.get_matrix()
 
-    expects_hp = False
-    try:
-        cfg = json.load(open(rd / "config.json"))
-        expects_hp = bool(cfg.get("host_prep"))
-    except (json.JSONDecodeError, KeyError):
-        pass
+
+def _summarize_run_dir(run_dir: Path) -> dict:
+    """Build one cached summary for a run directory."""
+    name = run_dir.name
+    audio_manifest_path = run_dir / "audio" / "manifest.json"
+    run_manifest_path = run_dir / "manifest.json"
+    episode_path = run_dir / "phase3_episode.json"
+    config_path = run_dir / "config.json"
+    reading_list_path = run_dir / "phase2_5_reading_list.json"
+    report_path = run_dir / "report.html"
+
+    manifest = _load_json(audio_manifest_path) or _load_json(run_manifest_path)
+    episode = _load_json(episode_path) if episode_path.exists() else None
+    config = _load_json(config_path) if config_path.exists() else None
+
+    title = (manifest or episode or {}).get("title", name)
+    novel = title.replace(": A Literary Discussion", "")
+    base_name, version = _parse_version(name)
+    condition, panel, hostprep = _classify_run(name)
+    has_audio = audio_manifest_path.exists()
+    has_host_prep = (run_dir / "phase2_5_host_briefs.json").exists()
+
+    summary = {
+        "run_id": name,
+        "name": name,
+        "title": title,
+        "novel": novel,
+        "base_name": base_name,
+        "version": version,
+        "condition": condition,
+        "panel": panel,
+        "hostprep": hostprep,
+        "passage_source": (manifest or {}).get("passage_source", "unknown"),
+        "experts": (manifest or {}).get("experts", []),
+        "total_duration_ms": (manifest or {}).get("total_duration_ms", 0),
+        "has_audio": has_audio,
+        "has_host_prep": has_host_prep,
+        "audio_state": "gemini" if has_audio else "kokoro",
+        "has_episode": episode_path.exists(),
+        "has_report": report_path.exists(),
+        "has_reading_list": reading_list_path.exists(),
+        "reading": {},
+        "metrics": {},
+    }
+
+    if reading_list_path.exists():
+        rl = _load_json(reading_list_path) or {}
+        summary["reading"] = {
+            "verified": rl.get("total_verified", 0),
+            "total": rl.get("total_proposed", 0),
+            "rate": rl.get("verification_rate", 0),
+            "recommended": rl.get("recommended", []),
+        }
+
+    if episode_path.exists():
+        m = _measure(episode_path)
+        timings = _phase_timings(run_dir)
+        qv = _load_quote_verification(run_dir)
+        summary.update({"status": "done", **(m or {}), "timings": timings, "qv": qv})
+        if isinstance(episode, dict):
+            total_words = sum(
+                len(u.get("text", "").split())
+                for seg in episode.get("segments", [])
+                for turn in seg.get("turns", [])
+                for u in turn.get("utterances", [])
+            )
+            total_turns = sum(
+                len(seg.get("turns", []))
+                for seg in episode.get("segments", [])
+            )
+            summary["metrics"] = {
+                "words": total_words,
+                "turns": total_turns,
+                "segments": len(episode.get("segments", [])),
+            }
+        return summary
+
+    if not config_path.exists():
+        summary["status"] = "missing"
+        return summary
+
+    has_p0 = (run_dir / "phase0_segments.json").exists()
+    has_p1 = (run_dir / "phase1_assignments.json").exists()
+    has_p2 = (run_dir / "phase2_plan.json").exists()
+    has_hp = has_host_prep
+    expects_hp = bool(config.get("host_prep")) if isinstance(config, dict) else False
 
     if has_p2 and (has_hp or not expects_hp):
         phase = "Phase 3"
@@ -672,245 +701,233 @@ def _run_detail(runs_dir: Path, rn: str) -> dict:
     else:
         phase = "Phase 0"
 
-    # Start time from config.json mtime
-    start_ts = rd / "config.json"
-    started = int(start_ts.stat().st_mtime)
-
-    # Elapsed time
+    started = int(config_path.stat().st_mtime)
     elapsed_min = round((time.time() - started) / 60, 1)
-
-    # Estimate progress within Phase 3
     phase3_pct = 0
     total_segs = 0
     if phase == "Phase 3" and has_p0:
-        try:
-            segs = json.load(open(rd / "phase0_segments.json"))
+        segs = _load_json(run_dir / "phase0_segments.json")
+        if isinstance(segs, list):
             total_segs = len(segs)
-        except (json.JSONDecodeError, KeyError):
-            pass
         if total_segs > 0:
-            # Count how many report.txt lines mention completed segments
-            # Use the most recently modified file's mtime as a heartbeat
-            mtimes = []
-            for f in rd.iterdir():
-                mtimes.append(f.stat().st_mtime)
-            # Rough estimate: each segment takes ~90s in Phase 3
-            elapsed_in_p3 = time.time() - (rd / "phase2_5_host_briefs.json" if has_hp
-                                           else rd / "phase2_plan.json").stat().st_mtime
+            phase_start = (run_dir / "phase2_5_host_briefs.json" if has_hp else run_dir / "phase2_plan.json")
+            elapsed_in_p3 = time.time() - phase_start.stat().st_mtime
             segs_done_est = min(int(elapsed_in_p3 / 90), total_segs - 1)
             phase3_pct = round(segs_done_est / total_segs * 100)
 
-    return {
-        "name": rn, "status": "running", "phase": phase,
-        "elapsed_min": elapsed_min, "started": started,
-        "phase3_pct": phase3_pct, "total_segs": total_segs,
-    }
+    summary.update(
+        {
+            "status": "running",
+            "phase": phase,
+            "elapsed_min": elapsed_min,
+            "started": started,
+            "phase3_pct": phase3_pct,
+            "total_segs": total_segs,
+        }
+    )
+    return summary
 
 
-def _check_process_alive() -> dict | None:
-    """Check if a pipeline process is running and what it's doing."""
-    import subprocess
-    try:
-        result = subprocess.run(
-            ["pgrep", "-fl", "enrichment.run_pipeline|enrichment.embedding_run|enrichment.run_novel|run_full_matrix"],
-            capture_output=True, text=True, timeout=5,
-        )
-        lines = [ln for ln in result.stdout.strip().split("\n") if ln and "pgrep" not in ln]
-        if not lines:
-            return None
-        # Extract the run name from the command line
-        for line in lines:
-            m = re.search(r"--name\s+(\S+)", line)
-            if m:
-                return {"pid": line.split()[0], "run": m.group(1), "alive": True}
-        return {"pid": lines[0].split()[0], "run": "unknown", "alive": True}
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
-
-
-def _compute_phase_histograms() -> dict:
-    """Compute timing histograms from completed runs."""
+def _build_cached_snapshot() -> dict:
     runs_dir = DATA_DIR / "runs"
+    novels: dict[str, list[dict]] = {}
+    all_runs: dict[str, list[dict]] = {}
+    run_summaries: dict[str, dict] = {}
     p25_times: list[float] = []
     p3_times: list[float] = []
+    versions_map: dict[str, list[dict]] = {}
 
-    for rd in runs_dir.iterdir():
-        if not rd.is_dir():
-            continue
-        config_f = rd / "config.json"
-        hp_briefs = rd / "phase2_5_host_briefs.json"
-        episode = rd / "phase3_episode.json"
+    if runs_dir.exists():
+        for run_dir in sorted(runs_dir.iterdir()):
+            if not run_dir.is_dir():
+                continue
+            summary = _summarize_run_dir(run_dir)
+            run_summaries[summary["run_id"]] = summary
 
-        if not (config_f.exists() and episode.exists()):
-            continue
+            if summary["title"]:
+                novel_entry = {
+                    "run_id": summary["run_id"],
+                    "base_name": summary["base_name"],
+                    "version": summary["version"],
+                    "title": summary["title"],
+                    "novel": summary["novel"],
+                    "condition": summary["condition"],
+                    "panel": summary["panel"],
+                    "hostprep": summary["hostprep"],
+                    "passage_source": summary["passage_source"],
+                    "experts": summary["experts"],
+                    "total_duration_ms": summary["total_duration_ms"],
+                    "has_audio": summary["has_audio"],
+                    "has_host_prep": summary["has_host_prep"],
+                }
+                novels.setdefault(summary["novel"], []).append(novel_entry)
+                all_runs.setdefault(summary["novel"], []).append(
+                    {
+                        "run_id": summary["run_id"],
+                        "title": summary["title"],
+                        "novel": summary["novel"],
+                        "condition": summary["condition"],
+                        "hostprep": summary["hostprep"],
+                        "audio_state": summary["audio_state"],
+                        "experts": summary["experts"],
+                    }
+                )
 
-        cfg_mtime = config_f.stat().st_mtime
-        ep_mtime = episode.stat().st_mtime
+            if summary["version"] != "v1.0":
+                versions_map.setdefault(summary["version"], []).append(
+                    {
+                        "run_id": summary["run_id"],
+                        "base_name": summary["base_name"],
+                        "version": summary["version"],
+                        "novel": summary["novel"],
+                        "condition": summary["condition"],
+                        "panel": summary["panel"],
+                        "hostprep": summary["hostprep"],
+                        "has_episode": summary["has_episode"],
+                        "has_report": summary["has_report"],
+                        "has_reading_list": summary["has_reading_list"],
+                        "has_audio": summary["has_audio"],
+                        "metrics": summary["metrics"],
+                        "reading": summary["reading"],
+                    }
+                )
 
-        if hp_briefs.exists():
-            hp_mtime = hp_briefs.stat().st_mtime
-            p25_dur = (hp_mtime - cfg_mtime) / 60
-            p3_dur = (ep_mtime - hp_mtime) / 60
-            if 1 < p25_dur < 30 and 5 < p3_dur < 30:
-                p25_times.append(round(p25_dur, 1))
-                p3_times.append(round(p3_dur, 1))
-        else:
-            total = (ep_mtime - cfg_mtime) / 60
-            if 5 < total < 30:
-                p3_times.append(round(total, 1))
+            timings = summary.get("timings") or {}
+            if timings.get("p25_min") is not None:
+                p25_times.append(timings["p25_min"])
+            if timings.get("p3_min") is not None:
+                p3_times.append(timings["p3_min"])
 
-    return {"p25": sorted(p25_times), "p3": sorted(p3_times)}
-
-
-def _build_matrix_data() -> dict:
-    runs_dir = DATA_DIR / "runs"
     rows = []
     total = 0
     done = 0
     running_count = 0
-    running_names = []
     for novel_key, title, author, year in TRACKER_NOVELS:
         cells = []
         for pp, panel, hp in TRACKER_CONDITIONS:
             total += 1
             rn = _tracker_run_name(novel_key, pp, panel, hp)
-            detail = _run_detail(runs_dir, rn)
+            detail = run_summaries.get(rn, {"name": rn, "status": "missing"})
             if detail["status"] == "done":
                 done += 1
             elif detail["status"] == "running":
                 running_count += 1
-                running_names.append(rn)
             cells.append(detail)
         rows.append({"key": novel_key, "title": title, "author": author, "year": year, "cells": cells})
 
-    process = _check_process_alive()
-    active_run = process["run"] if process and process.get("alive") else None
-
-    # Distinguish actively-running from stalled (crashed) partial runs
-    for row in rows:
-        for cell in row["cells"]:
-            if cell["status"] == "running":
-                if active_run and cell["name"] == active_run:
-                    pass  # genuinely running
-                elif active_run and active_run != "unknown":
-                    cell["status"] = "stalled"
-                # If process alive but run unknown, leave as "running" (ambiguous)
-
-    # Recount after reclassification
-    running_count = sum(
-        1 for row in rows for cell in row["cells"] if cell["status"] == "running"
+    refreshed_at = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+    versions = dict(
+        sorted(
+            ((v, len(runs)) for v, runs in versions_map.items()),
+            key=lambda item: _version_sort_key(item[0]),
+        )
     )
-    stalled_count = sum(
-        1 for row in rows for cell in row["cells"] if cell["status"] == "stalled"
-    )
+    version_runs = [
+        run
+        for _version, runs in sorted(
+            versions_map.items(),
+            key=lambda item: _version_sort_key(item[0]),
+        )
+        for run in runs
+    ]
 
-    histograms = _compute_phase_histograms()
     return {
-        "rows": rows, "total": total, "done": done,
-        "running": running_count, "stalled": stalled_count,
-        "running_names": [c["name"] for row in rows for c in row["cells"] if c["status"] == "running"],
-        "process": process, "histograms": histograms,
+        "novels": novels,
+        "all_runs": all_runs,
+        "matrix": {
+            "rows": rows,
+            "total": total,
+            "done": done,
+            "running": running_count,
+            "stalled": 0,
+            "running_names": [c["name"] for row in rows for c in row["cells"] if c["status"] == "running"],
+            "process": None,
+            "histograms": {"p25": sorted(p25_times), "p3": sorted(p3_times)},
+            "refreshed_at": refreshed_at,
+        },
+        "versions": {"versions": versions, "runs": version_runs},
+        "refreshed_at": refreshed_at,
     }
 
 
-@app.get("/tracker", response_class=HTMLResponse)
-async def tracker_page():
-    return HTMLResponse(TRACKER_HTML)
+class RunIndexCache:
+    def __init__(self, ttl_seconds: float = 30.0):
+        self.ttl_seconds = ttl_seconds
+        self._snapshot: dict | None = None
+        self._last_refresh = 0.0
+        self._schedule_lock = asyncio.Lock()
+        self._refresh_task: asyncio.Task | None = None
 
+    def _is_stale(self) -> bool:
+        return (time.monotonic() - self._last_refresh) >= self.ttl_seconds
 
-@app.get("/tracker/data")
-async def tracker_data():
-    return _build_matrix_data()
+    async def _run_refresh(self) -> None:
+        try:
+            snapshot = await asyncio.to_thread(_build_cached_snapshot)
+            self._snapshot = snapshot
+            self._last_refresh = time.monotonic()
+        except Exception:
+            logger.exception("Run index refresh failed")
+        finally:
+            self._refresh_task = None
 
+    async def _ensure_refresh_started(self) -> asyncio.Task:
+        async with self._schedule_lock:
+            if self._refresh_task is None or self._refresh_task.done():
+                self._refresh_task = asyncio.create_task(self._run_refresh())
+            return self._refresh_task
 
-def _build_version_data() -> dict:
-    """Build data for the version comparison view (v1.1+)."""
-    runs_dir = DATA_DIR / "runs"
-    if not runs_dir.exists():
-        return {"versions": {}, "runs": []}
-
-    runs_by_version: dict[str, list[dict]] = {}
-    for run_dir in sorted(runs_dir.iterdir()):
-        if not run_dir.is_dir():
-            continue
-        name = run_dir.name
-        base, version = _parse_version(name)
-        if version == "v1.0":
-            continue  # Matrix handles v1.0
-
-        episode = run_dir / "phase3_episode.json"
-        reading_list_path = run_dir / "phase2_5_reading_list.json"
-        report_path = run_dir / "report.html"
-
-        # Classify
-        condition, panel, hostprep = _classify_run(name)
-
-        # Determine novel from config or name
-        novel = "Unknown"
-        config_path = run_dir / "config.json"
-        if config_path.exists():
-            with open(config_path) as f:
-                cfg = json.load(f)
-            novel = cfg.get("novel", "unknown").replace("_", " ").title()
-        elif "pti_" in name or "passage_to_india" in name:
-            novel = "Passage To India"
-        elif name.startswith("ext_") or name.startswith("interdisciplinary"):
-            novel = "Bleak House"
-
-        # Metrics
-        metrics: dict = {}
-        if episode.exists():
-            with open(episode) as f:
-                ep = json.load(f)
-            total_words = sum(
-                len(u.get("text", "").split())
-                for seg in ep.get("segments", [])
-                for turn in seg.get("turns", [])
-                for u in turn.get("utterances", [])
-            )
-            total_turns = sum(
-                len(seg.get("turns", []))
-                for seg in ep.get("segments", [])
-            )
-            metrics = {"words": total_words, "turns": total_turns,
-                       "segments": len(ep.get("segments", []))}
-
-        # Reading list summary
-        reading: dict = {}
-        if reading_list_path.exists():
-            with open(reading_list_path) as f:
-                rl = json.load(f)
-            reading = {
-                "verified": rl.get("total_verified", 0),
-                "total": rl.get("total_proposed", 0),
-                "rate": rl.get("verification_rate", 0),
-                "recommended": rl.get("recommended", []),
-            }
-
-        run_info = {
-            "run_id": name,
-            "base_name": base,
-            "version": version,
-            "novel": novel,
-            "condition": condition,
-            "panel": panel,
-            "hostprep": hostprep,
-            "has_episode": episode.exists(),
-            "has_report": report_path.exists(),
-            "has_reading_list": reading_list_path.exists(),
-            "has_audio": (run_dir / "audio" / "manifest.json").exists(),
-            "metrics": metrics,
-            "reading": reading,
+    async def get_snapshot(self) -> dict:
+        if self._snapshot is None:
+            task = await self._ensure_refresh_started()
+            await task
+        elif self._is_stale():
+            await self._ensure_refresh_started()
+        return self._snapshot or {
+            "novels": {},
+            "all_runs": {},
+            "matrix": {
+                "rows": [],
+                "total": 0,
+                "done": 0,
+                "running": 0,
+                "stalled": 0,
+                "running_names": [],
+                "process": None,
+                "histograms": {"p25": [], "p3": []},
+                "refreshed_at": "",
+            },
+            "versions": {"versions": {}, "runs": []},
+            "refreshed_at": "",
         }
-        runs_by_version.setdefault(version, []).append(run_info)
 
-    return {"versions": {v: len(r) for v, r in runs_by_version.items()},
-            "runs": [r for runs in runs_by_version.values() for r in runs]}
+    async def prime(self) -> None:
+        await self._ensure_refresh_started()
+
+    async def get_novels(self) -> dict[str, list[dict]]:
+        return (await self.get_snapshot())["novels"]
+
+    async def get_all_runs(self) -> dict[str, list[dict]]:
+        return (await self.get_snapshot())["all_runs"]
+
+    async def get_matrix(self) -> dict:
+        return (await self.get_snapshot())["matrix"]
+
+    async def get_versions(self) -> dict:
+        return (await self.get_snapshot())["versions"]
+
+
+RUN_INDEX = RunIndexCache(ttl_seconds=30.0)
+
+
+@app.on_event("startup")
+async def warm_run_index() -> None:
+    await RUN_INDEX.prime()
 
 
 @app.get("/tracker/versions")
 async def tracker_versions_data():
-    return _build_version_data()
+    return await RUN_INDEX.get_versions()
 
 
 @app.get("/versions", response_class=HTMLResponse)
@@ -923,7 +940,7 @@ async def tracker_stream():
     async def event_generator():
         prev = ""
         while True:
-            data = _build_matrix_data()
+            data = await RUN_INDEX.get_matrix()
             payload = json.dumps(data)
             if payload != prev:
                 yield f"data: {payload}\n\n"
@@ -1020,7 +1037,6 @@ td.lo { background:#f8d7da; }
    <span style="background:#fff3cd"></span> 2&ndash;5 (moderate)
    <span style="background:#f8d7da"></span> &lt; 2 (monologue-like)
    <span style="background:#cce5ff"></span> running
-   <span style="background:#ffe0b2"></span> stalled (crashed)
    <span style="background:#f5f5f5"></span> pending
 </p>
 <p><strong>Column abbreviations:</strong> A = Panel A (Hartley/Blackstone/Woodcourt),
@@ -1032,33 +1048,20 @@ function render(data) {
     const remaining = data.total - data.done;
     let status = `<strong>${data.done}/${data.total}</strong> (${pct}%) &mdash; ${remaining} remaining `;
     if (data.running > 0) status += `<span style="color:#004085">&bull; ${data.running} in progress</span> `;
-    if (data.stalled > 0) status += `<span style="color:#e65100">&bull; ${data.stalled} stalled</span> `;
     status += `<br><span class="bar-bg"><span class="bar" style="width:${data.done*300/data.total}px"></span></span>`;
     document.getElementById('progress').innerHTML = status;
     // Process info
     let pinfo = '';
-    if (data.process && data.process.alive) {
-        pinfo = `&#9654; Pipeline process alive (PID ${data.process.pid}), current run: <strong>${data.process.run}</strong>`;
-        // Find the running cell to show details
-        for (const row of data.rows) {
-            for (const c of row.cells) {
-                if (c.status === 'running' && c.phase === 'Phase 3') {
-                    const pct = c.phase3_pct || 0;
-                    const segs = c.total_segs || '?';
-                    pinfo += ` &mdash; ${c.phase} (${segs} segments, ~${pct}% est.) &mdash; ${c.elapsed_min} min elapsed`;
-                    break;
-                } else if (c.status === 'running') {
-                    pinfo += ` &mdash; ${c.phase} &mdash; ${c.elapsed_min} min elapsed`;
-                    break;
-                }
-            }
-        }
-    } else if (data.running > 0) {
-        pinfo = '&#9888; Runs in progress but no pipeline process detected &mdash; may have crashed';
+    if (data.running > 0) {
+        pinfo = '&#9654; Latest filesystem snapshot shows ' + data.running + ' run(s) in progress';
+        if (data.refreshed_at) pinfo += ` &mdash; refreshed ${data.refreshed_at}`;
     } else if (data.done < data.total) {
-        pinfo = '&#9744; No pipeline process running. Use <code>uv run python -m enrichment.run_full_matrix --only-missing</code> to continue.';
+        pinfo = '&#9744; No active runs in the latest snapshot.';
+        if (data.refreshed_at) pinfo += ` Refreshed ${data.refreshed_at}.`;
+        pinfo += ' Use <code>uv run python -m enrichment.run_full_matrix --only-missing</code> to continue.';
     } else {
-        pinfo = '&#9989; All 120 runs complete!';
+        pinfo = '&#9989; All ' + data.total + ' runs complete!';
+        if (data.refreshed_at) pinfo += ` Snapshot refreshed ${data.refreshed_at}.`;
     }
     document.getElementById('procinfo').innerHTML = pinfo;
     let html = '';
@@ -1067,22 +1070,17 @@ function render(data) {
         for (const c of row.cells) {
             if (c.status === 'missing') {
                 html += '<td class="m">&mdash;</td>';
-            } else if (c.status === 'running' || c.status === 'stalled') {
+            } else if (c.status === 'running') {
                 const ph = c.phase || '?';
                 const pct = c.phase3_pct || 0;
                 const elapsed = c.elapsed_min || 0;
-                const isStalled = c.status === 'stalled';
-                const bgColor = isStalled ? 'ffe0b2' : 'cce5ff';
-                const fgColor = isStalled ? 'e65100' : '004085';
-                const label = isStalled ? `${ph} &#9888;` : ph;
-                let inner = `<span style="font-size:0.75em;font-weight:600;color:#${fgColor}">${label}</span>`;
-                if (!isStalled && ph === 'Phase 3' && pct > 0) {
+                let inner = `<span style="font-size:0.75em;font-weight:600;color:#004085">${ph}</span>`;
+                if (ph === 'Phase 3' && pct > 0) {
                     inner += `<br><span style="display:inline-block;width:90%;height:4px;background:#b8daff;border-radius:2px">` +
                         `<span style="display:inline-block;width:${pct}%;height:4px;background:#004085;border-radius:2px"></span></span>`;
                 }
-                inner += `<br><span style="font-size:0.7em;color:#${fgColor}">${elapsed}m</span>`;
-                const statusLabel = isStalled ? 'stalled' : 'running';
-                html += `<td style="background:#${bgColor}" title="${c.name} — ${ph} — ${statusLabel} — ${elapsed} min">${inner}</td>`;
+                inner += `<br><span style="font-size:0.7em;color:#004085">${elapsed}m</span>`;
+                html += `<td style="background:#cce5ff" title="${c.name} — ${ph} — running — ${elapsed} min">${inner}</td>`;
             } else {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 const cdata = encodeURIComponent(JSON.stringify(c));
@@ -1446,11 +1444,37 @@ Click &ldquo;Report&rdquo; to read the transcript with passage reveals and host 
 let allData = null;
 let activeVersion = null;
 
+function escapeHTML(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function versionSortKey(version) {
+    const nums = String(version).match(/[0-9]+/g);
+    return (nums || ['0']).map(n => parseInt(n, 10));
+}
+
+function compareVersions(a, b) {
+    const ak = versionSortKey(a);
+    const bk = versionSortKey(b);
+    const len = Math.max(ak.length, bk.length);
+    for (let i = 0; i < len; i++) {
+        const av = ak[i] || 0;
+        const bv = bk[i] || 0;
+        if (av !== bv) return av - bv;
+    }
+    return 0;
+}
+
 async function init() {
     const resp = await fetch('/tracker/versions');
     allData = await resp.json();
 
-    const versions = Object.entries(allData.versions).sort();
+    const versions = Object.entries(allData.versions).sort((a, b) => compareVersions(a[0], b[0]));
     if (versions.length === 0) {
         document.getElementById('content').innerHTML =
             '<div class="empty">No versioned runs found.</div>';
@@ -1500,8 +1524,8 @@ function renderCards() {
     }
 
     let html = '';
-    for (const [novel, novelRuns] of Object.entries(byNovel).sort()) {
-        html += '<div class="novel-group"><h2>' + novel + '</h2><div class="cards">';
+    for (const [novel, novelRuns] of Object.entries(byNovel).sort((a, b) => a[0].localeCompare(b[0]))) {
+        html += '<div class="novel-group"><h2>' + escapeHTML(novel) + '</h2><div class="cards">';
         for (const r of novelRuns) { html += renderCard(r); }
         html += '</div></div>';
     }
@@ -1528,7 +1552,7 @@ function renderCard(r) {
             r.reading.verified + '/' + r.reading.total +
             ' verified, ' + Math.round(r.reading.rate * 100) + '%)</h4><ul>';
         for (const ref of r.reading.recommended)
-            reading += '<li>' + ref + '</li>';
+            reading += '<li>' + escapeHTML(ref) + '</li>';
         reading += '</ul></div>';
     } else if (r.reading && r.reading.verified > 0) {
         reading = '<div class="card-reading"><h4>' +
@@ -1536,15 +1560,15 @@ function renderCard(r) {
     }
 
     let links = '<div class="card-links">';
-    if (r.has_report) links += '<a href="/report/' + r.run_id + '">Report</a>';
-    if (r.has_audio) links += '<a href="/player?run=' + r.run_id + '">Listen</a>';
+    if (r.has_report) links += '<a href="/report/' + encodeURIComponent(r.run_id) + '">Report</a>';
+    if (r.has_audio) links += '<a href="/player?run=' + encodeURIComponent(r.run_id) + '">Listen</a>';
     links += '</div>';
 
     return '<div class="card">' +
         '<div class="card-header">' +
-            '<span class="card-panel">' + r.panel + '</span>' +
-            '<span class="card-condition">' + r.version + ' &middot; ' +
-                r.condition + (r.hostprep ? ' +hp' : '') + '</span>' +
+            '<span class="card-panel">' + escapeHTML(r.panel) + '</span>' +
+            '<span class="card-condition">' + escapeHTML(r.version) + ' &middot; ' +
+                escapeHTML(r.condition + (r.hostprep ? ' +hp' : '')) + '</span>' +
         '</div>' +
         '<div class="card-badges">' + badges + '</div>' +
         (metrics ? '<div class="card-metrics">' + metrics + '</div>' : '') +

@@ -23,6 +23,23 @@ let openPassageTurnId = null;
 let currentBaseName = null;  // base run name (without version suffix)
 let runsByBase = {};   // { base_name: [{run_id, version, ...}, ...] }
 
+function versionSortKey(version) {
+    const nums = String(version).match(/\d+/g);
+    return (nums || ["0"]).map(n => parseInt(n, 10));
+}
+
+function compareVersions(a, b) {
+    const ak = versionSortKey(a);
+    const bk = versionSortKey(b);
+    const len = Math.max(ak.length, bk.length);
+    for (let i = 0; i < len; i++) {
+        const av = ak[i] || 0;
+        const bv = bk[i] || 0;
+        if (av !== bv) return av - bv;
+    }
+    return 0;
+}
+
 // ── DOM refs ──
 const novelTitle   = document.getElementById("novel-title");
 const novelSelect  = document.getElementById("novel-select");
@@ -95,7 +112,7 @@ function selectNovel(novelName) {
     runSelect.innerHTML = "";
     for (const [base, versions] of Object.entries(runsByBase)) {
         // Sort versions so latest is last
-        versions.sort((a, b) => a.version.localeCompare(b.version));
+        versions.sort((a, b) => compareVersions(a.version, b.version));
         const rep = versions[0];
         const opt = document.createElement("option");
         opt.value = base;
