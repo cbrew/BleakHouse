@@ -246,6 +246,7 @@ async function loadRun(runId) {
     }
 
     renderTranscript();
+    loading.style.display = "none";
 
     // Determine if this run has audio
     const runMeta = currentRuns.find(r => r.run_id === runId);
@@ -267,7 +268,6 @@ async function loadRun(runId) {
 
         audio.addEventListener("loadedmetadata", () => {
             seekBar.max = audio.duration;
-            loading.style.display = "none";
         });
 
         audio.addEventListener("ended", () => {
@@ -276,13 +276,10 @@ async function loadRun(runId) {
 
         if (audio.readyState >= 1) {
             seekBar.max = audio.duration;
-            loading.style.display = "none";
         }
     } else {
-        // Script-only: hide audio controls, show transcript immediately
         playerBar.style.display = "none";
         if (audio) { audio.pause(); audio.src = ""; audio = null; }
-        loading.style.display = "none";
     }
 }
 
