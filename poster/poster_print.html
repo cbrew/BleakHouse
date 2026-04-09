@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Not In Our Time: Transport-Based Content Selection — MSLD 2026</title>
+<script src="poster_provenance.js" onerror="void 0"></script>
 <style>
 /* ── Print dimensions: 40×30 inches landscape ── */
 @page {
@@ -562,17 +563,11 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
     <div class="sec-head"><h2>What We Do Not Claim</h2><div class="rule"></div></div>
     <p class="small">The outputs are fluent, structured, and plausible-sounding — the system discusses texts it has not read (Bayard, 2007) with all the confidence of expert critics (Doshi &amp; Hauser, 2024). We do not claim the podcasts are <em>good</em> literary criticism.</p>
     <p class="small">Following Boden's (2004) taxonomy, the system performs <strong>combinational creativity</strong>: it recombines existing critical moves in new configurations. The interesting creativity is the <em>user's</em> — exploring which configurations produce illuminating or stereotyped discussions, and why.</p>
-    <div style="display:flex;gap:0.07in;margin:0.06in 0 0.04in;">
-      <div style="flex:1;background:rgba(114,47,55,0.06);border-left:3.5px solid var(--burgundy);border-radius:0 3px 3px 0;padding:0.05in 0.08in;">
-        <p style="margin:0 0 0.02in;font-size:0.21in;font-family:Arial,sans-serif;font-weight:bold;color:var(--burgundy);">Automated metrics only</p>
-        <p style="margin:0;font-size:0.19in;color:var(--charcoal);">No human evaluation of discussion quality, insight, or literary value. Passage coverage and demand satisfaction are proxies, not guarantees.</p>
-      </div>
-      <div style="flex:1;background:rgba(45,107,94,0.06);border-left:3.5px solid var(--teal);border-radius:0 3px 3px 0;padding:0.05in 0.08in;">
-        <p style="margin:0 0 0.02in;font-size:0.21in;font-family:Arial,sans-serif;font-weight:bold;color:var(--teal);">Framework as prompt</p>
-        <p style="margin:0;font-size:0.19in;color:var(--charcoal);">Expert personas are natural-language LLM prompts. Whether they replicate Fish's interpretive communities is an open question.</p>
-      </div>
-    </div>
     <p class="small">The system's value is <strong>diagnostic</strong>: it turns a black-box pipeline into a navigable space of configurations, making the machinery — and its stereotypes — visible.</p>
+    <p class="small">The demo website carries provenance badges built on git history: commits with <code style="font-size:0.17in;background:rgba(0,0,0,0.06);padding:1px 3px;border-radius:2px;">Co-Authored-By: Claude</code> in the log are flagged,
+      and <code style="font-size:0.17in;background:rgba(0,0,0,0.06);padding:1px 3px;border-radius:2px;">git blame</code> determines what fraction of the current file
+      they account for. This poster has <span id="prov-ai-commits">9</span> AI commits of <span id="prov-total-commits">9</span> total.
+      Verdict: <strong id="prov-verdict">AI-drafted</strong>.</p>
   </div>
 
 </div><!-- /col1 -->
@@ -748,30 +743,20 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
   <div class="box">
     <div class="sec-head"><h2>Pastiche in Action</h2><div class="rule"></div></div>
     <p><strong>Pastiche</strong> is imitation of style, not reproduction of text. Ungrounded outputs draw on training-data memory: the vocabulary and register are absorbed from the novel; the sentences were never written by the author.</p>
-    <div class="quote-box">
-      <p class="quote-text">"Name, Jo. Nothing else that he knows on. Don't know that everybody has two names. Never heerd of sich a think. No father, no mother, no friends. Never been to school."</p>
-      <p class="quote-attr">— Bleak House, Ch. 11 — Jo's testimony</p>
-    </div>
-    <div class="pastiche-box pastiche-verified">
+    <p class="small" style="color:var(--warmgray);margin-bottom:0.05in;">From a no-passages run on <em>Hester</em> (Oliphant, 1883) — a novel with 0% verified grounding. Every quoted sentence below was invented by the LLM.</p>
+    <div class="pastiche-box pastiche-invented">
       <div class="pastiche-row">
-        <p class="pastiche-quote">"Fog everywhere. Fog up the river…"</p>
-        <span class="badge badge-teal">Verified 100%</span>
+        <p class="pastiche-quote">"The two men who had loved her — or rather who had shown her some passing tenderness — had both given her a great deal to think of, but neither of them satisfied her mind."</p>
+        <span class="badge badge-burgundy">Invented</span>
       </div>
-      <p class="pastiche-note">Reproduced verbatim from LLM memory</p>
+      <p class="pastiche-note">Oliphant's qualifying irony absorbed from training data; no such sentence exists in the novel.</p>
     </div>
     <div class="pastiche-box pastiche-invented">
       <div class="pastiche-row">
-        <p class="pastiche-quote">"I am very weak, but I shall begin the world."</p>
-        <span class="badge badge-burgundy">Invented · 100% vocab</span>
+        <p class="pastiche-quote">"Whether Hester and Roland came together after, and what became of her high spirit and energy in the life of a woman — the author cannot tell."</p>
+        <span class="badge badge-burgundy">Invented · narrator voice</span>
       </div>
-      <p class="pastiche-note">Every word appears in the novel, but this sentence does not exist</p>
-    </div>
-    <div class="pastiche-box pastiche-invented">
-      <div class="pastiche-row">
-        <p class="pastiche-quote">"I don't know nothink."</p>
-        <span class="badge badge-burgundy">Invented · 80% vocab</span>
-      </div>
-      <p class="pastiche-note">Jo's dialect remembered; phrasing reconstructed</p>
+      <p class="pastiche-note">"The author cannot tell" is a Victorian evasion trope. The LLM reaches for it automatically — performing restraint rather than exercising it.</p>
     </div>
   </div>
 
@@ -840,5 +825,14 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
 </div><!-- /col3 -->
 
 </div><!-- /columns -->
+<script>
+(function () {
+  var p = window.POSTER_PROVENANCE;
+  if (!p) return;
+  document.getElementById('prov-ai-commits').textContent = p.aiCommits;
+  document.getElementById('prov-total-commits').textContent = p.totalCommits;
+  document.getElementById('prov-verdict').textContent = p.badge;
+})();
+</script>
 </body>
 </html>
