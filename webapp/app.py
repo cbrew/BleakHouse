@@ -204,10 +204,38 @@ async def research_page():
 
 @app.get("/poster", response_class=HTMLResponse)
 async def poster_page():
+    """Wrapper page: nav bar + scrollable iframe containing the poster."""
+    html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Poster — Not In Our Time</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0e1a; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  #poster-frame {
+    flex: 1;
+    border: none;
+    display: block;
+    overflow: auto;
+    background: #fff;
+  }
+</style>
+</head>
+<body>
+<iframe id="poster-frame" src="/poster/raw" title="MSLD 2026 Conference Poster" scrolling="yes"></iframe>
+<script src="/static/nav.js"></script>
+</body>
+</html>"""
+    return HTMLResponse(html)
+
+
+@app.get("/poster/raw", response_class=HTMLResponse)
+async def poster_raw():
+    """Raw poster HTML with base href set — loaded inside the /poster iframe."""
     html = (POSTER_DIR / "poster_print.html").read_text()
     html = html.replace("<head>", '<head>\n<base href="/poster/">', 1)
-    # Inject site-standard nav + provenance badge (absolute path, unaffected by base href)
-    html = html.replace("</body>", '<script src="/static/nav.js"></script>\n</body>', 1)
     return HTMLResponse(html)
 
 
