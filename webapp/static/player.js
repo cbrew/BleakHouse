@@ -14,14 +14,13 @@ const SPEAKER_COLORS = {
 const SPEEDS = [0.75, 1.0, 1.25, 1.5, 2.0];
 
 let novels = {};       // { "Bleak House": [{run_id, experts, ...}, ...], ... }
+let currentRuns = []; // runs for the currently selected novel
 let manifest = null;
 let flatTurns = [];
 let audio = null;
 let currentTurnIdx = -1;
 let speedIdx = 1;
 let openPassageTurnId = null;
-let currentBaseName = null;  // base run name (without version suffix)
-let runsByBase = {};   // { base_name: [{run_id, version, ...}, ...] }
 
 function versionSortKey(version) {
     const nums = String(version).match(/\d+/g);
@@ -41,10 +40,12 @@ function compareVersions(a, b) {
 }
 
 // ── DOM refs ──
-const novelTitle   = document.getElementById("novel-title");
-const novelSelect  = document.getElementById("novel-select");
-const runSelect    = document.getElementById("run-select");
-const expertChips  = document.getElementById("expert-chips");
+const novelTitle      = document.getElementById("novel-title");
+const novelSelect     = document.getElementById("novel-select");
+const panelSelect     = document.getElementById("panel-select");
+const groundingSelect = document.getElementById("grounding-select");
+const hostprepSelect  = document.getElementById("hostprep-select");
+const expertChips     = document.getElementById("expert-chips");
 const playBtn      = document.getElementById("play-btn");
 const seekBar      = document.getElementById("seek-bar");
 const timeDisplay  = document.getElementById("time-display");
@@ -65,7 +66,9 @@ async function init() {
     if (directRun) {
         // Hide selectors, load directly
         novelSelect.style.display = "none";
-        runSelect.style.display = "none";
+        panelSelect.style.display = "none";
+        groundingSelect.style.display = "none";
+        hostprepSelect.style.display = "none";
         // Find the novel for this run
         for (const [name, runs] of Object.entries(novels)) {
             if (runs.some(r => r.run_id === directRun)) {
@@ -91,81 +94,112 @@ async function init() {
         novelSelect.appendChild(opt);
     }
     novelSelect.addEventListener("change", () => selectNovel(novelSelect.value));
+    panelSelect.addEventListener("change", () => onPanelChange());
+    groundingSelect.addEventListener("change", () => onGroundingChange());
+    hostprepSelect.addEventListener("change", () => onHostprepChange());
     selectNovel(novelNames[0]);
 }
+
+// ── Selector helpers ──
+
+function groundingKey(condition) {
+    return (condition === "no passages") ? "nop" : "passages";
+}
+
+function groundingLabel(gk) {
+    return gk === "nop" ? "No passage grounding" : "With passage grounding";
+}
+
+function formatPanelLabel(panelField) {
+    // "Panel A (Hartley / Blackstone / Woodcourt)" → "Hartley, Blackstone & Woodcourt"
+    // "Chen / Martinez / Volkov" → "Chen, Martinez & Volkov"
+    const inner = panelField.replace(/^Panel \w+ \((.+)\)$/, "$1");
+    const parts = inner.split(" / ").map(s => s.trim());
+    if (parts.length === 3) return `${parts[0]}, ${parts[1]} & ${parts[2]}`;
+    return parts.join(" & ");
+}
+
+function showSelect(el, show) {
+    el.style.display = show ? "" : "none";
+}
+
+// ── Novel / selector logic ──
 
 function selectNovel(novelName) {
     novelTitle.textContent = novelName + " Unpacked";
     document.title = novelName + " — Literary Podcast";
+    currentRuns = novels[novelName] || [];
 
-    const runs = novels[novelName] || [];
-
-    // Group runs by base_name, picking best version for dropdown label
-    runsByBase = {};
-    for (const run of runs) {
-        const base = run.base_name || run.run_id;
-        if (!runsByBase[base]) runsByBase[base] = [];
-        runsByBase[base].push(run);
+    // Populate panel selector
+    const panelMap = new Map(); // panel field → display label
+    for (const run of currentRuns) {
+        if (!panelMap.has(run.panel)) panelMap.set(run.panel, formatPanelLabel(run.panel));
     }
-
-    // Populate run dropdown with one entry per base run (use first version for label)
-    runSelect.innerHTML = "";
-    for (const [base, versions] of Object.entries(runsByBase)) {
-        // Sort versions so latest is last
-        versions.sort((a, b) => compareVersions(a.version, b.version));
-        const rep = versions[0];
+    panelSelect.innerHTML = "";
+    for (const [key, label] of panelMap) {
         const opt = document.createElement("option");
-        opt.value = base;
-        const names = rep.experts.map(e => e.name).join(", ");
-        const cond = rep.condition ? ` [${rep.condition}]` : "";
-        const hp = rep.hostprep ? " +hostprep" : "";
-        opt.textContent = `${names}${cond}${hp}`;
-        runSelect.appendChild(opt);
+        opt.value = key;
+        opt.textContent = label;
+        panelSelect.appendChild(opt);
     }
-    runSelect.onchange = () => selectBaseRun(runSelect.value);
+    showSelect(panelSelect, panelMap.size > 1);
 
-    const bases = Object.keys(runsByBase);
-    if (bases.length > 0) {
-        selectBaseRun(bases[0]);
-    }
+    onPanelChange();
 }
 
-function selectBaseRun(baseName) {
-    currentBaseName = baseName;
-    const versions = runsByBase[baseName] || [];
-    const versionBar = document.getElementById("version-bar");
+function onPanelChange() {
+    const panel = panelSelect.value;
+    const panelRuns = currentRuns.filter(r => r.panel === panel);
+    const prevGrounding = groundingSelect.value;
 
-    if (versions.length <= 1) {
-        // Single version — hide pills, load directly
-        versionBar.style.display = "none";
-        loadRun(versions[0].run_id);
-        return;
+    // Populate grounding for this panel
+    const groundings = [...new Set(panelRuns.map(r => groundingKey(r.condition)))];
+    groundingSelect.innerHTML = "";
+    for (const gk of groundings) {
+        const opt = document.createElement("option");
+        opt.value = gk;
+        opt.textContent = groundingLabel(gk);
+        groundingSelect.appendChild(opt);
     }
+    if (groundings.includes(prevGrounding)) groundingSelect.value = prevGrounding;
+    showSelect(groundingSelect, groundings.length > 1);
 
-    // Show version pills
-    versionBar.style.display = "flex";
-    versionBar.innerHTML = "";
-    const label = document.createElement("span");
-    label.textContent = "Version:";
-    label.style.cssText = "color:#8888aa;font-size:0.85em;margin-right:0.4em;";
-    versionBar.appendChild(label);
+    onGroundingChange(panelRuns);
+}
 
-    // Default to latest version
-    const latest = versions[versions.length - 1];
-    for (const v of versions) {
-        const pill = document.createElement("button");
-        pill.className = "version-pill" + (v === latest ? " active" : "");
-        pill.textContent = v.version;
-        if (!v.has_audio) pill.textContent += " (script)";
-        pill.dataset.runId = v.run_id;
-        pill.addEventListener("click", () => {
-            versionBar.querySelectorAll(".version-pill").forEach(p => p.classList.remove("active"));
-            pill.classList.add("active");
-            loadRun(v.run_id);
-        });
-        versionBar.appendChild(pill);
+function onGroundingChange(panelRuns) {
+    if (!panelRuns) panelRuns = currentRuns.filter(r => r.panel === panelSelect.value);
+    const grounding = groundingSelect.value;
+    const prevHostprep = hostprepSelect.value;
+
+    const groundedRuns = panelRuns.filter(r => groundingKey(r.condition) === grounding);
+    const hostpreps = [...new Set(groundedRuns.map(r => r.hostprep))].sort();
+
+    hostprepSelect.innerHTML = "";
+    for (const hp of hostpreps) {
+        const opt = document.createElement("option");
+        opt.value = hp ? "prep" : "noprep";
+        opt.textContent = hp ? "Prepared host" : "No host prep";
+        hostprepSelect.appendChild(opt);
     }
-    loadRun(latest.run_id);
+    const available = [...hostprepSelect.options].map(o => o.value);
+    if (available.includes(prevHostprep)) hostprepSelect.value = prevHostprep;
+    showSelect(hostprepSelect, hostpreps.length > 1);
+
+    onHostprepChange(groundedRuns);
+}
+
+function onHostprepChange(groundedRuns) {
+    if (!groundedRuns) {
+        const panel = panelSelect.value;
+        const grounding = groundingSelect.value;
+        groundedRuns = currentRuns.filter(r =>
+            r.panel === panel && groundingKey(r.condition) === grounding
+        );
+    }
+    const wantPrep = hostprepSelect.value === "prep";
+    const match = groundedRuns.find(r => r.hostprep === wantPrep) || groundedRuns[0];
+    if (match) loadRun(match.run_id);
 }
 
 async function loadRun(runId) {
@@ -211,7 +245,7 @@ async function loadRun(runId) {
     renderTranscript();
 
     // Determine if this run has audio
-    const runMeta = Object.values(runsByBase).flat().find(r => r.run_id === runId);
+    const runMeta = currentRuns.find(r => r.run_id === runId);
     const hasAudio = runMeta ? runMeta.has_audio : true;
     const playerBar = document.getElementById("player-bar");
 
