@@ -160,8 +160,6 @@
 
 \vspace{0.04in}
 
-\vspace{0.04in}
-
 % ============================================================
 % EPIGRAPH
 % ============================================================
@@ -177,7 +175,7 @@
     (1853), Chapter~1}
 \end{tcolorbox}
 
-\vspace{0.04in}
+\vspace{0.02in}
 
 % ============================================================
 % THREE-COLUMN BODY
@@ -196,6 +194,12 @@
   different discussions?}
 
 \bodysize
+Google's NotebookLM popularised LLM-generated podcast conversations,
+but the conversational design behind such systems is largely unexamined.\
+What makes a multi-voice discussion \textit{cohere}---sound like a genuine
+conversation rather than parallel monologues?\ What levers does a
+designer have, and which ones actually matter?
+
 We implement two reading strategies as passage-selection algorithms
 applied to \textbf{15~Victorian novels}, then generate structured
 multi-voice literary discussions from each selection.
@@ -324,6 +328,25 @@ depth (+6.9\,pp).\par
 \textbf{No-passages}: LLM discusses from prior knowledge alone.
 \end{tcolorbox}
 
+\vspace{0.04in}
+
+% ------ WHY NOT RAG? ------
+\begin{tcolorbox}[posterbox]
+\postersection{Why Not RAG?}
+
+\bodysize
+Standard RAG retrieves by embedding similarity and feeds results to an
+LLM\@.  Effective but opaque: the user cannot see \textit{why} a
+passage was selected, cannot adjust criteria, and cannot explore
+how different priorities reshape the output.
+
+\vspace{4pt}
+Min-cost flow makes every decision visible as a \textbf{cost},
+a \textbf{flow}, and a \textbf{constraint}.  Solving a flow costs
+$<$1\,s and zero LLM tokens---a \textbf{thinking tool} for
+rapid exploration of alternatives.
+\end{tcolorbox}
+
 % ------ REFERENCES + DEMO (bottom of column 1) ------
 \vspace{0.04in}
 \begin{tcolorbox}[posterbox]
@@ -360,6 +383,15 @@ LexisNexis Legal~\&~Professional.
   dimensions match demand profiles, the selector optimises for demand
   satisfaction, host preparation targets specific experts, and the script
   prompt reinforces perspectives. Convergence follows from this engineering.}
+
+\bodysize
+The system exposes four independently manipulable levers:
+\textbf{expert personas} (demand profiles that control what each speaker
+seeks); \textbf{passage grounding} (selected passages that anchor
+quotation and prevent confabulation); \textbf{conversational design}
+(prompt-level specifications for quote handling, reactive language, and
+turn structure); and \textbf{segment continuity} (bridging between
+independently generated segments).
 
 \vspace{6pt}
 
@@ -446,6 +478,26 @@ leitmotifs, phrase structure) but not their \textbf{methods} --- the
 scaffold imports literary-critical norms regardless of the persona.
 \end{tcolorbox}
 
+\vspace{0.04in}
+
+\begin{tcolorbox}[posterbox]
+\postersection{Deliberate Stereotypes}
+
+\bodysize
+The expert personas are deliberately \textit{caricatures}: the literary
+critic always finds prose rhythm; the social historian always finds
+institutional critique; the close reader always finds texture.
+By making the stereotypes explicit---encoded as
+\textbf{demand vectors} rather than implicit in a prompt---the system
+turns editorial bias into a first-class object that can be inspected,
+compared, and argued about.
+\end{tcolorbox}
+
+\vspace{0.04in}
+\noindent
+\includegraphics[height=1.4in]{screenshots/landing_page.png}\hfill
+\includegraphics[height=1.4in]{screenshots/audio_player.png}
+
 \end{minipage}\hfill
 %
 % ------ COLUMN 3: Gradient + Pastiche + Findings ------
@@ -486,15 +538,11 @@ scaffold imports literary-critical norms regardless of the persona.
 \gradbar{Middlemarch}{Eliot}{57}{teal}
 \gradbar{Bleak House}{Dickens}{53}{teal!90!black}
 \gradbar{David Copperfield}{Dickens}{44}{teal!70!gold}
-\gradbar{Hard Times}{Dickens}{39}{teal!60!gold}
 \gradbar{Passage to India}{Forster}{39}{teal!60!gold}
-\gradbar{Mill on the Floss}{Eliot}{37}{teal!55!gold}
 \gradbar{Cranford}{Gaskell}{33}{gold!70!teal}
-\gradbar{Daniel Deronda}{Eliot}{30}{gold!60!teal}
 \gradbar{Our Mutual Friend}{Dickens}{29}{gold!55!teal}
 \gradbar{New Grub Street}{Gissing}{20}{gold!40!burgundy}
 \gradbar{The Odd Women}{Gissing}{6}{burgundylight}
-\gradbar{Miss Marjoribanks}{Oliphant}{3}{burgundy!80}
 \gradbar{North and South}{Gaskell}{2}{burgundy!85}
 \gradbar{Hester}{Oliphant}{0}{burgundy}
 \gradbar{No Name}{Collins}{0}{burgundy}
