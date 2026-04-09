@@ -217,54 +217,143 @@ async def research_page():
 
 @app.get("/poster", response_class=HTMLResponse)
 async def poster_page():
-    """Wrapper page: nav bar + scrollable iframe containing the poster."""
-    html = """<!DOCTYPE html>
+    """Pan/zoom viewer for the 40×30" poster.
+
+    A transparent overlay captures all mouse events so drag-to-pan and
+    wheel-to-zoom work across the full viewport, including over the iframe.
+    Zoom buttons and a fit-width control are provided in the corner.
+    """
+    return HTMLResponse("""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Poster — Not In Our Time</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #0a0e1a; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-  #poster-frame {
-    flex: 1;
-    border: none;
-    display: block;
-    overflow: auto;
-    background: #fff;
-  }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0e1a; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+#viewer {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #111;
+  user-select: none;
+}
+#poster-container { position: absolute; transform-origin: 0 0; }
+#poster-frame {
+  width: 3840px; height: 2880px;
+  border: none; display: block;
+  pointer-events: none;
+}
+#overlay {
+  position: absolute; inset: 0;
+  cursor: grab; z-index: 10;
+}
+#overlay.dragging { cursor: grabbing; }
+#zoom-controls {
+  position: absolute; bottom: 60px; right: 16px;
+  z-index: 20; display: flex; flex-direction: column; gap: 4px;
+}
+.zoom-btn {
+  width: 36px; height: 36px;
+  background: #1a2744; border: 1px solid #2a3754; border-radius: 6px;
+  color: #e8e8e8; font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+  font-family: -apple-system, sans-serif;
+}
+.zoom-btn:hover { background: #0f3460; }
+#zoom-label {
+  color: #8888aa; font-size: 0.75em;
+  text-align: center; font-family: sans-serif;
+}
 </style>
 </head>
 <body>
-<iframe id="poster-frame" src="/poster/raw" title="MSLD 2026 Conference Poster" scrolling="yes"></iframe>
+<div id="viewer">
+  <div id="poster-container">
+    <iframe id="poster-frame" src="/poster/raw"
+            title="MSLD 2026 Conference Poster" scrolling="no"></iframe>
+  </div>
+  <div id="overlay"></div>
+  <div id="zoom-controls">
+    <button class="zoom-btn" id="btn-in"  title="Zoom in">+</button>
+    <button class="zoom-btn" id="btn-out" title="Zoom out">−</button>
+    <button class="zoom-btn" id="btn-fit" title="Fit width"
+            style="font-size:11px;">Fit</button>
+    <div id="zoom-label">100%</div>
+  </div>
+</div>
 <script src="/static/nav.js?v=2"></script>
+<script>
+(function () {
+  var POSTER_W = 3840, POSTER_H = 2880;
+  var viewer    = document.getElementById('viewer');
+  var container = document.getElementById('poster-container');
+  var overlay   = document.getElementById('overlay');
+  var label     = document.getElementById('zoom-label');
+  var scale = 1, tx = 0, ty = 0;
+
+  function apply() {
+    container.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
+    label.textContent = Math.round(scale * 100) + '%';
+  }
+
+  function fitWidth() {
+    scale = viewer.clientWidth / POSTER_W;
+    tx = 0; ty = 0;
+    apply();
+  }
+
+  function zoomAt(factor, cx, cy) {
+    var ns = Math.max(0.1, Math.min(4, scale * factor));
+    var sf = ns / scale;
+    tx = cx - sf * (cx - tx);
+    ty = cy - sf * (cy - ty);
+    scale = ns;
+    apply();
+  }
+
+  fitWidth();
+  window.addEventListener('resize', fitWidth);
+
+  // Wheel zoom toward cursor
+  viewer.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var r = viewer.getBoundingClientRect();
+    zoomAt(e.deltaY < 0 ? 1.1 : 0.9, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  // Drag to pan
+  var dragging = false, ox, oy, stx, sty;
+  overlay.addEventListener('mousedown', function (e) {
+    dragging = true; ox = e.clientX; oy = e.clientY; stx = tx; sty = ty;
+    overlay.classList.add('dragging'); e.preventDefault();
+  });
+  window.addEventListener('mousemove', function (e) {
+    if (!dragging) return;
+    tx = stx + e.clientX - ox; ty = sty + e.clientY - oy; apply();
+  });
+  window.addEventListener('mouseup', function () {
+    dragging = false; overlay.classList.remove('dragging');
+  });
+
+  // Buttons (zoom toward viewport centre)
+  function mid() { return { x: viewer.clientWidth / 2, y: viewer.clientHeight / 2 }; }
+  document.getElementById('btn-in').onclick  = function () { var m = mid(); zoomAt(1.25, m.x, m.y); };
+  document.getElementById('btn-out').onclick = function () { var m = mid(); zoomAt(0.8,  m.x, m.y); };
+  document.getElementById('btn-fit').onclick = fitWidth;
+})();
+</script>
 </body>
-</html>"""
-    return HTMLResponse(html)
+</html>""")
 
 
 @app.get("/poster/raw", response_class=HTMLResponse)
 async def poster_raw():
-    """Raw poster HTML with base href set — loaded inside the /poster iframe.
-
-    Injects a zoom script so the 40×30 inch poster scales to fit the viewport
-    width, making the full poster navigable without huge scrolling.
-    """
+    """Raw poster HTML served inside the /poster viewer iframe (no nav, no zoom)."""
     html = (POSTER_DIR / "poster_print.html").read_text()
     html = html.replace("<head>", '<head>\n<base href="/poster/">', 1)
-    zoom_script = """<script>
-(function () {
-  var POSTER_PX = 3840; // 40in at 96dpi
-  function applyZoom() {
-    var scale = Math.min(1, window.innerWidth / POSTER_PX);
-    document.documentElement.style.zoom = scale;
-  }
-  applyZoom();
-  window.addEventListener('resize', applyZoom);
-})();
-</script>"""
-    html = html.replace("</body>", zoom_script + "\n</body>", 1)
     return HTMLResponse(html)
 
 
