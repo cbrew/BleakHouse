@@ -66,9 +66,9 @@ async function init() {
     if (directRun) {
         // Hide selectors, load directly
         novelSelect.style.display = "none";
-        panelSelect.style.display = "none";
-        groundingSelect.style.display = "none";
-        hostprepSelect.style.display = "none";
+        showSelect(panelSelect, false);
+        showSelect(groundingSelect, false);
+        showSelect(hostprepSelect, false);
         // Find the novel for this run
         for (const [name, runs] of Object.entries(novels)) {
             if (runs.some(r => r.run_id === directRun)) {
@@ -120,7 +120,10 @@ function formatPanelLabel(panelField) {
 }
 
 function showSelect(el, show) {
-    el.style.display = show ? "" : "none";
+    // Hide/show the wrapper group div (label + select) if present, else the select itself
+    const group = el.parentElement && el.parentElement.id.endsWith("-group")
+        ? el.parentElement : el;
+    group.style.display = show ? "" : "none";
 }
 
 // ── Novel / selector logic ──
