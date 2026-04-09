@@ -19,6 +19,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,18 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(title="Literary Podcast Player")
 
+
+class NoCacheNavJs(BaseHTTPMiddleware):
+    """Add no-store Cache-Control to nav.js so fly deploys are always fresh."""
+
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        response = await call_next(request)
+        if request.url.path == "/static/nav.js":
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+
+app.add_middleware(NoCacheNavJs)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 POSTER_DIR = BASE_DIR / "poster"
@@ -233,9 +246,25 @@ async def poster_page():
 
 @app.get("/poster/raw", response_class=HTMLResponse)
 async def poster_raw():
-    """Raw poster HTML with base href set — loaded inside the /poster iframe."""
+    """Raw poster HTML with base href set — loaded inside the /poster iframe.
+
+    Injects a zoom script so the 40×30 inch poster scales to fit the viewport
+    width, making the full poster navigable without huge scrolling.
+    """
     html = (POSTER_DIR / "poster_print.html").read_text()
     html = html.replace("<head>", '<head>\n<base href="/poster/">', 1)
+    zoom_script = """<script>
+(function () {
+  var POSTER_PX = 3840; // 40in at 96dpi
+  function applyZoom() {
+    var scale = Math.min(1, window.innerWidth / POSTER_PX);
+    document.documentElement.style.zoom = scale;
+  }
+  applyZoom();
+  window.addEventListener('resize', applyZoom);
+})();
+</script>"""
+    html = html.replace("</body>", zoom_script + "\n</body>", 1)
     return HTMLResponse(html)
 
 
