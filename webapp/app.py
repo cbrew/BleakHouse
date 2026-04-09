@@ -744,7 +744,7 @@ def _build_cached_snapshot() -> dict:
             summary = _summarize_run_dir(run_dir)
             run_summaries[summary["run_id"]] = summary
 
-            if summary["title"]:
+            if summary["title"] and summary["has_audio"]:
                 novel_entry = {
                     "run_id": summary["run_id"],
                     "base_name": summary["base_name"],
