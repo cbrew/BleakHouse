@@ -9,6 +9,7 @@
         { href: '/prompts', label: 'Prompts', icon: '&#10094;&#10095;' },
         { href: '/metrics', label: 'Metrics', icon: '&#9776;' },
         { href: '/examples', label: 'Examples', icon: '&#10077;' },
+        { href: '/poster', label: 'Poster', icon: '&#167;' },
         { href: '/research', label: 'Research', icon: '&#9830;' },
         { href: '/blog', label: 'Blog', icon: '&#9998;' },
         { href: '/help', label: 'Help', icon: '&#10067;' },
