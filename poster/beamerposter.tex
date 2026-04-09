@@ -1,15 +1,317 @@
 %! Author = brewc
 %! Date = 4/8/26
 
-% Preamble
-\documentclass[11pt]{article}
+\documentclass[final]{beamer}
 
-% Packages
+\usepackage[size=custom,width=40,height=30,scale=1.0]{beamerposter}
+\usetheme{default}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
 \usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{positioning, calc, arrows.meta, backgrounds, fit}
 
-% Document
+% ============================================================
+% COLOURS (Retained for diagrams)
+% ============================================================
+\definecolor{burgundy}{HTML}{722F37}
+\definecolor{burgundydark}{HTML}{4E1F26}
+\definecolor{burgundylight}{HTML}{9B4A54}
+\definecolor{gold}{HTML}{B8860B}
+\definecolor{goldlight}{HTML}{D4A843}
+\definecolor{goldpale}{HTML}{F0E2C0}
+\definecolor{teal}{HTML}{2D6B5E}
+\definecolor{teallight}{HTML}{3D8B7A}
+\definecolor{tealpale}{HTML}{E0F0EC}
+\definecolor{cream}{HTML}{F5F0E6}
+\definecolor{parchment}{HTML}{EDE5D8}
+\definecolor{charcoal}{HTML}{2D2926}
+\definecolor{warmgray}{HTML}{7A6E62}
+\definecolor{warmgraylight}{HTML}{B8AFA4}
+
+% Transport diagram node colours
+\definecolor{clGothic}{HTML}{8B7355}
+\definecolor{clLegal}{HTML}{B07D6A}
+\definecolor{clChar}{HTML}{7A8B5E}
+\definecolor{clSocial}{HTML}{C4A070}
+\definecolor{dimcol}{HTML}{7B9B6B}
+\definecolor{pEleanor}{HTML}{D45B5B}
+\definecolor{pJames}{HTML}{D4935B}
+\definecolor{pCaroline}{HTML}{8B6BAA}
+\definecolor{pOliver}{HTML}{5BAA7B}
+\definecolor{sOpening}{HTML}{D45B5B}
+\definecolor{sDeep}{HTML}{5B82AA}
+\definecolor{sClose}{HTML}{8B6BAA}
+\definecolor{sDiscuss}{HTML}{AA8B5B}
+
+% Bar chart command
+\newcommand{\gradbar}[4]{% {novel}{author}{pct}{color}
+  \noindent\begin{minipage}[c]{1.5in}\raggedleft
+    {\small #1}\enspace{\tiny #2}%
+  \end{minipage}\enspace
+  \begin{minipage}[c]{0.8in}
+    \begin{tikzpicture}
+      \fill[#4, rounded corners=1pt] (0,0) rectangle ({#3*0.012},0.15);
+      \fill[gray!20, rounded corners=1pt] ({#3*0.012},0) rectangle (0.8,0.15);
+    \end{tikzpicture}
+  \end{minipage}\enspace
+  {\footnotesize #3}\par\vspace{1pt}
+}
+
+\title{Not In Our Time: Transport-Based Content Selection}
+\author{Chris Brew}
+\institute{The Ohio State University \and LexisNexis Legal \& Professional}
+\date{MIDWEST SPEECH \& LANGUAGE DAY 2026}
+
 \begin{document}
 
+\begin{frame}[t]
 
+\begin{block}{}
+    \centering
+    {\large \textit{An Inspectable, Manipulable Alternative to RAG --- Demonstrated on Literary Discussion Podcasts for 15 Victorian Novels}}
+\end{block}
+
+\begin{block}{Epigraph}
+    \textit{``Fog everywhere. Fog up the river, where it flows among green aits and meadows; fog down the river, where it rolls defiled among the tiers of shipping and the waterside pollutions of a great (and dirty) city. Fog on the Essex marshes, fog on the Kentish heights.''} --- Charles Dickens, \textit{Bleak House} (1853), Chapter 1
+\end{block}
+
+\begin{columns}[t]
+
+% Column 1
+\begin{column}{0.32\textwidth}
+
+\begin{block}{The Question}
+    \textit{A reader who surveys a novel broadly and a reader who studies it narrowly will assemble different evidence for discussion. Do they arrive at different discussions?}
+
+    Google's NotebookLM popularised LLM-generated podcast conversations, but the conversational design behind such systems is largely unexamined. What makes a multi-voice discussion cohere---sound like a genuine conversation rather than parallel monologues? What levers does a designer have, and which ones actually matter?
+
+    We implement two reading strategies as passage-selection algorithms applied to \textbf{15 Victorian novels}, then generate structured multi-voice literary discussions from each selection.
+
+    \vspace{10pt}
+    \textbf{15 novels} \hfill \textbf{60,774 passages} \hfill \textbf{180 conditions}
+    \vspace{5pt}
+
+    Seven authors (Dickens, Eliot, Gaskell, Forster, Collins, Gissing, Oliphant), seven decades (1850--1924).
+\end{block}
+
+\begin{block}{Min-Cost Flow Selection}
+    Passages flow through enrichment dimensions and expert demand nodes to episode segments. Every arc is inspectable and adjustable.
+
+    \centering
+    \resizebox{\linewidth}{!}{%
+    \begin{tikzpicture}[
+      every node/.style={font=\sffamily\footnotesize, align=center,
+        minimum height=0.8cm, text=white, rounded corners=3pt},
+      cluster/.style={minimum width=2.4cm},
+      dim/.style={minimum width=2.3cm, fill=dimcol},
+      pers/.style={minimum width=2.4cm},
+      seg/.style={minimum width=2.5cm},
+      flow/.style={draw, line width=1pt, opacity=0.2},
+      colhead/.style={font=\sffamily\bfseries\scriptsize, text=charcoal,
+        minimum height=0pt},
+    ]
+
+    % Column headers
+    \node[colhead] at (0, 4.3) {Passage\\[-1pt]Clusters};
+    \node[colhead] at (3.5, 4.3) {Enrichment\\[-1pt]Dimensions};
+    \node[colhead] at (7.2, 4.3) {Expert\\[-1pt]Personas};
+    \node[colhead] at (10.8, 4.3) {Episode\\[-1pt]Segments};
+
+    % Passage Clusters
+    \node[cluster, fill=clGothic]  (c1) at (0, 3.3) {Gothic\\[-2pt]atmosphere};
+    \node[cluster, fill=clLegal]   (c2) at (0, 2.1) {Legal\\[-2pt]satire};
+    \node[cluster, fill=clChar]    (c3) at (0, 0.9) {Character\\[-2pt]crisis};
+    \node[cluster, fill=clSocial]  (c4) at (0,-0.3) {Social\\[-2pt]critique};
+
+    % Enrichment Dimensions
+    \node[dim] (d1) at (3.5, 3.6) {atmosphere};
+    \node[dim] (d2) at (3.5, 2.6) {narrative\\[-2pt]technique};
+    \node[dim] (d3) at (3.5, 1.6) {character\\[-2pt]development};
+    \node[dim] (d4) at (3.5, 0.6) {social\\[-2pt]critique};
+    \node[dim] (d5) at (3.5,-0.4) {humor};
+
+    % Expert Personas
+    \node[pers, fill=pEleanor]  (p1) at (7.2, 3.2) {Eleanor\\[-2pt](craft)};
+    \node[pers, fill=pJames]    (p2) at (7.2, 2.0) {James\\[-2pt](history)};
+    \node[pers, fill=pCaroline] (p3) at (7.2, 0.8) {Caroline\\[-2pt](reading)};
+    \node[pers, fill=pOliver]   (p4) at (7.2,-0.4) {Oliver\\[-2pt](performance)};
+
+    % Episode Segments
+    \node[seg, fill=sOpening] (s1) at (10.8, 3.3) {Opening:\\[-2pt]The Fog};
+    \node[seg, fill=sDeep]    (s2) at (10.8, 2.1) {Deep Dive:\\[-2pt]Jo's World};
+    \node[seg, fill=sClose]   (s3) at (10.8, 0.9) {Close Reading:\\[-2pt]Secrets};
+    \node[seg, fill=sDiscuss] (s4) at (10.8,-0.3) {Discussion:\\[-2pt]Comedy};
+
+    % Flows: Clusters → Dimensions
+    \draw[flow, clGothic]  (c1.east) -- (d1.west);
+    \draw[flow, clGothic]  (c1.east) -- (d2.west);
+    \draw[flow, clLegal]   (c2.east) -- (d2.west);
+    \draw[flow, clLegal]   (c2.east) -- (d4.west);
+    \draw[flow, clChar]    (c3.east) -- (d3.west);
+    \draw[flow, clChar]    (c3.east) -- (d2.west);
+    \draw[flow, clSocial]  (c4.east) -- (d4.west);
+    \draw[flow, clSocial]  (c4.east) -- (d5.west);
+    \draw[flow, clSocial]  (c4.east) -- (d3.west);
+    \draw[flow, clGothic]  (c1.east) -- (d3.west);
+
+    % Flows: Dimensions → Personas
+    \draw[flow, dimcol] (d1.east) -- (p1.west);
+    \draw[flow, dimcol] (d2.east) -- (p1.west);
+    \draw[flow, dimcol] (d2.east) -- (p2.west);
+    \draw[flow, dimcol] (d3.east) -- (p2.west);
+    \draw[flow, dimcol] (d3.east) -- (p3.west);
+    \draw[flow, dimcol] (d4.east) -- (p2.west);
+    \draw[flow, dimcol] (d4.east) -- (p3.west);
+    \draw[flow, dimcol] (d5.east) -- (p4.west);
+    \draw[flow, dimcol] (d5.east) -- (p3.west);
+    \draw[flow, dimcol] (d1.east) -- (p3.west);
+
+    % Flows: Personas → Segments
+    \draw[flow, pEleanor]  (p1.east) -- (s1.west);
+    \draw[flow, pEleanor]  (p1.east) -- (s2.west);
+    \draw[flow, pJames]    (p2.east) -- (s2.west);
+    \draw[flow, pJames]    (p2.east) -- (s3.west);
+    \draw[flow, pCaroline] (p3.east) -- (s3.west);
+    \draw[flow, pCaroline] (p3.east) -- (s2.west);
+    \draw[flow, pOliver]   (p4.east) -- (s4.west);
+    \draw[flow, pOliver]   (p4.east) -- (s3.west);
+
+    % Flow arrow on right
+    \draw[-{Stealth[length=5pt]}, warmgray, thick]
+      (12.3, 1.5) -- node[right, font=\sffamily\tiny, text=warmgray] {flow} (12.3, 0.5);
+
+    \end{tikzpicture}
+    }
+\end{block}
+
+\begin{block}{Two Reading Strategies}
+    \textbf{Synoptic} (min-cost flow): 59 passages from 28 chapters. Favours character development (+8.3pp) and plot (+10.2pp). Zero LLM tokens, <1s.
+
+    \textbf{Analytical} (embeddings + LLM curation): 32 passages from 20 chapters. Favours social critique (+13.4pp) and thematic depth (+6.9pp).
+
+    \textbf{No-passages}: LLM discusses from prior knowledge alone.
+\end{block}
+
+\begin{block}{Why Not RAG?}
+    Standard RAG retrieves by embedding similarity and feeds results to an LLM. Effective but opaque: the user cannot see why a passage was selected, cannot adjust criteria, and cannot explore how different priorities reshape the output.
+
+    Min-cost flow makes every decision visible as a \textbf{cost}, a \textbf{flow}, and a \textbf{constraint}. Solving a flow costs <1s and zero LLM tokens---a thinking tool for rapid exploration of alternatives.
+\end{block}
+
+\end{column}
+
+% Column 2
+\begin{column}{0.32\textwidth}
+
+\begin{block}{The Reader Makes the Reading}
+    \textit{The pipeline privileges expert identity at every stage --- enrichment dimensions match demand profiles, the selector optimises for demand satisfaction, host preparation targets specific experts, and the script prompt reinforces perspectives. Convergence follows from this engineering.}
+
+    The system exposes four independently manipulable levers: \textbf{expert personas}, \textbf{passage grounding}, \textbf{conversational design}, and \textbf{segment continuity}.
+
+    \vspace{5pt}
+    \textbf{Expert Airtime Stable to $\pm$2\%}:
+    Eleanor Hartley: 32--37\%; James Blackstone: 30--37\%; Caroline Woodcourt: 29--34\%.
+\end{block}
+
+\begin{block}{Two Panels Discuss \textit{Bleak House}}
+    \textbf{Literary Panel}
+    \begin{itemize}
+        \item \textbf{Eleanor Hartley}: ``What strikes me about that Nemo sentence is the grammatical audacity of it...''
+        \item \textbf{James Blackstone}: ``The fog is not decoration. It is the Court of Chancery made visible...''
+        \item \textbf{Caroline Woodcourt}: ``Readers sometimes use the fog as a kind of permission... What moves me is something far quieter...''
+    \end{itemize}
+
+    \textbf{Interdisciplinary Panel}
+    \begin{itemize}
+        \item \textbf{Sarah Chen (NLP Scientist)}: ``That is a noun phrase with four pre-nominal modifiers...''
+        \item \textbf{Elena Volkov (Musicologist)}: ``Institutions don't announce their corruption---they announce their solidity...''
+        \item \textbf{Rebecca Martinez (Astronomer)}: ``The ships of Law and Equity aren't sunk, they're in reserve...''
+    \end{itemize}
+
+    The experts bring their \textbf{metaphors} but not their \textbf{methods} --- the scaffold imports literary-critical norms regardless of the persona.
+\end{block}
+
+\begin{block}{Deliberate Stereotypes}
+    The expert personas are deliberately caricatures: the literary critic always finds prose rhythm; the social historian always finds institutional critique. By making the stereotypes explicit---encoded as \textbf{demand vectors} ---the system turns editorial bias into a first-class object that can be inspected, compared, and argued about.
+\end{block}
+
+\begin{block}{}
+    \centering
+    \includegraphics[height=1.2in]{screenshots/landing_page.png} \hfill
+    \includegraphics[height=1.2in]{screenshots/audio_player.png}
+\end{block}
+
+\begin{block}{References}
+    \small
+    Fish, S. (1980). \textit{Is There a Text in This Class?} \\
+    Bayard, P. (2007). \textit{How to Talk About Books You Haven't Read.} \\
+    Carlini, N. et al. (2021, 2023). Extracting/quantifying memorization in LLMs. \\
+    Ahuja, R., Magnanti, T. \& Orlin, J. (1993). \textit{Network Flows.} \\
+    Moretti, F. (2013). \textit{Distant Reading.}
+\end{block}
+
+\end{column}
+
+% Column 3
+\begin{column}{0.32\textwidth}
+
+\begin{block}{The Knowledge Gradient}
+    \textit{Without passage grounding, the LLM produces graduated pastiche --- not hallucination. Fidelity tracks novel prominence.}
+
+    \textbf{82\%} of invented quotes draw 90--100\% of their words from the novel's own vocabulary.
+
+    \vspace{10pt}
+    \centering
+    {\bfseries Ungrounded Quote Verification (\%)}
+    \vspace{5pt}
+    
+    \gradbar{Middlemarch}{Eliot}{57}{teal}
+    \gradbar{Bleak House}{Dickens}{53}{teal!90}
+    \gradbar{David Copperfield}{Dickens}{44}{teal!70}
+    \gradbar{Passage to India}{Forster}{39}{teal!60}
+    \gradbar{Cranford}{Gaskell}{33}{gold!70}
+    \gradbar{Our Mutual Friend}{Dickens}{29}{gold!55}
+    \gradbar{New Grub Street}{Gissing}{20}{gold!40}
+    \gradbar{The Odd Women}{Gissing}{6}{burgundylight}
+    \gradbar{North and South}{Gaskell}{2}{burgundy!85}
+    \gradbar{Hester}{Oliphant}{0}{burgundy}
+    \gradbar{No Name}{Collins}{0}{burgundy}
+
+    \vspace{5pt}
+    \small Grounded conditions achieve \textbf{97--98\%} for all novels.
+\end{block}
+
+\begin{block}{Pastiche in Action}
+    \textit{``Fog everywhere. Fog up the river...''} --- \textbf{Verified 100\%} (LLM memory).
+
+    \textit{``I am very weak, but I shall begin the world.''} --- \textbf{Invented (100\% vocab)}. Every word appears in the novel, but this sentence does not exist.
+
+    \textit{``I don't know nothink.''} --- \textbf{Invented (80\% vocab)}. Jo's dialect remembered; phrasing reconstructed.
+\end{block}
+
+\begin{block}{Key Findings}
+    \begin{enumerate}
+        \item \textbf{Framework dominates strategy.} Two reading algorithms select <6\% overlapping passages yet produce discussions with identical expert airtime ($\pm$2\%).
+        \item \textbf{Pastiche, not hallucination.} Ungrounded LLMs write \textit{in the style of} a novel, not \textit{from} it. Fidelity tracks training-data exposure.
+        \item \textbf{Scaffolding is content-independent.} Host preparation raises questions uniformly across all 15 novels.
+    \end{enumerate}
+
+    \vspace{5pt}
+    \textbf{Framework $>$ Grounding $>$ Strategy}
+\end{block}
+
+\begin{block}{Interactive Demo}
+    \centering
+    \textbf{bleakhouse-demo.fly.dev} \\
+    Browse 180 conditions, listen to episodes, inspect passage backlinks.
+\end{block}
+
+\end{column}
+
+\end{columns}
+
+\end{frame}
 
 \end{document}

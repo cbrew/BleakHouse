@@ -406,7 +406,7 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
   <div class="box">
     <div class="sec-head"><h2>The Question</h2><div class="rule"></div></div>
     <p style="font-style:italic;color:var(--warmgray);">A reader who surveys a novel broadly and a reader who studies it narrowly will assemble different evidence for discussion. Do they arrive at different discussions?</p>
-    <p>Google's NotebookLM popularised LLM-generated podcast conversations, but the conversational design is largely unexamined. What makes a multi-voice discussion <em>cohere</em> — sound like a genuine conversation rather than parallel monologues? What levers does a designer have, and which ones actually matter?</p>
+    <p>Google's NotebookLM (Google, 2024) popularised LLM-generated podcast conversations, but the conversational design is largely unexamined. What makes a multi-voice discussion <em>cohere</em> — sound like a genuine conversation rather than parallel monologues? What levers does a designer have, and which ones actually matter?</p>
     <p>We implement two reading strategies as passage-selection algorithms applied to <strong>15 Victorian novels</strong>, then generate structured multi-voice literary discussions from each selection — systematically varying panels, grounding conditions, and host preparation to isolate each lever's contribution.</p>
     <div class="stat-row">
       <div class="stat-box"><p class="stat-num">15</p><p class="stat-label">novels</p></div>
@@ -548,8 +548,8 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
 
   <div class="box">
     <div class="sec-head"><h2>Why Not RAG?</h2><div class="rule"></div></div>
-    <p>Standard RAG retrieves by embedding similarity and feeds results to an LLM. Effective but opaque: the user cannot see <em>why</em> a passage was selected, cannot adjust criteria, and cannot explore how different priorities reshape the output. Changing the question means running the whole pipeline again, with no guarantee of comparability.</p>
-    <p>Min-cost flow makes every decision visible as a <strong>cost</strong>, a <strong>flow</strong>, and a <strong>constraint</strong>. The expert's demand vector is the objective function; changing one weight immediately shows what changes. Solving a flow costs &lt;1 s and zero LLM tokens — a <strong>thinking tool</strong> for rapid, comparable exploration of alternatives.</p>
+    <p class="small">Standard RAG (Lewis et al., 2020) retrieves by embedding similarity and feeds results to an LLM. Effective but opaque: the user cannot see <em>why</em> a passage was selected, cannot adjust criteria, and cannot explore how different priorities reshape the output. Changing the question means running the whole pipeline again, with no guarantee of comparability.</p>
+    <p class="small">Min-cost flow (Ahuja et al., 1993) makes every decision visible as a <strong>cost</strong>, a <strong>flow</strong>, and a <strong>constraint</strong>. The expert's demand vector is the objective function; changing one weight immediately shows what changes. Solving a flow costs &lt;1 s and zero LLM tokens — a <strong>thinking tool</strong> for rapid, comparable exploration of alternatives.</p>
   </div>
 
   <div class="box">
@@ -559,26 +559,24 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
   </div>
 
   <div class="box">
-    <div class="sec-head"><h2>Alternative Expert Panels</h2><div class="rule"></div></div>
-    <p class="small">Beyond the primary literary triumvirate (Hartley / Blackstone / Woodcourt), the system includes three further specialist personas with distinct analytical toolkits.</p>
-    <div style="display:flex;gap:0.07in;margin:0.06in 0;">
-      <div style="flex:1;background:rgba(139,107,85,0.08);border-left:3.5px solid #8B7355;border-radius:0 3px 3px 0;padding:0.05in 0.07in;">
-        <p style="margin:0 0 0.02in;font-size:0.22in;font-family:Arial,sans-serif;font-weight:bold;color:#8B7355;">Edmund Leigh</p>
-        <p style="margin:0;font-size:0.18in;color:var(--warmgray);">Moral Philosopher</p>
-        <p style="margin:0.03in 0 0;font-size:0.19in;font-style:italic;color:var(--charcoal);">"Skimpole is the finest comic villain in the book, and I use that term with some precision. He is not a villain by malice — he is a villain by abdication."</p>
+    <div class="sec-head"><h2>What We Do Not Claim</h2><div class="rule"></div></div>
+    <p class="small">The outputs are fluent, structured, and plausible-sounding — the system discusses texts it arguably has not `read'
+      (Bayard, 2007)
+      with all the confidence of expert critics (Doshi &amp; Hauser, 2024). It does this whether or not it is provided
+      with paragraphs. From its training, it has `heard' of all of the novels, and `recalls' something. Probably it has seen everything in Project Gutenberg.
+      We do not claim the podcasts are <em>good</em> literary criticism.</p>
+    <p class="small">Following Boden's (2004) taxonomy, the system performs <strong>combinational creativity</strong>: it recombines existing critical moves in new configurations. The interesting creativity is the <em>user's</em> — exploring which configurations produce illuminating or stereotyped discussions, and why.</p>
+    <div style="display:flex;gap:0.07in;margin:0.06in 0 0.04in;">
+      <div style="flex:1;background:rgba(114,47,55,0.06);border-left:3.5px solid var(--burgundy);border-radius:0 3px 3px 0;padding:0.05in 0.08in;">
+        <p style="margin:0 0 0.02in;font-size:0.21in;font-family:Arial,sans-serif;font-weight:bold;color:var(--burgundy);">Automated metrics only</p>
+        <p style="margin:0;font-size:0.19in;color:var(--charcoal);">No human evaluation of discussion quality, insight, or literary value. Passage coverage and demand satisfaction are proxies, not guarantees.</p>
       </div>
-      <div style="flex:1;background:rgba(91,130,170,0.08);border-left:3.5px solid #5B82AA;border-radius:0 3px 3px 0;padding:0.05in 0.07in;">
-        <p style="margin:0 0 0.02in;font-size:0.22in;font-family:Arial,sans-serif;font-weight:bold;color:#5B82AA;">Oliver Trevelyan</p>
-        <p style="margin:0;font-size:0.18in;color:var(--warmgray);">Actor &amp; Narrator</p>
-        <p style="margin:0.03in 0 0;font-size:0.19in;font-style:italic;color:var(--charcoal);">"That phrase — 'forsworn and abjured' — is extraordinary to read aloud. Those are legal words — the language of the court itself — turned against the court."</p>
-      </div>
-      <div style="flex:1;background:rgba(196,160,112,0.08);border-left:3.5px solid #C4A070;border-radius:0 3px 3px 0;padding:0.05in 0.07in;">
-        <p style="margin:0 0 0.02in;font-size:0.22in;font-family:Arial,sans-serif;font-weight:bold;color:#8B6030;">Daniel Rosen</p>
-        <p style="margin:0;font-size:0.18in;color:var(--warmgray);">Marxist Historian</p>
-        <p style="margin:0.03in 0 0;font-size:0.19in;font-style:italic;color:var(--charcoal);">"The darkness in that scene is the shadow of an institution, not just a weather event. Chancery casts its darkness across every threshold in this novel."</p>
+      <div style="flex:1;background:rgba(45,107,94,0.06);border-left:3.5px solid var(--teal);border-radius:0 3px 3px 0;padding:0.05in 0.08in;">
+        <p style="margin:0 0 0.02in;font-size:0.21in;font-family:Arial,sans-serif;font-weight:bold;color:var(--teal);">Framework as prompt</p>
+        <p style="margin:0;font-size:0.19in;color:var(--charcoal);">Expert personas are natural-language LLM prompts. Whether they replicate Fish's interpretive communities is an open question.</p>
       </div>
     </div>
-    <p class="small">Each persona defines a distinct <strong>demand vector</strong> — a formal encoding of what that expert will seek in any passage. The system supports all 3<sup>3</sup> = 27 panel combinations; 9 are produced across the 180 conditions in this study.</p>
+    <p class="small">The system's value is <strong>diagnostic</strong>: it turns a black-box pipeline into a navigable space of configurations, making the machinery — and its stereotypes — visible.</p>
   </div>
 
 </div><!-- /col1 -->
@@ -807,7 +805,7 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
     <div class="sec-head"><h2>Key Findings</h2><div class="rule"></div></div>
     <div class="finding finding-burgundy">
       <p class="finding-title">1. Framework dominates strategy.</p>
-      <p>Two reading algorithms select &lt;6% overlapping passages yet produce discussions with identical expert airtime (±2%). This convergence follows from a pipeline that reinforces expert identity at every stage — suggestive of Fish's thesis, but the engineering is the mechanism.</p>
+      <p>Two reading algorithms select &lt;6% overlapping passages yet produce discussions with identical expert airtime (±2%). This corpus-level convergence (cf. Moretti, 2013) follows from a pipeline that reinforces expert identity at every stage — suggestive of Fish's (1980) thesis, but the engineering is the mechanism.</p>
     </div>
     <div class="finding finding-teal">
       <p class="finding-title">2. Pastiche, not hallucination.</p>
@@ -832,6 +830,7 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
     <p class="small" style="margin:0.02in 0;">Ahuja, R., Magnanti, T. &amp; Orlin, J. (1993). <em>Network Flows.</em> Prentice Hall.</p>
     <p class="small" style="margin:0.02in 0;">Bayard, P. (2007). <em>How to Talk About Books You Haven't Read.</em> Bloomsbury.</p>
     <p class="small" style="margin:0.02in 0;">BBC Radio 4 (1998–). <em>In Our Time.</em></p>
+    <p class="small" style="margin:0.02in 0;">Boden, M. A. (2004). <em>The Creative Mind: Myths and Mechanisms</em> (2nd ed.). Routledge.</p>
     <p class="small" style="margin:0.02in 0;">Carlini, N. et al. (2021, 2023). Extracting/quantifying memorization in LLMs. <em>USENIX Security; ICLR.</em></p>
     <p class="small" style="margin:0.02in 0;">Doshi, A. R. &amp; Hauser, O. P. (2024). Generative AI and collective creative diversity. <em>Science Advances</em> 10(28).</p>
     <p class="small" style="margin:0.02in 0;">Fish, S. (1980). <em>Is There a Text in This Class?</em> Harvard UP.</p>
