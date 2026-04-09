@@ -31,6 +31,8 @@ app = FastAPI(title="Literary Podcast Player")
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+POSTER_DIR = BASE_DIR / "poster"
+
 
 VERSION_PATTERN = re.compile(r"_v1_(\d+)$")
 
@@ -198,6 +200,18 @@ async def references_page():
 @app.get("/research", response_class=HTMLResponse)
 async def research_page():
     return FileResponse(str(PAGES_DIR / "research.html"))
+
+
+@app.get("/poster", response_class=HTMLResponse)
+async def poster_page():
+    html = (POSTER_DIR / "poster_print.html").read_text()
+    html = html.replace("<head>", '<head>\n<base href="/poster/">', 1)
+    # Inject site-standard nav + provenance badge (absolute path, unaffected by base href)
+    html = html.replace("</body>", '<script src="/static/nav.js"></script>\n</body>', 1)
+    return HTMLResponse(html)
+
+
+app.mount("/poster/", StaticFiles(directory=str(POSTER_DIR)), name="poster-static")
 
 
 _tts_progress: dict[str, dict] = {}  # run_id/seg_idx -> {done, total, status}
