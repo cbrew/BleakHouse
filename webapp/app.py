@@ -36,7 +36,7 @@ class NoCacheNavJs(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
         response = await call_next(request)
-        if request.url.path == "/static/nav.js":
+        if request.url.path == "/static/nav.js?v=2":
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -238,7 +238,7 @@ async def poster_page():
 </head>
 <body>
 <iframe id="poster-frame" src="/poster/raw" title="MSLD 2026 Conference Poster" scrolling="yes"></iframe>
-<script src="/static/nav.js"></script>
+<script src="/static/nav.js?v=2"></script>
 </body>
 </html>"""
     return HTMLResponse(html)
@@ -1026,7 +1026,7 @@ TRACKER_HTML = """\
 <head>
 <meta charset="utf-8">
 <title>BleakHouse Experiment Tracker</title>
-<script src="/static/nav.js" defer></script>
+<script src="/static/nav.js?v=2" defer></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -1391,7 +1391,7 @@ VERSIONS_HTML = """\
 <head>
 <meta charset="utf-8">
 <title>Version Comparison — Not In Our Time</title>
-<script src="/static/nav.js" defer></script>
+<script src="/static/nav.js?v=2" defer></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
