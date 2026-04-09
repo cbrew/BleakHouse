@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+html { background: #F5F0E6; }
+* { box-sizing: border-box; }
+body {
+  width: 2880pt; height: 2160pt; margin: 0; padding: 0;
+  background: #F5F0E6; font-family: Georgia, serif;
+  display: flex; flex-direction: column;
+}
+.header {
+  background: #4E1F26;
+  padding: 16pt 22pt 14pt;
+  border-radius: 4pt;
+  margin: 14pt 14pt 6pt;
+  display: flex; align-items: center; gap: 20pt;
+}
+.header-left { flex: 1; }
+.header-right { text-align: right; flex: 0 0 370pt; }
+.epigraph {
+  border-left: 4pt solid #B8860B;
+  background: #EDE5D8;
+  padding: 8pt 14pt;
+  margin: 0 14pt 8pt;
+  border-radius: 0 4pt 4pt 0;
+}
+.columns {
+  display: flex; gap: 10pt; flex: 1;
+  padding: 0 14pt 14pt;
+  align-items: flex-start;
+}
+.col { flex: 1; min-width: 0; }
+.col2 { flex: 1.27; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <p style="margin:0;font-size:54pt;font-family:Arial;font-weight:bold;font-style:italic;color:#F5F0E6;">Not In Our Time: Transport-Based Content Selection</p>
+    <p style="margin:4pt 0 0;font-size:20pt;font-family:Arial;color:#D4A843;">An Inspectable, Manipulable Alternative to RAG — Demonstrated on Literary Discussion Podcasts for 15 Victorian Novels</p>
+  </div>
+  <div class="header-right">
+    <p style="margin:0;font-size:22pt;font-family:Arial;font-weight:bold;color:#F5F0E6;">Chris Brew</p>
+    <p style="margin:3pt 0 0;font-size:18pt;font-family:Arial;color:#F0E2C0;">The Ohio State University<br>LexisNexis Legal &amp; Professional</p>
+    <div style="margin-top:8pt;border:1pt solid #D4A843;padding:4pt 10pt;border-radius:2pt;display:inline-block;">
+      <p style="margin:0;font-size:13pt;font-family:Arial;color:#D4A843;">MIDWEST SPEECH &amp; LANGUAGE DAY 2026</p>
+    </div>
+  </div>
+</div>
+
+<!-- EPIGRAPH -->
+<div class="epigraph">
+  <p style="margin:0;font-size:17pt;font-family:Georgia;font-style:italic;color:#2D2926;">
+    "Fog everywhere. Fog up the river, where it flows among green aits and meadows; fog down the river, where it rolls defiled among the tiers of shipping and the waterside pollutions of a great (and dirty) city. Fog on the Essex marshes, fog on the Kentish heights."
+    <span style="font-style:normal;color:#7A6E62;font-size:15pt;"> — Charles Dickens, Bleak House (1853), Chapter 1</span>
+  </p>
+</div>
+
+<!-- THREE COLUMNS -->
+<div class="columns">
+  <div class="col">
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">The Question</p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    <p style="margin:4pt 0;font-size:16pt;font-family:Georgia;font-style:italic;color:#7A6E62;">
+      A reader who surveys a novel broadly and a reader who studies it narrowly will assemble different evidence. Do they arrive at different discussions?
+    </p>
+    <p style="margin:4pt 0;font-size:16pt;font-family:Georgia;color:#2D2926;">
+      Google's NotebookLM popularised LLM-generated podcast conversations, but the conversational design is largely unexamined. What makes a multi-voice discussion cohere — sound like a genuine conversation rather than parallel monologues? What levers does a designer have, and which ones actually matter?
+    </p>
+    <p style="margin:4pt 0;font-size:16pt;font-family:Georgia;color:#2D2926;">
+      We implement two reading strategies as passage-selection algorithms applied to <strong>15 Victorian novels</strong>, then generate structured multi-voice literary discussions from each selection.
+    </p>
+    <div style="display:flex;gap:8pt;margin:8pt 0;">
+      
+  <div style="flex:1;background:#EDE5D8;border-radius:4pt;padding:8pt 4pt;text-align:center;">
+    <p style="margin:0;font-size:32pt;font-family:Arial;font-weight:bold;color:#722F37;">15</p>
+    <p style="margin:2pt 0 0;font-size:14pt;font-family:Arial;color:#7A6E62;">novels</p>
+  </div>
+      
+  <div style="flex:1;background:#EDE5D8;border-radius:4pt;padding:8pt 4pt;text-align:center;">
+    <p style="margin:0;font-size:32pt;font-family:Arial;font-weight:bold;color:#722F37;">60,774</p>
+    <p style="margin:2pt 0 0;font-size:14pt;font-family:Arial;color:#7A6E62;">passages</p>
+  </div>
+      
+  <div style="flex:1;background:#EDE5D8;border-radius:4pt;padding:8pt 4pt;text-align:center;">
+    <p style="margin:0;font-size:32pt;font-family:Arial;font-weight:bold;color:#722F37;">180</p>
+    <p style="margin:2pt 0 0;font-size:14pt;font-family:Arial;color:#7A6E62;">conditions</p>
+  </div>
+    </div>
+    <p style="margin:4pt 0;font-size:14pt;font-family:Georgia;color:#7A6E62;">
+      Seven authors (Dickens, Eliot, Gaskell, Forster, Collins, Gissing, Oliphant), seven decades (1850–1924).
+    </p>
+    
+  <div style="border-left:4pt solid #B8860B;background:#F0E2C008;padding:6pt 8pt;margin:6pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 3pt;font-size:16pt;font-family:Georgia;font-style:italic;color:#2D2926;">"And all that night the coffin stands ready by the old portmanteau; and the lonely figure on the bed, whose path in life has lain through five and forty years, lies there with no more track behind him that any one can trace than a deserted infant."</p>
+    <p style="margin:0;font-size:14pt;font-family:Georgia;color:#7A6E62;">— Bleak House, Ch. 11 — The death of Nemo</p>
+  </div>
+  
+  </div>
+
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">Min-Cost Flow Selection</p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    <p style="margin:0 0 6pt;font-size:14pt;font-family:Georgia;color:#7A6E62;">
+      Passages flow through enrichment dimensions and expert demand nodes to episode segments. Every arc is inspectable and adjustable.
+    </p>
+    <img src="flow_diagram.png" style="width:100%;max-height:280pt;object-fit:contain;" alt="Flow diagram"/>
+    <p style="margin:6pt 0 2pt;font-size:20pt;font-family:Arial;font-weight:bold;color:#722F37;">Two Reading Strategies</p>
+    <p style="margin:4pt 0;font-size:15pt;font-family:Georgia;color:#2D2926;">
+      <strong>Synoptic</strong> (min-cost flow): <code style="font-family:Courier New;">59</code> passages from 28 chapters. Favours character development (+8.3 pp) and plot (+10.2 pp). Zero LLM tokens, &lt;1 s.
+    </p>
+    <p style="margin:4pt 0;font-size:15pt;font-family:Georgia;color:#2D2926;">
+      <strong>Analytical</strong> (embeddings + LLM curation): <code style="font-family:Courier New;">32</code> passages from 20 chapters. Favours social critique (+13.4 pp) and thematic depth (+6.9 pp).
+    </p>
+    <p style="margin:4pt 0;font-size:15pt;font-family:Georgia;color:#2D2926;">
+      <strong>No-passages:</strong> LLM discusses from prior knowledge alone.
+    </p>
+  
+  </div>
+
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">Why Not RAG?</p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    <p style="margin:4pt 0;font-size:16pt;font-family:Georgia;color:#2D2926;">
+      Standard RAG retrieves by embedding similarity and feeds results to an LLM. Effective but opaque: the user cannot see <em>why</em> a passage was selected, cannot adjust criteria, and cannot explore how different priorities reshape the output.
+    </p>
+    <p style="margin:4pt 0;font-size:16pt;font-family:Georgia;color:#2D2926;">
+      Min-cost flow makes every decision visible as a <strong>cost</strong>, a <strong>flow</strong>, and a <strong>constraint</strong>. Solving a flow costs &lt;1 s and zero LLM tokens — a <strong>thinking tool</strong> for rapid exploration of alternatives.
+    </p>
+  
+  </div>
+
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">References</p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;">Fish, S. (1980). <em>Is There a Text in This Class?</em> Harvard UP.</p>
+    <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;">Bayard, P. (2007). <em>How to Talk About Books You Haven't Read.</em> Bloomsbury.</p>
+    <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;">Carlini, N. et al. (2021, 2023). Extracting/quantifying memorization in LLMs. <em>USENIX Security; ICLR.</em></p>
+    <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;">Ahuja, R., Magnanti, T. &amp; Orlin, J. (1993). <em>Network Flows.</em> Prentice Hall.</p>
+    <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;">Moretti, F. (2013). <em>Distant Reading.</em> Verso.</p>
+  
+  </div>
+
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);background:#EDE5D8;border-color:#c8b89a;">
+    
+    <p style="margin:6pt 0 2pt;font-size:20pt;font-family:Arial;font-weight:bold;color:#722F37;">Interactive Demo &amp; Acknowledgements</p>
+    <p style="margin:4pt 0;font-size:18pt;font-family:Arial;font-weight:bold;color:#2D6B5E;">bleakhouse-demo.fly.dev</p>
+    <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;">Browse 180 conditions, listen to episodes, inspect passage backlinks.</p>
+    <p style="margin:4pt 0;font-size:14pt;font-family:Georgia;color:#7A6E62;">Thanks to The Ohio State University College of Engineering and LexisNexis Legal &amp; Professional.</p>
+  
+  </div>
+  </div>
+  <div class="col col2">
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">The Reader Makes the Reading</p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    <p style="margin:4pt 0;font-size:16pt;font-family:Georgia;font-style:italic;color:#7A6E62;">
+      The pipeline privileges expert identity at every stage — enrichment dimensions match demand profiles, the selector optimises for demand satisfaction, host preparation targets specific experts, and the script prompt reinforces perspectives. Convergence follows from this engineering.
+    </p>
+    <p style="margin:4pt 0;font-size:16pt;font-family:Georgia;color:#2D2926;">
+      The system exposes four independently manipulable levers: <strong>expert personas</strong> (demand profiles); <strong>passage grounding</strong> (anchoring quotation and preventing confabulation); <strong>conversational design</strong> (quote handling, reactive language, turn structure); and <strong>segment continuity</strong> (bridging between independently generated segments).
+    </p>
+    <div style="display:flex;gap:8pt;align-items:flex-start;margin:8pt 0;">
+      <div style="flex:1;background:#E0F0EC80;border:1pt solid #3D8B7A50;border-radius:4pt;padding:8pt;">
+        <p style="margin:0 0 2pt;font-size:20pt;font-family:Arial;font-weight:bold;color:#2D6B5E;">Synoptic</p>
+        <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;"><code style="font-family:Courier New;">59</code> passages, <code style="font-family:Courier New;">28</code> chapters</p>
+        <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;">Character &amp; plot focused</p>
+        <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;">Min-cost flow solver</p>
+      </div>
+      <div style="flex:0 0 80pt;text-align:center;padding-top:14pt;">
+        <p style="margin:0;font-size:17pt;font-family:Arial;font-weight:bold;color:#722F37;">J = 0.057</p>
+        <p style="margin:2pt 0;font-size:12pt;font-family:Georgia;color:#7A6E62;">&lt;6% overlap in passages</p>
+      </div>
+      <div style="flex:1;background:#F0E2C080;border:1pt solid #D4A84350;border-radius:4pt;padding:8pt;">
+        <p style="margin:0 0 2pt;font-size:20pt;font-family:Arial;font-weight:bold;color:#B8860B;">Analytical</p>
+        <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;"><code style="font-family:Courier New;">32</code> passages, <code style="font-family:Courier New;">20</code> chapters</p>
+        <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;">Critique &amp; theme focused</p>
+        <p style="margin:2pt 0;font-size:14pt;font-family:Georgia;color:#2D2926;">Embedding retrieval + LLM</p>
+      </div>
+    </div>
+    <p style="margin:6pt 0 2pt;font-size:20pt;font-family:Arial;font-weight:bold;color:#722F37;">Yet: Expert Airtime Stable to ±2%</p>
+    <p style="margin:4pt 0;font-size:15pt;font-family:Georgia;color:#2D2926;">
+      Eleanor Hartley (literary critic): <strong>32–37%</strong> &nbsp;&nbsp;
+      James Blackstone (social historian): <strong>30–37%</strong> &nbsp;&nbsp;
+      Caroline Woodcourt (close reader): <strong>29–34%</strong>
+    </p>
+    <p style="margin:4pt 0;font-size:15pt;font-family:Georgia;color:#2D2926;">
+      Each stage reinforces the framework. The convergence is suggestive of Fish's (1980) thesis — but the engineering is the mechanism, and we name it honestly.
+    </p>
+  
+  </div>
+
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">Three Panels Discuss <em>Bleak House</em></p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    <p style="margin:6pt 0 2pt;font-size:20pt;font-family:Arial;font-weight:bold;color:#722F37;">Literary Panel</p>
+    
+  <div style="border-left:4pt solid #722F37;background:#722F3718;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#722F37;">Eleanor Hartley (Literary Critic):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">What strikes me about that Nemo sentence is the grammatical audacity of it. "A deserted infant" — Dickens reaches for the most helpless possible image of erasure. The infant image should be about beginning, and Dickens flips it into a closing.</p>
+  </div>
+    
+  <div style="border-left:4pt solid #722F37;background:#722F3718;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#722F37;">James Blackstone (Social Historian):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">The fog is not decoration. It is the Court of Chancery made visible. "Lies there with no more track behind him that any one can trace than a deserted infant." That sentence is the whole novel compressed into a single image.</p>
+  </div>
+    
+  <div style="border-left:4pt solid #722F37;background:#722F3718;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#722F37;">Caroline Woodcourt (Close Reader):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">Readers sometimes use the fog as a kind of permission — "this is a great symbolic novel, I'm in the presence of Literature with a capital L" — and then they stop actually listening to what Dickens is telling them. What moves me is something far quieter — the moment where a human life is described as leaving no trace.</p>
+  </div>
+
+    <p style="margin:6pt 0 2pt;font-size:20pt;font-family:Arial;font-weight:bold;color:#722F37;">Interdisciplinary Panel</p>
+    
+  <div style="border-left:4pt solid #2D6B5E;background:#2D6B5E18;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#2D6B5E;">Sarah Chen (NLP Scientist):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">That is a noun phrase with four pre-nominal modifiers, each compounded — and then "brazen-faced" pulls the floor out. The first three feel like nautical specifications — they're doing the register of technical competence — and the fourth is an insult.</p>
+  </div>
+    
+  <div style="border-left:4pt solid #2D6B5E;background:#2D6B5E18;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#2D6B5E;">Elena Volkov (Musicologist):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">Institutions don't announce their corruption — they announce their solidity, their procedure, their continuity. I spent years studying how Soviet conservatories presented themselves as nurturing talent while systematically destroying composers who stepped out of line.</p>
+  </div>
+    
+  <div style="border-left:4pt solid #2D6B5E;background:#2D6B5E18;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#2D6B5E;">Rebecca Martinez (Astronomer):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">The ships of Law and Equity aren't sunk, they're in reserve. In my field, we'd say the system is in a quasi-stable state. The energy is there. Nothing has been resolved. The fog is the natural atmosphere of a system that has never actually resolved anything.</p>
+  </div>
+    <p style="margin:6pt 0 0;font-size:15pt;font-family:Georgia;color:#2D2926;">
+      The experts bring their <strong>metaphors</strong> (quasi-stable states, leitmotifs, phrase structure) but not their <strong>methods</strong> — the scaffold imports literary-critical norms regardless of the persona.
+    </p>
+
+    <p style="margin:6pt 0 2pt;font-size:20pt;font-family:Arial;font-weight:bold;color:#722F37;">Alternative Panel</p>
+    
+  <div style="border-left:4pt solid #8B6030;background:#8B603018;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#8B6030;">Oliver Trevelyan (Actor &amp; Narrator):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">When I first read it aloud — really <em>performed</em> it — I remember stopping and thinking: this is incantation, not description. He builds an atmosphere so thick and particular it becomes a character in its own right.</p>
+  </div>
+    
+  <div style="border-left:4pt solid #8B6030;background:#8B603018;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#8B6030;">Daniel Rosen (Marxist Historian):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">The fog is doing what Chancery does throughout the novel — it penetrates everywhere, it afflicts everyone, but it does not afflict everyone equally. The ancient Greenwich pensioners wheeze by their firesides — they at least have firesides. The boy on deck has nothing between him and the weather but his own skin.</p>
+  </div>
+    
+  <div style="border-left:4pt solid #8B6030;background:#8B603018;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#8B6030;">Edmund Leigh (Moral Philosopher):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">One must be a little careful not to flatten the novel into a single spatial metaphor, however seductive. Dickens gives us Bleak House — the actual building — and Esther's description of it is one of the warmest passages in the book.</p>
+  </div>
+  
+  </div>
+
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">Deliberate Stereotypes</p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    <p style="margin:4pt 0;font-size:16pt;font-family:Georgia;color:#2D2926;">
+      The expert personas are deliberately <em>caricatures</em>: the literary critic always finds prose rhythm; the social historian always finds institutional critique; the close reader always finds texture. By making the stereotypes explicit — encoded as <strong>demand vectors</strong> rather than implicit in a prompt — the system turns editorial bias into a first-class object that can be inspected, compared, and argued about.
+    </p>
+  
+  </div>
+
+  </div>
+  <div class="col">
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">The Knowledge Gradient</p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    <div style="background:#E0F0EC60;border-radius:4pt;padding:8pt;margin:6pt 0;">
+      <p style="margin:0;font-size:15pt;font-family:Georgia;color:#2D2926;">
+        <strong style="font-size:28pt;color:#2D6B5E;">82%</strong> of invented quotes draw 90–100% of their words from the novel's own vocabulary. Mean overlap: 95.1%.
+      </p>
+    </div>
+    <p style="margin:4pt 0;font-size:16pt;font-family:Georgia;font-style:italic;color:#7A6E62;">Without passage grounding, the LLM produces graduated pastiche — not hallucination. Fidelity tracks novel prominence.</p>
+    <p style="margin:6pt 0 2pt;font-size:20pt;font-family:Arial;font-weight:bold;color:#722F37;">Ungrounded Quote Verification (%)</p>
+    
+  <div style="display:flex;align-items:center;gap:6pt;margin:3pt 0;">
+    <div style="width:175pt;text-align:right;">
+      <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">Middlemarch <span style="font-size:12pt;color:#7A6E62;">Eliot</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:4pt;">
+      <div style="width:200pt;height:14pt;background:#2D6B5E;border-radius:2pt;"></div>
+      <div style="width:0pt;height:14pt;background:#eeeeee;border-radius:2pt;"></div>
+      <p style="margin:0;font-family:Courier New;font-size:14pt;color:#2D2926;">57</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6pt;margin:3pt 0;">
+    <div style="width:175pt;text-align:right;">
+      <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">Bleak House <span style="font-size:12pt;color:#7A6E62;">Dickens</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:4pt;">
+      <div style="width:186pt;height:14pt;background:#3D8B7A;border-radius:2pt;"></div>
+      <div style="width:14pt;height:14pt;background:#eeeeee;border-radius:2pt;"></div>
+      <p style="margin:0;font-family:Courier New;font-size:14pt;color:#2D2926;">53</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6pt;margin:3pt 0;">
+    <div style="width:175pt;text-align:right;">
+      <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">David Copperfield <span style="font-size:12pt;color:#7A6E62;">Dickens</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:4pt;">
+      <div style="width:154pt;height:14pt;background:#5BA08F;border-radius:2pt;"></div>
+      <div style="width:46pt;height:14pt;background:#eeeeee;border-radius:2pt;"></div>
+      <p style="margin:0;font-family:Courier New;font-size:14pt;color:#2D2926;">44</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6pt;margin:3pt 0;">
+    <div style="width:175pt;text-align:right;">
+      <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">Passage to India <span style="font-size:12pt;color:#7A6E62;">Forster</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:4pt;">
+      <div style="width:137pt;height:14pt;background:#7EB5A6;border-radius:2pt;"></div>
+      <div style="width:63pt;height:14pt;background:#eeeeee;border-radius:2pt;"></div>
+      <p style="margin:0;font-family:Courier New;font-size:14pt;color:#2D2926;">39</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6pt;margin:3pt 0;">
+    <div style="width:175pt;text-align:right;">
+      <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">Cranford <span style="font-size:12pt;color:#7A6E62;">Gaskell</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:4pt;">
+      <div style="width:116pt;height:14pt;background:#B8860B;border-radius:2pt;"></div>
+      <div style="width:84pt;height:14pt;background:#eeeeee;border-radius:2pt;"></div>
+      <p style="margin:0;font-family:Courier New;font-size:14pt;color:#2D2926;">33</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6pt;margin:3pt 0;">
+    <div style="width:175pt;text-align:right;">
+      <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">Our Mutual Friend <span style="font-size:12pt;color:#7A6E62;">Dickens</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:4pt;">
+      <div style="width:102pt;height:14pt;background:#C8962B;border-radius:2pt;"></div>
+      <div style="width:98pt;height:14pt;background:#eeeeee;border-radius:2pt;"></div>
+      <p style="margin:0;font-family:Courier New;font-size:14pt;color:#2D2926;">29</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6pt;margin:3pt 0;">
+    <div style="width:175pt;text-align:right;">
+      <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">New Grub Street <span style="font-size:12pt;color:#7A6E62;">Gissing</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:4pt;">
+      <div style="width:70pt;height:14pt;background:#B07D6A;border-radius:2pt;"></div>
+      <div style="width:130pt;height:14pt;background:#eeeeee;border-radius:2pt;"></div>
+      <p style="margin:0;font-family:Courier New;font-size:14pt;color:#2D2926;">20</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6pt;margin:3pt 0;">
+    <div style="width:175pt;text-align:right;">
+      <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">The Odd Women <span style="font-size:12pt;color:#7A6E62;">Gissing</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:4pt;">
+      <div style="width:21pt;height:14pt;background:#9B4A54;border-radius:2pt;"></div>
+      <div style="width:179pt;height:14pt;background:#eeeeee;border-radius:2pt;"></div>
+      <p style="margin:0;font-family:Courier New;font-size:14pt;color:#2D2926;">6</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6pt;margin:3pt 0;">
+    <div style="width:175pt;text-align:right;">
+      <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">North and South <span style="font-size:12pt;color:#7A6E62;">Gaskell</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:4pt;">
+      <div style="width:7pt;height:14pt;background:#722F37;border-radius:2pt;"></div>
+      <div style="width:193pt;height:14pt;background:#eeeeee;border-radius:2pt;"></div>
+      <p style="margin:0;font-family:Courier New;font-size:14pt;color:#2D2926;">2</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6pt;margin:3pt 0;">
+    <div style="width:175pt;text-align:right;">
+      <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">Hester <span style="font-size:12pt;color:#7A6E62;">Oliphant</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:4pt;">
+      <div style="width:0pt;height:14pt;background:#4E1F26;border-radius:2pt;"></div>
+      <div style="width:200pt;height:14pt;background:#eeeeee;border-radius:2pt;"></div>
+      <p style="margin:0;font-family:Courier New;font-size:14pt;color:#2D2926;">0</p>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6pt;margin:3pt 0;">
+    <div style="width:175pt;text-align:right;">
+      <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">No Name <span style="font-size:12pt;color:#7A6E62;">Collins</span></p>
+    </div>
+    <div style="display:flex;align-items:center;gap:4pt;">
+      <div style="width:0pt;height:14pt;background:#4E1F26;border-radius:2pt;"></div>
+      <div style="width:200pt;height:14pt;background:#eeeeee;border-radius:2pt;"></div>
+      <p style="margin:0;font-family:Courier New;font-size:14pt;color:#2D2926;">0</p>
+    </div>
+  </div>
+    <p style="margin:6pt 0 0;font-size:14pt;font-family:Georgia;color:#2D2926;">
+      Grounded conditions achieve <strong>97–98%</strong> for <em>all</em> novels. The gradient reflects analytical reinforcement in training data (Carlini et al., 2021, 2023), not prose style.
+    </p>
+  
+  </div>
+
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">Pastiche in Action</p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    
+  <div style="border-left:4pt solid #B8860B;background:#F0E2C008;padding:6pt 8pt;margin:6pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 3pt;font-size:16pt;font-family:Georgia;font-style:italic;color:#2D2926;">"Name, Jo. Nothing else that he knows on. Don't know that everybody has two names. Never heerd of sich a think. No father, no mother, no friends. Never been to school."</p>
+    <p style="margin:0;font-size:14pt;font-family:Georgia;color:#7A6E62;">— Bleak House, Ch. 11 — Jo's testimony</p>
+  </div>
+    <div style="background:#E0F0EC40;border:0.5pt solid #3D8B7A30;border-radius:3pt;padding:4pt 8pt;margin:4pt 0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">"Fog everywhere. Fog up the river…"</p>
+        <div style="background:#2D6B5E;border-radius:3pt;padding:2pt 6pt;">
+          <p style="margin:0;font-size:12pt;font-family:Arial;font-weight:bold;color:white;">Verified 100%</p>
+        </div>
+      </div>
+      <p style="margin:2pt 0 0;font-size:12pt;font-family:Georgia;color:#7A6E62;">Reproduced verbatim from LLM memory</p>
+    </div>
+    <div style="background:#72003710;border:0.5pt solid #72003720;border-radius:3pt;padding:4pt 8pt;margin:4pt 0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">"I am very weak, but I shall begin the world."</p>
+        <div style="background:#9B4A54;border-radius:3pt;padding:2pt 6pt;">
+          <p style="margin:0;font-size:12pt;font-family:Arial;font-weight:bold;color:white;">Invented · 100% vocab</p>
+        </div>
+      </div>
+      <p style="margin:2pt 0 0;font-size:12pt;font-family:Georgia;color:#7A6E62;">Every word appears in the novel, but this sentence does not exist</p>
+    </div>
+    <div style="background:#72003710;border:0.5pt solid #72003720;border-radius:3pt;padding:4pt 8pt;margin:4pt 0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">"I don't know nothink."</p>
+        <div style="background:#9B4A54;border-radius:3pt;padding:2pt 6pt;">
+          <p style="margin:0;font-size:12pt;font-family:Arial;font-weight:bold;color:white;">Invented · 80% vocab</p>
+        </div>
+      </div>
+      <p style="margin:2pt 0 0;font-size:12pt;font-family:Georgia;color:#7A6E62;">Jo's dialect remembered; phrasing reconstructed</p>
+    </div>
+  
+  </div>
+
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">Alternative Expert Panels</p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    <p style="margin:4pt 0;font-size:15pt;font-family:Georgia;color:#2D2926;">
+      Beyond the primary literary triumvirate (Hartley / Blackstone / Woodcourt), the system includes three further specialist personas with distinct analytical toolkits.
+    </p>
+    <div style="display:flex;gap:6pt;margin:6pt 0;">
+      <div style="flex:1;background:#8B735508;border-left:3pt solid #8B7355;border-radius:0 3pt 3pt 0;padding:5pt 7pt;">
+        <p style="margin:0 0 2pt;font-size:18pt;font-family:Arial;font-weight:bold;color:#8B7355;">Edmund Leigh</p>
+        <p style="margin:0 0 4pt;font-size:13pt;font-family:Arial;color:#7A6E62;">Moral Philosopher</p>
+        <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">"Skimpole is the finest comic villain in the book, and I use that term with some precision. He is not a villain by malice — he is a villain by abdication."</p>
+      </div>
+      <div style="flex:1;background:#5B82AA08;border-left:3pt solid #5B82AA;border-radius:0 3pt 3pt 0;padding:5pt 7pt;">
+        <p style="margin:0 0 2pt;font-size:18pt;font-family:Arial;font-weight:bold;color:#5B82AA;">Oliver Trevelyan</p>
+        <p style="margin:0 0 4pt;font-size:13pt;font-family:Arial;color:#7A6E62;">Actor &amp; Narrator</p>
+        <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">"That phrase — 'forsworn and abjured' — is extraordinary to read aloud. Those are legal words — the language of the court itself — turned against the court."</p>
+      </div>
+      <div style="flex:1;background:#C4A07008;border-left:3pt solid #C4A070;border-radius:0 3pt 3pt 0;padding:5pt 7pt;">
+        <p style="margin:0 0 2pt;font-size:18pt;font-family:Arial;font-weight:bold;color:#8B6030;">Daniel Rosen</p>
+        <p style="margin:0 0 4pt;font-size:13pt;font-family:Arial;color:#7A6E62;">Marxist Historian</p>
+        <p style="margin:0;font-size:14pt;font-family:Georgia;font-style:italic;color:#2D2926;">"The darkness in that scene is the shadow of an institution, not just a weather event. Chancery casts its darkness across every threshold in this novel."</p>
+      </div>
+    </div>
+    <p style="margin:4pt 0;font-size:14pt;font-family:Georgia;color:#7A6E62;">
+      Each persona defines a distinct <strong>demand vector</strong> — a formal encoding of what that expert will seek in any passage. The system supports all 3<sup>3</sup> = 27 panel combinations; 9 are produced across the 180 conditions in this study.
+    </p>
+  
+  </div>
+
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">Designed Cordiality</p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    <p style="margin:4pt 0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">
+      The prompt instructs experts to be agreeable. The result is a recognisable formula: deferential opener, immediate contradiction.
+    </p>
+    <div style="background:#f0f0f0;border-left:4pt solid #888;padding:5pt 8pt;margin:5pt 0;border-radius:0 3pt 3pt 0;">
+      <p style="margin:0 0 3pt;font-size:13pt;font-family:Arial;font-style:italic;color:#666;">From the script prompt:</p>
+      <p style="margin:0;font-size:14pt;font-family:Courier New;color:#333;">Experts react to each other: <strong>agree</strong>, <strong>push back gently</strong>, riff on each other's ideas.</p>
+    </div>
+    <p style="margin:5pt 0 3pt;font-size:14pt;font-family:Georgia;color:#2D2926;">The resulting formula, across all 15 novels and all panels:</p>
+    
+  <div style="border-left:4pt solid #8B7355;background:#8B735518;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#8B7355;">Edmund Leigh (arc_v21, Bleak House):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">"<strong>I don't dispute any of that</strong> — and James's contextual detail is, as always, illuminating. <strong>But</strong> I'd want to resist the temptation to read Bleak House primarily as a pamphlet dressed in fiction's clothing."</p>
+  </div>
+    
+  <div style="border-left:4pt solid #722F37;background:#722F3718;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#722F37;">Eleanor Hartley (ext_v01, Bleak House):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">"<strong>I wouldn't dispute any of that</strong> — <strong>but</strong> I'd add a layer, because 'deserted infant' is not merely a figure of speech."</p>
+  </div>
+    
+  <div style="border-left:4pt solid #2D6B5E;background:#2D6B5E18;padding:4pt 8pt;margin:3pt 0;border-radius:0 3pt 3pt 0;">
+    <p style="margin:0 0 2pt;font-size:15pt;font-family:Arial;font-weight:bold;color:#2D6B5E;">Caroline Woodcourt (cran_nop, Cranford):</p>
+    <p style="margin:0;font-size:15pt;font-family:Georgia;font-style:italic;color:#7A6E62;">"<strong>I wouldn't dispute that</strong> reading of the prose. <strong>But</strong>…"</p>
+  </div>
+    <p style="margin:5pt 0 0;font-size:14pt;font-family:Georgia;color:#2D2926;">
+      The opener is disingenuous: the speaker always does dispute it. The formula is prompt-compliance made visible — <em>push back gently</em> produces stylised deference that is recognisable as designed, not conversational.
+    </p>
+  
+  </div>
+
+  
+  <div style="background:white;border:0.5pt solid #e0dada;border-radius:4pt;padding:10pt 10pt;margin-bottom:10pt;box-shadow:1pt 1pt 0 rgba(0,0,0,0.04);">
+    
+    
+  <div style="margin-bottom:6pt;">
+    <p style="margin:0;font-size:26pt;font-family:Arial;font-weight:bold;color:#722F37;">Key Findings</p>
+    <div style="height:3pt;width:140pt;background:#B8860B;margin-top:2pt;"></div>
+  </div>
+    <div style="background:#72003710;border-left:4pt solid #722F37;border-radius:0 3pt 3pt 0;padding:6pt 8pt;margin:5pt 0;">
+      <p style="margin:0 0 2pt;font-size:16pt;font-family:Arial;font-weight:bold;color:#722F37;">1. Framework dominates strategy.</p>
+      <p style="margin:0;font-size:15pt;font-family:Georgia;color:#2D2926;">Two reading algorithms select &lt;6% overlapping passages yet produce discussions with identical expert airtime (±2%). This convergence follows from a pipeline that reinforces expert identity at every stage — suggestive of Fish's thesis, but the engineering is the mechanism.</p>
+    </div>
+    <div style="background:#2D6B5E10;border-left:4pt solid #2D6B5E;border-radius:0 3pt 3pt 0;padding:6pt 8pt;margin:5pt 0;">
+      <p style="margin:0 0 2pt;font-size:16pt;font-family:Arial;font-weight:bold;color:#2D6B5E;">2. Pastiche, not hallucination.</p>
+      <p style="margin:0;font-size:15pt;font-family:Georgia;color:#2D2926;">Ungrounded LLMs write <em>in the style of</em> a novel, not <em>from</em> it. Fidelity tracks training-data exposure: a measurable knowledge gradient from <em>Middlemarch</em> (57%) to <em>Hester</em> (0%).</p>
+    </div>
+    <div style="background:#B8860B10;border-left:4pt solid #B8860B;border-radius:0 3pt 3pt 0;padding:6pt 8pt;margin:5pt 0;">
+      <p style="margin:0 0 2pt;font-size:16pt;font-family:Arial;font-weight:bold;color:#B8860B;">3. Scaffolding is content-independent.</p>
+      <p style="margin:0;font-size:15pt;font-family:Georgia;color:#2D2926;">Host preparation raises questions from ~1 to ~11 per segment, uniformly across all 15 novels (5.3× to 14.1×). Dynamics are designed, not emergent.</p>
+    </div>
+    <div style="background:#8B603010;border-left:4pt solid #8B6030;border-radius:0 3pt 3pt 0;padding:6pt 8pt;margin:5pt 0;">
+      <p style="margin:0 0 2pt;font-size:16pt;font-family:Arial;font-weight:bold;color:#8B6030;">4. Cordiality is designed, not conversational.</p>
+      <p style="margin:0;font-size:15pt;font-family:Georgia;color:#2D2926;">The prompt instruction <em>push back gently</em> produces a recognisable formula across all panels and all 15 novels: deferential opener ("I wouldn't dispute that…") followed immediately by contradiction. The deference is disingenuous and measurably prompt-driven.</p>
+    </div>
+    <div style="background:#72003710;border:1pt solid #72003730;border-radius:4pt;padding:8pt;margin:8pt 0 0;">
+      <p style="margin:0 0 3pt;font-size:18pt;font-family:Arial;font-weight:bold;color:#722F37;">Framework &gt; Grounding &gt; Strategy</p>
+      <p style="margin:0;font-size:15pt;font-family:Georgia;color:#2D2926;">The decomposition has a clear hierarchy. Framework determines character, grounding gates accuracy, strategy is surprisingly irrelevant.</p>
+    </div>
+  
+  </div>
+  </div>
+</div>
+
+</body>
+</html>

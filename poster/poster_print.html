@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Not In Our Time: Transport-Based Content Selection — MSLD 2026</title>
+<style>
+/* ── Print dimensions: 40×30 inches landscape ── */
+@page {
+  size: 40in 30in landscape;
+  margin: 0;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --burgundy:      #722F37;
+  --burgundydark:  #4E1F26;
+  --burgundylight: #9B4A54;
+  --gold:          #B8860B;
+  --goldpale:      #F0E2C0;
+  --teal:          #2D6B5E;
+  --teallight:     #3D8B7A;
+  --tealpale:      #E0F0EC;
+  --cream:         #F5F0E6;
+  --parchment:     #EDE5D8;
+  --charcoal:      #2D2926;
+  --warmgray:      #7A6E62;
+}
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--cream);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.9rem;
+  color: var(--charcoal);
+  width: 40in; height: 30in;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Bounding box overlay — shows the 40×30" poster boundary */
+body::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 4px solid rgba(180,0,0,0.55);
+  pointer-events: none;
+  z-index: 9999;
+  box-sizing: border-box;
+}
+
+/* ── Header ─────────────────────────────────────────── */
+.header {
+  background: var(--burgundydark);
+  padding: 0.25in 0.3in 0.2in;
+  display: flex; align-items: center; gap: 0.3in;
+  margin: 0.15in 0.15in 0.08in;
+  border-radius: 4px;
+}
+.header-left { flex: 1; }
+.header-right { text-align: right; flex: 0 0 5in; }
+
+.poster-title {
+  margin: 0;
+  font-size: 0.85in;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: bold;
+  font-style: italic;
+  color: var(--cream);
+  line-height: 1.05;
+}
+.poster-subtitle {
+  margin: 0.05in 0 0;
+  font-size: 0.31in;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #D4A843;
+  line-height: 1.3;
+}
+.author-name {
+  margin: 0;
+  font-size: 0.33in;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: bold;
+  color: var(--cream);
+}
+.author-affil {
+  margin: 0.04in 0 0;
+  font-size: 0.26in;
+  font-family: Arial, Helvetica, sans-serif;
+  color: var(--goldpale);
+  line-height: 1.4;
+}
+.conference-badge {
+  margin-top: 0.1in;
+  border: 1px solid #D4A843;
+  padding: 0.04in 0.12in;
+  border-radius: 3px;
+  display: inline-block;
+  font-size: 0.2in;
+  font-family: Arial, sans-serif;
+  color: #D4A843;
+}
+
+/* ── Epigraph ─────────────────────────────────────────── */
+.epigraph {
+  border-left: 4px solid var(--gold);
+  background: var(--parchment);
+  padding: 0.08in 0.15in;
+  margin: 0 0.15in 0.08in;
+  border-radius: 0 3px 3px 0;
+}
+.epigraph p {
+  margin: 0;
+  font-size: 0.24in;
+  font-style: italic;
+  color: var(--charcoal);
+}
+
+/* ── Three Columns ─────────────────────────────────────── */
+.columns {
+  display: flex; gap: 0.08in;
+  padding: 0 0.15in 0.1in;
+  height: calc(30in - 2.95in); /* remaining height after header + epigraph + margins */
+  align-items: flex-start;
+  overflow: hidden;
+}
+.col { flex: 1; min-width: 0; overflow: hidden; }
+.col-wide { flex: 1.27; }
+
+/* ── Section boxes ─────────────────────────────────────── */
+.box {
+  background: white;
+  border: 0.5px solid #ddd;
+  border-radius: 4px;
+  padding: 0.1in 0.1in;
+  margin-bottom: 0.07in;
+  box-shadow: 1px 1px 0 rgba(0,0,0,0.04);
+}
+.box-parchment { background: var(--parchment); border-color: #c8b89a; }
+
+/* ── Section headings ─────────────────────────────────── */
+.sec-head {
+  margin: 0 0 0.06in;
+}
+.sec-head h2 {
+  margin: 0;
+  font-size: 0.38in;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: bold;
+  color: var(--burgundy);
+  line-height: 1.15;
+}
+.sec-head .rule {
+  height: 3px; width: 1.8in;
+  background: var(--gold);
+  margin-top: 2px;
+}
+.subsec-head {
+  margin: 0.07in 0 0.03in;
+  font-size: 0.3in;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: bold;
+  color: var(--burgundy);
+}
+
+/* ── Text ─────────────────────────────────────────────── */
+p { margin: 0.04in 0; font-size: 0.23in; line-height: 1.45; }
+p.small { font-size: 0.2in; }
+p.tiny  { font-size: 0.17in; }
+em { font-style: italic; }
+strong { font-weight: bold; }
+code { font-family: 'Courier New', monospace; font-size: 0.95em; }
+
+/* ── Stat boxes (row of 3) ────────────────────────────── */
+.stat-row { display: flex; gap: 0.08in; margin: 0.07in 0; }
+.stat-box {
+  flex: 1;
+  background: var(--parchment);
+  border-radius: 4px;
+  padding: 0.07in 0.04in;
+  text-align: center;
+}
+.stat-num {
+  margin: 0;
+  font-size: 0.45in;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+  color: var(--burgundy);
+}
+.stat-label {
+  margin: 0.02in 0 0;
+  font-size: 0.18in;
+  font-family: Arial, sans-serif;
+  color: var(--warmgray);
+}
+
+/* ── Quote box ────────────────────────────────────────── */
+.quote-box {
+  border-left: 4px solid var(--gold);
+  background: rgba(240,226,192,0.15);
+  padding: 0.06in 0.08in;
+  margin: 0.06in 0;
+  border-radius: 0 3px 3px 0;
+}
+.quote-box p { margin: 0; }
+.quote-text { font-style: italic; color: var(--charcoal); font-size: 0.21in; }
+.quote-attr  { font-size: 0.18in; color: var(--warmgray); margin-top: 0.03in !important; }
+
+/* ── Strategy comparison ─────────────────────────────── */
+.strategy-row { display: flex; gap: 0.08in; align-items: flex-start; margin: 0.07in 0; }
+.strategy-box {
+  flex: 1;
+  border-radius: 4px;
+  padding: 0.07in;
+}
+.strategy-synoptic { background: rgba(224,240,236,0.5); border: 1px solid rgba(61,139,122,0.3); }
+.strategy-analytical { background: rgba(240,226,192,0.5); border: 1px solid rgba(212,168,67,0.4); }
+.strategy-separator { flex: 0 0 0.9in; text-align: center; padding-top: 0.2in; }
+.strategy-box h3 {
+  margin: 0 0 0.04in;
+  font-size: 0.28in;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+}
+.strategy-synoptic h3 { color: var(--teal); }
+.strategy-analytical h3 { color: var(--gold); }
+.strategy-box p { font-size: 0.2in; margin: 0.02in 0; }
+.jaccard { font-size: 0.25in; font-family: Arial, sans-serif; font-weight: bold; color: var(--burgundy); }
+.jaccard-label { font-size: 0.17in; color: var(--warmgray); margin-top: 0.02in !important; }
+
+/* ── Dialogue turns ───────────────────────────────────── */
+.turn {
+  border-left: 3.5px solid;
+  border-radius: 0 3px 3px 0;
+  padding: 0.04in 0.07in;
+  margin: 0.03in 0;
+}
+.turn-burgundy { border-color: var(--burgundy); background: rgba(114,47,55,0.04); }
+.turn-teal     { border-color: var(--teal);     background: rgba(45,107,94,0.04); }
+.turn-speaker {
+  margin: 0 0 0.02in;
+  font-size: 0.21in;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+}
+.turn-burgundy .turn-speaker { color: var(--burgundy); }
+.turn-teal     .turn-speaker { color: var(--teal); }
+.turn-text { font-size: 0.21in; font-style: italic; color: var(--warmgray); margin: 0; }
+
+/* ── Knowledge gradient bar chart ────────────────────── */
+.bar-row {
+  display: flex; align-items: center; gap: 0.06in;
+  margin: 0.025in 0;
+}
+.bar-label {
+  width: 2.6in;
+  text-align: right;
+  font-size: 0.19in;
+  font-style: italic;
+  color: var(--charcoal);
+  white-space: nowrap;
+}
+.bar-author { font-size: 0.16in; color: var(--warmgray); font-style: normal; }
+.bar-track  { width: 2.5in; height: 0.18in; background: #eeeeee; border-radius: 2px; overflow: hidden; }
+.bar-fill   { height: 100%; border-radius: 2px; }
+.bar-num    { font-family: 'Courier New', monospace; font-size: 0.19in; width: 0.3in; }
+
+/* ── Pastiche examples ────────────────────────────────── */
+.pastiche-box {
+  border-radius: 3px;
+  padding: 0.04in 0.08in;
+  margin: 0.04in 0;
+}
+.pastiche-verified   { background: rgba(45,107,94,0.06);  border: 0.5px solid rgba(45,107,94,0.2); }
+.pastiche-invented   { background: rgba(114,47,55,0.04);  border: 0.5px solid rgba(114,47,55,0.12); }
+.pastiche-row { display: flex; align-items: center; justify-content: space-between; gap: 0.08in; }
+.pastiche-quote { font-size: 0.2in; font-style: italic; color: var(--charcoal); margin: 0; }
+.badge {
+  border-radius: 3px;
+  padding: 0.02in 0.06in;
+  font-size: 0.16in;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+  color: white;
+  white-space: nowrap;
+}
+.badge-teal      { background: var(--teal); }
+.badge-burgundy  { background: var(--burgundylight); }
+.pastiche-note   { font-size: 0.16in; color: var(--warmgray); margin: 0.02in 0 0; }
+
+/* ── Key findings ─────────────────────────────────────── */
+.finding {
+  border-left: 4px solid;
+  border-radius: 0 3px 3px 0;
+  padding: 0.05in 0.08in;
+  margin: 0.05in 0;
+}
+.finding-burgundy { border-color: var(--burgundy); background: rgba(114,47,55,0.05); }
+.finding-teal     { border-color: var(--teal);     background: rgba(45,107,94,0.05); }
+.finding-gold     { border-color: var(--gold);     background: rgba(184,134,11,0.05); }
+.finding-title {
+  margin: 0 0 0.03in;
+  font-size: 0.24in;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+}
+.finding-burgundy .finding-title { color: var(--burgundy); }
+.finding-teal     .finding-title { color: var(--teal); }
+.finding-gold     .finding-title { color: var(--gold); }
+.finding p { font-size: 0.21in; margin: 0; }
+
+/* ── Summary box ─────────────────────────────────────── */
+.summary-box {
+  background: rgba(114,47,55,0.05);
+  border: 1px solid rgba(114,47,55,0.2);
+  border-radius: 4px;
+  padding: 0.07in;
+  margin-top: 0.07in;
+}
+.summary-title {
+  margin: 0 0 0.03in;
+  font-size: 0.28in;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+  color: var(--burgundy);
+}
+.summary-box p { font-size: 0.21in; margin: 0; }
+
+/* ── Knowledge gradient stat ──────────────────────────── */
+.kg-stat {
+  background: rgba(224,240,236,0.5);
+  border-radius: 4px;
+  padding: 0.07in;
+  margin: 0.06in 0;
+}
+.kg-num  { font-size: 0.4in; font-family: Arial, sans-serif; font-weight: bold; color: var(--teal); }
+.kg-desc { font-size: 0.21in; color: var(--charcoal); display: inline; }
+
+/* ── Screenshots ─────────────────────────────────────── */
+.screenshots {
+  display: flex; gap: 0.08in; margin-top: 0.07in;
+}
+.screenshots img {
+  flex: 1; max-width: 50%; height: auto;
+  border-radius: 4px; border: 0.5px solid #ccc;
+}
+
+/* ── Flow diagram ─────────────────────────────────────── */
+.flow-diagram {
+  width: 100%; height: auto;
+  margin: 0.06in 0;
+}
+
+/* ── Demo banner ──────────────────────────────────────── */
+.demo-url {
+  font-size: 0.26in;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+  color: var(--teal);
+  margin: 0.04in 0 0.02in;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     HEADER
+═══════════════════════════════════════════════════════ -->
+<div class="header">
+  <div class="header-left">
+    <h1 class="poster-title"><em>Not In Our Time:</em> Transport-Based Content Selection</h1>
+    <p class="poster-subtitle">An Inspectable, Manipulable Alternative to RAG — Demonstrated on Literary Discussion Podcasts for 15 Victorian Novels</p>
+  </div>
+  <div class="header-right">
+    <p class="author-name">Chris Brew</p>
+    <p class="author-affil">The Ohio State University<br>LexisNexis Legal &amp; Professional</p>
+    <div class="conference-badge">MIDWEST SPEECH &amp; LANGUAGE DAY 2026</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     EPIGRAPH
+═══════════════════════════════════════════════════════ -->
+<div class="epigraph">
+  <p>"Fog everywhere. Fog up the river, where it flows among green aits and meadows; fog down the river, where it rolls defiled among the tiers of shipping and the waterside pollutions of a great (and dirty) city. Fog on the Essex marshes, fog on the Kentish heights."
+  <span style="font-style:normal;color:var(--warmgray);font-size:0.85em;"> — Charles Dickens, <em>Bleak House</em> (1853), Chapter 1</span></p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     THREE COLUMNS
+═══════════════════════════════════════════════════════ -->
+<div class="columns">
+
+<!-- ────────────────── COLUMN 1 ────────────────────────── -->
+<div class="col">
+
+  <div class="box">
+    <div class="sec-head"><h2>The Question</h2><div class="rule"></div></div>
+    <p style="font-style:italic;color:var(--warmgray);">A reader who surveys a novel broadly and a reader who studies it narrowly will assemble different evidence for discussion. Do they arrive at different discussions?</p>
+    <p>Google's NotebookLM popularised LLM-generated podcast conversations, but the conversational design is largely unexamined. What makes a multi-voice discussion <em>cohere</em> — sound like a genuine conversation rather than parallel monologues? What levers does a designer have, and which ones actually matter?</p>
+    <p>We implement two reading strategies as passage-selection algorithms applied to <strong>15 Victorian novels</strong>, then generate structured multi-voice literary discussions from each selection — systematically varying panels, grounding conditions, and host preparation to isolate each lever's contribution.</p>
+    <div class="stat-row">
+      <div class="stat-box"><p class="stat-num">15</p><p class="stat-label">novels</p></div>
+      <div class="stat-box"><p class="stat-num">60,774</p><p class="stat-label">passages</p></div>
+      <div class="stat-box"><p class="stat-num">180</p><p class="stat-label">conditions</p></div>
+    </div>
+    <p class="small" style="color:var(--warmgray);">Seven authors (Dickens, Eliot, Gaskell, Forster, Collins, Gissing, Oliphant), seven decades (1850–1924).</p>
+    <div class="quote-box">
+      <p class="quote-text">"And all that night the coffin stands ready by the old portmanteau; and the lonely figure on the bed, whose path in life has lain through five and forty years, lies there with no more track behind him that any one can trace than a deserted infant."</p>
+      <p class="quote-attr">— Bleak House, Ch. 11 — The death of Nemo</p>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="sec-head"><h2>Min-Cost Flow Selection</h2><div class="rule"></div></div>
+    <p class="small" style="color:var(--warmgray);">Passages flow through enrichment dimensions and expert demand nodes to episode segments. Every arc is inspectable and adjustable.</p>
+    <!-- Inline SVG flow diagram -->
+    <svg class="flow-diagram" viewBox="0 0 860 560" xmlns="http://www.w3.org/2000/svg">
+      <rect width="860" height="560" fill="#fafafa" rx="3"/>
+      <!-- Column headers -->
+      <text x="90"  y="22" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#555">Passage Clusters</text>
+      <text x="272" y="22" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#555">Enrichment Dimensions</text>
+      <text x="555" y="22" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#555">Expert Personas</text>
+      <text x="770" y="22" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#555">Episode Segments</text>
+      <!-- Connections: Clusters → Dimensions -->
+      <g stroke-width="1.2" stroke-opacity="0.22">
+        <line x1="143" y1="95"  x2="220" y2="88"  stroke="#8B7355"/>
+        <line x1="143" y1="95"  x2="220" y2="196" stroke="#8B7355"/>
+        <line x1="143" y1="95"  x2="220" y2="304" stroke="#8B7355"/>
+        <line x1="143" y1="228" x2="220" y2="196" stroke="#B07D6A"/>
+        <line x1="143" y1="228" x2="220" y2="412" stroke="#B07D6A"/>
+        <line x1="143" y1="361" x2="220" y2="304" stroke="#7A8B5E"/>
+        <line x1="143" y1="361" x2="220" y2="196" stroke="#7A8B5E"/>
+        <line x1="143" y1="494" x2="220" y2="412" stroke="#C4A070"/>
+        <line x1="143" y1="494" x2="220" y2="500" stroke="#C4A070"/>
+        <line x1="143" y1="494" x2="220" y2="304" stroke="#C4A070"/>
+        <!-- Dimensions → Personas -->
+        <line x1="324" y1="88"  x2="503" y2="95"  stroke="#7B9B6B"/>
+        <line x1="324" y1="196" x2="503" y2="95"  stroke="#7B9B6B"/>
+        <line x1="324" y1="196" x2="503" y2="228" stroke="#7B9B6B"/>
+        <line x1="324" y1="304" x2="503" y2="228" stroke="#7B9B6B"/>
+        <line x1="324" y1="304" x2="503" y2="361" stroke="#7B9B6B"/>
+        <line x1="324" y1="412" x2="503" y2="228" stroke="#7B9B6B"/>
+        <line x1="324" y1="412" x2="503" y2="361" stroke="#7B9B6B"/>
+        <line x1="324" y1="500" x2="503" y2="494" stroke="#7B9B6B"/>
+        <line x1="324" y1="500" x2="503" y2="361" stroke="#7B9B6B"/>
+        <line x1="324" y1="88"  x2="503" y2="361" stroke="#7B9B6B"/>
+        <!-- Personas → Segments -->
+        <line x1="607" y1="95"  x2="718" y2="95"  stroke="#D45B5B"/>
+        <line x1="607" y1="95"  x2="718" y2="228" stroke="#D45B5B"/>
+        <line x1="607" y1="228" x2="718" y2="228" stroke="#D4935B"/>
+        <line x1="607" y1="228" x2="718" y2="361" stroke="#D4935B"/>
+        <line x1="607" y1="361" x2="718" y2="361" stroke="#8B6BAA"/>
+        <line x1="607" y1="361" x2="718" y2="228" stroke="#8B6BAA"/>
+        <line x1="607" y1="494" x2="718" y2="494" stroke="#5BAA7B"/>
+        <line x1="607" y1="494" x2="718" y2="361" stroke="#5BAA7B"/>
+      </g>
+      <!-- Cluster nodes -->
+      <g>
+        <rect x="37" y="73" width="106" height="44" rx="5" fill="#8B7355"/>
+        <text x="90" y="91" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Gothic</text>
+        <text x="90" y="107" text-anchor="middle" font-family="Arial" font-size="12" fill="white">atmosphere</text>
+
+        <rect x="37" y="206" width="106" height="44" rx="5" fill="#B07D6A"/>
+        <text x="90" y="224" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Legal</text>
+        <text x="90" y="240" text-anchor="middle" font-family="Arial" font-size="12" fill="white">satire</text>
+
+        <rect x="37" y="339" width="106" height="44" rx="5" fill="#7A8B5E"/>
+        <text x="90" y="357" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Character</text>
+        <text x="90" y="373" text-anchor="middle" font-family="Arial" font-size="12" fill="white">crisis</text>
+
+        <rect x="37" y="472" width="106" height="44" rx="5" fill="#C4A070"/>
+        <text x="90" y="490" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Social</text>
+        <text x="90" y="506" text-anchor="middle" font-family="Arial" font-size="12" fill="white">critique</text>
+      </g>
+      <!-- Dimension nodes -->
+      <g>
+        <rect x="220" y="66"  width="104" height="44" rx="5" fill="#7B9B6B"/>
+        <text x="272" y="92" text-anchor="middle" font-family="Arial" font-size="12" fill="white">atmosphere</text>
+
+        <rect x="220" y="174" width="104" height="44" rx="5" fill="#7B9B6B"/>
+        <text x="272" y="191" text-anchor="middle" font-family="Arial" font-size="12" fill="white">narrative</text>
+        <text x="272" y="207" text-anchor="middle" font-family="Arial" font-size="12" fill="white">technique</text>
+
+        <rect x="220" y="282" width="104" height="44" rx="5" fill="#7B9B6B"/>
+        <text x="272" y="299" text-anchor="middle" font-family="Arial" font-size="12" fill="white">character</text>
+        <text x="272" y="315" text-anchor="middle" font-family="Arial" font-size="12" fill="white">development</text>
+
+        <rect x="220" y="390" width="104" height="44" rx="5" fill="#7B9B6B"/>
+        <text x="272" y="407" text-anchor="middle" font-family="Arial" font-size="12" fill="white">social</text>
+        <text x="272" y="423" text-anchor="middle" font-family="Arial" font-size="12" fill="white">critique</text>
+
+        <rect x="220" y="478" width="104" height="44" rx="5" fill="#7B9B6B"/>
+        <text x="272" y="504" text-anchor="middle" font-family="Arial" font-size="12" fill="white">humor</text>
+      </g>
+      <!-- Persona nodes -->
+      <g>
+        <rect x="503" y="73"  width="104" height="44" rx="5" fill="#D45B5B"/>
+        <text x="555" y="91"  text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Eleanor</text>
+        <text x="555" y="107" text-anchor="middle" font-family="Arial" font-size="12" fill="white">(craft)</text>
+
+        <rect x="503" y="206" width="104" height="44" rx="5" fill="#D4935B"/>
+        <text x="555" y="224" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">James</text>
+        <text x="555" y="240" text-anchor="middle" font-family="Arial" font-size="12" fill="white">(history)</text>
+
+        <rect x="503" y="339" width="104" height="44" rx="5" fill="#8B6BAA"/>
+        <text x="555" y="357" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Caroline</text>
+        <text x="555" y="373" text-anchor="middle" font-family="Arial" font-size="12" fill="white">(reading)</text>
+
+        <rect x="503" y="472" width="104" height="44" rx="5" fill="#5BAA7B"/>
+        <text x="555" y="490" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Oliver</text>
+        <text x="555" y="506" text-anchor="middle" font-family="Arial" font-size="12" fill="white">(perf.)</text>
+      </g>
+      <!-- Segment nodes -->
+      <g>
+        <rect x="718" y="73"  width="104" height="44" rx="5" fill="#D45B5B"/>
+        <text x="770" y="91"  text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Opening:</text>
+        <text x="770" y="107" text-anchor="middle" font-family="Arial" font-size="12" fill="white">The Fog</text>
+
+        <rect x="718" y="206" width="104" height="44" rx="5" fill="#5B82AA"/>
+        <text x="770" y="224" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Deep Dive:</text>
+        <text x="770" y="240" text-anchor="middle" font-family="Arial" font-size="12" fill="white">Jo's World</text>
+
+        <rect x="718" y="339" width="104" height="44" rx="5" fill="#8B6BAA"/>
+        <text x="770" y="357" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Close Reading:</text>
+        <text x="770" y="373" text-anchor="middle" font-family="Arial" font-size="12" fill="white">Secrets</text>
+
+        <rect x="718" y="472" width="104" height="44" rx="5" fill="#AA8B5B"/>
+        <text x="770" y="490" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Discussion:</text>
+        <text x="770" y="506" text-anchor="middle" font-family="Arial" font-size="12" fill="white">Comedy</text>
+      </g>
+    </svg>
+
+    <h3 class="subsec-head" style="margin-top:0.04in;">Two Reading Strategies</h3>
+    <p class="small"><strong>Synoptic</strong> (min-cost flow): <code>59</code> passages from 28 chapters. Favours character development (+8.3 pp) and plot (+10.2 pp). Zero LLM tokens, &lt;1 s. Every passage selection is traceable to a specific cost and flow value.</p>
+    <p class="small"><strong>Analytical</strong> (embeddings + LLM curation): <code>32</code> passages from 20 chapters. Favours social critique (+13.4 pp) and thematic depth (+6.9 pp). Uses retrieval then a second LLM call to apply editorial judgement.</p>
+    <p class="small"><strong>No-passages:</strong> LLM draws on prior knowledge alone — isolating the knowledge-gradient effect and producing graduated pastiche rather than grounded quotation.</p>
+  </div>
+
+  <div class="box">
+    <div class="sec-head"><h2>Why Not RAG?</h2><div class="rule"></div></div>
+    <p>Standard RAG retrieves by embedding similarity and feeds results to an LLM. Effective but opaque: the user cannot see <em>why</em> a passage was selected, cannot adjust criteria, and cannot explore how different priorities reshape the output. Changing the question means running the whole pipeline again, with no guarantee of comparability.</p>
+    <p>Min-cost flow makes every decision visible as a <strong>cost</strong>, a <strong>flow</strong>, and a <strong>constraint</strong>. The expert's demand vector is the objective function; changing one weight immediately shows what changes. Solving a flow costs &lt;1 s and zero LLM tokens — a <strong>thinking tool</strong> for rapid, comparable exploration of alternatives.</p>
+  </div>
+
+  <div class="box">
+    <div class="sec-head"><h2>References</h2><div class="rule"></div></div>
+    <p class="small">Fish, S. (1980). <em>Is There a Text in This Class?</em> Harvard UP.</p>
+    <p class="small">Bayard, P. (2007). <em>How to Talk About Books You Haven't Read.</em> Bloomsbury.</p>
+    <p class="small">Carlini, N. et al. (2021, 2023). Extracting/quantifying memorization in LLMs. <em>USENIX Security; ICLR.</em></p>
+    <p class="small">Ahuja, R., Magnanti, T. &amp; Orlin, J. (1993). <em>Network Flows.</em> Prentice Hall.</p>
+    <p class="small">Moretti, F. (2013). <em>Distant Reading.</em> Verso.</p>
+  </div>
+
+  <div class="box box-parchment">
+    <h3 class="subsec-head" style="margin-top:0;">Interactive Demo &amp; Acknowledgements</h3>
+    <p class="demo-url">bleakhouse-demo.fly.dev</p>
+    <p class="small">Browse 180 conditions, listen to episodes, inspect passage backlinks.</p>
+    <p class="tiny" style="color:var(--warmgray);margin-top:0.04in;">Thanks to The Ohio State University College of Engineering and LexisNexis Legal &amp; Professional.</p>
+  </div>
+
+</div><!-- /col1 -->
+
+<!-- ────────────────── COLUMN 2 ────────────────────────── -->
+<div class="col col-wide">
+
+  <div class="box">
+    <div class="sec-head"><h2>The Reader Makes the Reading</h2><div class="rule"></div></div>
+    <p style="font-style:italic;color:var(--warmgray);">The pipeline privileges expert identity at every stage — enrichment dimensions match demand profiles, the selector optimises for demand satisfaction, host preparation targets specific experts, and the script prompt reinforces perspectives. Convergence follows from this engineering.</p>
+    <p>The system exposes four independently manipulable levers: <strong>expert personas</strong> (demand profiles that control what each speaker seeks); <strong>passage grounding</strong> (selected passages that anchor quotation and prevent confabulation); <strong>conversational design</strong> (prompt-level specifications for quote handling, reactive language, and turn structure); and <strong>segment continuity</strong> (bridging between independently generated segments).</p>
+    <div class="strategy-row">
+      <div class="strategy-box strategy-synoptic">
+        <h3>Synoptic</h3>
+        <p><code>59</code> passages, <code>28</code> chapters</p>
+        <p>Character &amp; plot focused</p>
+        <p>Min-cost flow solver</p>
+      </div>
+      <div class="strategy-separator">
+        <p class="jaccard">J = 0.057</p>
+        <p class="jaccard-label">&lt;6% overlap<br>in passages</p>
+      </div>
+      <div class="strategy-box strategy-analytical">
+        <h3>Analytical</h3>
+        <p><code>32</code> passages, <code>20</code> chapters</p>
+        <p>Critique &amp; theme focused</p>
+        <p>Embedding retrieval + LLM</p>
+      </div>
+    </div>
+    <h3 class="subsec-head">Yet: Expert Airtime Stable to ±2%</h3>
+    <p class="small">Eleanor Hartley (literary critic): <strong>32–37%</strong> &nbsp;&nbsp; James Blackstone (social historian): <strong>30–37%</strong> &nbsp;&nbsp; Caroline Woodcourt (close reader): <strong>29–34%</strong></p>
+    <p class="small">Each stage reinforces the framework. The convergence is suggestive of Fish's (1980) thesis — but the engineering is the mechanism, and we name it honestly.</p>
+  </div>
+
+  <div class="box">
+    <div class="sec-head"><h2>Three Panels Discuss <em>Bleak House</em></h2><div class="rule"></div></div>
+
+    <h3 class="subsec-head" style="margin-top:0.02in;">Literary Panel</h3>
+    <div class="turn turn-burgundy">
+      <p class="turn-speaker">Eleanor Hartley (Literary Critic):</p>
+      <p class="turn-text">"What strikes me about that Nemo sentence is the grammatical audacity of it. 'A deserted infant' — Dickens reaches for the most helpless possible image of erasure. The infant image should be about beginning, and Dickens flips it into a closing."</p>
+    </div>
+    <div class="turn turn-burgundy">
+      <p class="turn-speaker">James Blackstone (Social Historian):</p>
+      <p class="turn-text">"The fog is not decoration. It is the Court of Chancery made visible. 'Lies there with no more track behind him that any one can trace than a deserted infant.' That sentence is the whole novel compressed into a single image."</p>
+    </div>
+    <div class="turn turn-burgundy">
+      <p class="turn-speaker">Caroline Woodcourt (Close Reader):</p>
+      <p class="turn-text">"Readers sometimes use the fog as a kind of permission — 'this is a great symbolic novel, I'm in the presence of Literature with a capital L' — and then they stop actually listening to what Dickens is telling them. What moves me is something far quieter — the moment where a human life is described as leaving no trace."</p>
+    </div>
+
+    <h3 class="subsec-head">Interdisciplinary Panel</h3>
+    <div class="turn turn-teal">
+      <p class="turn-speaker">Sarah Chen (NLP Scientist):</p>
+      <p class="turn-text">"That is a noun phrase with four pre-nominal modifiers, each compounded — and then 'brazen-faced' pulls the floor out. The first three feel like nautical specifications — they're doing the register of technical competence — and the fourth is an insult."</p>
+    </div>
+    <div class="turn turn-teal">
+      <p class="turn-speaker">Elena Volkov (Musicologist):</p>
+      <p class="turn-text">"Institutions don't announce their corruption — they announce their solidity, their procedure, their continuity. I spent years studying how Soviet conservatories presented themselves as nurturing talent while systematically destroying composers who stepped out of line."</p>
+    </div>
+    <div class="turn turn-teal">
+      <p class="turn-speaker">Rebecca Martinez (Astronomer):</p>
+      <p class="turn-text">"The ships of Law and Equity aren't sunk, they're in reserve. In my field, we'd say the system is in a quasi-stable state. The energy is there. Nothing has been resolved. The fog is the natural atmosphere of a system that has never actually resolved anything."</p>
+    </div>
+    <p class="small" style="margin-top:0.05in;">The experts bring their <strong>metaphors</strong> (quasi-stable states, leitmotifs, phrase structure) but not their <strong>methods</strong> — the scaffold imports literary-critical norms regardless of the persona.</p>
+
+    <h3 class="subsec-head">Alternative Panel</h3>
+    <div class="turn" style="border-left-color:#8B6030;background:rgba(139,96,48,0.04);">
+      <p class="turn-speaker" style="color:#8B6030;">Oliver Trevelyan (Actor &amp; Narrator):</p>
+      <p class="turn-text">"When I first read it aloud — really <em>performed</em> it — I remember stopping and thinking: this is incantation, not description. He builds an atmosphere so thick and particular it becomes a character in its own right."</p>
+    </div>
+    <div class="turn" style="border-left-color:#8B6030;background:rgba(139,96,48,0.04);">
+      <p class="turn-speaker" style="color:#8B6030;">Daniel Rosen (Marxist Historian):</p>
+      <p class="turn-text">"The fog is doing what Chancery does throughout the novel — it penetrates everywhere, it afflicts everyone, but it does not afflict everyone equally. The ancient Greenwich pensioners wheeze by their firesides — they at least have firesides. The boy on deck has nothing between him and the weather but his own skin."</p>
+    </div>
+    <div class="turn" style="border-left-color:#8B6030;background:rgba(139,96,48,0.04);">
+      <p class="turn-speaker" style="color:#8B6030;">Edmund Leigh (Moral Philosopher):</p>
+      <p class="turn-text">"One must be a little careful not to flatten the novel into a single spatial metaphor, however seductive. Dickens gives us Bleak House — the actual building — and Esther's description of it is one of the warmest passages in the book."</p>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="sec-head"><h2>Deliberate Stereotypes</h2><div class="rule"></div></div>
+    <p>The expert personas are deliberately <em>caricatures</em>: the literary critic always finds prose rhythm; the social historian always finds institutional critique; the close reader always finds texture. By making the stereotypes explicit — encoded as <strong>demand vectors</strong> rather than implicit in a prompt — the system turns editorial bias into a first-class object that can be inspected, compared, and argued about.</p>
+  </div>
+
+  <div class="screenshots">
+    <img src="screenshots/landing_page.png" alt="Landing page"/>
+    <img src="screenshots/audio_player.png" alt="Audio player"/>
+  </div>
+
+</div><!-- /col2 -->
+
+<!-- ────────────────── COLUMN 3 ────────────────────────── -->
+<div class="col">
+
+  <div class="box">
+    <div class="sec-head"><h2>The Knowledge Gradient</h2><div class="rule"></div></div>
+    <p style="font-style:italic;color:var(--warmgray);">Without passage grounding, the LLM produces graduated pastiche — not hallucination. Fidelity tracks novel prominence.</p>
+    <div class="kg-stat">
+      <span class="kg-num">82%</span>
+      <span class="kg-desc"> of invented quotes draw 90–100% of their words from the novel's own vocabulary. Mean overlap: 95.1%.</span>
+    </div>
+    <h3 class="subsec-head">Ungrounded Quote Verification (%)</h3>
+    <!-- Bar chart -->
+    <div style="margin:0.04in 0;">
+      <!-- Novel, Author, pct (max=57 → 2.3in) -->
+      <div class="bar-row">
+        <span class="bar-label"><em>Middlemarch</em> <span class="bar-author">Eliot</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:100%;background:#2D6B5E;"></div></div>
+        <span class="bar-num">57</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label"><em>Bleak House</em> <span class="bar-author">Dickens</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:92.9%;background:#3D8B7A;"></div></div>
+        <span class="bar-num">53</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label"><em>David Copperfield</em> <span class="bar-author">Dickens</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:77.2%;background:#5BA08F;"></div></div>
+        <span class="bar-num">44</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label"><em>Passage to India</em> <span class="bar-author">Forster</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:68.4%;background:#7EB5A6;"></div></div>
+        <span class="bar-num">39</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label"><em>Cranford</em> <span class="bar-author">Gaskell</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:57.9%;background:#B8860B;"></div></div>
+        <span class="bar-num">33</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label"><em>Our Mutual Friend</em> <span class="bar-author">Dickens</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:50.9%;background:#C8962B;"></div></div>
+        <span class="bar-num">29</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label"><em>New Grub Street</em> <span class="bar-author">Gissing</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:35.1%;background:#B07D6A;"></div></div>
+        <span class="bar-num">20</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label"><em>The Odd Women</em> <span class="bar-author">Gissing</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:10.5%;background:#9B4A54;"></div></div>
+        <span class="bar-num">6</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label"><em>North and South</em> <span class="bar-author">Gaskell</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:3.5%;background:#722F37;"></div></div>
+        <span class="bar-num">2</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label"><em>Hester</em> <span class="bar-author">Oliphant</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:0%;background:#4E1F26;"></div></div>
+        <span class="bar-num">0</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label"><em>No Name</em> <span class="bar-author">Collins</span></span>
+        <div class="bar-track"><div class="bar-fill" style="width:0%;background:#4E1F26;"></div></div>
+        <span class="bar-num">0</span>
+      </div>
+    </div>
+    <p class="small">Grounded conditions achieve <strong>97–98%</strong> for <em>all</em> novels. The gradient reflects analytical reinforcement in training data (Carlini et al., 2021, 2023), not prose style.</p>
+  </div>
+
+  <div class="box">
+    <div class="sec-head"><h2>Pastiche in Action</h2><div class="rule"></div></div>
+    <div class="quote-box">
+      <p class="quote-text">"Name, Jo. Nothing else that he knows on. Don't know that everybody has two names. Never heerd of sich a think. No father, no mother, no friends. Never been to school."</p>
+      <p class="quote-attr">— Bleak House, Ch. 11 — Jo's testimony</p>
+    </div>
+    <div class="pastiche-box pastiche-verified">
+      <div class="pastiche-row">
+        <p class="pastiche-quote">"Fog everywhere. Fog up the river…"</p>
+        <span class="badge badge-teal">Verified 100%</span>
+      </div>
+      <p class="pastiche-note">Reproduced verbatim from LLM memory</p>
+    </div>
+    <div class="pastiche-box pastiche-invented">
+      <div class="pastiche-row">
+        <p class="pastiche-quote">"I am very weak, but I shall begin the world."</p>
+        <span class="badge badge-burgundy">Invented · 100% vocab</span>
+      </div>
+      <p class="pastiche-note">Every word appears in the novel, but this sentence does not exist</p>
+    </div>
+    <div class="pastiche-box pastiche-invented">
+      <div class="pastiche-row">
+        <p class="pastiche-quote">"I don't know nothink."</p>
+        <span class="badge badge-burgundy">Invented · 80% vocab</span>
+      </div>
+      <p class="pastiche-note">Jo's dialect remembered; phrasing reconstructed</p>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="sec-head"><h2>Alternative Expert Panels</h2><div class="rule"></div></div>
+    <p>Beyond the primary literary triumvirate (Hartley / Blackstone / Woodcourt), the system includes three further specialist personas with distinct analytical toolkits.</p>
+    <div style="display:flex;gap:0.07in;margin:0.06in 0;">
+      <div style="flex:1;background:rgba(139,107,85,0.08);border-left:3.5px solid #8B7355;border-radius:0 3px 3px 0;padding:0.05in 0.07in;">
+        <p style="margin:0 0 0.02in;font-size:0.22in;font-family:Arial,sans-serif;font-weight:bold;color:#8B7355;">Edmund Leigh</p>
+        <p style="margin:0;font-size:0.18in;color:var(--warmgray);">Moral Philosopher</p>
+        <p style="margin:0.03in 0 0;font-size:0.19in;font-style:italic;color:var(--charcoal);">"Skimpole is the finest comic villain in the book, and I use that term with some precision. He is not a villain by malice — he is a villain by abdication."</p>
+      </div>
+      <div style="flex:1;background:rgba(91,130,170,0.08);border-left:3.5px solid #5B82AA;border-radius:0 3px 3px 0;padding:0.05in 0.07in;">
+        <p style="margin:0 0 0.02in;font-size:0.22in;font-family:Arial,sans-serif;font-weight:bold;color:#5B82AA;">Oliver Trevelyan</p>
+        <p style="margin:0;font-size:0.18in;color:var(--warmgray);">Actor &amp; Narrator</p>
+        <p style="margin:0.03in 0 0;font-size:0.19in;font-style:italic;color:var(--charcoal);">"That phrase — 'forsworn and abjured' — is extraordinary to read aloud. Those are legal words — the language of the court itself — turned against the court."</p>
+      </div>
+      <div style="flex:1;background:rgba(196,160,112,0.08);border-left:3.5px solid #C4A070;border-radius:0 3px 3px 0;padding:0.05in 0.07in;">
+        <p style="margin:0 0 0.02in;font-size:0.22in;font-family:Arial,sans-serif;font-weight:bold;color:#8B6030;">Daniel Rosen</p>
+        <p style="margin:0;font-size:0.18in;color:var(--warmgray);">Marxist Historian</p>
+        <p style="margin:0.03in 0 0;font-size:0.19in;font-style:italic;color:var(--charcoal);">"The darkness in that scene is the shadow of an institution, not just a weather event. Chancery casts its darkness across every threshold in this novel."</p>
+      </div>
+    </div>
+    <p class="small">Each persona defines a distinct <strong>demand vector</strong> — a formal encoding of what that expert will seek in any passage. The system supports all 3<sup>3</sup> = 27 panel combinations; 9 are produced across the 180 conditions in this study.</p>
+  </div>
+
+  <div class="box">
+    <div class="sec-head"><h2>Designed Cordiality</h2><div class="rule"></div></div>
+    <p style="font-style:italic;color:var(--warmgray);">The prompt instructs experts to be agreeable. The result is a recognisable formula: deferential opener, immediate contradiction.</p>
+    <div style="background:#f0f0f0;border-left:4px solid #888;border-radius:0 3px 3px 0;padding:0.05in 0.08in;margin:0.05in 0;">
+      <p style="margin:0 0 0.03in;font-size:0.17in;color:#666;font-family:Arial,sans-serif;font-style:italic;">From the script prompt:</p>
+      <p style="margin:0;font-size:0.19in;font-family:'Courier New',monospace;color:#333;">Experts react to each other: <strong>agree</strong>, <strong>push back gently</strong>, riff on each other's ideas.</p>
+    </div>
+    <p class="small" style="margin:0.05in 0 0.02in;">The resulting formula, across all 15 novels and all panels:</p>
+    <div class="turn" style="border-left-color:#8B7355;background:rgba(139,107,85,0.04);margin:0.03in 0;">
+      <p class="turn-speaker" style="color:#8B7355;">Edmund Leigh (arc_v21, Bleak House):</p>
+      <p class="turn-text">"<strong>I don't dispute any of that</strong> — and James's contextual detail is, as always, illuminating. <strong>But</strong> I'd want to resist the temptation to read Bleak House primarily as a pamphlet dressed in fiction's clothing."</p>
+    </div>
+    <div class="turn" style="border-left-color:#722F37;background:rgba(114,47,55,0.04);margin:0.03in 0;">
+      <p class="turn-speaker" style="color:#722F37;">Eleanor Hartley (ext_v01, Bleak House):</p>
+      <p class="turn-text">"<strong>I wouldn't dispute any of that</strong> — <strong>but</strong> I'd add a layer, because 'deserted infant' is not merely a figure of speech."</p>
+    </div>
+    <div class="turn" style="border-left-color:#2D6B5E;background:rgba(45,107,94,0.04);margin:0.03in 0;">
+      <p class="turn-speaker" style="color:#2D6B5E;">Caroline Woodcourt (cran_nop, Cranford):</p>
+      <p class="turn-text">"<strong>I wouldn't dispute that</strong> reading of the prose. <strong>But</strong>…"</p>
+    </div>
+    <p class="small" style="margin-top:0.05in;">The opener is disingenuous: the speaker always does dispute it. The formula is prompt-compliance made visible — <em>push back gently</em> produces stylised deference that is recognisable as designed, not conversational.</p>
+  </div>
+
+  <div class="box">
+    <div class="sec-head"><h2>Key Findings</h2><div class="rule"></div></div>
+    <div class="finding finding-burgundy">
+      <p class="finding-title">1. Framework dominates strategy.</p>
+      <p>Two reading algorithms select &lt;6% overlapping passages yet produce discussions with identical expert airtime (±2%). This convergence follows from a pipeline that reinforces expert identity at every stage — suggestive of Fish's thesis, but the engineering is the mechanism.</p>
+    </div>
+    <div class="finding finding-teal">
+      <p class="finding-title">2. Pastiche, not hallucination.</p>
+      <p>Ungrounded LLMs write <em>in the style of</em> a novel, not <em>from</em> it. Fidelity tracks training-data exposure: a measurable knowledge gradient from <em>Middlemarch</em> (57%) to <em>Hester</em> (0%).</p>
+    </div>
+    <div class="finding finding-gold">
+      <p class="finding-title">3. Scaffolding is content-independent.</p>
+      <p>Host preparation raises questions from ~1 to ~11 per segment, uniformly across all 15 novels (5.3× to 14.1×). Dynamics are designed, not emergent.</p>
+    </div>
+    <div class="finding finding-gold" style="border-left-color:#8B6030;background:rgba(139,96,48,0.05);">
+      <p class="finding-title" style="color:#8B6030;">4. Cordiality is designed, not conversational.</p>
+      <p>The prompt instruction <em>push back gently</em> produces a recognisable formula across all panels and all 15 novels: deferential opener ("I wouldn't dispute that…") followed immediately by contradiction. The deference is disingenuous and measurably prompt-driven.</p>
+    </div>
+    <div class="summary-box">
+      <p class="summary-title">Framework &gt; Grounding &gt; Strategy</p>
+      <p>The decomposition has a clear hierarchy. Framework determines character, grounding gates accuracy, strategy is surprisingly irrelevant.</p>
+    </div>
+  </div>
+
+</div><!-- /col3 -->
+
+</div><!-- /columns -->
+</body>
+</html>
