@@ -407,7 +407,7 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
     <div class="sec-head"><h2>The Question</h2><div class="rule"></div></div>
     <p style="font-style:italic;color:var(--warmgray);">A reader who surveys a novel broadly and a reader who studies it narrowly will assemble different evidence for discussion. Do they arrive at different discussions?</p>
     <p>Google's NotebookLM (Google, 2024) popularised LLM-generated podcast conversations, but the conversational design is largely unexamined. What makes a multi-voice discussion <em>cohere</em> — sound like a genuine conversation rather than parallel monologues? What levers does a designer have, and which ones actually matter?</p>
-    <p>We implement two reading strategies as passage-selection algorithms applied to <strong>15 Victorian novels</strong>, then generate structured multi-voice literary discussions from each selection — systematically varying panels, grounding conditions, and host preparation to isolate each lever's contribution.</p>
+    <p>We implement two reading strategies as passage-selection algorithms applied to <strong>15 Victorian novels</strong> (Hart, 1971), then generate structured multi-voice literary discussions from each selection — systematically varying panels, grounding conditions, and host preparation to isolate each lever's contribution.</p>
     <div class="stat-row">
       <div class="stat-box"><p class="stat-num">15</p><p class="stat-label">novels</p></div>
       <div class="stat-box"><p class="stat-num">60,774</p><p class="stat-label">passages</p></div>
@@ -548,8 +548,8 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
 
   <div class="box">
     <div class="sec-head"><h2>Why Not RAG?</h2><div class="rule"></div></div>
-    <p class="small">Standard RAG (Lewis et al., 2020) retrieves by embedding similarity and feeds results to an LLM. Effective but opaque: the user cannot see <em>why</em> a passage was selected, cannot adjust criteria, and cannot explore how different priorities reshape the output. Changing the question means running the whole pipeline again, with no guarantee of comparability.</p>
-    <p class="small">Min-cost flow (Ahuja et al., 1993) makes every decision visible as a <strong>cost</strong>, a <strong>flow</strong>, and a <strong>constraint</strong>. The expert's demand vector is the objective function; changing one weight immediately shows what changes. Solving a flow costs &lt;1 s and zero LLM tokens — a <strong>thinking tool</strong> for rapid, comparable exploration of alternatives.</p>
+    <p>Standard RAG (Lewis et al., 2020) retrieves by embedding similarity and feeds results to an LLM. Effective but opaque: the user cannot see <em>why</em> a passage was selected, cannot adjust criteria, and cannot explore how different priorities reshape the output.</p>
+    <p>Min-cost flow (Ahuja et al., 1993) makes every decision visible as a <strong>cost</strong>, a <strong>flow</strong>, and a <strong>constraint</strong>. The expert's demand vector is the objective function; changing one weight immediately shows what changes. Solving a flow costs &lt;1 s and zero LLM tokens — a <strong>thinking tool</strong> for rapid, comparable exploration of alternatives.</p>
   </div>
 
   <div class="box">
@@ -560,11 +560,7 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
 
   <div class="box">
     <div class="sec-head"><h2>What We Do Not Claim</h2><div class="rule"></div></div>
-    <p class="small">The outputs are fluent, structured, and plausible-sounding — the system discusses texts it arguably has not `read'
-      (Bayard, 2007)
-      with all the confidence of expert critics (Doshi &amp; Hauser, 2024). It does this whether or not it is provided
-      with paragraphs. From its training, it has `heard' of all of the novels, and `recalls' something. Probably it has seen everything in Project Gutenberg.
-      We do not claim the podcasts are <em>good</em> literary criticism.</p>
+    <p class="small">The outputs are fluent, structured, and plausible-sounding — the system discusses texts it has not read (Bayard, 2007) with all the confidence of expert critics (Doshi &amp; Hauser, 2024). We do not claim the podcasts are <em>good</em> literary criticism.</p>
     <p class="small">Following Boden's (2004) taxonomy, the system performs <strong>combinational creativity</strong>: it recombines existing critical moves in new configurations. The interesting creativity is the <em>user's</em> — exploring which configurations produce illuminating or stereotyped discussions, and why.</p>
     <div style="display:flex;gap:0.07in;margin:0.06in 0 0.04in;">
       <div style="flex:1;background:rgba(114,47,55,0.06);border-left:3.5px solid var(--burgundy);border-radius:0 3px 3px 0;padding:0.05in 0.08in;">
@@ -751,6 +747,7 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
 
   <div class="box">
     <div class="sec-head"><h2>Pastiche in Action</h2><div class="rule"></div></div>
+    <p><strong>Pastiche</strong> is imitation of style, not reproduction of text. Ungrounded outputs draw on training-data memory: the vocabulary and register are absorbed from the novel; the sentences were never written by the author.</p>
     <div class="quote-box">
       <p class="quote-text">"Name, Jo. Nothing else that he knows on. Don't know that everybody has two names. Never heerd of sich a think. No father, no mother, no friends. Never been to school."</p>
       <p class="quote-attr">— Bleak House, Ch. 11 — Jo's testimony</p>
@@ -835,6 +832,7 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
     <p class="small" style="margin:0.02in 0;">Doshi, A. R. &amp; Hauser, O. P. (2024). Generative AI and collective creative diversity. <em>Science Advances</em> 10(28).</p>
     <p class="small" style="margin:0.02in 0;">Fish, S. (1980). <em>Is There a Text in This Class?</em> Harvard UP.</p>
     <p class="small" style="margin:0.02in 0;">Google (2024). NotebookLM audio overviews. blog.google.</p>
+    <p class="small" style="margin:0.02in 0;">Hart, M. S. (1971–). <em>Project Gutenberg.</em> gutenberg.org.</p>
     <p class="small" style="margin:0.02in 0;">Lewis, P. et al. (2020). Retrieval-Augmented Generation for knowledge-intensive NLP. <em>NeurIPS</em> 33.</p>
     <p class="small" style="margin:0.02in 0;">Moretti, F. (2013). <em>Distant Reading.</em> Verso.</p>
   </div>
