@@ -405,40 +405,30 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
 <div class="col">
 
   <div class="box">
-    <div class="sec-head"><h2>Questions</h2><div class="rule"></div></div>
-    <p>Google's NotebookLM (Google, 2024) popularised LLM-generated podcast conversations, but the conversational design is largely unexamined.
-      What makes a multi-voice discussion <em>cohere</em> — sound like a genuine conversation rather than parallel monologues?
-      What levers does a designer have, and which ones actually matter?</p>
-    <p>We built a system that explores options for generating multi-voice discussions.
-      Our top level choice is how and whether to give an LLM access to passages from a novel.
-      We use three strategies:
-        <ol>
-    <li>Conventional RAG using embedding similarity to assign passages.</li>
-    <li>A min-cost flow method where passage selections are controlled by demand and supply of hand-engineered features</li>
-    <li>As a control, a condition in which the LLM receives no passages at all and must rely solely on prior knowledge.</li>
-  </ol>
-    </p>
-    <p>We  apply all three passage-selection strategies to <strong>15 Victorian novels</strong> (Hart, 1971), then generate structured multi-voice literary discussions from each selection — systematically varying panels, grounding conditions, and host preparation to isolate each lever's contribution.</p>
+    <div class="sec-head"><h2>The Question</h2><div class="rule"></div></div>
+    <p>RAG selects passages by embedding similarity — effective, but opaque. You cannot see <em>why</em> a passage was chosen, adjust selection criteria, or explore how different editorial priorities reshape the output.</p>
+    <p>We run <strong>min-cost flow (transport)</strong> and embedding retrieval side-by-side on 15 Victorian novels, with a no-passages baseline, to answer three questions:</p>
+    <ol style="margin:0.04in 0 0.04in 0.22in;padding:0;font-size:0.23in;line-height:1.5;">
+      <li><strong>Does selection strategy affect discussion quality?</strong></li>
+      <li><strong>Does passage grounding prevent confabulation?</strong></li>
+      <li><strong>What does transport offer that embedding cannot?</strong></li>
+    </ol>
     <div class="stat-row">
       <div class="stat-box"><p class="stat-num">15</p><p class="stat-label">novels</p></div>
       <div class="stat-box"><p class="stat-num">60,774</p><p class="stat-label">passages</p></div>
       <div class="stat-box"><p class="stat-num">180</p><p class="stat-label">conditions</p></div>
     </div>
-    <p class="small" style="color:var(--warmgray);">Seven authors (Dickens, Eliot, Gaskell, Forster, Collins, Gissing, Oliphant), seven decades (1850–1924).
-    The novels were chosen to span a range from the very well-known to the less familiar.
-      This is verified. But aspects of the mechanism are non-obvious: all the novels are out of copyright and available from
-    Project Gutenberg, so it is almost certain that the works themselves were seen by the LLMs in training.</p>
-
+    <p class="small" style="color:var(--warmgray);">Seven authors (Dickens, Eliot, Gaskell, Forster, Collins, Gissing, Oliphant), seven decades (1850–1924), from the very well-known to the obscure.</p>
   </div>
 
   <div class="box">
     <div class="sec-head"><h2>The Pipeline</h2><div class="rule"></div></div>
     <p class="small">Each episode passes through five stages: the novel is <strong>enriched</strong> passage by passage; an LLM <strong>designs segments</strong>; passages are <strong>selected</strong> by one of three strategies; experts are <strong>prepared</strong> through pre-interviews and question planning; a final LLM call <strong>generates the script</strong>.</p>
     <img src="/static/img/pipeline_overview.png" alt="Pipeline overview: enrichment → segment design → passage selection → host prep → script" style="width:100%;height:auto;margin:0.03in 0 0.02in;border-radius:3px;">
-    <h3 class="subsec-head" style="margin-top:0.04in;">Host Preparation</h3>
-    <p class="small">Before each segment is generated, every expert is pre-interviewed privately: <em>what strikes you? where would you disagree?</em> The host reads all responses and plans 3–5 targeted questions per segment. Question density rises from ~1 to ~11 per segment across all 15 novels — producing cross-examination, not parallel monologue.</p>
     <h3 class="subsec-head" style="margin-top:0.03in;">Three Selection Conditions</h3>
     <img src="/static/img/selection_paths.png" alt="Three selection conditions: transport (min-cost flow), embedding retrieval, no passages" style="width:100%;height:auto;margin:0.02in 0 0.01in;border-radius:3px;">
+    <h3 class="subsec-head" style="margin-top:0.04in;">Host Preparation</h3>
+    <p class="small">Before each segment is generated, every expert is pre-interviewed privately: <em>what strikes you? where would you disagree?</em> The host reads all responses and plans 3–5 targeted questions per segment. Question density rises from ~1 to ~11 per segment across all 15 novels — producing cross-examination, not parallel monologue.</p>
   </div>
 
   <div class="box">
@@ -460,12 +450,11 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
 <div class="col col-wide">
 
   <div class="box">
-    <div class="sec-head"><h2>The Reader Makes the Reading</h2><div class="rule"></div></div>
-    <p style="font-style:italic;color:var(--warmgray);">The pipeline privileges expert identity at every stage — enrichment dimensions match demand profiles, the selector optimises for demand satisfaction, host preparation targets specific experts, and the script prompt reinforces perspectives. Convergence follows from this engineering.</p>
-    <p>The system exposes four independently manipulable levers: <strong>expert personas</strong> (demand profiles that control what each speaker seeks); <strong>passage grounding</strong> (selected passages that anchor quotation and prevent confabulation); <strong>conversational design</strong> (prompt-level specifications for quote handling, reactive language, and turn structure); and <strong>segment continuity</strong> (bridging between independently generated segments).</p>
+    <div class="sec-head"><h2>Does Selection Method Matter?</h2><div class="rule"></div></div>
+    <p>Transport and embedding select almost entirely different passages — fewer than 6% in common (Jaccard J = 0.057, Bleak House). Yet the discussions they produce are nearly identical by every structural measure.</p>
     <div class="strategy-row">
       <div class="strategy-box strategy-synoptic">
-        <h3>Synoptic</h3>
+        <h3>Transport</h3>
         <p><code>59</code> passages, <code>28</code> chapters</p>
         <p>Character &amp; plot focused</p>
         <p>Min-cost flow solver</p>
@@ -475,19 +464,19 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
         <p class="jaccard-label">&lt;6% overlap<br>in passages</p>
       </div>
       <div class="strategy-box strategy-analytical">
-        <h3>Analytical</h3>
+        <h3>Embedding</h3>
         <p><code>32</code> passages, <code>20</code> chapters</p>
         <p>Critique &amp; theme focused</p>
-        <p>Embedding retrieval + LLM</p>
+        <p>Cosine similarity + LLM</p>
       </div>
     </div>
     <h3 class="subsec-head">Yet: Expert Airtime Stable to ±2%</h3>
     <p class="small">Eleanor Hartley (literary critic): <strong>32–37%</strong> &nbsp;&nbsp; James Blackstone (social historian): <strong>30–37%</strong> &nbsp;&nbsp; Caroline Woodcourt (close reader): <strong>29–34%</strong></p>
-    <p class="small">Each stage reinforces the framework. The convergence is suggestive of Fish's (1980) thesis — but the engineering is the mechanism, and we name it honestly.</p>
+    <p class="small">The pipeline reinforces expert identity at every stage — enrichment dimensions match demand profiles, the selector satisfies those demands, host preparation targets each expert, and the script prompt embeds their perspective. <strong>Framework dominates strategy.</strong> This is suggestive of Fish's (1980) interpretive communities thesis — but the engineering is the mechanism, not the readers.</p>
   </div>
 
   <div class="box">
-    <div class="sec-head"><h2>Three Panels Discuss <em>Bleak House</em></h2><div class="rule"></div></div>
+    <div class="sec-head"><h2>Three Panels, Same Passage</h2><div class="rule"></div></div>
 
     <h3 class="subsec-head" style="margin-top:0.02in;">Literary Panel</h3>
     <div class="turn turn-burgundy">
@@ -509,33 +498,10 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
       <p class="turn-text">"That is a noun phrase with four pre-nominal modifiers, each compounded — and then 'brazen-faced' pulls the floor out. The first three feel like nautical specifications — they're doing the register of technical competence — and the fourth is an insult."</p>
     </div>
     <div class="turn turn-teal">
-      <p class="turn-speaker">Elena Volkov (Musicologist):</p>
-      <p class="turn-text">"Institutions don't announce their corruption — they announce their solidity, their procedure, their continuity. I spent years studying how Soviet conservatories presented themselves as nurturing talent while systematically destroying composers who stepped out of line."</p>
-    </div>
-    <div class="turn turn-teal">
       <p class="turn-speaker">Rebecca Martinez (Astronomer):</p>
       <p class="turn-text">"The ships of Law and Equity aren't sunk, they're in reserve. In my field, we'd say the system is in a quasi-stable state. The energy is there. Nothing has been resolved. The fog is the natural atmosphere of a system that has never actually resolved anything."</p>
     </div>
     <p class="small" style="margin-top:0.05in;">The experts bring their <strong>metaphors</strong> (quasi-stable states, leitmotifs, phrase structure) but not their <strong>methods</strong> — the scaffold imports literary-critical norms regardless of the persona.</p>
-
-    <h3 class="subsec-head">Alternative Panel</h3>
-    <div class="turn" style="border-left-color:#8B6030;background:rgba(139,96,48,0.04);">
-      <p class="turn-speaker" style="color:#8B6030;">Oliver Trevelyan (Actor &amp; Narrator):</p>
-      <p class="turn-text">"When I first read it aloud — really <em>performed</em> it — I remember stopping and thinking: this is incantation, not description. He builds an atmosphere so thick and particular it becomes a character in its own right."</p>
-    </div>
-    <div class="turn" style="border-left-color:#8B6030;background:rgba(139,96,48,0.04);">
-      <p class="turn-speaker" style="color:#8B6030;">Daniel Rosen (Marxist Historian):</p>
-      <p class="turn-text">"The fog is doing what Chancery does throughout the novel — it penetrates everywhere, it afflicts everyone, but it does not afflict everyone equally. The ancient Greenwich pensioners wheeze by their firesides — they at least have firesides. The boy on deck has nothing between him and the weather but his own skin."</p>
-    </div>
-    <div class="turn" style="border-left-color:#8B6030;background:rgba(139,96,48,0.04);">
-      <p class="turn-speaker" style="color:#8B6030;">Edmund Leigh (Moral Philosopher):</p>
-      <p class="turn-text">"One must be a little careful not to flatten the novel into a single spatial metaphor, however seductive. Dickens gives us Bleak House — the actual building — and Esther's description of it is one of the warmest passages in the book."</p>
-    </div>
-  </div>
-
-  <div class="box">
-    <div class="sec-head"><h2>Deliberate Stereotypes</h2><div class="rule"></div></div>
-    <p>The expert personas are deliberately <em>caricatures</em>: the literary critic always finds prose rhythm; the social historian always finds institutional critique; the close reader always finds texture. By making the stereotypes explicit — encoded as <strong>demand vectors</strong> rather than implicit in a prompt — the system turns editorial bias into a first-class object that can be inspected, compared, and argued about.</p>
   </div>
 
   <div class="box box-parchment">
@@ -644,41 +610,22 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
   </div>
 
   <div class="box">
-    <div class="sec-head"><h2>Designed Cordiality</h2><div class="rule"></div></div>
-    <p style="font-style:italic;color:var(--warmgray);">The prompt instructs experts to be agreeable. The result is a recognisable formula: deferential opener, immediate contradiction.</p>
-    <div style="background:#f0f0f0;border-left:4px solid #888;border-radius:0 3px 3px 0;padding:0.03in 0.08in;margin:0.03in 0;">
-      <p style="margin:0 0 0.02in;font-size:0.17in;color:#666;font-family:Arial,sans-serif;font-style:italic;">From the script prompt:</p>
-      <p style="margin:0;font-size:0.19in;font-family:'Courier New',monospace;color:#333;">Experts react to each other: <strong>agree</strong>, <strong>push back gently</strong>, riff on each other's ideas.</p>
-    </div>
-    <p class="small" style="margin:0.03in 0 0.02in;">The resulting formula, across all 15 novels and all panels:</p>
-    <div class="turn" style="border-left-color:#8B7355;background:rgba(139,107,85,0.04);margin:0.03in 0;">
-      <p class="turn-speaker" style="color:#8B7355;">Edmund Leigh (arc_v21, Bleak House):</p>
-      <p class="turn-text">"<strong>I don't dispute any of that</strong> — and James's contextual detail is, as always, illuminating. <strong>But</strong> I'd want to resist the temptation to read Bleak House primarily as a pamphlet dressed in fiction's clothing."</p>
-    </div>
-    <p class="small" style="margin-top:0;">The opener is disingenuous: the speaker always does dispute it. The formula is prompt-compliance made visible — <em>push back gently</em> produces stylised deference that is recognisable as designed, not conversational.</p>
-  </div>
-
-  <div class="box">
-    <div class="sec-head"><h2>Key Findings</h2><div class="rule"></div></div>
+    <div class="sec-head"><h2>Answers</h2><div class="rule"></div></div>
     <div class="finding finding-burgundy">
-      <p class="finding-title">1. Framework dominates strategy.</p>
-      <p>Two reading algorithms select &lt;6% overlapping passages yet produce discussions with identical expert airtime (±2%). This corpus-level convergence (cf. Moretti, 2013) follows from a pipeline that reinforces expert identity at every stage — suggestive of Fish's (1980) thesis, but the engineering is the mechanism.</p>
+      <p class="finding-title">1. No — strategy barely matters for quality.</p>
+      <p>Transport and embedding select &lt;6% overlapping passages (J = 0.057) yet produce discussions with identical expert airtime (±2%). Expert personas dominate so strongly that the raw material is nearly irrelevant — <em>framework dominates strategy</em>.</p>
     </div>
     <div class="finding finding-teal">
-      <p class="finding-title">2. Pastiche, not hallucination.</p>
-      <p>Ungrounded LLMs write <em>in the style of</em> a novel, not <em>from</em> it. Fidelity tracks training-data exposure: a measurable knowledge gradient from <em>Middlemarch</em> (57%) to <em>Hester</em> (0%).</p>
-    </div>
-    <div class="finding finding-gold">
-      <p class="finding-title">3. Scaffolding is content-independent.</p>
-      <p>Host preparation raises questions from ~1 to ~11 per segment, uniformly across all 15 novels (5.3× to 14.1×). Dynamics are designed, not emergent.</p>
+      <p class="finding-title">2. Yes — grounding prevents confabulation.</p>
+      <p>Grounded conditions achieve 97–98% verified quotes for <em>all</em> novels. No-passages conditions fall to 49% overall — and to 0% for novels the model barely knows. The risk is pastiche, not hallucination, but it is unreliable.</p>
     </div>
     <div class="finding finding-gold" style="border-left-color:#8B6030;background:rgba(139,96,48,0.05);">
-      <p class="finding-title" style="color:#8B6030;">4. Cordiality is designed, not conversational.</p>
-      <p>The prompt instruction <em>push back gently</em> produces a recognisable formula across all panels and all 15 novels: deferential opener ("I wouldn't dispute that…") followed immediately by contradiction. The deference is disingenuous and measurably prompt-driven.</p>
+      <p class="finding-title" style="color:#8B6030;">3. Manipulability — what embedding cannot offer.</p>
+      <p>Every editorial choice is a cost, a flow, a constraint. Solving takes &lt;1 s and zero LLM tokens. Adjust one weight, add one constraint, swap a persona — and inspect what changes. Transport turns a black-box pipeline into a navigable configuration space.</p>
     </div>
     <div class="summary-box">
       <p class="summary-title">Framework &gt; Grounding &gt; Strategy</p>
-      <p>The decomposition has a clear hierarchy. Framework determines character, grounding gates accuracy, strategy is surprisingly irrelevant.</p>
+      <p>A clear hierarchy. Framework determines character. Grounding gates accuracy. Strategy is interchangeable on quality — but only transport makes that interchangeability <em>inspectable</em>.</p>
     </div>
   </div>
 
