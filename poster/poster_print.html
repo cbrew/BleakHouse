@@ -405,20 +405,30 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
 <div class="col">
 
   <div class="box">
-    <div class="sec-head"><h2>The Question</h2><div class="rule"></div></div>
-    <p style="font-style:italic;color:var(--warmgray);">A reader who surveys a novel broadly and a reader who studies it narrowly will assemble different evidence for discussion. Do they arrive at different discussions?</p>
-    <p>Google's NotebookLM (Google, 2024) popularised LLM-generated podcast conversations, but the conversational design is largely unexamined. What makes a multi-voice discussion <em>cohere</em> — sound like a genuine conversation rather than parallel monologues? What levers does a designer have, and which ones actually matter?</p>
-    <p>We implement two reading strategies as passage-selection algorithms applied to <strong>15 Victorian novels</strong> (Hart, 1971), then generate structured multi-voice literary discussions from each selection — systematically varying panels, grounding conditions, and host preparation to isolate each lever's contribution.</p>
+    <div class="sec-head"><h2>Questions</h2><div class="rule"></div></div>
+    <p>Google's NotebookLM (Google, 2024) popularised LLM-generated podcast conversations, but the conversational design is largely unexamined.
+      What makes a multi-voice discussion <em>cohere</em> — sound like a genuine conversation rather than parallel monologues?
+      What levers does a designer have, and which ones actually matter?</p>
+    <p>We built a system that explores options for generating multi-voice discussions.
+      Our top level choice is how and whether to give an LLM access to passages from a novel.
+      We use three strategies:
+        <ol>
+    <li>Conventional RAG using embedding similarity to assign passages.</li>
+    <li>A min-cost flow method where passage selections are controlled by demand and supply of hand-engineered features</li>
+    <li>As a control, a condition in which the LLM receives no passages at all and must rely solely on prior knowledge.</li>
+  </ol>
+    </p>
+    <p>We  apply all three passage-selection strategies to <strong>15 Victorian novels</strong> (Hart, 1971), then generate structured multi-voice literary discussions from each selection — systematically varying panels, grounding conditions, and host preparation to isolate each lever's contribution.</p>
     <div class="stat-row">
       <div class="stat-box"><p class="stat-num">15</p><p class="stat-label">novels</p></div>
       <div class="stat-box"><p class="stat-num">60,774</p><p class="stat-label">passages</p></div>
       <div class="stat-box"><p class="stat-num">180</p><p class="stat-label">conditions</p></div>
     </div>
-    <p class="small" style="color:var(--warmgray);">Seven authors (Dickens, Eliot, Gaskell, Forster, Collins, Gissing, Oliphant), seven decades (1850–1924).</p>
-    <div class="quote-box">
-      <p class="quote-text">"And all that night the coffin stands ready by the old portmanteau; and the lonely figure on the bed, whose path in life has lain through five and forty years, lies there with no more track behind him that any one can trace than a deserted infant."</p>
-      <p class="quote-attr">— Bleak House, Ch. 11 — The death of Nemo</p>
-    </div>
+    <p class="small" style="color:var(--warmgray);">Seven authors (Dickens, Eliot, Gaskell, Forster, Collins, Gissing, Oliphant), seven decades (1850–1924).
+    The novels were chosen to span a range from the very well-known to the less familiar.
+      This is verified. But aspects of the mechanism are non-obvious: all the novels are out of copyright and available from
+    Project Gutenberg, so it is almost certain that the works themselves were seen by the LLMs in training.</p>
+
   </div>
 
   <div class="box">
