@@ -407,11 +407,12 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
   <div class="box">
     <div class="sec-head"><h2>The Question</h2><div class="rule"></div></div>
     <p>RAG selects passages by embedding similarity — effective, but opaque. You cannot see <em>why</em> a passage was chosen, adjust selection criteria, or explore how different editorial priorities reshape the output.</p>
-    <p>We run <strong>min-cost flow (transport)</strong> and embedding retrieval side-by-side on 15 Victorian novels, with a no-passages baseline, to answer three questions:</p>
+    <p>We run <strong>min-cost flow (transport)</strong> and embedding retrieval side-by-side on 15 Victorian novels, with a no-passages baseline, to answer four questions:</p>
     <ol style="margin:0.04in 0 0.04in 0.22in;padding:0;font-size:0.23in;line-height:1.5;">
       <li><strong>Does selection strategy affect discussion quality?</strong></li>
       <li><strong>Does passage grounding prevent confabulation?</strong></li>
       <li><strong>What does transport offer that embedding cannot?</strong></li>
+      <li><strong>What conversational scaffolding produces genuine discussion?</strong></li>
     </ol>
     <div class="stat-row">
       <div class="stat-box"><p class="stat-num">15</p><p class="stat-label">novels</p></div>
@@ -433,7 +434,8 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
 
   <div class="box">
     <div class="sec-head"><h2>Speech Generation</h2><div class="rule"></div></div>
-    <p class="small">Scripts are rendered to audio using a neural TTS system with per-speaker voice assignment and delivery annotations embedded in the script — accent direction, pacing, and emphasis are part of the structured output, not post-hoc edits.</p>
+    <p class="small">Scripts are rendered to audio using Gemini TTS with per-speaker voice assignment. Delivery annotations are embedded in the script itself — accent direction, pacing, pause markers, and emphasis are part of the structured output, specified utterance by utterance, not added in post-production.</p>
+    <p class="small">Each expert gets a consistent voice across all segments of an episode. Switching the expert panel automatically switches the voices: the voices are properties of the personas, not of the episode.</p>
   </div>
 
   <div class="box">
@@ -473,6 +475,27 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
     <h3 class="subsec-head">Yet: Expert Airtime Stable to ±2%</h3>
     <p class="small">Eleanor Hartley (literary critic): <strong>32–37%</strong> &nbsp;&nbsp; James Blackstone (social historian): <strong>30–37%</strong> &nbsp;&nbsp; Caroline Woodcourt (close reader): <strong>29–34%</strong></p>
     <p class="small">The pipeline reinforces expert identity at every stage — enrichment dimensions match demand profiles, the selector satisfies those demands, host preparation targets each expert, and the script prompt embeds their perspective. <strong>Framework dominates strategy.</strong> This is suggestive of Fish's (1980) interpretive communities thesis — but the engineering is the mechanism, not the readers.</p>
+  </div>
+
+  <div class="box">
+    <div class="sec-head"><h2>Host Preparation</h2><div class="rule"></div></div>
+    <p>If selection method barely matters, what does? Before each segment is generated, every expert is pre-interviewed privately: <em>what strikes you about these passages? where would you disagree with the other panellists?</em> The host reads all responses and plans 3–5 targeted questions designed to surface disagreement and draw out cross-references between experts.</p>
+    <div class="stat-row" style="margin:0.08in 0;">
+      <div class="stat-box">
+        <p class="stat-num" style="color:var(--warmgray);">~1</p>
+        <p class="stat-label">questions/segment<br>without prep</p>
+      </div>
+      <div class="stat-box" style="background:var(--tealpale);">
+        <p class="stat-num" style="color:var(--teal);">~11</p>
+        <p class="stat-label">questions/segment<br>with prep</p>
+      </div>
+      <div class="stat-box">
+        <p class="stat-num">5–14×</p>
+        <p class="stat-label">range across<br>15 novels</p>
+      </div>
+    </div>
+    <p class="small">Without preparation, the host asks generic questions and experts deliver monologues. With it, the host asks sharp, targeted questions and the experts talk <em>to each other</em>. The effect is uniform across all 15 novels — it is a property of the scaffolding, not of the material.</p>
+    <p class="small">Like transport's cost-and-constraint structure, host preparation is fully inspectable: the pre-interview responses, the planned questions, and the resulting turns are all readable in the episode report. Adjust the pre-interview prompts, and a different conversation follows.</p>
   </div>
 
   <div class="box">
@@ -599,13 +622,21 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
   <div class="box">
     <div class="sec-head"><h2>Pastiche in Action</h2><div class="rule"></div></div>
     <p><strong>Pastiche</strong> is imitation of style, not reproduction of text. Ungrounded outputs draw on training-data memory: the vocabulary and register are absorbed from the novel; the sentences were never written by the author.</p>
-    <p class="small" style="color:var(--warmgray);margin-bottom:0.05in;">From a no-passages run on <em>Hester</em> (Oliphant, 1883) — a novel with 0% verified grounding. Every quoted sentence below was invented by the LLM.</p>
+    <p class="small" style="color:var(--warmgray);margin-bottom:0.05in;">From a no-passages run on <em>Hester</em> (Oliphant, 1883) — a novel with 0% verified grounding. Every quoted sentence was invented by the LLM.</p>
     <div class="pastiche-box pastiche-invented">
       <div class="pastiche-row">
         <p class="pastiche-quote">"The two men who had loved her — or rather who had shown her some passing tenderness — had both given her a great deal to think of, but neither of them satisfied her mind."</p>
         <span class="badge badge-burgundy">Invented</span>
       </div>
       <p class="pastiche-note">Oliphant's qualifying irony absorbed from training data; no such sentence exists in the novel.</p>
+    </div>
+    <p class="small" style="color:var(--warmgray);margin:0.05in 0 0.03in;">Contrast: grounded run on <em>Bleak House</em> (Dickens, 1853) — 98% verified.</p>
+    <div class="pastiche-box pastiche-verified">
+      <div class="pastiche-row">
+        <p class="pastiche-quote">"It is a melancholy truth that even great men have their poor relations."</p>
+        <span class="badge badge-teal">Verified</span>
+      </div>
+      <p class="pastiche-note">Traced verbatim to Chapter 28 via passage grounding.</p>
     </div>
   </div>
 
@@ -622,6 +653,10 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
     <div class="finding finding-gold" style="border-left-color:#8B6030;background:rgba(139,96,48,0.05);">
       <p class="finding-title" style="color:#8B6030;">3. Manipulability — what embedding cannot offer.</p>
       <p>Every editorial choice is a cost, a flow, a constraint. Solving takes &lt;1 s and zero LLM tokens. Adjust one weight, add one constraint, swap a persona — and inspect what changes. Transport turns a black-box pipeline into a navigable configuration space.</p>
+    </div>
+    <div class="finding finding-teal" style="border-left-color:#3D7A40;background:rgba(61,122,64,0.05);">
+      <p class="finding-title" style="color:#3D7A40;">4. Scaffolding is decisive, not emergent.</p>
+      <p>Host preparation raises questions from ~1 to ~11 per segment, uniformly across all 15 novels. Conversational dynamics are designed — a property of the prompt architecture, not the LLM.</p>
     </div>
     <div class="summary-box">
       <p class="summary-title">Framework &gt; Grounding &gt; Strategy</p>
