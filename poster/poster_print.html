@@ -422,141 +422,17 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
   </div>
 
   <div class="box">
-    <div class="sec-head"><h2>Min-Cost Flow Selection</h2><div class="rule"></div></div>
-    <p class="small" style="color:var(--warmgray);">Passages flow through enrichment dimensions and expert demand nodes to episode segments. Every arc is inspectable and adjustable.</p>
-    <!-- Inline SVG flow diagram -->
-    <svg class="flow-diagram" viewBox="0 0 860 560" xmlns="http://www.w3.org/2000/svg">
-      <rect width="860" height="560" fill="#fafafa" rx="3"/>
-      <!-- Column headers -->
-      <text x="90"  y="22" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#555">Passage Clusters</text>
-      <text x="272" y="22" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#555">Enrichment Dimensions</text>
-      <text x="555" y="22" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#555">Expert Personas</text>
-      <text x="770" y="22" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold" fill="#555">Episode Segments</text>
-      <!-- Connections: Clusters → Dimensions -->
-      <g stroke-width="1.2" stroke-opacity="0.22">
-        <line x1="143" y1="95"  x2="220" y2="88"  stroke="#8B7355"/>
-        <line x1="143" y1="95"  x2="220" y2="196" stroke="#8B7355"/>
-        <line x1="143" y1="95"  x2="220" y2="304" stroke="#8B7355"/>
-        <line x1="143" y1="228" x2="220" y2="196" stroke="#B07D6A"/>
-        <line x1="143" y1="228" x2="220" y2="412" stroke="#B07D6A"/>
-        <line x1="143" y1="361" x2="220" y2="304" stroke="#7A8B5E"/>
-        <line x1="143" y1="361" x2="220" y2="196" stroke="#7A8B5E"/>
-        <line x1="143" y1="494" x2="220" y2="412" stroke="#C4A070"/>
-        <line x1="143" y1="494" x2="220" y2="500" stroke="#C4A070"/>
-        <line x1="143" y1="494" x2="220" y2="304" stroke="#C4A070"/>
-        <!-- Dimensions → Personas -->
-        <line x1="324" y1="88"  x2="503" y2="95"  stroke="#7B9B6B"/>
-        <line x1="324" y1="196" x2="503" y2="95"  stroke="#7B9B6B"/>
-        <line x1="324" y1="196" x2="503" y2="228" stroke="#7B9B6B"/>
-        <line x1="324" y1="304" x2="503" y2="228" stroke="#7B9B6B"/>
-        <line x1="324" y1="304" x2="503" y2="361" stroke="#7B9B6B"/>
-        <line x1="324" y1="412" x2="503" y2="228" stroke="#7B9B6B"/>
-        <line x1="324" y1="412" x2="503" y2="361" stroke="#7B9B6B"/>
-        <line x1="324" y1="500" x2="503" y2="494" stroke="#7B9B6B"/>
-        <line x1="324" y1="500" x2="503" y2="361" stroke="#7B9B6B"/>
-        <line x1="324" y1="88"  x2="503" y2="361" stroke="#7B9B6B"/>
-        <!-- Personas → Segments -->
-        <line x1="607" y1="95"  x2="718" y2="95"  stroke="#D45B5B"/>
-        <line x1="607" y1="95"  x2="718" y2="228" stroke="#D45B5B"/>
-        <line x1="607" y1="228" x2="718" y2="228" stroke="#D4935B"/>
-        <line x1="607" y1="228" x2="718" y2="361" stroke="#D4935B"/>
-        <line x1="607" y1="361" x2="718" y2="361" stroke="#8B6BAA"/>
-        <line x1="607" y1="361" x2="718" y2="228" stroke="#8B6BAA"/>
-        <line x1="607" y1="494" x2="718" y2="494" stroke="#5BAA7B"/>
-        <line x1="607" y1="494" x2="718" y2="361" stroke="#5BAA7B"/>
-      </g>
-      <!-- Cluster nodes -->
-      <g>
-        <rect x="37" y="73" width="106" height="44" rx="5" fill="#8B7355"/>
-        <text x="90" y="91" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Gothic</text>
-        <text x="90" y="107" text-anchor="middle" font-family="Arial" font-size="12" fill="white">atmosphere</text>
-
-        <rect x="37" y="206" width="106" height="44" rx="5" fill="#B07D6A"/>
-        <text x="90" y="224" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Legal</text>
-        <text x="90" y="240" text-anchor="middle" font-family="Arial" font-size="12" fill="white">satire</text>
-
-        <rect x="37" y="339" width="106" height="44" rx="5" fill="#7A8B5E"/>
-        <text x="90" y="357" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Character</text>
-        <text x="90" y="373" text-anchor="middle" font-family="Arial" font-size="12" fill="white">crisis</text>
-
-        <rect x="37" y="472" width="106" height="44" rx="5" fill="#C4A070"/>
-        <text x="90" y="490" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Social</text>
-        <text x="90" y="506" text-anchor="middle" font-family="Arial" font-size="12" fill="white">critique</text>
-      </g>
-      <!-- Dimension nodes -->
-      <g>
-        <rect x="220" y="66"  width="104" height="44" rx="5" fill="#7B9B6B"/>
-        <text x="272" y="92" text-anchor="middle" font-family="Arial" font-size="12" fill="white">atmosphere</text>
-
-        <rect x="220" y="174" width="104" height="44" rx="5" fill="#7B9B6B"/>
-        <text x="272" y="191" text-anchor="middle" font-family="Arial" font-size="12" fill="white">narrative</text>
-        <text x="272" y="207" text-anchor="middle" font-family="Arial" font-size="12" fill="white">technique</text>
-
-        <rect x="220" y="282" width="104" height="44" rx="5" fill="#7B9B6B"/>
-        <text x="272" y="299" text-anchor="middle" font-family="Arial" font-size="12" fill="white">character</text>
-        <text x="272" y="315" text-anchor="middle" font-family="Arial" font-size="12" fill="white">development</text>
-
-        <rect x="220" y="390" width="104" height="44" rx="5" fill="#7B9B6B"/>
-        <text x="272" y="407" text-anchor="middle" font-family="Arial" font-size="12" fill="white">social</text>
-        <text x="272" y="423" text-anchor="middle" font-family="Arial" font-size="12" fill="white">critique</text>
-
-        <rect x="220" y="478" width="104" height="44" rx="5" fill="#7B9B6B"/>
-        <text x="272" y="504" text-anchor="middle" font-family="Arial" font-size="12" fill="white">humor</text>
-      </g>
-      <!-- Persona nodes -->
-      <g>
-        <rect x="503" y="73"  width="104" height="44" rx="5" fill="#D45B5B"/>
-        <text x="555" y="91"  text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Eleanor</text>
-        <text x="555" y="107" text-anchor="middle" font-family="Arial" font-size="12" fill="white">(craft)</text>
-
-        <rect x="503" y="206" width="104" height="44" rx="5" fill="#D4935B"/>
-        <text x="555" y="224" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">James</text>
-        <text x="555" y="240" text-anchor="middle" font-family="Arial" font-size="12" fill="white">(history)</text>
-
-        <rect x="503" y="339" width="104" height="44" rx="5" fill="#8B6BAA"/>
-        <text x="555" y="357" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Caroline</text>
-        <text x="555" y="373" text-anchor="middle" font-family="Arial" font-size="12" fill="white">(reading)</text>
-
-        <rect x="503" y="472" width="104" height="44" rx="5" fill="#5BAA7B"/>
-        <text x="555" y="490" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Oliver</text>
-        <text x="555" y="506" text-anchor="middle" font-family="Arial" font-size="12" fill="white">(perf.)</text>
-      </g>
-      <!-- Segment nodes -->
-      <g>
-        <rect x="718" y="73"  width="104" height="44" rx="5" fill="#D45B5B"/>
-        <text x="770" y="91"  text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Opening:</text>
-        <text x="770" y="107" text-anchor="middle" font-family="Arial" font-size="12" fill="white">The Fog</text>
-
-        <rect x="718" y="206" width="104" height="44" rx="5" fill="#5B82AA"/>
-        <text x="770" y="224" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Deep Dive:</text>
-        <text x="770" y="240" text-anchor="middle" font-family="Arial" font-size="12" fill="white">Jo's World</text>
-
-        <rect x="718" y="339" width="104" height="44" rx="5" fill="#8B6BAA"/>
-        <text x="770" y="357" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Close Reading:</text>
-        <text x="770" y="373" text-anchor="middle" font-family="Arial" font-size="12" fill="white">Secrets</text>
-
-        <rect x="718" y="472" width="104" height="44" rx="5" fill="#AA8B5B"/>
-        <text x="770" y="490" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold" fill="white">Discussion:</text>
-        <text x="770" y="506" text-anchor="middle" font-family="Arial" font-size="12" fill="white">Comedy</text>
-      </g>
-    </svg>
-
-    <h3 class="subsec-head" style="margin-top:0.04in;">Two Reading Strategies</h3>
-    <p class="small"><strong>Synoptic</strong> (min-cost flow): <code>59</code> passages from 28 chapters. Favours character development (+8.3 pp) and plot (+10.2 pp). Zero LLM tokens, &lt;1 s. Every passage selection is traceable to a specific cost and flow value.</p>
-    <p class="small"><strong>Analytical</strong> (embeddings + LLM curation): <code>32</code> passages from 20 chapters. Favours social critique (+13.4 pp) and thematic depth (+6.9 pp). Uses retrieval then a second LLM call to apply editorial judgement.</p>
-    <p class="small"><strong>No-passages:</strong> LLM draws on prior knowledge alone — isolating the knowledge-gradient effect and producing graduated pastiche rather than grounded quotation.</p>
-  </div>
-
-  <div class="box">
-    <div class="sec-head"><h2>Why Not RAG?</h2><div class="rule"></div></div>
-    <p>Standard RAG (Lewis et al., 2020) retrieves by embedding similarity and feeds results to an LLM. Effective but opaque: the user cannot see <em>why</em> a passage was selected, cannot adjust criteria, and cannot explore how different priorities reshape the output.</p>
-    <p>Min-cost flow (Ahuja et al., 1993) makes every decision visible as a <strong>cost</strong>, a <strong>flow</strong>, and a <strong>constraint</strong>. The expert's demand vector is the objective function; changing one weight immediately shows what changes. Solving a flow costs &lt;1 s and zero LLM tokens — a <strong>thinking tool</strong> for rapid, comparable exploration of alternatives.</p>
+    <div class="sec-head"><h2>The Pipeline</h2><div class="rule"></div></div>
+    <img src="/static/img/pipeline_overview.png" alt="Pipeline overview: enrichment → segment design → passage selection → host prep → script" style="width:100%;height:auto;margin:0.04in 0 0.02in;border-radius:3px;">
+    <h3 class="subsec-head" style="margin-top:0.04in;">Host Preparation (Phase 2.5)</h3>
+    <p class="small">Before each segment is generated, every expert is pre-interviewed privately: <em>what strikes you? where would you disagree?</em> The host reads all responses and plans 3–5 targeted questions per segment. Question density rises from ~1 to ~11 per segment across all 15 novels — producing cross-examination, not parallel monologue.</p>
+    <h3 class="subsec-head" style="margin-top:0.03in;">Three Selection Conditions</h3>
+    <img src="/static/img/selection_paths.png" alt="Three selection conditions: transport (min-cost flow), embedding retrieval, no passages" style="width:100%;height:auto;margin:0.02in 0 0.01in;border-radius:3px;">
   </div>
 
   <div class="box">
     <div class="sec-head"><h2>Speech Generation</h2><div class="rule"></div></div>
     <p class="small">Scripts are rendered to audio using a neural TTS system with per-speaker voice assignment and delivery annotations embedded in the script — accent direction, pacing, and emphasis are part of the structured output, not post-hoc edits.</p>
-    <p class="small">Audio is currently pre-rendered for a representative subset of conditions. We plan to extend dynamic speech generation to all 180 conditions using a lightweight open-weight TTS pipeline, making the full experiment audible at negligible marginal cost.</p>
   </div>
 
   <div class="box">
@@ -738,6 +614,14 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
   </div>
 
   <div class="box">
+    <div class="sec-head"><h2>Grounding vs No Passages</h2><div class="rule"></div></div>
+    <div style="max-height:1.8in;overflow:hidden;margin:0.01in 0;border-radius:3px;">
+      <img src="/static/img/pipeline_comparison.png" alt="Quote verification: Transport 98%, Embedding 97.2%, No passages 48.9%" style="width:100%;height:auto;display:block;">
+    </div>
+    <p class="small">Passage grounding delivers near-perfect quote fidelity regardless of selection method. No-passages conditions fall to 48.9% — the knowledge gradient at work.</p>
+  </div>
+
+  <div class="box">
     <div class="sec-head"><h2>Pastiche in Action</h2><div class="rule"></div></div>
     <p><strong>Pastiche</strong> is imitation of style, not reproduction of text. Ungrounded outputs draw on training-data memory: the vocabulary and register are absorbed from the novel; the sentences were never written by the author.</p>
     <p class="small" style="color:var(--warmgray);margin-bottom:0.05in;">From a no-passages run on <em>Hester</em> (Oliphant, 1883) — a novel with 0% verified grounding. Every quoted sentence below was invented by the LLM.</p>
@@ -748,36 +632,21 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
       </div>
       <p class="pastiche-note">Oliphant's qualifying irony absorbed from training data; no such sentence exists in the novel.</p>
     </div>
-    <div class="pastiche-box pastiche-invented">
-      <div class="pastiche-row">
-        <p class="pastiche-quote">"Whether Hester and Roland came together after, and what became of her high spirit and energy in the life of a woman — the author cannot tell."</p>
-        <span class="badge badge-burgundy">Invented · narrator voice</span>
-      </div>
-      <p class="pastiche-note">"The author cannot tell" is a Victorian evasion trope. The LLM reaches for it automatically — performing restraint rather than exercising it.</p>
-    </div>
   </div>
 
   <div class="box">
     <div class="sec-head"><h2>Designed Cordiality</h2><div class="rule"></div></div>
     <p style="font-style:italic;color:var(--warmgray);">The prompt instructs experts to be agreeable. The result is a recognisable formula: deferential opener, immediate contradiction.</p>
-    <div style="background:#f0f0f0;border-left:4px solid #888;border-radius:0 3px 3px 0;padding:0.05in 0.08in;margin:0.05in 0;">
-      <p style="margin:0 0 0.03in;font-size:0.17in;color:#666;font-family:Arial,sans-serif;font-style:italic;">From the script prompt:</p>
+    <div style="background:#f0f0f0;border-left:4px solid #888;border-radius:0 3px 3px 0;padding:0.03in 0.08in;margin:0.03in 0;">
+      <p style="margin:0 0 0.02in;font-size:0.17in;color:#666;font-family:Arial,sans-serif;font-style:italic;">From the script prompt:</p>
       <p style="margin:0;font-size:0.19in;font-family:'Courier New',monospace;color:#333;">Experts react to each other: <strong>agree</strong>, <strong>push back gently</strong>, riff on each other's ideas.</p>
     </div>
-    <p class="small" style="margin:0.05in 0 0.02in;">The resulting formula, across all 15 novels and all panels:</p>
+    <p class="small" style="margin:0.03in 0 0.02in;">The resulting formula, across all 15 novels and all panels:</p>
     <div class="turn" style="border-left-color:#8B7355;background:rgba(139,107,85,0.04);margin:0.03in 0;">
       <p class="turn-speaker" style="color:#8B7355;">Edmund Leigh (arc_v21, Bleak House):</p>
       <p class="turn-text">"<strong>I don't dispute any of that</strong> — and James's contextual detail is, as always, illuminating. <strong>But</strong> I'd want to resist the temptation to read Bleak House primarily as a pamphlet dressed in fiction's clothing."</p>
     </div>
-    <div class="turn" style="border-left-color:#722F37;background:rgba(114,47,55,0.04);margin:0.03in 0;">
-      <p class="turn-speaker" style="color:#722F37;">Eleanor Hartley (ext_v01, Bleak House):</p>
-      <p class="turn-text">"<strong>I wouldn't dispute any of that</strong> — <strong>but</strong> I'd add a layer, because 'deserted infant' is not merely a figure of speech."</p>
-    </div>
-    <div class="turn" style="border-left-color:#2D6B5E;background:rgba(45,107,94,0.04);margin:0.03in 0;">
-      <p class="turn-speaker" style="color:#2D6B5E;">Caroline Woodcourt (cran_nop, Cranford):</p>
-      <p class="turn-text">"<strong>I wouldn't dispute that</strong> reading of the prose. <strong>But</strong>…"</p>
-    </div>
-    <p class="small" style="margin-top:0.05in;">The opener is disingenuous: the speaker always does dispute it. The formula is prompt-compliance made visible — <em>push back gently</em> produces stylised deference that is recognisable as designed, not conversational.</p>
+    <p class="small" style="margin-top:0;">The opener is disingenuous: the speaker always does dispute it. The formula is prompt-compliance made visible — <em>push back gently</em> produces stylised deference that is recognisable as designed, not conversational.</p>
   </div>
 
   <div class="box">
