@@ -7,9 +7,11 @@ RUN pip install --no-cache-dir fastapi uvicorn[standard]
 # Copy webapp code
 COPY webapp/ webapp/
 
-# Copy poster web assets (HTML + provenance JS + screenshots only)
+# Copy poster web assets (HTML + provenance JS + logos + screenshots)
 COPY poster/poster_print.html poster/
 COPY poster/poster_provenance.js poster/
+COPY poster/TheOhioStateUniversity-Scarlet-Vert-RGBHEX.jpg poster/
+COPY poster/lexisplusailogo.png poster/
 COPY poster/screenshots/ poster/screenshots/
 
 # Copy staged demo data (183 runs: 180 tracker grid + 3 interdisciplinary)
