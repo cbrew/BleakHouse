@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Not In Our Time &mdash; Host Preparation</title>
+<link rel="stylesheet" href="/static/page_base.css">
+<script src="/static/nav.js?v=2" defer></script>
+<style>
+  .run-selector { margin: 1em 0 1.5em; }
+  .run-selector select { font-size: 1em; padding: 0.3em 0.5em; }
+  .segment { border: 1px solid #1a2744; border-radius: 8px; margin: 1.5em 0; padding: 1em 1.2em; background: #0d1117; }
+  .segment h2 { margin: 0 0 0.8em; font-size: 1.15em; color: #e94560; }
+  .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #1a2744; margin-bottom: 1em; }
+  .tab-bar button { background: none; border: none; color: #8888aa; padding: 0.5em 1em; cursor: pointer; font-size: 0.9em; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .tab-bar button:hover { color: #e8e8e8; }
+  .tab-bar button.active { color: #e8e8e8; border-bottom-color: #e94560; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .expert-card { margin: 0.8em 0; padding: 0.8em; background: #16213e; border-radius: 6px; }
+  .expert-card h3 { margin: 0 0 0.5em; font-size: 1em; color: #6fa8dc; }
+  .expert-card h4 { margin: 0.8em 0 0.3em; font-size: 0.9em; color: #8888aa; text-transform: uppercase; letter-spacing: 0.05em; }
+  .expert-card ul { margin: 0.3em 0; padding-left: 1.2em; }
+  .expert-card li { margin: 0.3em 0; line-height: 1.5; }
+  .quote { font-style: italic; color: #c8c8c8; border-left: 3px solid #e94560; padding-left: 0.8em; margin: 0.5em 0; }
+  .question-card { margin: 0.6em 0; padding: 0.8em; background: #16213e; border-radius: 6px; border-left: 3px solid #6fa8dc; }
+  .question-card .target { font-weight: 600; color: #6fa8dc; }
+  .question-card .q-text { margin: 0.3em 0; line-height: 1.6; }
+  .question-card .intent { color: #8888aa; font-size: 0.9em; margin-top: 0.3em; }
+  .question-card .follow-up { color: #666; font-size: 0.85em; }
+  .steering { background: #1a1a2e; border-radius: 6px; padding: 0.8em; margin: 0.5em 0; }
+  .steering h4 { margin: 0 0 0.3em; color: #8888aa; }
+  .ref-item { margin: 0.3em 0; padding: 0.3em 0; }
+  .ref-verified { color: #6fdc6f; }
+  .ref-unverified { color: #e8d44d; }
+  .ref-source { font-size: 0.8em; color: #666; }
+  .reading-list { margin: 1.5em 0; }
+  .reading-list h2 { color: #e94560; }
+  .reading-rec { padding: 0.6em; margin: 0.5em 0; background: #16213e; border-radius: 6px; }
+  .reading-rec .title { font-weight: 600; }
+  .reading-rec .reason { color: #aaa; font-size: 0.9em; margin-top: 0.2em; }
+  .stats-bar { display: flex; gap: 2em; margin: 0.5em 0 1.5em; color: #8888aa; font-size: 0.9em; }
+  .stats-bar strong { color: #e8e8e8; }
+  #loading { text-align: center; padding: 3em; color: #8888aa; }
+  #no-data { display: none; text-align: center; padding: 3em; color: #8888aa; }
+  .cross-eng { margin: 0.3em 0; padding: 0.4em 0.6em; background: #1a1a2e; border-radius: 4px; font-size: 0.9em; }
+</style>
+</head>
+<body>
+<div class="content">
+
+<h1>Host Preparation</h1>
+<p class="subtitle">Pre-interviews, questions, and scholarly references gathered before recording</p>
+
+<div class="run-selector">
+  <label for="run-select">Run: </label>
+  <select id="run-select"><option value="">Loading runs...</option></select>
+  <a id="player-link" href="#" style="margin-left:1em;color:#6fa8dc;font-size:0.9em;display:none;">Listen to this episode &rarr;</a>
+  <a id="report-link" href="#" style="margin-left:1em;color:#6fa8dc;font-size:0.9em;display:none;">View report &rarr;</a>
+</div>
+
+<div id="loading">Loading...</div>
+<div id="no-data">
+  <p>This run has no host preparation data.</p>
+  <p>Host preparation (Phase 2.5) generates pre-interviews with each expert and a question plan for the host. It is enabled with <code>--host-prep</code> and scholarly references with <code>--reference-tools</code>.</p>
+</div>
+<div id="prep-content" style="display:none;"></div>
+
+</div>
+<script>
+const params = new URLSearchParams(window.location.search);
+let currentRun = params.get('run') || '';
+
+// Populate run selector from tracker data
+fetch('/tracker/data').then(r => r.json()).then(data => {
+    const sel = document.getElementById('run-select');
+    sel.innerHTML = '';
+    // Collect runs that have host prep
+    const runs = [];
+    // Panel scripts
+    if (data.panel_scripts) {
+        for (const r of data.panel_scripts) {
+            if (r.status === 'done') runs.push({ id: r.run_id, label: `${r.novel} — ${r.panel}`, group: 'Panel Scripts' });
+        }
+    }
+    // Interdisciplinary
+    if (data.interdisciplinary) {
+        for (const r of data.interdisciplinary) {
+            if (r.has_episode && r.hostprep) runs.push({ id: r.run_id, label: `${r.novel} — interdisciplinary (${r.condition})`, group: 'Interdisciplinary' });
+        }
+    }
+    // Main matrix runs with hostprep
+    if (data.rows) {
+        for (const row of data.rows) {
+            for (const c of row.cells) {
+                if (c.status === 'done' && c.hostprep) {
+                    runs.push({ id: c.run_id, label: `${row.title} — ${c.panel} (${c.condition})`, group: 'Matrix' });
+                }
+            }
+        }
+    }
+    // Group into optgroups
+    const groups = {};
+    for (const r of runs) {
+        if (!groups[r.group]) groups[r.group] = [];
+        groups[r.group].push(r);
+    }
+    sel.innerHTML = '<option value="">Select a run...</option>';
+    for (const [gname, items] of Object.entries(groups)) {
+        const og = document.createElement('optgroup');
+        og.label = gname;
+        for (const item of items) {
+            const opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.label;
+            if (item.id === currentRun) opt.selected = true;
+            og.appendChild(opt);
+        }
+        sel.appendChild(og);
+    }
+    if (currentRun) loadPrep(currentRun);
+    else document.getElementById('loading').style.display = 'none';
+});
+
+document.getElementById('run-select').addEventListener('change', function() {
+    currentRun = this.value;
+    if (currentRun) {
+        history.replaceState(null, '', '/prep?run=' + currentRun);
+        loadPrep(currentRun);
+    }
+});
+
+function loadPrep(runId) {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('no-data').style.display = 'none';
+    document.getElementById('prep-content').style.display = 'none';
+
+    // Update cross-links
+    const playerLink = document.getElementById('player-link');
+    const reportLink = document.getElementById('report-link');
+    playerLink.href = '/player?run=' + runId;
+    playerLink.style.display = 'inline';
+    reportLink.href = '/report/' + runId;
+    reportLink.style.display = 'inline';
+
+    fetch('/api/runs/' + runId + '/prep').then(r => {
+        if (!r.ok) throw new Error('No prep data');
+        return r.json();
+    }).then(data => {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('prep-content').style.display = 'block';
+        renderPrep(data);
+    }).catch(() => {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('no-data').style.display = 'block';
+    });
+}
+
+function renderPrep(data) {
+    const container = document.getElementById('prep-content');
+    let html = '';
+
+    // Config info
+    if (data.config) {
+        const experts = (data.config.experts || []).map(e => e.name).join(', ');
+        html += `<div class="stats-bar">`;
+        html += `<span>Novel: <strong>${data.config.novel.replace(/_/g, ' ')}</strong></span>`;
+        html += `<span>Panel: <strong>${experts}</strong></span>`;
+        if (data.reading_list) {
+            html += `<span>References: <strong>${data.reading_list.total_verified || 0}</strong> verified of ${data.reading_list.total_proposed || 0} proposed (${Math.round((data.reading_list.verification_rate || 0) * 100)}%)</span>`;
+        }
+        html += `</div>`;
+    }
+
+    // Reading list (recommended)
+    if (data.reading_list && data.reading_list.recommended && data.reading_list.recommended.length > 0) {
+        html += `<div class="reading-list"><h2>Recommended Reading</h2>`;
+        html += `<p style="color:#8888aa;font-size:0.9em;">Curated from ${data.reading_list.total_before_winnowing || data.reading_list.total_verified || '?'} verified references, these are the most relevant for a general listener.</p>`;
+        for (const rec of data.reading_list.recommended) {
+            if (typeof rec === 'string') {
+                html += `<div class="reading-rec"><span class="title">${esc(rec)}</span></div>`;
+            } else {
+                html += `<div class="reading-rec"><span class="title">${esc(rec.title || rec.raw_text || JSON.stringify(rec))}</span>`;
+                if (rec.reason) html += `<div class="reason">${esc(rec.reason)}</div>`;
+                html += `</div>`;
+            }
+        }
+        html += `</div>`;
+    }
+
+    // Segments
+    const interviews = data.interviews || [];
+    const briefs = data.briefs || [];
+
+    for (let si = 0; si < Math.max(interviews.length, briefs.length); si++) {
+        const brief = briefs[si];
+        const segInterviews = interviews[si] || [];
+        const segName = brief ? brief.segment_name : `Segment ${si + 1}`;
+
+        html += `<div class="segment">`;
+        html += `<h2>${esc(segName)}</h2>`;
+
+        // Tab bar
+        const tabId = 'seg' + si;
+        html += `<div class="tab-bar">`;
+        html += `<button class="active" onclick="showTab('${tabId}','interviews',this)">Pre-Interviews</button>`;
+        if (brief) html += `<button onclick="showTab('${tabId}','questions',this)">Host Questions</button>`;
+        if (brief && brief.steering_notes) html += `<button onclick="showTab('${tabId}','steering',this)">Steering Notes</button>`;
+        html += `</div>`;
+
+        // Interviews tab
+        html += `<div class="tab-content active" id="${tabId}-interviews">`;
+        for (const expert of segInterviews) {
+            html += `<div class="expert-card">`;
+            html += `<h3>${esc(expert.expert_name)}</h3>`;
+            if (expert.strongest_take) {
+                html += `<div class="quote">${esc(expert.strongest_take)}</div>`;
+            }
+            if (expert.key_points && expert.key_points.length > 0) {
+                html += `<h4>Key Points</h4><ul>`;
+                for (const kp of expert.key_points) html += `<li>${esc(kp)}</li>`;
+                html += `</ul>`;
+            }
+            if (expert.potential_quotes && expert.potential_quotes.length > 0) {
+                html += `<h4>Potential Quotes</h4>`;
+                for (const q of expert.potential_quotes) html += `<div class="quote">${esc(q)}</div>`;
+            }
+            if (expert.disagreement_angles && expert.disagreement_angles.length > 0) {
+                html += `<h4>Disagreement Angles</h4><ul>`;
+                for (const d of expert.disagreement_angles) html += `<li>${esc(d)}</li>`;
+                html += `</ul>`;
+            }
+            if (expert.proposed_references && expert.proposed_references.length > 0) {
+                html += `<h4>Proposed References</h4>`;
+                for (const ref of expert.proposed_references) {
+                    const text = typeof ref === 'string' ? ref : (ref.raw_text || ref.title || JSON.stringify(ref));
+                    const verified = typeof ref === 'object' && ref.verified;
+                    const cls = verified ? 'ref-verified' : 'ref-unverified';
+                    const icon = verified ? '&#10003;' : '?';
+                    html += `<div class="ref-item"><span class="${cls}">${icon}</span> ${esc(text)}</div>`;
+                }
+            }
+            html += `</div>`;
+        }
+        html += `</div>`;
+
+        // Questions tab
+        if (brief) {
+            html += `<div class="tab-content" id="${tabId}-questions">`;
+            for (const q of (brief.questions || [])) {
+                html += `<div class="question-card">`;
+                html += `<div class="target">To ${esc(q.target_expert)}</div>`;
+                html += `<div class="q-text">${esc(q.question)}</div>`;
+                if (q.intent) html += `<div class="intent">Intent: ${esc(q.intent)}</div>`;
+                if (q.follow_up_for && q.follow_up_for.length > 0) {
+                    html += `<div class="follow-up">Follow-up for: ${q.follow_up_for.map(esc).join(', ')}</div>`;
+                }
+                html += `</div>`;
+            }
+            if (brief.cross_engagement_targets && brief.cross_engagement_targets.length > 0) {
+                html += `<h4 style="color:#8888aa;margin-top:1em;">Cross-Engagement Targets</h4>`;
+                for (const ce of brief.cross_engagement_targets) {
+                    html += `<div class="cross-eng">${esc(ce)}</div>`;
+                }
+            }
+            if (brief.recommended_reading && brief.recommended_reading.length > 0) {
+                html += `<h4 style="color:#8888aa;margin-top:1em;">Segment Reading</h4>`;
+                for (const rr of brief.recommended_reading) {
+                    const text = typeof rr === 'string' ? rr : (rr.raw_text || rr.title || JSON.stringify(rr));
+                    html += `<div class="ref-item">${esc(text)}</div>`;
+                }
+            }
+            html += `</div>`;
+
+            // Steering notes tab
+            if (brief.steering_notes) {
+                html += `<div class="tab-content" id="${tabId}-steering">`;
+                if (Array.isArray(brief.steering_notes)) {
+                    for (const note of brief.steering_notes) {
+                        html += `<div class="steering">${esc(note)}</div>`;
+                    }
+                } else {
+                    html += `<div class="steering">${esc(String(brief.steering_notes))}</div>`;
+                }
+                html += `</div>`;
+            }
+        }
+
+        html += `</div>`; // .segment
+    }
+
+    container.innerHTML = html;
+}
+
+function showTab(segId, tabName, btn) {
+    // Hide all tabs in this segment
+    const seg = btn.closest('.segment');
+    seg.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    seg.querySelectorAll('.tab-bar button').forEach(b => b.classList.remove('active'));
+    // Show selected
+    document.getElementById(segId + '-' + tabName).classList.add('active');
+    btn.classList.add('active');
+}
+
+function esc(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+}
+</script>
+</body>
+</html>
