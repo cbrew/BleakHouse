@@ -28,7 +28,6 @@ import argparse
 import json
 import logging
 import os
-import sys
 import time
 from pathlib import Path
 
@@ -40,6 +39,11 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUNS_DIR = BASE_DIR / "data" / "runs"
 MODEL_DIR = Path(os.environ.get("KOKORO_MODEL_DIR", str(BASE_DIR / "data" / "tts_models")))
+
+# Authoritative location for rendered podcast audio.
+PODCAST_AUDIO_DIR = Path(
+    os.environ.get("PODCAST_AUDIO_DIR", "/Volumes/Crucial X9/bleakhouse_audio")
+)
 
 # Voice mapping (duplicated from webapp/kokoro_voices.py to avoid import issues)
 KOKORO_VOICES = {
@@ -185,7 +189,7 @@ def render_run(model, run_id: str, output_dir: Path, bitrate: str) -> Path | Non
 
 def main():
     parser = argparse.ArgumentParser(description="Batch render Kokoro TTS for all demo runs")
-    parser.add_argument("--output-dir", type=Path, default=BASE_DIR / "data" / "kokoro_audio")
+    parser.add_argument("--output-dir", type=Path, default=PODCAST_AUDIO_DIR)
     parser.add_argument("--bitrate", default="64k", help="MP3 bitrate (default: 64k)")
     parser.add_argument("--run", type=str, default=None, help="Render a single run")
     parser.add_argument("--include-gemini", action="store_true", help="Re-render runs with Gemini audio")

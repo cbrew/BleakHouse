@@ -40,7 +40,7 @@ html, body {
 }
 
 /* Bounding box overlay — shows the 40×30" poster boundary */
-body::after {
+/* body::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -48,7 +48,7 @@ body::after {
   pointer-events: none;
   z-index: 9999;
   box-sizing: border-box;
-}
+} */
 
 /* ── Header ─────────────────────────────────────────── */
 .header {
@@ -60,6 +60,8 @@ body::after {
 }
 .header-left { flex: 1; }
 .header-right { text-align: right; flex: 0 0 5in; }
+.header-logo { flex: 0 0 auto; }
+.header-logo img { height: 1.1in; }
 
 .poster-title {
   margin: 0;
@@ -386,6 +388,10 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
     <p class="author-affil">The Ohio State University<br>LexisNexis Legal &amp; Professional</p>
     <div class="conference-badge">MIDWEST SPEECH &amp; LANGUAGE DAY 2026</div>
   </div>
+  <div class="header-logo">
+    <img src="TheOhioStateUniversity-Scarlet-Vert-RGBHEX.jpg" alt="The Ohio State University">
+    <img src="lexisplusailogo.png" alt="Lexis+ AI" style="margin-left:0.2in;">
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
@@ -405,7 +411,7 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
 <div class="col">
 
   <div class="box">
-    <div class="sec-head"><h2>The Question</h2><div class="rule"></div></div>
+    <div class="sec-head"><h2>The Questions</h2><div class="rule"></div></div>
     <p>RAG selects passages by embedding similarity — effective, but opaque. You cannot see <em>why</em> a passage was chosen, adjust selection criteria, or explore how different editorial priorities reshape the output.</p>
     <p>We run <strong>min-cost flow (transport)</strong> and embedding retrieval side-by-side on 15 Victorian novels, with a no-passages baseline, to answer four questions:</p>
     <ol style="margin:0.04in 0 0.04in 0.22in;padding:0;font-size:0.23in;line-height:1.5;">
@@ -413,6 +419,7 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
       <li><strong>Does passage grounding prevent confabulation?</strong></li>
       <li><strong>What does transport offer that embedding cannot?</strong></li>
       <li><strong>What conversational scaffolding produces genuine discussion?</strong></li>
+      <li><strong>Are the relative effects of editorial choices predictable?</strong></li>
     </ol>
     <div class="stat-row">
       <div class="stat-box"><p class="stat-num">15</p><p class="stat-label">novels</p></div>
@@ -499,7 +506,7 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
   </div>
 
   <div class="box">
-    <div class="sec-head"><h2>Three Panels, Same Passage</h2><div class="rule"></div></div>
+    <div class="sec-head"><h2>Two Panels, Same Novel</h2><div class="rule"></div></div>
 
     <h3 class="subsec-head" style="margin-top:0.02in;">Literary Panel</h3>
     <div class="turn turn-burgundy">
@@ -610,7 +617,7 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
         <span class="bar-num">0</span>
       </div>
     </div>
-    <p class="small">Grounded conditions achieve <strong>97–98%</strong> for <em>all</em> novels. The gradient reflects analytical reinforcement in training data (Carlini et al., 2021, 2023), not prose style.</p>
+    <p class="small">11 of 15 novels shown; omitted novels (Hard Times 39%, Mill on the Floss 37%, Daniel Deronda 30%, Miss Marjoribanks 3%) follow the same pattern. Grounded conditions achieve <strong>97–98%</strong> for <em>all</em> novels. The gradient reflects analytical reinforcement in training data (Carlini et al., 2021, 2023), not prose style.</p>
   </div>
 
   <div class="box">
@@ -657,6 +664,10 @@ code { font-family: 'Courier New', monospace; font-size: 0.95em; }
     <div class="finding finding-teal" style="border-left-color:#3D7A40;background:rgba(61,122,64,0.05);">
       <p class="finding-title" style="color:#3D7A40;">4. Scaffolding is decisive, not emergent.</p>
       <p>Host preparation raises questions from ~1 to ~11 per segment, uniformly across all 15 novels. Conversational dynamics are designed — a property of the prompt architecture, not the LLM.</p>
+    </div>
+       <div class="finding finding-teal" style="border-left-color:#3D7A40;background:rgba(61,122,64,0.05);">
+      <p class="finding-title" style="color:#3D7A40;">5. Manipulable, up to a point</p>
+      <p>This is a neurosymbolic system. We can vary the symbolic part and explore, but the outcome is still co-determined by opaque LLM tendencies.</p>
     </div>
     <div class="summary-box">
       <p class="summary-title">Framework &gt; Grounding &gt; Strategy</p>
