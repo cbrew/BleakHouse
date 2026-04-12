@@ -16,8 +16,10 @@ import hashlib
 import io
 import json
 import logging
+import os
 import time
 import wave
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -38,6 +40,11 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 CACHE_DIR = DATA_DIR / "tts_cache"
+
+# Authoritative location for rendered podcast audio.
+PODCAST_AUDIO_DIR = Path(
+    os.environ.get("PODCAST_AUDIO_DIR", "/Volumes/Crucial X9/bleakhouse_audio")
+)
 
 # ---------------------------------------------------------------------------
 # Voice configuration
@@ -333,29 +340,64 @@ def render_episode(
     episode: PodcastEpisode,
     client: genai.Client,
     model_id: str,
+    concurrency: int = 1,
 ) -> AudioSegment:
-    """Render all segments and turns into a single audio track."""
+    """Render all segments and turns into a single audio track.
+
+    When concurrency > 1, turns within each segment are rendered in
+    parallel via a thread pool, then assembled in order.
+    """
     full_audio = AudioSegment.empty()
 
     for seg_idx, seg in enumerate(episode.segments):
         logger.info(
-            "Segment %d/%d: '%s' (%d turns)",
+            "Segment %d/%d: '%s' (%d turns, concurrency=%d)",
             seg_idx + 1,
             len(episode.segments),
             seg.title,
             len(seg.turns),
+            concurrency,
         )
 
-        for turn_idx, turn in enumerate(seg.turns):
-            turn_audio = render_turn(turn, client, model_id)
-            full_audio += turn_audio
-            logger.info(
-                "    Turn %d/%d [%s]: %.1fs",
-                turn_idx + 1,
-                len(seg.turns),
-                turn.speaker,
-                len(turn_audio) / 1000,
-            )
+        if concurrency <= 1:
+            # Sequential path (original behaviour)
+            for turn_idx, turn in enumerate(seg.turns):
+                turn_audio = render_turn(turn, client, model_id)
+                full_audio += turn_audio
+                logger.info(
+                    "    Turn %d/%d [%s]: %.1fs",
+                    turn_idx + 1,
+                    len(seg.turns),
+                    turn.speaker,
+                    len(turn_audio) / 1000,
+                )
+        else:
+            # Parallel path — render turns concurrently, assemble in order
+            turn_audios: list[AudioSegment | None] = [None] * len(seg.turns)
+
+            def _render_one(idx: int, turn: Turn) -> tuple[int, AudioSegment]:
+                audio = render_turn(turn, client, model_id)
+                return idx, audio
+
+            with ThreadPoolExecutor(max_workers=concurrency) as pool:
+                futures = {
+                    pool.submit(_render_one, i, turn): i
+                    for i, turn in enumerate(seg.turns)
+                }
+                for future in as_completed(futures):
+                    idx, audio = future.result()
+                    turn_audios[idx] = audio
+                    logger.info(
+                        "    Turn %d/%d [%s]: %.1fs",
+                        idx + 1,
+                        len(seg.turns),
+                        seg.turns[idx].speaker,
+                        len(audio) / 1000,
+                    )
+
+            for audio in turn_audios:
+                assert audio is not None
+                full_audio += audio
 
         # Segment break — longer pause between segments
         if seg_idx < len(episode.segments) - 1:
@@ -403,6 +445,12 @@ def main() -> None:
         default="192k",
         help="MP3 bitrate (default: 192k)",
     )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=4,
+        help="Number of concurrent TTS API calls per segment (default: 4)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -443,11 +491,11 @@ def main() -> None:
 
     client = genai.Client()
 
-    audio = render_episode(episode, client, model_id)
+    audio = render_episode(episode, client, model_id, concurrency=args.concurrency)
 
-    # Export — save into run's audio dir if --run is set
+    # Export — save to authoritative audio dir if --run is set
     if args.run and args.output == "podcast.mp3":
-        audio_dir = DATA_DIR / "runs" / args.run / "audio"
+        audio_dir = PODCAST_AUDIO_DIR / args.run
         audio_dir.mkdir(parents=True, exist_ok=True)
         seg_suffix = f"_segment_{args.segment}" if args.segment is not None else ""
         output_path = audio_dir / f"podcast{seg_suffix}.mp3"

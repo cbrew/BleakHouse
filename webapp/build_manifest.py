@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 from pathlib import Path
 
 from enrichment.podcast_types import PodcastEpisode, Turn
@@ -22,6 +23,11 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
+
+# Authoritative location for rendered podcast audio.
+PODCAST_AUDIO_DIR = Path(
+    os.environ.get("PODCAST_AUDIO_DIR", "/Volumes/Crucial X9/bleakhouse_audio")
+)
 
 # Novel title (as it appears in episode JSON, minus ": A Literary Discussion")
 # → relative path under data/ to passages_enriched.json
@@ -204,7 +210,10 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
         return None
 
     if audio:
-        audio_dir = run_dir / "audio"
+        audio_dir = PODCAST_AUDIO_DIR / run_id
+        if not audio_dir.exists():
+            # Fall back to run-local audio dir
+            audio_dir = run_dir / "audio"
         if not audio_dir.exists():
             logger.warning("No audio dir for run %s", run_id)
             return None
@@ -382,7 +391,9 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
         manifest["host_prep"] = host_prep
 
     if audio:
-        out_path = run_dir / "audio" / "manifest.json"
+        ext_audio_dir = PODCAST_AUDIO_DIR / run_id
+        ext_audio_dir.mkdir(parents=True, exist_ok=True)
+        out_path = ext_audio_dir / "manifest.json"
     else:
         out_path = run_dir / "manifest.json"
     with open(out_path, "w") as f:

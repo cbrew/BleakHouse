@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 from pathlib import Path
@@ -27,6 +28,12 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+# Authoritative location for podcast audio (MP3s and audio manifests).
+# On Fly this is the persistent volume; locally it defaults to the external drive.
+PODCAST_AUDIO_DIR = Path(
+    os.environ.get("PODCAST_AUDIO_DIR", "/Volumes/Crucial X9/bleakhouse_audio")
+)
 
 app = FastAPI(title="Literary Podcast Player")
 
@@ -77,8 +84,6 @@ def _classify_run(name: str) -> tuple[str, str, bool]:
         condition = "RAG"
     elif "_rand_" in name or name.startswith("rand_"):
         condition = "random"
-    elif "interdisciplinary" in name:
-        condition = "interdisciplinary"
     else:
         condition = "transport"
 
@@ -113,14 +118,20 @@ def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]
     if not runs_dir.exists():
         return novels
     for run_dir in sorted(runs_dir.iterdir()):
+        ext_audio = PODCAST_AUDIO_DIR / run_dir.name / "podcast.mp3"
         audio_manifest = run_dir / "audio" / "manifest.json"
         run_manifest = run_dir / "manifest.json"
 
-        has_audio = audio_manifest.exists()
+        has_audio = ext_audio.exists() or audio_manifest.exists()
         if not has_audio and not include_scriptonly:
             continue
 
-        manifest_path = audio_manifest if has_audio else run_manifest
+        ext_manifest = PODCAST_AUDIO_DIR / run_dir.name / "manifest.json"
+        manifest_path = (
+            ext_manifest if ext_manifest.exists()
+            else audio_manifest if audio_manifest.exists()
+            else run_manifest
+        )
         if not manifest_path.exists():
             continue
 
@@ -523,14 +534,15 @@ async def list_all_runs():
 
 @app.get("/api/runs/{run_id}/manifest")
 async def get_manifest(run_id: str):
-    # Check audio manifest first, then run-level manifest
+    # Check authoritative audio dir, then run-local audio, then run-level manifest
+    ext_manifest = PODCAST_AUDIO_DIR / run_id / "manifest.json"
     audio_manifest = DATA_DIR / "runs" / run_id / "audio" / "manifest.json"
     run_manifest = DATA_DIR / "runs" / run_id / "manifest.json"
-    manifest_path = audio_manifest if audio_manifest.exists() else run_manifest
-    if not manifest_path.exists():
-        raise HTTPException(404, f"No manifest for run {run_id}")
-    with open(manifest_path) as f:
-        return json.load(f)
+    for candidate in (ext_manifest, audio_manifest, run_manifest):
+        if candidate.exists():
+            with open(candidate) as f:
+                return json.load(f)
+    raise HTTPException(404, f"No manifest for run {run_id}")
 
 
 @app.get("/report/{run_id}", response_class=HTMLResponse)
@@ -555,6 +567,42 @@ async def get_episode(run_id: str):
         return json.load(f)
 
 
+@app.get("/api/runs/{run_id}/prep")
+async def get_prep(run_id: str):
+    """Serve combined host-preparation data: interviews, briefs, reading list."""
+    if ".." in run_id:
+        raise HTTPException(400, "Invalid path")
+    run_dir = DATA_DIR / "runs" / run_id
+    interviews_path = run_dir / "phase2_5_interviews.json"
+    briefs_path = run_dir / "phase2_5_host_briefs.json"
+    reading_path = run_dir / "phase2_5_reading_list.json"
+    config_path = run_dir / "config.json"
+    if not interviews_path.exists():
+        raise HTTPException(404, f"No host-prep data for run {run_id}")
+    result: dict = {"run_id": run_id}
+    with open(interviews_path) as f:
+        result["interviews"] = json.load(f)
+    if briefs_path.exists():
+        with open(briefs_path) as f:
+            result["briefs"] = json.load(f)
+    if reading_path.exists():
+        with open(reading_path) as f:
+            result["reading_list"] = json.load(f)
+    if config_path.exists():
+        with open(config_path) as f:
+            cfg = json.load(f)
+            result["config"] = {
+                "novel": cfg.get("novel", ""),
+                "experts": cfg.get("experts", []),
+            }
+    return result
+
+
+@app.get("/prep", response_class=HTMLResponse)
+async def prep_page():
+    return FileResponse(str(PAGES_DIR / "prep.html"))
+
+
 @app.get("/script/{run_id}", response_class=HTMLResponse)
 async def script_viewer(run_id: str):
     """Serve the script viewer page for a run."""
@@ -575,10 +623,10 @@ KOKORO_CACHE = AUDIO_VOLUME / "kokoro_cache"
 async def serve_audio(run_id: str, filename: str):
     if ".." in run_id or ".." in filename:
         raise HTTPException(400, "Invalid path")
-    # Check run-local audio first, then fly volume
-    audio_path = DATA_DIR / "runs" / run_id / "audio" / filename
+    # Check authoritative audio dir first, then run-local audio
+    audio_path = PODCAST_AUDIO_DIR / run_id / filename
     if not audio_path.exists():
-        audio_path = AUDIO_VOLUME / run_id / filename
+        audio_path = DATA_DIR / "runs" / run_id / "audio" / filename
     if not audio_path.exists():
         raise HTTPException(404, f"Audio file not found: {filename}")
     return FileResponse(str(audio_path), media_type="audio/mpeg")
@@ -767,6 +815,7 @@ async def tracker_data():
 def _summarize_run_dir(run_dir: Path) -> dict:
     """Build one cached summary for a run directory."""
     name = run_dir.name
+    ext_audio_manifest = PODCAST_AUDIO_DIR / name / "manifest.json"
     audio_manifest_path = run_dir / "audio" / "manifest.json"
     run_manifest_path = run_dir / "manifest.json"
     episode_path = run_dir / "phase3_episode.json"
@@ -774,7 +823,11 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     reading_list_path = run_dir / "phase2_5_reading_list.json"
     report_path = run_dir / "report.html"
 
-    manifest = _load_json(audio_manifest_path) or _load_json(run_manifest_path)
+    manifest = (
+        _load_json(ext_audio_manifest)
+        or _load_json(audio_manifest_path)
+        or _load_json(run_manifest_path)
+    )
     episode = _load_json(episode_path) if episode_path.exists() else None
     config = _load_json(config_path) if config_path.exists() else None
 
@@ -782,7 +835,10 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     novel = title.replace(": A Literary Discussion", "")
     base_name, version = _parse_version(name)
     condition, panel, hostprep = _classify_run(name)
-    has_audio = audio_manifest_path.exists()
+    has_audio = (
+        (PODCAST_AUDIO_DIR / name / "podcast.mp3").exists()
+        or audio_manifest_path.exists()
+    )
     has_host_prep = (run_dir / "phase2_5_host_briefs.json").exists()
 
     summary = {
@@ -991,6 +1047,79 @@ def _build_cached_snapshot() -> dict:
         for run in runs
     ]
 
+    # Interdisciplinary panel runs (not in the main 180-condition grid).
+    # Keep only the latest version per (novel, grounding_condition).
+    _inter_best: dict[tuple[str, str], dict] = {}
+    for rid, s in sorted(run_summaries.items()):
+        if "interdisciplinary" not in rid or not s.get("has_episode"):
+            continue
+        novel = s.get("novel", "")
+        cond = s.get("condition", "")
+        key = (novel, cond)
+        entry = {
+            "run_id": rid,
+            "novel": novel,
+            "condition": cond,
+            "panel": s.get("panel", ""),
+            "hostprep": s.get("hostprep", False),
+            "has_audio": s.get("has_audio", False),
+            "has_episode": s.get("has_episode", False),
+            "has_report": s.get("has_report", False),
+            "q": s.get("q", 0),
+            "r": s.get("r", 0),
+            "w": s.get("w", 0),
+        }
+        prev = _inter_best.get(key)
+        # Prefer runs with audio; among those, prefer latest version
+        prev_audio = prev.get("has_audio", False) if prev else False
+        has_audio = s.get("has_audio", False)
+        if prev is None or (has_audio and not prev_audio) or (
+            has_audio == prev_audio
+            and _version_sort_key(s.get("version", "v1.0")) > _version_sort_key(prev.get("_ver", "v1.0"))
+        ):
+            entry["_ver"] = s.get("version", "v1.0")
+            _inter_best[key] = entry
+    inter_runs = [v for v in _inter_best.values()]
+    for r in inter_runs:
+        r.pop("_ver", None)
+
+    # Panel-scripts matrix: 2 novels × 3 panels, all with reference-tools.
+    PANEL_SCRIPTS_RUNS = [
+        ("Bleak House", "literary", "arc_v01_baseline"),
+        ("Bleak House", "interdisciplinary", "interdisciplinary_trn_hostprep_refs"),
+        ("Bleak House", "alternative", "arc_v19_all_swapped"),
+        ("Hester", "literary", "hest_trn_v01_baseline_hostprep_refs"),
+        ("Hester", "interdisciplinary", "hest_interdisciplinary_trn_hostprep_refs"),
+        ("Hester", "alternative", "hest_trn_v19_all_swapped_hostprep_refs"),
+    ]
+    panel_scripts: list[dict] = []
+    for novel_label, panel_key, run_id in PANEL_SCRIPTS_RUNS:
+        s = run_summaries.get(run_id)
+        if s is None:
+            panel_scripts.append({
+                "novel": novel_label, "panel": panel_key, "run_id": run_id,
+                "status": "missing",
+            })
+            continue
+        panel_scripts.append({
+            "novel": novel_label,
+            "panel": panel_key,
+            "run_id": run_id,
+            "status": s.get("status", "missing"),
+            "phase": s.get("phase"),
+            "q": s.get("q", 0),
+            "r": s.get("r", 0),
+            "w": s.get("w", 0),
+            "has_audio": s.get("has_audio", False),
+            "has_episode": s.get("has_episode", False),
+            "has_report": s.get("has_report", False),
+            "has_reading_list": s.get("has_reading_list", False),
+            "reading": s.get("reading", {}),
+            "name": run_id,
+            "condition": s.get("condition", "transport"),
+            "hostprep": s.get("hostprep", False),
+        })
+
     return {
         "novels": novels,
         "all_runs": all_runs,
@@ -1004,6 +1133,8 @@ def _build_cached_snapshot() -> dict:
             "process": None,
             "histograms": {"p25": sorted(p25_times), "p3": sorted(p3_times)},
             "refreshed_at": refreshed_at,
+            "interdisciplinary": inter_runs,
+            "panel_scripts": panel_scripts,
         },
         "versions": {"versions": versions, "runs": version_runs},
         "refreshed_at": refreshed_at,
@@ -1202,6 +1333,22 @@ td.lo { background:#f8d7da; }
 <p><strong>Column abbreviations:</strong> A = Panel A (Hartley/Blackstone/Woodcourt),
    B = Panel B (Trevelyan/Leigh/Rosen), HP = host preparation (Phase 2.5)</p>
 </div>
+<h2 style="margin-top:1.5em;font-size:1.1em;">Interdisciplinary Panel <span style="font-weight:normal;font-size:0.85em;color:#666;">(Chen / Martinez / Volkov)</span></h2>
+<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.5em;">Three non-literary experts discuss the same novels. Click any cell for details.</div>
+<table id="inter-table" style="width:auto;">
+<thead>
+<tr><th>Novel</th><th>Transport</th><th>Embedding</th><th>No Passages</th></tr>
+</thead>
+<tbody id="inter-tbody"></tbody>
+</table>
+<h2 style="margin-top:1.5em;font-size:1.1em;">Panel Scripts with Reading Lists <span style="font-weight:normal;font-size:0.85em;color:#666;">reference-tools enabled</span></h2>
+<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.5em;">Three expert panels discuss two novels. Each run includes verified scholarly references. Click any cell for details.</div>
+<table id="panel-scripts-table" style="width:auto;">
+<thead>
+<tr><th>Novel</th><th>Literary<br><span style="font-weight:normal;font-size:0.8em;">Hartley / Blackstone / Woodcourt</span></th><th>Interdisciplinary<br><span style="font-weight:normal;font-size:0.8em;">Chen / Martinez / Volkov</span></th><th>Alternative<br><span style="font-weight:normal;font-size:0.8em;">Trevelyan / Leigh / Rosen</span></th></tr>
+</thead>
+<tbody id="panel-scripts-tbody"></tbody>
+</table>
 <script>
 function render(data) {
     const pct = Math.round(data.done * 100 / data.total);
@@ -1256,6 +1403,80 @@ function render(data) {
     document.getElementById('tbody').innerHTML = html;
     // Histograms
     if (data.histograms) renderHistograms(data.histograms);
+    // Interdisciplinary panel
+    if (data.interdisciplinary) renderInterdisciplinary(data.interdisciplinary);
+    // Panel scripts with reading lists
+    if (data.panel_scripts) renderPanelScripts(data.panel_scripts);
+}
+function renderInterdisciplinary(runs) {
+    if (!runs || runs.length === 0) {
+        document.getElementById('inter-table').style.display = 'none';
+        return;
+    }
+    // Group by novel, then by grounding condition
+    const byNovel = {};
+    for (const r of runs) {
+        const key = r.novel || 'Unknown';
+        if (!byNovel[key]) byNovel[key] = {};
+        let cond = 'transport';
+        if (r.run_id.includes('_nop_') || r.run_id.startsWith('interdisciplinary_nop')) cond = 'no passages';
+        else if (r.run_id.includes('_emb_') || r.run_id.startsWith('interdisciplinary_emb')) cond = 'embedding';
+        byNovel[key][cond] = r;
+    }
+    function interCell(r) {
+        if (!r) return '<td class="m">&mdash;</td>';
+        const cls = r.q >= 5 ? 'hi' : r.q >= 2 ? 'mi' : 'lo';
+        const audio = r.has_audio ? '<span style="font-size:0.7em;color:#27ae60" title="Audio available">&#9835;</span>' : '';
+        const cdata = encodeURIComponent(JSON.stringify(r));
+        return `<td class="d ${cls}" onclick="showRunDetail(event, '${cdata}')">` +
+            `<span class="q">${r.q}</span>${audio}<br>` +
+            `<span class="r">${r.r}</span><br>` +
+            `<span class="w">${Math.round(r.w/1000)}k</span></td>`;
+    }
+    let html = '';
+    for (const [novel, conds] of Object.entries(byNovel).sort()) {
+        html += '<tr><td class="n">' + novel + '</td>';
+        html += interCell(conds['transport']);
+        html += interCell(conds['embedding']);
+        html += interCell(conds['no passages']);
+        html += '</tr>';
+    }
+    document.getElementById('inter-tbody').innerHTML = html;
+}
+function renderPanelScripts(runs) {
+    if (!runs || runs.length === 0) {
+        document.getElementById('panel-scripts-table').style.display = 'none';
+        return;
+    }
+    const byNovel = {};
+    for (const r of runs) {
+        const key = r.novel || 'Unknown';
+        if (!byNovel[key]) byNovel[key] = {};
+        byNovel[key][r.panel] = r;
+    }
+    function psCell(r) {
+        if (!r || r.status === 'missing') return '<td class="m">&mdash;</td>';
+        if (r.status === 'running') {
+            const ph = r.phase || '?';
+            return `<td style="background:#cce5ff" title="${r.run_id} — ${ph}"><span style="font-size:0.75em;font-weight:600;color:#004085">${ph}</span></td>`;
+        }
+        const cls = r.q >= 5 ? 'hi' : r.q >= 2 ? 'mi' : 'lo';
+        const refs = r.has_reading_list ? '<span style="font-size:0.7em;color:#8e44ad" title="Reading list available">&#128218;</span>' : '';
+        const cdata = encodeURIComponent(JSON.stringify(r));
+        return `<td class="d ${cls}" onclick="showRunDetail(event, '${cdata}')">` +
+            `<span class="q">${r.q}</span>${refs}<br>` +
+            `<span class="r">${r.r}</span><br>` +
+            `<span class="w">${Math.round(r.w/1000)}k</span></td>`;
+    }
+    let html = '';
+    for (const [novel, panels] of Object.entries(byNovel).sort()) {
+        html += '<tr><td class="n">' + novel + '</td>';
+        html += psCell(panels['literary']);
+        html += psCell(panels['interdisciplinary']);
+        html += psCell(panels['alternative']);
+        html += '</tr>';
+    }
+    document.getElementById('panel-scripts-tbody').innerHTML = html;
 }
 function renderHistograms(h) {
     const container = document.getElementById('histograms');

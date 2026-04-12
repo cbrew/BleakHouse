@@ -16,7 +16,7 @@ import re
 from pathlib import Path
 from enrichment.run_full_matrix import build_matrix
 grid = {r['name'] for r in build_matrix()}
-inter = {'interdisciplinary_trn_hostprep', 'interdisciplinary_emb_hostprep', 'interdisciplinary_nop_hostprep'}
+inter = {d.name for d in Path('data/runs').iterdir() if 'interdisciplinary' in d.name and (d / 'phase3_episode.json').exists()}
 # Include versioned runs (v1_1, v1_2, etc.) that have a phase3_episode.json or reading list
 versioned = set()
 for d in Path('data/runs').iterdir():
@@ -24,7 +24,12 @@ for d in Path('data/runs').iterdir():
         (d / 'phase3_episode.json').exists() or (d / 'phase2_5_reading_list.json').exists()
     ):
         versioned.add(d.name)
-for name in sorted(grid | inter | versioned):
+panel_scripts = {
+    'arc_v01_baseline', 'arc_v19_all_swapped',
+    'hest_trn_v01_baseline_hostprep_refs',
+    'hest_trn_v19_all_swapped_hostprep_refs',
+}
+for name in sorted(grid | inter | versioned | panel_scripts):
     print(name)
 ")
 
@@ -42,8 +47,12 @@ for run in $DEMO_RUNS; do
         [ -f "$src/$f" ] && cp "$src/$f" "$dst/"
     done
 
-    # Copy audio manifest (not the mp3)
-    if [ -f "$src/audio/manifest.json" ]; then
+    # Copy audio manifest from external drive (authoritative), falling back to run-local
+    AUDIO_SRC="${PODCAST_AUDIO_DIR:-/Volumes/Crucial X9/bleakhouse_audio}"
+    if [ -f "$AUDIO_SRC/$run/manifest.json" ]; then
+        mkdir -p "$dst/audio"
+        cp "$AUDIO_SRC/$run/manifest.json" "$dst/audio/"
+    elif [ -f "$src/audio/manifest.json" ]; then
         mkdir -p "$dst/audio"
         cp "$src/audio/manifest.json" "$dst/audio/"
     fi
