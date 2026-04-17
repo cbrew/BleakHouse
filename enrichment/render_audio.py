@@ -46,6 +46,11 @@ PODCAST_AUDIO_DIR = Path(
     os.environ.get("PODCAST_AUDIO_DIR", "/Volumes/Crucial X9/bleakhouse_audio")
 )
 
+# NOTE (2026-04-17): The SPEAKER_VOICES/ACCENTS/POLICIES dicts and the
+# build_turn_prompt / _rate_direction / _quote_direction / _emphasis_direction
+# helpers below are duplicated in enrichment/tts_profiles/classic.py as
+# ClassicProfile. They are removed from this file in the Task 3 refactor.
+# Until then, any edit here MUST be mirrored in classic.py (or vice versa).
 # ---------------------------------------------------------------------------
 # Voice configuration
 # ---------------------------------------------------------------------------
