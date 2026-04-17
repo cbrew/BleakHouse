@@ -79,6 +79,12 @@ DEFAULT_POLICY = VoicePolicy(
     rate=1.0, energy="medium", pause_bias_ms=200, style="neutral"
 )
 
+# Speakers whose accent guidance already lives in their Audio Profile
+# text. For these, the Director's Notes Accent: line just points back at
+# the profile rather than re-asserting (possibly contradictory) accent
+# from classic.SPEAKER_ACCENTS.
+SPEAKERS_WITH_ACCENT_IN_PROFILE: set[str] = {"Host", "Oliver Trevelyan"}
+
 
 def _audio_profile(speaker: str) -> str:
     return AUDIO_PROFILES.get(
@@ -138,7 +144,7 @@ def _director_notes(turn: Turn) -> str:
         f"Articulation: {_articulation_line(policy.energy, emphasis_present)}."
     )
 
-    if turn.speaker == "Oliver Trevelyan":
+    if turn.speaker in SPEAKERS_WITH_ACCENT_IN_PROFILE:
         lines.append("Accent: as described in the Audio Profile.")
     else:
         lines.append(f"Accent: {_accent_for(turn.speaker)}.")

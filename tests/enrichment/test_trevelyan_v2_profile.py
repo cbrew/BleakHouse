@@ -158,3 +158,18 @@ def test_voice_names_match_classic(profile) -> None:
     assert profile.voice_name("Host") == "Sulafat"
     assert profile.voice_name("Oliver Trevelyan") == "Achird"
     assert profile.voice_name("Nobody") == "Sulafat"
+
+
+def test_host_accent_line_points_to_audio_profile(profile) -> None:
+    turn = _mk_turn("Host")
+    prompt = profile.build_turn_prompt(turn, _ctx())
+    assert "Accent: as described in the Audio Profile." in prompt
+    # Classic's Host accent string must NOT leak in via _accent_for:
+    assert "warm Home Counties accent" not in prompt
+
+
+def test_leigh_accent_line_uses_classic_accent_string(profile) -> None:
+    """Non-Host / non-Trevelyan speakers still get the classic accent string."""
+    turn = _mk_turn("Edmund Leigh")
+    prompt = profile.build_turn_prompt(turn, _ctx())
+    assert "Accent: speaks with a patrician Oxford accent" in prompt
