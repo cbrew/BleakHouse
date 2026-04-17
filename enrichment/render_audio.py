@@ -346,14 +346,13 @@ def main() -> None:
 
     audio = render_episode(episode, client, profile, concurrency=args.concurrency)
 
+    profile_suffix = f"_{profile.name}" if profile.name != "classic" else ""
     if args.run and args.output == "podcast.mp3":
         audio_dir = PODCAST_AUDIO_DIR / args.run
         audio_dir.mkdir(parents=True, exist_ok=True)
         seg_suffix = f"_segment_{args.segment}" if args.segment is not None else ""
-        profile_suffix = f"_{profile.name}" if profile.name != "classic" else ""
         output_path = audio_dir / f"podcast{profile_suffix}{seg_suffix}.mp3"
     else:
-        profile_suffix = f"_{profile.name}" if profile.name != "classic" else ""
         stem = Path(args.output).stem
         ext = Path(args.output).suffix or ".mp3"
         output_path = BASE_DIR / f"{stem}{profile_suffix}{ext}"
