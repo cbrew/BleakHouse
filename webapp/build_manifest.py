@@ -18,6 +18,7 @@ import os
 from pathlib import Path
 
 from enrichment.podcast_types import PodcastEpisode, Turn
+from enrichment.tts_profiles import EpisodeContext, TTSProfile, get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -148,28 +149,25 @@ def find_suggested_passages(
     return suggested
 
 
-def measure_turn_duration_ms(turn: Turn, model_id: str) -> int:
-    """Get duration of a turn's audio from the TTS cache."""
-    from enrichment.render_audio import (
-        SPEAKER_VOICES,
-        _cache_key,
-        _load_cached,
-        build_turn_prompt,
-    )
+def measure_turn_duration_ms(
+    turn: Turn, ctx: "EpisodeContext", profile: "TTSProfile"
+) -> int:
+    """Get duration of a turn's audio from the TTS cache, routed through profile."""
+    from enrichment.render_audio import _cache_key, _load_cached
 
     speaker = turn.speaker
-    voice_name = SPEAKER_VOICES.get(speaker, "Sulafat")
-    prompt = build_turn_prompt(turn)
-    cache_key = _cache_key(prompt, voice_name, model_id)
-    cached = _load_cached(cache_key)
+    voice_name = profile.voice_name(speaker)
+    prompt = profile.build_turn_prompt(turn, ctx)
+    cache_key = _cache_key(prompt, voice_name, profile.model_id)
+    cached = _load_cached(profile, cache_key)
     if cached is None:
-        # Estimate from character count (~15 chars/sec)
         char_count = sum(len(u.text) for u in turn.utterances)
         estimated_ms = int(char_count / 15 * 1000)
         logger.warning(
-            "Cache miss for %s turn (%d chars), estimating %dms",
+            "Cache miss for %s turn (%d chars, profile=%s), estimating %dms",
             speaker,
             char_count,
+            profile.name,
             estimated_ms,
         )
         return estimated_ms
@@ -182,25 +180,35 @@ def estimate_turn_duration_ms(turn: Turn) -> int:
     return int(char_count / 15 * 1000)
 
 
-def compute_turn_pauses(turn: Turn) -> tuple[int, int]:
-    """Compute leading and trailing pause durations matching render_audio logic."""
+def compute_turn_pauses(turn: Turn, pause_scale: float = 1.0) -> tuple[int, int]:
+    """Compute leading and trailing pause durations matching render_audio logic.
+
+    Scales by pause_scale to match the profile used when rendering audio.
+    """
     leading_ms = 0
     trailing_ms = 0
     first = turn.utterances[0] if turn.utterances else None
     if first and first.pause_before_ms > 0:
-        leading_ms = first.pause_before_ms
+        leading_ms = int(first.pause_before_ms * pause_scale)
     last = turn.utterances[-1] if turn.utterances else None
     if last and last.pause_after_ms > 300:
-        trailing_ms = last.pause_after_ms - 300
+        trailing_ms = int((last.pause_after_ms - 300) * pause_scale)
     return leading_ms, trailing_ms
 
 
-def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) -> dict | None:
+def build_manifest(
+    run_id: str,
+    model_key: str = "flash",
+    audio: bool = True,
+    profile_name: str = "classic",
+) -> dict | None:
     """Build a manifest for a run.
 
-    When audio=True (default), measures real TTS durations and writes to
-    {run_dir}/audio/manifest.json.  When audio=False, estimates durations
-    from character counts and writes to {run_dir}/manifest.json.
+    When audio=True (default), measures real TTS durations from the
+    profile's cache and writes to {audio_dir}/manifest.json (classic) or
+    {audio_dir}/manifest_{profile}.json (non-classic). When audio=False,
+    estimates durations from character counts and writes to
+    {run_dir}/manifest.json (profile ignored).
     """
     run_dir = DATA_DIR / "runs" / run_id
     episode_path = run_dir / "phase3_episode.json"
@@ -209,16 +217,21 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
         logger.warning("No episode file for run %s", run_id)
         return None
 
+    classic_model_id = None
+    if audio and profile_name == "classic":
+        classic_model_id = {
+            "flash": "gemini-2.5-flash-preview-tts",
+            "pro": "gemini-2.5-pro-preview-tts",
+        }[model_key]
+    profile = get_profile(profile_name, classic_model_id=classic_model_id)
+
     if audio:
         audio_dir = PODCAST_AUDIO_DIR / run_id
         if not audio_dir.exists():
-            # Fall back to run-local audio dir
             audio_dir = run_dir / "audio"
         if not audio_dir.exists():
             logger.warning("No audio dir for run %s", run_id)
             return None
-        from enrichment.render_audio import MODEL_IDS
-        model_id = MODEL_IDS[model_key]
 
     with open(episode_path) as f:
         episode = PodcastEpisode.model_validate(json.load(f))
@@ -260,12 +273,21 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
         seg_start_ms = cursor_ms
         manifest_turns = []
 
-        for turn in seg.turns:
-            leading_pause, trailing_pause = compute_turn_pauses(turn)
+        for turn_idx, turn in enumerate(seg.turns):
+            leading_pause, trailing_pause = compute_turn_pauses(
+                turn, pause_scale=profile.pause_scale if audio else 1.0
+            )
             cursor_ms += leading_pause
 
             if audio:
-                turn_duration = measure_turn_duration_ms(turn, model_id)  # pyright: ignore[reportPossiblyUnbound]
+                ctx = EpisodeContext(
+                    episode_title=episode.title,
+                    segment_title=seg.title,
+                    segment_index=seg_idx,
+                    turn_index=turn_idx,
+                    previous_turn=seg.turns[turn_idx - 1] if turn_idx > 0 else None,
+                )
+                turn_duration = measure_turn_duration_ms(turn, ctx, profile)
             else:
                 turn_duration = estimate_turn_duration_ms(turn)
             turn_start = cursor_ms
@@ -297,9 +319,9 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
             "turns": manifest_turns,
         })
 
-        # Segment break: 2000ms silence between segments
+        # Segment break: scaled 2s silence between segments (matches render_audio)
         if seg_idx < len(episode.segments) - 1:
-            cursor_ms += 2000
+            cursor_ms += int(2000 * (profile.pause_scale if audio else 1.0))
 
     # Filter passages to only those actually referenced in the episode
     referenced_passages: dict[str, dict] = {}
@@ -358,7 +380,7 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
         referenced_passages.update(suggested)
 
     # Load host preparation data if available
-    host_prep = None
+    host_prep: dict | None = None
     briefs_path = run_dir / "phase2_5_host_briefs.json"
     interviews_path = run_dir / "phase2_5_interviews.json"
     if briefs_path.exists():
@@ -368,7 +390,7 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
         if interviews_path.exists():
             with open(interviews_path) as f:
                 interviews_data = json.load(f)
-        host_prep: dict = {
+        host_prep = {
             "briefs": briefs_data,
             "interviews": interviews_data,
         }
@@ -393,7 +415,12 @@ def build_manifest(run_id: str, model_key: str = "flash", audio: bool = True) ->
     if audio:
         ext_audio_dir = PODCAST_AUDIO_DIR / run_id
         ext_audio_dir.mkdir(parents=True, exist_ok=True)
-        out_path = ext_audio_dir / "manifest.json"
+        filename = (
+            "manifest.json"
+            if profile.name == "classic"
+            else f"manifest_{profile.name}.json"
+        )
+        out_path = ext_audio_dir / filename
     else:
         out_path = run_dir / "manifest.json"
     with open(out_path, "w") as f:
@@ -410,6 +437,12 @@ def main() -> None:
     parser.add_argument("--all", action="store_true", help="Build manifests for all runs")
     parser.add_argument("--no-audio", action="store_true", help="Build without audio timing (for all runs)")
     parser.add_argument("--model", choices=["flash", "pro"], default="flash")
+    parser.add_argument(
+        "--profile",
+        default="classic",
+        help="TTS profile name (default: classic). Used to locate the right "
+        "per-profile cache and to apply the right pause scaling.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-8s %(message)s")
@@ -420,15 +453,21 @@ def main() -> None:
             if not (run_dir / "phase3_episode.json").exists():
                 continue
             if args.no_audio:
-                # Skip if manifest already exists
                 if (run_dir / "manifest.json").exists():
                     continue
                 build_manifest(run_dir.name, args.model, audio=False)
             else:
                 if (run_dir / "audio").exists():
-                    build_manifest(run_dir.name, args.model, audio=True)
+                    build_manifest(
+                        run_dir.name, args.model, audio=True, profile_name=args.profile
+                    )
     elif args.run:
-        build_manifest(args.run, args.model, audio=not args.no_audio)
+        build_manifest(
+            args.run,
+            args.model,
+            audio=not args.no_audio,
+            profile_name=args.profile,
+        )
     else:
         parser.error("Specify --run or --all")
 

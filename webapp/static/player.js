@@ -205,13 +205,18 @@ function onHostprepChange(groundedRuns) {
     if (match) loadRun(match.run_id);
 }
 
-async function loadRun(runId) {
+async function loadRun(runId, version = null) {
     loading.style.display = "flex";
     transcript.innerHTML = "";
     segmentNav.innerHTML = "";
     openPassageTurnId = null;
 
-    manifest = await fetch(`/api/runs/${runId}/manifest`).then(r => r.json());
+    const resolvedVersion = version
+        || new URLSearchParams(window.location.search).get("version")
+        || "classic";
+    const mfUrl = `/api/runs/${runId}/manifest?version=${encodeURIComponent(resolvedVersion)}`;
+    manifest = await fetch(mfUrl).then(r => r.json());
+    renderVersionSwitcher(runId, manifest);
 
     // Expert chips
     expertChips.innerHTML = "";
@@ -257,7 +262,9 @@ async function loadRun(runId) {
         playerBar.style.display = "";
         // Set up audio
         if (audio) { audio.pause(); audio.src = ""; }
-        audio = new Audio(`/audio/${runId}/podcast.mp3`);
+        const v = manifest.version || "classic";
+        const audioFile = v === "classic" ? "podcast.mp3" : `podcast_${v}.mp3`;
+        audio = new Audio(`/audio/${runId}/${audioFile}`);
         audio.preload = "auto";
         audio.playbackRate = SPEEDS[speedIdx];
 
@@ -281,6 +288,42 @@ async function loadRun(runId) {
         playerBar.style.display = "none";
         if (audio) { audio.pause(); audio.src = ""; audio = null; }
     }
+}
+
+// ── Version switcher ──
+
+const VERSION_LABELS = {
+    "classic": "classic (2.5-flash)",
+    "trevelyan_v2": "3.1-flash (experimental)",
+};
+
+function renderVersionSwitcher(runId, mf) {
+    const host = document.getElementById("version-switcher");
+    if (!host) return;
+    const versions = (mf && mf.available_versions) || [];
+    if (versions.length <= 1) {
+        host.innerHTML = "";
+        host.style.display = "none";
+        return;
+    }
+    host.style.display = "";
+    const current = mf.version || "classic";
+    const buttons = versions.map(v => {
+        const label = VERSION_LABELS[v] || v;
+        const klass = v === current ? "version-pill active" : "version-pill";
+        return `<button type="button" class="${klass}" data-version="${v}">${label}</button>`;
+    }).join("");
+    host.innerHTML = `<span class="version-label" style="color:#a0a8c0;font-size:0.85em;margin-right:0.4em;">Render:</span> ${buttons}`;
+    host.querySelectorAll("button.version-pill").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const v = btn.dataset.version;
+            if (v === current) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set("version", v);
+            window.history.replaceState({}, "", url.toString());
+            loadRun(runId, v);
+        });
+    });
 }
 
 // ── Passage helpers ──
