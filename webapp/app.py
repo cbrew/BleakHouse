@@ -532,17 +532,52 @@ async def list_all_runs():
     return await RUN_INDEX.get_all_runs()
 
 
+_PROFILE_RE = re.compile(r"^[a-z0-9_]+$")
+
+
+def _available_versions(run_id: str) -> list[str]:
+    """Return list of available render versions for a run.
+
+    "classic" if manifest.json exists, plus any manifest_{name}.json files.
+    """
+    ext_dir = PODCAST_AUDIO_DIR / run_id
+    local_dir = DATA_DIR / "runs" / run_id / "audio"
+    found: set[str] = set()
+    for d in (ext_dir, local_dir):
+        if not d.exists():
+            continue
+        for p in d.iterdir():
+            if p.name == "manifest.json":
+                found.add("classic")
+            elif p.name.startswith("manifest_") and p.suffix == ".json":
+                found.add(p.stem.removeprefix("manifest_"))
+    return sorted(found)
+
+
 @app.get("/api/runs/{run_id}/manifest")
-async def get_manifest(run_id: str):
-    # Check authoritative audio dir, then run-local audio, then run-level manifest
-    ext_manifest = PODCAST_AUDIO_DIR / run_id / "manifest.json"
-    audio_manifest = DATA_DIR / "runs" / run_id / "audio" / "manifest.json"
-    run_manifest = DATA_DIR / "runs" / run_id / "manifest.json"
-    for candidate in (ext_manifest, audio_manifest, run_manifest):
+async def get_manifest(run_id: str, version: str = "classic"):
+    if not _PROFILE_RE.match(version):
+        raise HTTPException(400, "Invalid version")
+    filename = "manifest.json" if version == "classic" else f"manifest_{version}.json"
+    ext_manifest = PODCAST_AUDIO_DIR / run_id / filename
+    audio_manifest = DATA_DIR / "runs" / run_id / "audio" / filename
+    # Only fall back to run-level manifest.json for the default classic version.
+    run_manifest = (
+        DATA_DIR / "runs" / run_id / "manifest.json"
+        if version == "classic"
+        else None
+    )
+    candidates = [ext_manifest, audio_manifest]
+    if run_manifest is not None:
+        candidates.append(run_manifest)
+    for candidate in candidates:
         if candidate.exists():
             with open(candidate) as f:
-                return json.load(f)
-    raise HTTPException(404, f"No manifest for run {run_id}")
+                data = json.load(f)
+            data["version"] = version
+            data["available_versions"] = _available_versions(run_id)
+            return data
+    raise HTTPException(404, f"No manifest for run {run_id} version {version}")
 
 
 @app.get("/report/{run_id}", response_class=HTMLResponse)

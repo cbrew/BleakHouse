@@ -47,14 +47,27 @@ for run in $DEMO_RUNS; do
         [ -f "$src/$f" ] && cp "$src/$f" "$dst/"
     done
 
-    # Copy audio manifest from external drive (authoritative), falling back to run-local
+    # Copy audio manifests. For the classic manifest.json, prefer the
+    # external drive (authoritative) over the run-local copy. Then merge
+    # any per-profile manifests (manifest_{profile}.json) from BOTH
+    # locations — external wins on conflict.
     AUDIO_SRC="${PODCAST_AUDIO_DIR:-/Volumes/Crucial X9/bleakhouse_audio}"
-    if [ -f "$AUDIO_SRC/$run/manifest.json" ]; then
+    if [ -f "$AUDIO_SRC/$run/manifest.json" ] || [ -f "$src/audio/manifest.json" ] \
+       || ls "$AUDIO_SRC/$run"/manifest_*.json >/dev/null 2>&1 \
+       || ls "$src/audio"/manifest_*.json >/dev/null 2>&1; then
         mkdir -p "$dst/audio"
-        cp "$AUDIO_SRC/$run/manifest.json" "$dst/audio/"
-    elif [ -f "$src/audio/manifest.json" ]; then
-        mkdir -p "$dst/audio"
-        cp "$src/audio/manifest.json" "$dst/audio/"
+        if [ -f "$AUDIO_SRC/$run/manifest.json" ]; then
+            cp "$AUDIO_SRC/$run/manifest.json" "$dst/audio/"
+        elif [ -f "$src/audio/manifest.json" ]; then
+            cp "$src/audio/manifest.json" "$dst/audio/"
+        fi
+        # Local first, then external (external overwrites on conflict).
+        for extra in "$src/audio"/manifest_*.json; do
+            [ -f "$extra" ] && cp "$extra" "$dst/audio/"
+        done
+        for extra in "$AUDIO_SRC/$run"/manifest_*.json; do
+            [ -f "$extra" ] && cp "$extra" "$dst/audio/"
+        done
     fi
 
     count=$((count + 1))
