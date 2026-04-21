@@ -50,7 +50,7 @@
 
 <h2>Voice assignment</h2>
 
-<p>Audio rendering uses Gemini TTS (flash tier). Each speaker is assigned a voice from Google's voice library and an accent direction embedded in the TTS prompt:</p>
+<p>Audio rendering uses Google's Gemini TTS — the classic render uses <code>gemini-2.5-flash-preview-tts</code> (or <code>gemini-2.5-pro-preview-tts</code> for higher quality). Each speaker is assigned a voice from Google's voice library and an accent direction embedded in the TTS prompt:</p>
 
 <ul>
 <li><strong>Host</strong>: Sulafat — "warm Home Counties accent, like a BBC Radio 4 presenter"</li>
@@ -59,11 +59,17 @@
 <li><strong>Woodcourt</strong>: Achernar — "gentle Bristol accent"</li>
 </ul>
 
-<p>The interdisciplinary panel uses American voices: Chen gets "clear California accent," Martinez gets "soft American Southwest accent," Volkov gets "crisp American East Coast accent." This required adding entries to three hardcoded dictionaries in render_audio.py — a design debt we've filed for refactoring (voice/accent should come from the ExpertPersona object, not separate dicts).</p>
+<p>The interdisciplinary panel uses American voices: Chen gets "clear California accent," Martinez gets "soft American Southwest accent," Volkov gets "crisp American East Coast accent." This required adding entries to three hardcoded dictionaries in <code>enrichment/tts_profiles/classic.py</code> — a design debt we've filed for refactoring (voice/accent should come from the ExpertPersona object, not separate dicts).</p>
 
 <h2>The hardcoded voices problem</h2>
 
-<p>When we first rendered the interdisciplinary panel, all three Americans came out with British accents. The voice assignment dicts (SPEAKER_VOICES, SPEAKER_ACCENTS, SPEAKER_VOICE_POLICIES) only had entries for the literary-critical panels. New experts fell through to defaults. The fix was straightforward — add entries — but the architecture should read from the persona definition instead.</p>
+<p>When we first rendered the interdisciplinary panel, all three Americans came out with British accents. The voice assignment dicts (<code>SPEAKER_VOICES</code>, <code>SPEAKER_ACCENTS</code>, <code>SPEAKER_VOICE_POLICIES</code>) only had entries for the literary-critical panels. New experts fell through to defaults. The fix was straightforward — add entries — but the architecture should read from the persona definition instead.</p>
+
+<h2>Update: a second render (2026-04)</h2>
+
+<p>The three dictionaries above now live in a TTS-profile module: <code>enrichment/tts_profiles/classic.py</code> holds the existing behaviour, and a sibling <code>trevelyan_v2.py</code> wraps Google's newer <code>gemini-3.1-flash-tts-preview</code> with the six-strategy prompting scheme from the <a href="https://ai.google.dev/gemini-api/docs/speech-generation#prompting-strategies">Gemini speech-generation docs</a> — Audio Profile, Scene, Director's Notes, Sample Context, Transcript, audio-tag hints. The Panel&nbsp;B Bleak House episode has been re-rendered through this new profile and is available alongside the classic one on the <a href="/examples">examples page</a>; the player shows a Render switcher when both exist.</p>
+
+<p>Two things the experiment made concrete. First, the 3.1 model handles pauses quite differently — it treats written silence annotations as a ceiling rather than a floor, so the profile halves the pause scale and lets the model breathe naturally. Second, more elaborate prompts are not strictly better: one 400-character Daniel Rosen turn reproducibly came back empty under the full six-strategy prompt, even though the same text rendered cleanly under a minimal voice direction. Something in the combination of Audio Profile + Scene + Director's Notes + that specific text triggered a silent refusal. We cached a fallback render and moved on — worth knowing that prompt complexity has a tail risk.</p>
 
 <h2>Caching</h2>
 
