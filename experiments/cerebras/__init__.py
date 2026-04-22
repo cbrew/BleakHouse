@@ -3,6 +3,18 @@
 Standalone: does not import from the rest of the project.
 """
 
-from .client import DEFAULT_MODEL, call_with_schema, list_models
+from .client import (
+    DEFAULT_MODEL,
+    CallMetrics,
+    call_with_schema,
+    call_with_schema_metrics,
+    list_models,
+)
 
-__all__ = ["DEFAULT_MODEL", "call_with_schema", "list_models"]
+__all__ = [
+    "DEFAULT_MODEL",
+    "CallMetrics",
+    "call_with_schema",
+    "call_with_schema_metrics",
+    "list_models",
+]

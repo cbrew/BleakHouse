@@ -186,16 +186,38 @@ def generate_section_native(
     content = choice.message.content
     assert content is not None, "Cerebras returned no content"
     raw = json.loads(content)
-    logger.info("  returned in %.1fs (finish_reason=%s)", elapsed, choice.finish_reason)
+
+    usage = completion.usage.model_dump() if completion.usage else None
+    in_tok = usage.get("prompt_tokens") if usage else None
+    out_tok = usage.get("completion_tokens") if usage else None
+    total_tok = usage.get("total_tokens") if usage else None
+    tps = out_tok / elapsed if out_tok and elapsed > 0 else None
+
+    logger.info(
+        "  returned in %.1fs finish_reason=%s in=%s out=%s tok/s=%s",
+        elapsed,
+        choice.finish_reason,
+        in_tok,
+        out_tok,
+        f"{tps:.0f}" if tps else "n/a",
+    )
+
+    metrics = {
+        "elapsed_seconds": elapsed,
+        "input_tokens": in_tok,
+        "output_tokens": out_tok,
+        "total_tokens": total_tok,
+        "tokens_per_second": tps,
+        "raw_usage": usage,
+    }
 
     result: dict[str, Any] = {
         "segment_index": segment_index,
         "segment_name": segment.template.name,
         "model_id": model_id,
         "prompt_version": prompt_version,
-        "elapsed_seconds": elapsed,
         "finish_reason": choice.finish_reason,
-        "usage": completion.usage.model_dump() if completion.usage else None,
+        "metrics": metrics,
         "raw_response": raw,
     }
     try:
@@ -227,20 +249,37 @@ def main() -> None:
         temperature=args.temperature,
     )
 
-    out = args.output or (args.run / f"phase3_cerebras_native_seg{args.segment}.json")
+    out = args.output or (
+        args.run / f"phase3_cerebras_native_{_slug(args.model)}_seg{args.segment}.json"
+    )
     out.write_text(json.dumps(result, indent=2))
     print(f"Wrote {out}")
+    m = result["metrics"]
     seg = result.get("episode_segment")
+    lines = [
+        f"  model: {result['model_id']}",
+        f"  segment: {result['segment_name']}",
+        f"  validation: {result['validation']}",
+        f"  finish_reason: {result['finish_reason']}",
+    ]
     if seg:
-        print(
-            f"  segment: {result['segment_name']}\n"
-            f"  turns: {len(seg['turns'])}\n"
-            f"  utterances: {sum(len(t['utterances']) for t in seg['turns'])}\n"
-            f"  finish_reason: {result['finish_reason']}\n"
-            f"  elapsed: {result['elapsed_seconds']:.1f}s"
+        lines.append(f"  turns: {len(seg['turns'])}")
+        lines.append(
+            f"  utterances: {sum(len(t['utterances']) for t in seg['turns'])}"
         )
-    else:
-        print(f"  validation: {result['validation']}")
+    lines.append(
+        f"  tokens: input={m['input_tokens']} output={m['output_tokens']} total={m['total_tokens']}"
+    )
+    tps = m.get("tokens_per_second")
+    lines.append(
+        f"  elapsed: {m['elapsed_seconds']:.2f}s"
+        + (f"  ({tps:.0f} tok/s)" if tps else "")
+    )
+    print("\n".join(lines))
+
+
+def _slug(model_id: str) -> str:
+    return "".join(c if c.isalnum() else "_" for c in model_id).strip("_")
 
 
 if __name__ == "__main__":
