@@ -35,6 +35,11 @@ PRICING: dict[str, tuple[float, float, str]] = {
         1.20,
         "https://inference-docs.cerebras.ai/models/qwen-3-235b-2507",
     ),
+    "zai-glm-4.7": (
+        2.25,
+        2.75,
+        "https://inference-docs.cerebras.ai/models/zai-glm-47",
+    ),
 }
 
 QUOTED_AT = "2026-04-22"
