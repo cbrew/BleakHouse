@@ -37,6 +37,7 @@ from enrichment.segment_transport import (
 )
 
 from .client import DEFAULT_MODEL, call_with_schema_metrics
+from .pricing import annotate
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +191,7 @@ def generate_section(
         result["episode_segment"] = None
         result["validation"] = f"failed: {e.__class__.__name__}: {e}"
         logger.warning("Validation failed; raw response preserved. %s", e)
-    return result
+    return annotate(result)
 
 
 def main() -> None:
@@ -236,6 +237,9 @@ def main() -> None:
         f"  elapsed: {m['elapsed_seconds']:.2f}s"
         + (f"  ({m['tokens_per_second']:.0f} tok/s)" if m.get("tokens_per_second") else ""),
     ])
+    c = result.get("cost")
+    if c:
+        lines.append(f"  cost: ${c['usd']:.4f}")
     print("\n".join(lines))
 
 
