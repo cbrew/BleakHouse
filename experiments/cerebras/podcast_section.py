@@ -21,7 +21,6 @@ import argparse
 import json
 import logging
 import os
-import time
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +36,7 @@ from enrichment.segment_transport import (
     PlannedSegment,
 )
 
-from .client import DEFAULT_MODEL, call_with_schema
+from .client import DEFAULT_MODEL, call_with_schema_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -159,23 +158,29 @@ def generate_section(
         len(segment.assignments),
         model_id,
     )
-    start = time.perf_counter()
-    parsed = call_with_schema(
+    parsed, metrics = call_with_schema_metrics(
         user_msg,
         EpisodeSegment,
         system=system_msg,
         model_id=model_id,
         **options,
     )
-    elapsed = time.perf_counter() - start
-    logger.info("  returned in %.1fs", elapsed)
+    logger.info(
+        "  returned in %.1fs (in=%s out=%s tok/s=%s)",
+        metrics.elapsed_seconds,
+        metrics.input_tokens,
+        metrics.output_tokens,
+        f"{metrics.output_tokens / metrics.elapsed_seconds:.0f}"
+        if metrics.output_tokens and metrics.elapsed_seconds > 0
+        else "n/a",
+    )
 
     result: dict[str, Any] = {
         "segment_index": segment_index,
         "segment_name": segment.template.name,
         "model_id": model_id,
         "prompt_version": prompt_version,
-        "elapsed_seconds": elapsed,
+        "metrics": metrics.to_dict(),
         "raw_response": parsed,
     }
     try:
@@ -215,11 +220,23 @@ def main() -> None:
     out = args.output or (args.run / f"phase3_cerebras_seg{args.segment}.json")
     out.write_text(json.dumps(result, indent=2))
     print(f"Wrote {out}")
-    print(
-        f"  segment: {result['segment_name']}\n"
-        f"  turns: {len(result['episode_segment']['turns'])}\n"
-        f"  elapsed: {result['elapsed_seconds']:.1f}s"
-    )
+    m = result["metrics"]
+    seg = result.get("episode_segment")
+    lines = [
+        f"  segment: {result['segment_name']}",
+        f"  validation: {result['validation']}",
+    ]
+    if seg:
+        lines.append(f"  turns: {len(seg['turns'])}")
+        lines.append(
+            f"  utterances: {sum(len(t['utterances']) for t in seg['turns'])}"
+        )
+    lines.extend([
+        f"  tokens: input={m['input_tokens']} output={m['output_tokens']} total={m['total_tokens']}",
+        f"  elapsed: {m['elapsed_seconds']:.2f}s"
+        + (f"  ({m['tokens_per_second']:.0f} tok/s)" if m.get("tokens_per_second") else ""),
+    ])
+    print("\n".join(lines))
 
 
 if __name__ == "__main__":
