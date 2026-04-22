@@ -1,17 +1,15 @@
-"""Regenerate one podcast segment via Cerebras's native SDK with json_schema.
+"""Regenerate one podcast segment via Anthropic Claude Sonnet 4.6.
 
-Same prompts/inputs as `experiments.cerebras.podcast_section`, but uses the
-native Cerebras Cloud SDK directly so we can pass the full nested JSON
-Schema via `response_format={"type": "json_schema", ...}` with `strict=True`
-— which the llm-cerebras plugin does not expose.
+Companion to `native_section.py` (Cerebras native SDK) and
+`podcast_section.py` (llm + llm-cerebras). Same prompts/inputs via
+`build_messages()`, different backend — for side-by-side comparison of
+latency, tokens, and cost.
 
-Key is read via llm's keystore alias `cerebras` (same as the plugin path)
-with `CEREBRAS_API_KEY` as env fallback, so no duplicate key management.
+Key: reads `ANTHROPIC_API_KEY` from `.env` (or the ambient env).
 
 Usage:
-    uv run python -m experiments.cerebras.native_section \
-        --run data/runs/arc_v01_baseline \
-        --segment 0
+    uv run python -m experiments.cerebras.anthropic_section \
+        --run data/runs/arc_v01_baseline --segment 0
 """
 
 from __future__ import annotations
@@ -24,9 +22,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-import llm
-from cerebras.cloud.sdk import Cerebras
-from cerebras.cloud.sdk.types.chat.chat_completion import ChatCompletionResponse
+import anthropic
+from dotenv import load_dotenv
 
 from enrichment.generate_podcast import build_messages
 from enrichment.podcast_types import (
@@ -42,9 +39,11 @@ from enrichment.segment_transport import (
 
 from .pricing import annotate
 
+load_dotenv()
+
 logger = logging.getLogger(__name__)
 
-NATIVE_MODEL = "gpt-oss-120b"  # no vendor prefix for the native SDK
+DEFAULT_MODEL = "claude-sonnet-4-6"
 
 
 def _activate_novel(run_dir: Path) -> None:
@@ -91,39 +90,11 @@ def _load_prompt_version(run_dir: Path) -> int:
         return int(json.load(f).get("prompt_version", 2))
 
 
-def _strictify(schema: Any) -> Any:
-    """Walk a JSON Schema dict and add `additionalProperties: false` to every
-    object. Cerebras's strict json_schema mode requires this on all objects.
-    """
-    if isinstance(schema, dict):
-        if schema.get("type") == "object" and "additionalProperties" not in schema:
-            schema["additionalProperties"] = False
-        for v in schema.values():
-            _strictify(v)
-    elif isinstance(schema, list):
-        for v in schema:
-            _strictify(v)
-    return schema
-
-
-def _get_cerebras_key() -> str:
-    """Resolve the Cerebras key via llm's keystore (alias 'cerebras') with
-    CEREBRAS_API_KEY env fallback.
-    """
-    key = llm.get_key(alias="cerebras", env="CEREBRAS_API_KEY")
-    if not key:
-        raise RuntimeError(
-            "No Cerebras API key. Run `llm keys set cerebras` or export CEREBRAS_API_KEY."
-        )
-    return key
-
-
-def generate_section_native(
+def generate_section_anthropic(
     run_dir: Path,
     segment_index: int = 0,
-    model_id: str = NATIVE_MODEL,
-    max_completion_tokens: int | None = 16384,
-    temperature: float = 0.7,
+    model_id: str = DEFAULT_MODEL,
+    max_tokens: int = 16384,
 ) -> dict[str, Any]:
     _activate_novel(run_dir)
     planned = _load_planned_segments(run_dir)
@@ -153,56 +124,48 @@ def generate_section_native(
         host_brief=brief,
     )
 
-    schema = _strictify(EpisodeSegment.model_json_schema())
-
-    client = Cerebras(api_key=_get_cerebras_key())
+    client = anthropic.Anthropic()
     logger.info(
-        "Generating segment %d '%s' (%d passages) via native SDK model=%s",
+        "Generating segment %d '%s' (%d passages) via Anthropic model=%s",
         segment_index,
         segment.template.name,
         len(segment.assignments),
         model_id,
     )
     start = time.perf_counter()
-    completion = client.chat.completions.create(
+    response = client.messages.parse(
         model=model_id,
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": user_msg},
-        ],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "episode_segment",
-                "strict": True,
-                "schema": schema,
-            },
-        },
-        max_completion_tokens=max_completion_tokens,
-        temperature=temperature,
-        stream=False,
+        max_tokens=max_tokens,
+        system=system_msg,
+        messages=[{"role": "user", "content": user_msg}],
+        output_format=EpisodeSegment,
     )
-    assert isinstance(completion, ChatCompletionResponse)
     elapsed = time.perf_counter() - start
-    choice = completion.choices[0]
-    content = choice.message.content
-    assert content is not None, "Cerebras returned no content"
-    raw = json.loads(content)
 
-    usage = completion.usage.model_dump() if completion.usage else None
-    in_tok = usage.get("prompt_tokens") if usage else None
-    out_tok = usage.get("completion_tokens") if usage else None
-    total_tok = usage.get("total_tokens") if usage else None
-    tps = out_tok / elapsed if out_tok and elapsed > 0 else None
+    in_tok = response.usage.input_tokens
+    out_tok = response.usage.output_tokens
+    total_tok = in_tok + out_tok
+    tps = out_tok / elapsed if elapsed > 0 else None
 
     logger.info(
-        "  returned in %.1fs finish_reason=%s in=%s out=%s tok/s=%s",
+        "  returned in %.1fs stop_reason=%s in=%d out=%d tok/s=%s",
         elapsed,
-        choice.finish_reason,
+        response.stop_reason,
         in_tok,
         out_tok,
         f"{tps:.0f}" if tps else "n/a",
     )
+
+    parsed_output = response.parsed_output
+    if parsed_output is None:
+        raw = None
+        episode_dump: dict[str, Any] | None = None
+        validation = "failed: parsed_output is None"
+    else:
+        # parsed_output is an EpisodeSegment; round-trip to dict
+        raw = parsed_output.model_dump()
+        episode_dump = raw
+        validation = "ok"
 
     metrics = {
         "elapsed_seconds": elapsed,
@@ -210,7 +173,7 @@ def generate_section_native(
         "output_tokens": out_tok,
         "total_tokens": total_tok,
         "tokens_per_second": tps,
-        "raw_usage": usage,
+        "raw_usage": response.usage.model_dump(),
     }
 
     result: dict[str, Any] = {
@@ -218,51 +181,45 @@ def generate_section_native(
         "segment_name": segment.template.name,
         "model_id": model_id,
         "prompt_version": prompt_version,
-        "finish_reason": choice.finish_reason,
+        "stop_reason": response.stop_reason,
         "metrics": metrics,
         "raw_response": raw,
+        "episode_segment": episode_dump,
+        "validation": validation,
     }
-    try:
-        result["episode_segment"] = EpisodeSegment.model_validate(raw).model_dump()
-        result["validation"] = "ok"
-    except Exception as e:
-        result["episode_segment"] = None
-        result["validation"] = f"failed: {e.__class__.__name__}: {e}"
-        logger.warning("Validation failed; raw response preserved.")
     return annotate(result)
+
+
+def _slug(model_id: str) -> str:
+    return "".join(c if c.isalnum() else "_" for c in model_id).strip("_")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", required=True, type=Path)
     parser.add_argument("--segment", type=int, default=0)
-    parser.add_argument("--model", default=NATIVE_MODEL)
+    parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--max-tokens", type=int, default=16384)
-    parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
-    result = generate_section_native(
-        args.run,
-        args.segment,
-        args.model,
-        max_completion_tokens=args.max_tokens,
-        temperature=args.temperature,
+    result = generate_section_anthropic(
+        args.run, args.segment, args.model, max_tokens=args.max_tokens
     )
-
     out = args.output or (
-        args.run / f"phase3_cerebras_native_{_slug(args.model)}_seg{args.segment}.json"
+        args.run / f"phase3_anthropic_{_slug(args.model)}_seg{args.segment}.json"
     )
     out.write_text(json.dumps(result, indent=2))
     print(f"Wrote {out}")
     m = result["metrics"]
+    c = result.get("cost")
     seg = result.get("episode_segment")
     lines = [
         f"  model: {result['model_id']}",
         f"  segment: {result['segment_name']}",
         f"  validation: {result['validation']}",
-        f"  finish_reason: {result['finish_reason']}",
+        f"  stop_reason: {result['stop_reason']}",
     ]
     if seg:
         lines.append(f"  turns: {len(seg['turns'])}")
@@ -277,14 +234,9 @@ def main() -> None:
         f"  elapsed: {m['elapsed_seconds']:.2f}s"
         + (f"  ({tps:.0f} tok/s)" if tps else "")
     )
-    c = result.get("cost")
     if c:
         lines.append(f"  cost: ${c['usd']:.4f}")
     print("\n".join(lines))
-
-
-def _slug(model_id: str) -> str:
-    return "".join(c if c.isalnum() else "_" for c in model_id).strip("_")
 
 
 if __name__ == "__main__":
