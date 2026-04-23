@@ -209,12 +209,15 @@ def generate_episode(
     run_post_phase3_after: bool = True,
 ) -> dict[str, Any]:
     """Generate a full episode via Cerebras, write canonical run dir + reports."""
-    if reasoning_effort is None and "zai-glm" in model_id:
-        reasoning_effort = "none"
-
     _activate_novel(source_dir)
     source_axes = _load_source_axes(source_dir)
     generator = _resolve_generator(model_id)
+    # zai-glm-4.7 is a reasoning model whose hidden chain-of-thought consumes
+    # the completion-token budget. Disable reasoning by default so content
+    # gets the whole budget. Check after resolution so both the slug
+    # `cerebras_zai_glm` and the api_model `zai-glm-4.7` trigger correctly.
+    if reasoning_effort is None and "zai-glm" in generator.api_model:
+        reasoning_effort = "none"
 
     target_axes = axes.RunAxes(
         novel=source_axes.novel,
