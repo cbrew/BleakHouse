@@ -91,11 +91,14 @@ BH_PAIRS: list[tuple[str, str, str]] = [
     ("ext_v01_baseline", "ext_v19_all_swapped", "v19 all experts swapped"),
 ]
 
-# Other novels
+# Other novels — prefix-keyed for matching the legacy ext_v01_baseline-style
+# dir names this experiment analyses (archived post-migration, under
+# data/runs/_archive/). Keys are `{axes.Novel.key}_`.
+from enrichment.axes import NOVELS as _AXES_NOVELS  # noqa: E402
+
+_OTHER_NOVEL_IDS = frozenset({"mill_on_the_floss", "north_and_south", "our_mutual_friend"})
 NOVEL_PREFIXES: dict[str, str] = {
-    "motf_": "Mill on the Floss",
-    "nas_": "North and South",
-    "omf_": "Our Mutual Friend",
+    f"{n.key}_": n.title for n in _AXES_NOVELS if n.id in _OTHER_NOVEL_IDS
 }
 
 OTHER_PAIRS: list[tuple[str, str]] = [
