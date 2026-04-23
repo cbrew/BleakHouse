@@ -17,6 +17,7 @@ import logging
 import os
 from pathlib import Path
 
+from enrichment import axes
 from enrichment.podcast_types import PodcastEpisode, Turn
 from enrichment.tts_profiles import EpisodeContext, TTSProfile, get_profile
 
@@ -30,24 +31,11 @@ PODCAST_AUDIO_DIR = Path(
     os.environ.get("PODCAST_AUDIO_DIR", "/Volumes/Crucial X9/bleakhouse_audio")
 )
 
-# Novel title (as it appears in episode JSON, minus ": A Literary Discussion")
-# → relative path under data/ to passages_enriched.json
-_NOVEL_DIRS: dict[str, str] = {
-    "Bleak House": "",
-    "Our Mutual Friend": "novels/our_mutual_friend",
-    "The Mill on the Floss": "novels/mill_on_the_floss",
-    "North and South": "novels/north_and_south",
-    "A Passage to India": "novels/passage_to_india",
-    "Hard Times": "novels/hard_times",
-    "Middlemarch": "novels/middlemarch",
-    "Daniel Deronda": "novels/daniel_deronda",
-    "David Copperfield": "novels/david_copperfield",
-    "Cranford": "novels/cranford",
-    "No Name": "novels/no_name",
-    "New Grub Street": "novels/new_grub_street",
-    "The Odd Women": "novels/odd_women",
-    "Miss Marjoribanks": "novels/miss_marjoribanks",
-    "Hester": "novels/hester",
+# Novel title → path under data/ to passages_enriched.json.
+# Derived from axes.NOVELS. Bleak House is a filesystem special case —
+# its passages live at data/passages_enriched.json (not data/novels/bleak_house/).
+_NOVEL_DIRS: dict[str, str] = {"Bleak House": ""} | {
+    n.title: f"novels/{n.id}" for n in axes.NOVELS if n.id != "bleak_house"
 }
 
 
@@ -399,7 +387,10 @@ def build_manifest(
             with open(reading_list_path) as f:
                 host_prep["reading_list"] = json.load(f)
 
-    manifest = {
+    # Pass the canonical axes block straight through from config.json so
+    # downstream consumers (webapp matrix, tracker, report builders) don't
+    # need to re-parse the run-dir name.
+    manifest: dict[str, object] = {
         "run_id": run_id,
         "title": episode.title,
         "experts": experts,
@@ -409,6 +400,15 @@ def build_manifest(
         "has_audio": audio,
         "total_duration_ms": cursor_ms,
     }
+    cfg_path = run_dir / "config.json"
+    if cfg_path.exists():
+        try:
+            with open(cfg_path) as f:
+                cfg = json.load(f)
+            if isinstance(cfg, dict) and isinstance(cfg.get("axes"), dict):
+                manifest["axes"] = cfg["axes"]
+        except (OSError, json.JSONDecodeError):
+            pass
     if host_prep:
         manifest["host_prep"] = host_prep
 

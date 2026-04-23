@@ -76,28 +76,47 @@ def _version_sort_key(version: str) -> tuple[int, ...]:
     return tuple(nums or [0])
 
 
-def _classify_run(name: str) -> tuple[str, str, bool]:
-    """Return (condition, panel, hostprep) from a run directory name."""
-    if "_nop_" in name or name.startswith("nop_"):
-        condition = "no passages"
-    elif "_emb_" in name or name.startswith("emb_"):
-        condition = "embedding"
-    elif "_rag_" in name or name.startswith("rag_"):
-        condition = "RAG"
-    elif "_rand_" in name or name.startswith("rand_"):
-        condition = "random"
-    else:
-        condition = "transport"
+# Human-readable labels for the display layer.
+_PIPELINE_LABELS: dict[str, str] = {
+    "trn": "transport",
+    "emb": "embedding",
+    "nop": "no passages",
+    "rag": "RAG",
+}
+_PANEL_LABELS: dict[str, str] = {
+    "literary": "Panel A (Hartley / Blackstone / Woodcourt)",
+    "alternatives": "Panel B (Trevelyan / Leigh / Rosen)",
+    "interdisciplinary": "Panel C (Chen / Martinez / Volkov)",
+}
 
-    if "interdisciplinary" in name:
-        panel = "Chen / Martinez / Volkov"
-    elif "_v19_" in name:
-        panel = "Panel B (Trevelyan / Leigh / Rosen)"
-    else:
-        panel = "Panel A (Hartley / Blackstone / Woodcourt)"
 
-    hostprep = "_hostprep" in name
-    return condition, panel, hostprep
+def _classify_run(run_dir: Path) -> tuple[str, str, bool, str]:
+    """Return (condition, panel, hostprep, generator) from config.json['axes'].
+
+    Post-migration this is a plain lookup — no dir-name string matching.
+    Legacy dirs (under _archive/) with no axes block fall back to
+    axes.parse_run_dir_name, which rejects anything that doesn't fit the
+    canonical shape; in that case all fields are best-effort defaults.
+    """
+    cfg_path = run_dir / "config.json"
+    run_axes = None
+    if cfg_path.exists():
+        try:
+            with open(cfg_path) as f:
+                cfg = json.load(f)
+            if isinstance(cfg, dict) and isinstance(cfg.get("axes"), dict):
+                run_axes = axes.RunAxes.from_dict(cfg["axes"])
+        except (OSError, json.JSONDecodeError, KeyError, ValueError):
+            run_axes = None
+    if run_axes is None:
+        try:
+            run_axes = axes.parse_run_dir_name(run_dir.name)
+        except ValueError:
+            return "unknown", "unknown", "_hostprep" in run_dir.name, ""
+
+    condition = _PIPELINE_LABELS.get(run_axes.pipeline) or run_axes.pipeline
+    panel = _PANEL_LABELS.get(run_axes.panel) or run_axes.panel
+    return condition, panel, run_axes.hostprep, run_axes.generator
 
 
 def _load_json(path: Path) -> dict | list | None:
@@ -144,7 +163,7 @@ def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]
 
         name = run_dir.name
         base_name, version = _parse_version(name)
-        condition, panel, hostprep = _classify_run(name)
+        condition, panel, hostprep, generator = _classify_run(run_dir)
 
         run_info = {
             "run_id": name,
@@ -155,6 +174,7 @@ def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]
             "condition": condition,
             "panel": panel,
             "hostprep": hostprep,
+            "generator": generator,
             "passage_source": mf.get("passage_source", "unknown"),
             "experts": mf.get("experts", []),
             "total_duration_ms": mf.get("total_duration_ms", 0),
@@ -848,7 +868,7 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     title = (manifest or episode or {}).get("title", name)
     novel = title.replace(": A Literary Discussion", "")
     base_name, version = _parse_version(name)
-    condition, panel, hostprep = _classify_run(name)
+    condition, panel, hostprep, _generator = _classify_run(run_dir)
     has_audio = (
         (PODCAST_AUDIO_DIR / name / "podcast.mp3").exists()
         or audio_manifest_path.exists()
