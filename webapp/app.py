@@ -705,9 +705,13 @@ TRACKER_NOVELS = [
 ]
 
 # Matrix axes: pipelines × panels × hostprep.
-# Panels that the tracker displays (matches legacy "A" / "B" coverage).
 TRACKER_PIPELINES: tuple[str, ...] = ("trn", "emb", "nop")
-TRACKER_PANELS: tuple[str, ...] = ("literary", "alternatives")
+TRACKER_PANELS: tuple[str, ...] = ("literary", "alternatives", "interdisciplinary")
+TRACKER_PANEL_SHORT: dict[str, str] = {
+    "literary": "Lit",
+    "alternatives": "Alt",
+    "interdisciplinary": "Int",
+}
 TRACKER_CONDITIONS = [
     (pp, panel, hp)
     for pp in TRACKER_PIPELINES
@@ -1048,22 +1052,47 @@ def _build_cached_snapshot() -> dict:
             if timings.get("p3_min") is not None:
                 p3_times.append(timings["p3_min"])
 
+    # Per-generator matrix: each row holds cells_by_generator[gen_id] so the
+    # client can switch dimensions without a refetch. Default generator's
+    # cells are duplicated into `row.cells` for back-compat.
+    tracker_generators = sorted(axes.GENERATORS)
     rows = []
+    totals_by_generator: dict[str, dict[str, int]] = {
+        g: {"total": 0, "done": 0, "running": 0} for g in tracker_generators
+    }
+    # Legacy scalar totals track the default generator.
     total = 0
     done = 0
     running_count = 0
     for novel_key, title, author, year in TRACKER_NOVELS:
-        cells = []
-        for pp, panel, hp in TRACKER_CONDITIONS:
-            total += 1
-            rn = _tracker_run_name(novel_key, pp, panel, hp)
-            detail = run_summaries.get(rn, {"name": rn, "status": "missing"})
-            if detail["status"] == "done":
+        cells_by_generator: dict[str, list[dict]] = {}
+        for gen in tracker_generators:
+            cells: list[dict] = []
+            nk_short = axes.NOVEL_BY_ID[novel_key].key if novel_key in axes.NOVEL_BY_ID else novel_key
+            for pp, panel, hp in TRACKER_CONDITIONS:
+                rn = axes.run_dir_name(novel=nk_short, pipeline=pp, panel=panel,
+                                       hostprep=hp, generator=gen)
+                detail = run_summaries.get(rn, {"name": rn, "status": "missing"})
+                totals_by_generator[gen]["total"] += 1
+                if detail["status"] == "done":
+                    totals_by_generator[gen]["done"] += 1
+                elif detail["status"] == "running":
+                    totals_by_generator[gen]["running"] += 1
+                cells.append(detail)
+            cells_by_generator[gen] = cells
+
+        default_cells = cells_by_generator[axes.DEFAULT_GENERATOR]
+        total += len(default_cells)
+        for c in default_cells:
+            if c["status"] == "done":
                 done += 1
-            elif detail["status"] == "running":
+            elif c["status"] == "running":
                 running_count += 1
-            cells.append(detail)
-        rows.append({"key": novel_key, "title": title, "author": author, "year": year, "cells": cells})
+        rows.append({
+            "key": novel_key, "title": title, "author": author, "year": year,
+            "cells": default_cells,
+            "cells_by_generator": cells_by_generator,
+        })
 
     refreshed_at = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
     versions = dict(
@@ -1169,6 +1198,12 @@ def _build_cached_snapshot() -> dict:
             "refreshed_at": refreshed_at,
             "interdisciplinary": inter_runs,
             "panel_scripts": panel_scripts,
+            "generators": [
+                {"id": g, "display": axes.GENERATOR_BY_ID[g].display}
+                for g in tracker_generators
+            ],
+            "default_generator": axes.DEFAULT_GENERATOR,
+            "totals_by_generator": totals_by_generator,
         },
         "versions": {"versions": versions, "runs": version_runs},
         "refreshed_at": refreshed_at,
@@ -1325,23 +1360,28 @@ td.lo { background:#f8d7da; }
 </head>
 <body>
 <h1>BleakHouse Experiment Matrix</h1>
-<div class="sub">15 novels &times; 2 panels &times; 3 pipelines &times; 2 host-prep = 180 runs
+<div class="sub">15 novels &times; 3 pipelines &times; 3 panels &times; 2 host-prep = 270 cells per generator
  &mdash; <span id="status">connecting...</span></div>
-<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.8em">Click any cell to see details and links. Columns: A/B = expert panels, HP = with host preparation. <a href="/help" style="color:#6fa8dc">More help</a> &middot; <a href="/versions" style="color:#e94560">Version comparison (v1.1+) &rarr;</a></div>
+<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.6em">Click any cell to see details and links. Columns: Lit/Alt/Int = literary, alternatives, interdisciplinary panels; HP = with host preparation. <a href="/help" style="color:#6fa8dc">More help</a> &middot; <a href="/versions" style="color:#e94560">Version comparison (v1.1+) &rarr;</a></div>
+<div id="gen-select-container" style="margin-bottom:0.8em;font-size:0.9em;">
+  <label for="gen-select" style="margin-right:6px;">Generator:</label>
+  <select id="gen-select" style="font-size:1em;padding:2px 6px;"></select>
+  <span id="gen-totals" style="margin-left:10px;color:#666;"></span>
+</div>
 <div id="progress"></div>
 <div id="procinfo" style="font-size:0.85em; color:#555; margin-bottom:1em;"></div>
 <table>
 <thead>
 <tr>
     <th rowspan="2">Novel</th><th rowspan="2">Author</th><th rowspan="2">Year</th>
-    <th colspan="4" class="g">Transport</th>
-    <th colspan="4" class="g">Embedding</th>
-    <th colspan="4" class="g">No Passages</th>
+    <th colspan="6" class="g">Transport</th>
+    <th colspan="6" class="g">Embedding</th>
+    <th colspan="6" class="g">No Passages</th>
 </tr>
 <tr>
-    <th>A</th><th>A+HP</th><th>B</th><th>B+HP</th>
-    <th>A</th><th>A+HP</th><th>B</th><th>B+HP</th>
-    <th>A</th><th>A+HP</th><th>B</th><th>B+HP</th>
+    <th>Lit</th><th>Lit+HP</th><th>Alt</th><th>Alt+HP</th><th>Int</th><th>Int+HP</th>
+    <th>Lit</th><th>Lit+HP</th><th>Alt</th><th>Alt+HP</th><th>Int</th><th>Int+HP</th>
+    <th>Lit</th><th>Lit+HP</th><th>Alt</th><th>Alt+HP</th><th>Int</th><th>Int+HP</th>
 </tr>
 </thead>
 <tbody id="tbody"></tbody>
@@ -1384,13 +1424,42 @@ td.lo { background:#f8d7da; }
 <tbody id="panel-scripts-tbody"></tbody>
 </table>
 <script>
+let _lastData = null;
+let _currentGen = null;
+
 function render(data) {
-    const pct = Math.round(data.done * 100 / data.total);
-    const remaining = data.total - data.done;
-    let status = `<strong>${data.done}/${data.total}</strong> (${pct}%) &mdash; ${remaining} remaining `;
-    if (data.running > 0) status += `<span style="color:#004085">&bull; ${data.running} in progress</span> `;
-    status += `<br><span class="bar-bg"><span class="bar" style="width:${data.done*300/data.total}px"></span></span>`;
+    _lastData = data;
+    const gens = data.generators || [];
+    if (gens.length > 0) {
+        const sel = document.getElementById('gen-select');
+        if (sel && sel.options.length === 0) {
+            sel.innerHTML = gens.map(g =>
+                `<option value="${g.id}">${g.display}</option>`
+            ).join('');
+            sel.value = data.default_generator || gens[0].id;
+            sel.addEventListener('change', () => {
+                _currentGen = sel.value;
+                _renderWithGenerator(_lastData, _currentGen);
+            });
+            _currentGen = sel.value;
+        }
+    }
+    _renderWithGenerator(data, _currentGen || data.default_generator);
+}
+
+function _renderWithGenerator(data, gen) {
+    const totals = (data.totals_by_generator || {})[gen] ||
+                   { total: data.total, done: data.done, running: data.running };
+    const pct = totals.total ? Math.round(totals.done * 100 / totals.total) : 0;
+    const remaining = totals.total - totals.done;
+    let status = `<strong>${totals.done}/${totals.total}</strong> (${pct}%) &mdash; ${remaining} remaining `;
+    if (totals.running > 0) status += `<span style="color:#004085">&bull; ${totals.running} in progress</span> `;
+    const barW = totals.total ? Math.round(totals.done * 300 / totals.total) : 0;
+    status += `<br><span class="bar-bg"><span class="bar" style="width:${barW}px"></span></span>`;
     document.getElementById('progress').innerHTML = status;
+    // Per-generator totals readout next to dropdown.
+    const gtSpan = document.getElementById('gen-totals');
+    if (gtSpan) gtSpan.textContent = `${totals.done}/${totals.total} runs for this generator`;
     // Process info
     let pinfo = '';
     if (data.running > 0) {
@@ -1408,7 +1477,10 @@ function render(data) {
     let html = '';
     for (const row of data.rows) {
         html += `<tr><td class="n">${row.title}</td><td class="a">${row.author}</td><td class="y">${row.year}</td>`;
-        for (const c of row.cells) {
+        const cells = (row.cells_by_generator && row.cells_by_generator[gen])
+            ? row.cells_by_generator[gen]
+            : row.cells;
+        for (const c of cells) {
             if (c.status === 'missing') {
                 html += '<td class="m">&mdash;</td>';
             } else if (c.status === 'running') {
