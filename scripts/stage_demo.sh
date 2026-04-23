@@ -17,6 +17,9 @@ from pathlib import Path
 from enrichment.run_full_matrix import build_matrix
 grid = {r['name'] for r in build_matrix()}
 inter = {d.name for d in Path('data/runs').iterdir() if 'interdisciplinary' in d.name and (d / 'phase3_episode.json').exists()}
+# Alt-generator runs (cerebras_qwen, cerebras_zai_glm, ...) so the demo matrix
+# can compare generators side-by-side against the Anthropic default.
+alt_gen = {d.name for d in Path('data/runs').iterdir() if '_cerebras_' in d.name and (d / 'phase3_episode.json').exists()}
 # Include versioned runs (v1_1, v1_2, etc.) that have a phase3_episode.json or reading list
 versioned = set()
 for d in Path('data/runs').iterdir():
@@ -24,12 +27,14 @@ for d in Path('data/runs').iterdir():
         (d / 'phase3_episode.json').exists() or (d / 'phase2_5_reading_list.json').exists()
     ):
         versioned.add(d.name)
+# Legacy panel-script artefacts still referenced by paper/poster. Absent post-migration
+# (archived); the existence check in the loop skips them gracefully.
 panel_scripts = {
     'arc_v01_baseline', 'arc_v19_all_swapped',
     'hest_trn_v01_baseline_hostprep_refs',
     'hest_trn_v19_all_swapped_hostprep_refs',
 }
-for name in sorted(grid | inter | versioned | panel_scripts):
+for name in sorted(grid | inter | alt_gen | versioned | panel_scripts):
     print(name)
 ")
 
