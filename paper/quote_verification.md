@@ -35,7 +35,7 @@ irrelevant to quote fidelity; the fact of grounding is what matters.
 ## Verified quotes from a grounded run
 
 When passages are provided, the LLM quotes them accurately.  In the
-Bleak House transport baseline (`ext_v01_baseline`), all 42 reading-mode
+Bleak House transport baseline (`bh_trn_literary`), all 42 reading-mode
 quotes verify against the source text — a 100% hit rate.
 
 ## The spectrum of ungrounded quotation

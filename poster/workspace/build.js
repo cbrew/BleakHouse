@@ -467,11 +467,11 @@ function createPosterHTML(diagramPng, landingPng, playerPng) {
       <p style="margin:0;font-size:14pt;font-family:Courier New;color:#333;">Experts react to each other: <strong>agree</strong>, <strong>push back gently</strong>, riff on each other's ideas.</p>
     </div>
     <p style="margin:5pt 0 3pt;font-size:14pt;font-family:Georgia;color:#2D2926;">The resulting formula, across all 15 novels and all panels:</p>
-    ${dialogueTurn('#8B7355', 'Edmund Leigh (arc_v21, Bleak House):',
+    ${dialogueTurn('#8B7355', 'Edmund Leigh (archived, Bleak House):',
       '"<strong>I don\'t dispute any of that</strong> — and James\'s contextual detail is, as always, illuminating. <strong>But</strong> I\'d want to resist the temptation to read Bleak House primarily as a pamphlet dressed in fiction\'s clothing."')}
-    ${dialogueTurn('#722F37', 'Eleanor Hartley (ext_v01, Bleak House):',
+    ${dialogueTurn('#722F37', 'Eleanor Hartley (bh_trn_literary, Bleak House):',
       '"<strong>I wouldn\'t dispute any of that</strong> — <strong>but</strong> I\'d add a layer, because \'deserted infant\' is not merely a figure of speech."')}
-    ${dialogueTurn('#2D6B5E', 'Caroline Woodcourt (cran_nop, Cranford):',
+    ${dialogueTurn('#2D6B5E', 'Caroline Woodcourt (cran_nop_literary, Cranford):',
       '"<strong>I wouldn\'t dispute that</strong> reading of the prose. <strong>But</strong>…"')}
     <p style="margin:5pt 0 0;font-size:14pt;font-family:Georgia;color:#2D2926;">
       The opener is disingenuous: the speaker always does dispute it. The formula is prompt-compliance made visible — <em>push back gently</em> produces stylised deference that is recognisable as designed, not conversational.
