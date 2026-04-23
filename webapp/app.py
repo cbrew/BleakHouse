@@ -23,6 +23,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import StreamingResponse
 
+from enrichment import axes
+
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -679,49 +681,26 @@ REACTIVE_RE = re.compile(
 )
 
 TRACKER_NOVELS = [
-    ("bleak_house", "Bleak House", "Dickens", 1853),
-    ("our_mutual_friend", "Our Mutual Friend", "Dickens", 1865),
-    ("david_copperfield", "David Copperfield", "Dickens", 1850),
-    ("hard_times", "Hard Times", "Dickens", 1854),
-    ("mill_on_the_floss", "Mill on the Floss", "Eliot", 1860),
-    ("middlemarch", "Middlemarch", "Eliot", 1871),
-    ("daniel_deronda", "Daniel Deronda", "Eliot", 1876),
-    ("north_and_south", "North and South", "Gaskell", 1855),
-    ("cranford", "Cranford", "Gaskell", 1853),
-    ("passage_to_india", "Passage to India", "Forster", 1924),
-    ("no_name", "No Name", "Collins", 1862),
-    ("new_grub_street", "New Grub Street", "Gissing", 1891),
-    ("odd_women", "The Odd Women", "Gissing", 1893),
-    ("miss_marjoribanks", "Miss Marjoribanks", "Oliphant", 1866),
-    ("hester", "Hester", "Oliphant", 1883),
+    (n.id, n.title, n.author, n.year) for n in axes.NOVELS
 ]
 
-TRACKER_PREFIXES = {
-    "bleak_house": "", "our_mutual_friend": "omf", "mill_on_the_floss": "motf",
-    "north_and_south": "nas", "passage_to_india": "pti", "hard_times": "ht",
-    "middlemarch": "mid", "daniel_deronda": "dd", "david_copperfield": "dc",
-    "cranford": "cran", "no_name": "noname", "new_grub_street": "ngs",
-    "odd_women": "oddw", "miss_marjoribanks": "mmar", "hester": "hest",
-}
-
+# Matrix axes: pipelines × panels × hostprep.
+# Panels that the tracker displays (matches legacy "A" / "B" coverage).
+TRACKER_PIPELINES: tuple[str, ...] = ("trn", "emb", "nop")
+TRACKER_PANELS: tuple[str, ...] = ("literary", "alternatives")
 TRACKER_CONDITIONS = [
-    ("trn", "v01_baseline", False), ("trn", "v01_baseline", True),
-    ("trn", "v19_all_swapped", False), ("trn", "v19_all_swapped", True),
-    ("emb", "v01_baseline", False), ("emb", "v01_baseline", True),
-    ("emb", "v19_all_swapped", False), ("emb", "v19_all_swapped", True),
-    ("nop", "v01_baseline", False), ("nop", "v01_baseline", True),
-    ("nop", "v19_all_swapped", False), ("nop", "v19_all_swapped", True),
+    (pp, panel, hp)
+    for pp in TRACKER_PIPELINES
+    for panel in TRACKER_PANELS
+    for hp in (False, True)
 ]
 
 
 def _tracker_run_name(novel_key: str, pp: str, panel: str, hp: bool) -> str:
-    np = TRACKER_PREFIXES[novel_key]
-    if novel_key == "bleak_house" and pp == "trn":
-        pp = "ext"
-    name = f"{np}_{pp}_{panel}" if np else f"{pp}_{panel}"
-    if hp:
-        name += "_hostprep"
-    return name
+    """Canonical dir name via axes.run_dir_name; novel_key may be the full id
+    ('bleak_house') or the short axes key ('bh')."""
+    nk = axes.NOVEL_BY_ID[novel_key].key if novel_key in axes.NOVEL_BY_ID else novel_key
+    return axes.run_dir_name(novel=nk, pipeline=pp, panel=panel, hostprep=hp)
 
 
 def _measure(path: Path) -> dict | None:

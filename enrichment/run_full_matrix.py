@@ -28,36 +28,23 @@ import subprocess
 import sys
 from pathlib import Path
 
+from enrichment.axes import NOVEL_BY_ID, RunAxes
+
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUNS_DIR = BASE_DIR / "data" / "runs"
 
-# --- Novels and their run-name prefixes ---
+# Novels in the matrix (by axes.Novel.id).
+NOVELS: list[str] = [n.id for n in NOVEL_BY_ID.values()]
 
-NOVELS = {
-    "bleak_house":       "",
-    "our_mutual_friend": "omf",
-    "mill_on_the_floss": "motf",
-    "north_and_south":   "nas",
-    "passage_to_india":  "pti",
-    "hard_times":        "ht",
-    "middlemarch":       "mid",
-    "daniel_deronda":    "dd",
-    "david_copperfield": "dc",
-    "cranford":          "cran",
-    "no_name":           "noname",
-    "new_grub_street":   "ngs",
-    "odd_women":         "oddw",
-    "miss_marjoribanks": "mmar",
-    "hester":            "hest",
-}
-
-PANELS = ["v01_baseline", "v19_all_swapped"]
+# Canonical panels sweep by this matrix. Expansion to 'interdisciplinary'
+# would go here if/when we run that panel across all novels.
+PANELS: list[str] = ["literary", "alternatives"]
 
 PANEL_REPLACEMENTS: dict[str, list[str]] = {
-    "v01_baseline": [],
-    "v19_all_swapped": [
+    "literary": [],
+    "alternatives": [
         "Eleanor Hartley=trevelyan",
         "James Blackstone=sir_edmund",
         "Caroline Woodcourt=dr_rosen",
@@ -66,18 +53,12 @@ PANEL_REPLACEMENTS: dict[str, list[str]] = {
 
 PIPELINES = ["transport", "embedding", "no_passages"]
 
-# Pipeline prefix in run names: Bleak House uses 'ext', others use 'trn'
-# for transport. Embedding always uses 'emb'. No-passages always uses 'nop'.
-PIPELINE_PREFIXES = {
-    "transport": "ext",   # BH default
-    "embedding": "emb",
-    "no_passages": "nop",
-}
-
-# For non-BH novels, transport runs use 'trn' not 'ext'
-PIPELINE_PREFIXES_NON_BH = {
-    "transport": "trn",
-    "embedding": "emb",
+# Map human-readable pipeline labels used by this matrix to axes ids.
+# All transport runs now use 'trn' — the legacy 'ext' Bleak-House-only
+# alias is gone with the axis migration.
+PIPELINE_TO_AXES: dict[str, str] = {
+    "transport":   "trn",
+    "embedding":   "emb",
     "no_passages": "nop",
 }
 
@@ -85,22 +66,15 @@ PHASE_FILES = ["phase0_segments.json", "phase1_assignments.json", "phase2_plan.j
 
 
 def run_name(novel_key: str, pipeline: str, panel: str, hostprep: bool) -> str:
-    """Build the canonical run directory name."""
-    novel_prefix = NOVELS[novel_key]
-    if novel_key == "bleak_house":
-        pp = PIPELINE_PREFIXES[pipeline]
-    else:
-        pp = PIPELINE_PREFIXES_NON_BH[pipeline]
-
-    if novel_prefix:
-        name = f"{novel_prefix}_{pp}_{panel}"
-    else:
-        name = f"{pp}_{panel}"
-
-    if hostprep:
-        name += "_hostprep"
-
-    return name
+    """Canonical run directory name via axes.RunAxes."""
+    if novel_key not in NOVEL_BY_ID:
+        raise ValueError(f"unknown novel {novel_key!r}")
+    return RunAxes(
+        novel=NOVEL_BY_ID[novel_key].key,
+        pipeline=PIPELINE_TO_AXES[pipeline],
+        panel=panel,
+        hostprep=hostprep,
+    ).dir_name()
 
 
 def has_episode(name: str) -> bool:
