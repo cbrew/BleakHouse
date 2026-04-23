@@ -45,10 +45,17 @@ REACTIVE = re.compile(
 )
 
 # Column order: pipelines × panels × hostprep, stable & wide.
-# Pipelines: trn first (most-used) then emb, nop, rag.
+# Pipelines: trn first (most-used) then emb, nop.
+#
+# `rag` and `rand` are paper-only baselines — plain-retrieval and random-
+# passages respectively — used as ablation pairs against `emb`. They are
+# intentionally *excluded* from the tracker: they don't belong on a
+# generation-quality grid. Use --include-rag to force them in.
+#
 # Panels: literary, alternatives, interdisciplinary — matches the legacy
 #   "A / B / Inter" ordering from the pre-migration CONDITIONS tuple.
-PIPELINE_ORDER: tuple[str, ...] = ("trn", "emb", "nop", "rag")
+DEFAULT_PIPELINE_ORDER: tuple[str, ...] = ("trn", "emb", "nop")
+PIPELINE_ORDER_WITH_RAG: tuple[str, ...] = ("trn", "emb", "nop", "rag")
 PANEL_ORDER: tuple[str, ...] = ("literary", "alternatives", "interdisciplinary")
 PANEL_SHORT: dict[str, str] = {
     "literary": "Lit",
@@ -58,9 +65,9 @@ PANEL_SHORT: dict[str, str] = {
 HOSTPREP_ORDER: tuple[bool, ...] = (False, True)
 PIPELINE_DISPLAY: dict[str, str] = {
     "trn": "Transport",
-    "emb": "Embedding",
-    "nop": "No-pass.",
-    "rag": "RAG",
+    "emb": "Embedding (curated)",
+    "nop": "No-passages",
+    "rag": "RAG (plain)",
 }
 
 
@@ -186,10 +193,10 @@ def cell_html(metrics: dict | None, axes: RunAxes, run_name: str) -> str:
     )
 
 
-def _iter_columns() -> list[tuple[str, str, bool, str]]:
+def _iter_columns(pipeline_order: tuple[str, ...]) -> list[tuple[str, str, bool, str]]:
     """(pipeline, panel, hostprep, short_label) in display order."""
     cols: list[tuple[str, str, bool, str]] = []
-    for pipeline in PIPELINE_ORDER:
+    for pipeline in pipeline_order:
         for panel in PANEL_ORDER:
             for hostprep in HOSTPREP_ORDER:
                 short = f"{PIPELINE_DISPLAY[pipeline][:3]} {PANEL_SHORT[panel]}"
@@ -199,12 +206,12 @@ def _iter_columns() -> list[tuple[str, str, bool, str]]:
     return cols
 
 
-def generate_html(generator: str) -> str:
+def generate_html(generator: str, pipeline_order: tuple[str, ...]) -> str:
     """Build the tracking page for one generator."""
     if generator not in GENERATORS:
         raise ValueError(f"unknown generator {generator!r}; one of {sorted(GENERATORS)}")
 
-    columns = _iter_columns()
+    columns = _iter_columns(pipeline_order)
     rows: list[str] = []
     total = 0
     done = 0
@@ -242,7 +249,7 @@ def generate_html(generator: str) -> str:
 
     # Two-row header: pipeline group, then pipeline×panel×hostprep.
     group_row = ""
-    for pipeline in PIPELINE_ORDER:
+    for pipeline in pipeline_order:
         span = len(PANEL_ORDER) * len(HOSTPREP_ORDER)
         group_row += f'<th colspan="{span}" class="group">{PIPELINE_DISPLAY[pipeline]}</th>'
     col_row = "".join(f"<th>{short}</th>" for _, _, _, short in columns)
@@ -304,7 +311,7 @@ span.w {{ color: #999; font-size: 0.8em; }}
 <body>
 <h1>BleakHouse Experiment Matrix</h1>
 <div class="subtitle">
-    Generator: <strong>{gen_info.display}</strong> · {len(NOVELS)} novels &times; {len(PIPELINE_ORDER)} pipelines &times; {len(PANEL_ORDER)} panels &times; {len(HOSTPREP_ORDER)} host-prep = {total} cells &mdash; Generated {now}
+    Generator: <strong>{gen_info.display}</strong> · {len(NOVELS)} novels &times; {len(pipeline_order)} pipelines &times; {len(PANEL_ORDER)} panels &times; {len(HOSTPREP_ORDER)} host-prep = {total} cells &mdash; Generated {now}
 </div>
 
 <div class="progress">
@@ -359,6 +366,11 @@ def main() -> None:
         action="store_true",
         help="Render one file per generator: run_tracker.html (default) plus run_tracker_<gen>.html for each non-default.",
     )
+    parser.add_argument(
+        "--include-rag",
+        action="store_true",
+        help="Include the RAG (plain retrieval) pipeline column (paper-only baseline; hidden by default).",
+    )
     args = parser.parse_args()
 
     # Quick sanity check that the canonical panel list aligns with axes.
@@ -367,14 +379,16 @@ def main() -> None:
         f"PANEL_ORDER has panel ids not in axes.PANELS_TUPLE: {set(PANEL_ORDER) - panel_ids}"
     )
 
+    pipeline_order = PIPELINE_ORDER_WITH_RAG if args.include_rag else DEFAULT_PIPELINE_ORDER
+
     if args.all:
         for g in sorted(GENERATORS):
-            html = generate_html(g)
+            html = generate_html(g, pipeline_order)
             out = OUTPUT_PATH if g == DEFAULT_GENERATOR else OUTPUT_PATH.with_name(f"run_tracker_{g}.html")
             out.write_text(html)
             print(f"Written {out}")
     else:
-        html = generate_html(args.generator)
+        html = generate_html(args.generator, pipeline_order)
         out = OUTPUT_PATH if args.generator == DEFAULT_GENERATOR else OUTPUT_PATH.with_name(f"run_tracker_{args.generator}.html")
         out.write_text(html)
         print(f"Written {out}")
