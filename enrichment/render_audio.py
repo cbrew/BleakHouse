@@ -16,7 +16,6 @@ import hashlib
 import io
 import json
 import logging
-import os
 import time
 import wave
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -45,10 +44,6 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 CACHE_DIR = DATA_DIR / "tts_cache"
-
-PODCAST_AUDIO_DIR = Path(
-    os.environ.get("PODCAST_AUDIO_DIR", "/Volumes/Crucial X9/bleakhouse_audio")
-)
 
 CLASSIC_MODEL_IDS = {
     "flash": "gemini-2.5-flash-preview-tts",
@@ -348,7 +343,10 @@ def main() -> None:
 
     profile_suffix = f"_{profile.name}" if profile.name != "classic" else ""
     if args.run and args.output == "podcast.mp3":
-        audio_dir = PODCAST_AUDIO_DIR / args.run
+        # Audio lands at the DVC-tracked path so `dvc status` can see it
+        # and the DVC cache (pointed at the external volume by config)
+        # manages the actual blob. No PODCAST_AUDIO_DIR redirection.
+        audio_dir = DATA_DIR / "runs" / args.run / "audio"
         audio_dir.mkdir(parents=True, exist_ok=True)
         seg_suffix = f"_segment_{args.segment}" if args.segment is not None else ""
         output_path = audio_dir / f"podcast{profile_suffix}{seg_suffix}.mp3"
