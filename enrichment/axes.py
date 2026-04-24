@@ -108,37 +108,43 @@ class Generator:
     display: str
 
 
-GENERATORS_TUPLE: tuple[Generator, ...] = (
-    Generator(
-        "anthropic_sonnet_4_6",
-        "claude-sonnet-4-6",
-        "anthropic",
-        "Anthropic Claude Sonnet 4.6",
-    ),
-    Generator(
-        "cerebras_qwen",
-        "qwen-3-235b-a22b-instruct-2507",
-        "cerebras",
-        "Cerebras Qwen-3 235B",
-    ),
-    Generator(
-        "cerebras_zai_glm",
-        "zai-glm-4.7",
-        "cerebras",
-        "Cerebras Z.ai GLM 4.7",
-    ),
-    Generator(
-        "cerebras_gpt_oss",
-        "gpt-oss-120b",
-        "cerebras",
-        "Cerebras gpt-oss 120B",
-    ),
-)
+def _load_generators_from_params() -> tuple[Generator, ...]:
+    """Read generator definitions from DVC-tracked params.yaml so the set
+    of known generators / their api_model bindings can change without
+    editing Python code — and so DVC sees the change."""
+    # Lazy import to avoid a hard coupling when axes.py is consumed by
+    # environments that don't have the repo root available (e.g. tests
+    # that import enrichment.axes in isolation).
+    from enrichment import params as _params
+
+    raw = _params.get("generators", default=[]) or []
+    generators: list[Generator] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            raise ValueError(f"params.yaml generators: expected dict, got {entry!r}")
+        generators.append(Generator(
+            id=str(entry["id"]),
+            api_model=str(entry["api_model"]),
+            provider=str(entry["provider"]),
+            display=str(entry["display"]),
+        ))
+    return tuple(generators)
+
+
+GENERATORS_TUPLE: tuple[Generator, ...] = _load_generators_from_params()
 
 GENERATORS: frozenset[str] = frozenset(g.id for g in GENERATORS_TUPLE)
 GENERATOR_BY_ID: dict[str, Generator] = {g.id: g for g in GENERATORS_TUPLE}
 
-DEFAULT_GENERATOR: str = "anthropic_sonnet_4_6"
+
+def _default_generator_from_params() -> str:
+    from enrichment import params as _params
+
+    dg = _params.get("default_generator")
+    return str(dg) if dg else "anthropic_sonnet_4_6"
+
+
+DEFAULT_GENERATOR: str = _default_generator_from_params()
 
 
 HOSTPREP_TOKEN: str = "hostprep"
