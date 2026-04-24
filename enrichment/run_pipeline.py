@@ -428,6 +428,11 @@ Examples:
         "--reference-tools", action="store_true",
         help="Enable scholarly reference search tools in pre-interviews (requires --host-prep)",
     )
+    parser.add_argument(
+        "--only-host-prep", action="store_true",
+        help="Regenerate only Phase 2.5 outputs, reading phases 0/1/2 from disk. "
+             "Implies --host-prep; exits before phase 3.",
+    )
 
     args = parser.parse_args()
 
@@ -549,13 +554,13 @@ Examples:
         else:
             raise ValueError(f"Unknown pipeline: {args.pipeline}")
 
-    if args.phase < 3:
+    if args.phase < 3 and not args.only_host_prep:
         logger.info("Stopping after Phase 2")
         return
 
     # ── Phase 2.5: Host preparation (optional) ──
     host_briefs = None
-    if args.host_prep:
+    if args.host_prep or args.only_host_prep:
         from enrichment.novel_prompts import get_active_novel  # pyright: ignore[reportMissingImports]
         novel_cfg = get_active_novel(args.novel)
         host_briefs = run_phase_2_5(
@@ -565,6 +570,10 @@ Examples:
             planning_model=args.model,
             use_reference_tools=args.reference_tools,
         )
+
+    if args.only_host_prep:
+        logger.info("Stopping after Phase 2.5 (--only-host-prep)")
+        return
 
     # ── Phase 3: Script generation ──
     logger.info("Phase 3: script generation (model=%s)", args.model)

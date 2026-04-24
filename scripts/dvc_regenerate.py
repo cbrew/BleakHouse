@@ -103,6 +103,38 @@ def regenerate_phase3(run_id: str) -> None:
     _regenerate_phase_n(run_id, 3)
 
 
+def regenerate_phase2_5(run_id: str) -> None:
+    """Phase 2.5: host briefs + pre-interviews.
+
+    Runs via `enrichment.run_pipeline --only-host-prep`, which loads
+    phases 0/1/2 from disk and executes only Phase 2.5, stopping
+    before Phase 3.
+    """
+    cfg = _load_cfg(run_id)
+    _set_novel_env(cfg)
+    argv = _pipeline_argv(run_id, cfg, phase=3, resume_from=3)
+    # --only-host-prep implies --host-prep internally.
+    if "--host-prep" not in argv:
+        argv.append("--host-prep")
+    argv.append("--only-host-prep")
+    _run_pipeline(argv)
+
+
+def regenerate_phase2_5_reading_list(run_id: str) -> None:
+    """Phase 2.5 reading_list — produced only when --reference-tools is set.
+
+    Runs `--only-host-prep --reference-tools` so the reference-tool
+    verification + winnowing path writes phase2_5_reading_list.json.
+    """
+    cfg = _load_cfg(run_id)
+    _set_novel_env(cfg)
+    argv = _pipeline_argv(run_id, cfg, phase=3, resume_from=3)
+    if "--host-prep" not in argv:
+        argv.append("--host-prep")
+    argv.extend(["--only-host-prep", "--reference-tools"])
+    _run_pipeline(argv)
+
+
 def regenerate_phase4_post(run_id: str) -> None:
     from enrichment.post_phase3 import run_post_phase3
 
@@ -134,6 +166,8 @@ PHASES = {
     "phase0": regenerate_phase0,
     "phase1": regenerate_phase1,
     "phase2": regenerate_phase2,
+    "phase2_5": regenerate_phase2_5,
+    "phase2_5_reading_list": regenerate_phase2_5_reading_list,
     "phase3": regenerate_phase3,
     "phase4_post": regenerate_phase4_post,
     "phase4_audio": regenerate_phase4_audio,
