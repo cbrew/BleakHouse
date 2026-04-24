@@ -157,6 +157,21 @@ stages:
         - data/runs/${item}/report.txt:
             cache: false
 
+  # Quote verification — checks that every "is_quote" utterance in
+  # phase3_episode.json appears in the novel's source text via fuzzy
+  # match. No LLM call; reads phase3 + the source text fixture.
+  quote_verification:
+    foreach: ${run_ids_phase3}
+    do:
+      cmd: uv run python -m enrichment.precompute_quote_verification --run ${item} --force
+      deps:
+        - data/runs/${item}/phase3_episode.json
+        - enrichment/precompute_quote_verification.py
+        - enrichment/experiment_h5_grounding.py
+      outs:
+        - data/runs/${item}/quote_verification.json:
+            cache: false
+
   phase4_audio:
     foreach: ${run_ids_audio}
     do:
