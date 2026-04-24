@@ -1,14 +1,9 @@
 """Dispatcher for `dvc repro` — regenerate a specific phase for a specific run.
 
-DVC stages declared in dvc.yaml use this as their `cmd:`. It reads the
-run's config.json (which carries the axes block) and dispatches to the
-right pipeline module.
-
-This is a stub for the first-pass DVC migration: the graph is declared
-(so `dvc status` can flag stale artefacts) but automated regeneration
-via `dvc repro` is not yet implemented for every phase. When DVC decides
-an output is stale, use the existing pipeline CLIs to regenerate
-manually — or extend this dispatcher.
+DVC stages in dvc.yaml use this as their `cmd:`. It reads the run's
+config.json (which carries the axes block) and invokes the right
+pipeline module. Every declared stage has a real handler — no
+"regenerate manually" stubs.
 
 Usage (invoked by DVC):
     uv run python scripts/dvc_regenerate.py <phase> --run <run_id>
@@ -25,45 +20,98 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 RUNS_DIR = BASE_DIR / "data" / "runs"
 
 
-def _not_yet(phase: str, run_id: str) -> None:
-    """Print a helpful message when a phase isn't wired for auto-regen yet."""
-    print(
-        f"\n  [dvc-regenerate] Stage {phase!r} for run {run_id!r} is stale.\n"
-        "  Automated regeneration via `dvc repro` is not wired for this phase\n"
-        "  yet. Regenerate manually with the existing pipeline CLIs:\n\n"
-        "    uv run python -m enrichment.run_pipeline --name "
-        f"{run_id} --resume-from <phase-index> ...\n\n"
-        "  Then `dvc commit` to register the new hashes.\n",
-        file=sys.stderr,
-    )
-    sys.exit(3)
-
-
-def regenerate_phase3(run_id: str) -> None:
-    _not_yet("phase3", run_id)
-
-
-def regenerate_phase4_post(run_id: str) -> None:
-    """This one IS automatable — it's just post_phase3.run_post_phase3."""
-    from enrichment.post_phase3 import run_post_phase3
-
+def _load_cfg(run_id: str) -> dict:
     run_dir = RUNS_DIR / run_id
     if not run_dir.exists():
         print(f"  [dvc-regenerate] {run_dir} does not exist", file=sys.stderr)
         sys.exit(2)
-    # post_phase3 consumes BLEAKHOUSE_NOVEL for non-bh novels.
     cfg_path = run_dir / "config.json"
-    if cfg_path.exists():
-        import os
-        cfg = json.loads(cfg_path.read_text())
-        novel = cfg.get("novel")
-        if novel:
-            os.environ["BLEAKHOUSE_NOVEL"] = novel
-    run_post_phase3(run_dir, run_id)
+    if not cfg_path.exists():
+        print(f"  [dvc-regenerate] missing config.json at {cfg_path}", file=sys.stderr)
+        sys.exit(2)
+    return json.loads(cfg_path.read_text())
+
+
+def _set_novel_env(cfg: dict) -> None:
+    """run_pipeline and post_phase3 read BLEAKHOUSE_NOVEL for non-bh novels."""
+    import os
+    novel = cfg.get("novel")
+    if novel:
+        os.environ["BLEAKHOUSE_NOVEL"] = novel
+
+
+def _pipeline_argv(run_id: str, cfg: dict, *, phase: int, resume_from: int | None) -> list[str]:
+    """Build the argv for enrichment.run_pipeline based on the run's config."""
+    axes = cfg.get("axes") or {}
+    pipeline_axis = axes.get("pipeline", "transport")
+    # Axis value → --pipeline flag name used by run_pipeline.
+    pipeline_map = {
+        "trn": "transport",
+        "transport": "transport",
+        "nop": "no-passages",
+        "no-passages": "no-passages",
+        "emb": "embedding",
+        "embedding": "embedding",
+    }
+    pipeline = pipeline_map.get(pipeline_axis, pipeline_axis)
+    argv = [
+        "--name", run_id,
+        "--novel", cfg.get("novel") or axes.get("novel") or "bleak_house",
+        "--pipeline", pipeline,
+        "--phase", str(phase),
+    ]
+    if resume_from is not None:
+        argv.extend(["--resume-from", str(resume_from)])
+    if axes.get("hostprep") or cfg.get("host_prep"):
+        argv.append("--host-prep")
+    gen = axes.get("generator") or cfg.get("generator")
+    if gen:
+        argv.extend(["--generator", gen])
+    return argv
+
+
+def _run_pipeline(argv: list[str]) -> None:
+    """Invoke enrichment.run_pipeline.main() with argv. Raises on non-zero exit."""
+    import subprocess
+    cmd = ["uv", "run", "python", "-m", "enrichment.run_pipeline", *argv]
+    print(f"  [dvc-regenerate] $ {' '.join(cmd)}")
+    subprocess.run(cmd, check=True, cwd=BASE_DIR)
+
+
+def regenerate_phase3(run_id: str) -> None:
+    cfg = _load_cfg(run_id)
+    _set_novel_env(cfg)
+    # resume_from=3 skips phases 0–2 (which are their own DVC stages and
+    # shouldn't be rerun here), so only phase3 regenerates.
+    argv = _pipeline_argv(run_id, cfg, phase=3, resume_from=3)
+    _run_pipeline(argv)
+
+
+def regenerate_phase4_post(run_id: str) -> None:
+    from enrichment.post_phase3 import run_post_phase3
+
+    cfg = _load_cfg(run_id)
+    _set_novel_env(cfg)
+    run_post_phase3(RUNS_DIR / run_id, run_id)
 
 
 def regenerate_phase4_audio(run_id: str) -> None:
-    _not_yet("phase4_audio", run_id)
+    """Re-render audio for a run.
+
+    Gemini-only for now — Qwen renderer has its own stage (phase4_audio_qwen,
+    not yet declared; BleakHouse-lmb).
+    """
+    import subprocess
+    cfg = _load_cfg(run_id)
+    _set_novel_env(cfg)
+    cmd = [
+        "uv", "run", "python", "-m", "enrichment.render_audio",
+        "--run", run_id,
+        "--model", "flash",
+        "--concurrency", "4",
+    ]
+    print(f"  [dvc-regenerate] $ {' '.join(cmd)}")
+    subprocess.run(cmd, check=True, cwd=BASE_DIR)
 
 
 PHASES = {
