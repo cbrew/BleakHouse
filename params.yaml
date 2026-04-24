@@ -1,0 +1,80 @@
+# DVC-tracked parameters for the BleakHouse podcast pipeline.
+#
+# Any value in this file is an input to some pipeline stage. When a value
+# changes, DVC marks every downstream artefact stale. Python modules
+# (enrichment/tts_profiles/classic.py, enrichment/axes.py, ...) load
+# from here so the in-memory constants stay the single source of truth.
+#
+# Conventions:
+#   - keys are human-readable; types are YAML-native (no tagged types)
+#   - add new parameters here before adding them as `params:` in dvc.yaml
+#   - see docs/dvc.md for the full story (coming in BleakHouse-bq5)
+
+# -------- Speaker voice mapping (Gemini TTS) --------
+# Changing any of these invalidates every audio artefact that uses the
+# affected speaker. Known failure mode this catches: silent drift
+# between tts_profiles/classic.py and the rendered podcast.mp3
+# (BleakHouse-z4v).
+speakers:
+  voices:
+    Host: Sulafat
+    Eleanor Hartley: Zephyr
+    James Blackstone: Sadaltager
+    Caroline Woodcourt: Achernar
+    Narrator: Schedar
+    Edmund Leigh: Algenib
+    Daniel Rosen: Alnilam
+    Oliver Trevelyan: Achird
+    Sarah Chen: Zephyr
+    Rebecca Martinez: Achernar
+    Elena Volkov: Aoede
+
+  accents:
+    Host: speaks with a warm Home Counties accent, like a BBC Radio 4 presenter
+    Eleanor Hartley: speaks with a lively Cambridge accent, articulate and precise
+    James Blackstone: speaks with a measured Edinburgh accent, dry and authoritative
+    Caroline Woodcourt: speaks with a gentle Bristol accent, warm and intimate
+    Narrator: speaks with a clear, neutral British accent
+    Edmund Leigh: speaks with a patrician Oxford accent, unhurried and precise
+    Daniel Rosen: speaks with a clear London accent, purposeful and direct
+    Oliver Trevelyan: speaks with a warm, theatrical Home Counties accent, varied and lively
+    Sarah Chen: speaks with a clear California accent, precise and direct, like a tech professional giving a talk
+    Rebecca Martinez: speaks with a soft American Southwest accent, unhurried and thoughtful, with occasional pauses for emphasis
+    Elena Volkov: speaks with a crisp American East Coast accent, the cadence of someone trained at Juilliard and Columbia, intellectually sharp
+
+  # VoicePolicy fields: rate (float), energy (str), pause_bias_ms (int), style (str)
+  voice_policies:
+    Host: {rate: 0.98, energy: medium, pause_bias_ms: 220, style: presenter_warm}
+    Eleanor Hartley: {rate: 1.01, energy: medium_high, pause_bias_ms: 170, style: analytic_bright}
+    James Blackstone: {rate: 0.96, energy: medium_low, pause_bias_ms: 260, style: measured_dry}
+    Caroline Woodcourt: {rate: 0.97, energy: medium, pause_bias_ms: 240, style: reflective_intimate}
+    Narrator: {rate: 1.0, energy: medium, pause_bias_ms: 200, style: neutral}
+    Edmund Leigh: {rate: 0.94, energy: medium_low, pause_bias_ms: 280, style: patrician_measured}
+    Daniel Rosen: {rate: 0.99, energy: medium_high, pause_bias_ms: 200, style: passionate_precise}
+    Oliver Trevelyan: {rate: 1.02, energy: medium_high, pause_bias_ms: 190, style: raconteur_warm}
+    Sarah Chen: {rate: 1.01, energy: medium_high, pause_bias_ms: 180, style: analytical_clear}
+    Rebecca Martinez: {rate: 0.96, energy: medium, pause_bias_ms: 250, style: contemplative_measured}
+    Elena Volkov: {rate: 0.98, energy: medium, pause_bias_ms: 210, style: engaged_analytical}
+
+# -------- LLM generators (script production) --------
+# Changing api_model or adding/removing a generator invalidates every
+# script artefact whose config.json axes.generator matches.
+generators:
+  - id: anthropic_sonnet_4_6
+    api_model: claude-sonnet-4-6
+    provider: anthropic
+    display: Anthropic Claude Sonnet 4.6
+  - id: cerebras_qwen
+    api_model: qwen-3-235b-a22b-instruct-2507
+    provider: cerebras
+    display: Cerebras Qwen-3 235B
+  - id: cerebras_zai_glm
+    api_model: zai-glm-4.7
+    provider: cerebras
+    display: Cerebras Z.ai GLM 4.7
+  - id: cerebras_gpt_oss
+    api_model: gpt-oss-120b
+    provider: cerebras
+    display: Cerebras gpt-oss 120B
+
+default_generator: anthropic_sonnet_4_6
