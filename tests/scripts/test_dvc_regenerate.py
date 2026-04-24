@@ -11,6 +11,7 @@ from scripts.dvc_regenerate import _pipeline_argv, PHASES  # pyright: ignore[rep
 def test_phases_registered() -> None:
     assert set(PHASES) == {
         "phase0", "phase1", "phase2",
+        "phase2_5", "phase2_5_reading_list",
         "phase3", "phase4_post", "phase4_audio",
     }
 

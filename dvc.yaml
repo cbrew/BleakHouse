@@ -65,6 +65,65 @@ stages:
         - data/runs/${key}/phase2_plan.json:
             cache: false
 
+  # -----------------------------------------------------------------
+  # Phase 2.5: host preparation (hostprep runs only).
+  # Claude Haiku runs pre-interviews; Claude Sonnet plans questions.
+  # Only declared for the subset of runs with hostprep=true.
+  # -----------------------------------------------------------------
+  # Hostprep runs that have BOTH host_briefs AND interviews on disk.
+  # 88 hostprep runs currently lack interviews (legacy artefacts from
+  # before phase2_5 wrote interviews; tracked separately below).
+  phase2_5:
+    foreach: ${runs_by_id_phase2_5}
+    do:
+      cmd: uv run python scripts/dvc_regenerate.py phase2_5 --run ${key}
+      deps:
+        - data/runs/${key}/config.json
+        - data/runs/${key}/phase1_assignments.json
+        - data/runs/${key}/phase2_plan.json
+        - enrichment/host_prep.py
+        - enrichment/run_pipeline.py
+      outs:
+        - data/runs/${key}/phase2_5_host_briefs.json:
+            cache: false
+        - data/runs/${key}/phase2_5_interviews.json:
+            cache: false
+
+  # Hostprep runs that only have host_briefs.json (no interviews).
+  # Same regenerator command as phase2_5; the difference is just that
+  # we don't yet track interviews as a DVC output for these runs. Re-
+  # running them via `dvc repro` will produce the interviews and they
+  # will then graduate to the full phase2_5 stage on the next runs.yaml
+  # regeneration.
+  phase2_5_briefs_only:
+    foreach: ${runs_by_id_phase2_5_briefs_only}
+    do:
+      cmd: uv run python scripts/dvc_regenerate.py phase2_5 --run ${key}
+      deps:
+        - data/runs/${key}/config.json
+        - data/runs/${key}/phase1_assignments.json
+        - data/runs/${key}/phase2_plan.json
+        - enrichment/host_prep.py
+        - enrichment/run_pipeline.py
+      outs:
+        - data/runs/${key}/phase2_5_host_briefs.json:
+            cache: false
+
+  # Reading-list is only produced when --reference-tools was set.
+  # Iterates only over runs that currently have the file on disk.
+  phase2_5_reading_list:
+    foreach: ${runs_by_id_reading_list}
+    do:
+      cmd: uv run python scripts/dvc_regenerate.py phase2_5_reading_list --run ${key}
+      deps:
+        - data/runs/${key}/config.json
+        - data/runs/${key}/phase2_5_interviews.json
+        - enrichment/host_prep.py
+        - enrichment/reference_tools.py
+      outs:
+        - data/runs/${key}/phase2_5_reading_list.json:
+            cache: false
+
   phase3_episode:
     foreach: ${run_ids_phase3}
     do:

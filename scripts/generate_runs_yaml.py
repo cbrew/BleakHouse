@@ -53,6 +53,9 @@ def collect_runs() -> list[dict[str, object]]:
             # Convenience booleans for DVC stage filtering:
             "has_phase3": (run_dir / "phase3_episode.json").exists(),
             "has_audio": (run_dir / "audio" / "podcast.mp3").exists(),
+            "has_reading_list": (run_dir / "phase2_5_reading_list.json").exists(),
+            "has_host_briefs": (run_dir / "phase2_5_host_briefs.json").exists(),
+            "has_interviews": (run_dir / "phase2_5_interviews.json").exists(),
         }
         out.append(entry)
     return out
@@ -65,10 +68,26 @@ def main() -> None:
     # ${item.novel} for novel-specific deps like passages_enriched.json).
     runs_by_id = {r["run_id"]: r for r in runs}
     runs_by_id_hostprep = {rid: r for rid, r in runs_by_id.items() if r["hostprep"]}
+    # phase2_5 stage only iterates over runs that have BOTH host_briefs
+    # and interviews on disk. Hostprep runs missing one or both are
+    # outside DVC's coverage until they are regenerated. (This is a
+    # known retrofit gap — see Part B of the provenance plan.)
+    runs_by_id_phase2_5 = {
+        rid: r for rid, r in runs_by_id.items()
+        if r["has_host_briefs"] and r["has_interviews"]
+    }
+    runs_by_id_phase2_5_briefs_only = {
+        rid: r for rid, r in runs_by_id.items()
+        if r["has_host_briefs"] and not r["has_interviews"]
+    }
+    runs_by_id_reading_list = {rid: r for rid, r in runs_by_id.items() if r["has_reading_list"]}
     doc = {
         "runs": runs,
         "runs_by_id": runs_by_id,
         "runs_by_id_hostprep": runs_by_id_hostprep,
+        "runs_by_id_phase2_5": runs_by_id_phase2_5,
+        "runs_by_id_phase2_5_briefs_only": runs_by_id_phase2_5_briefs_only,
+        "runs_by_id_reading_list": runs_by_id_reading_list,
         # Index by id for quick jinja/templating use.
         "run_ids": [r["run_id"] for r in runs],
         "run_ids_phase3": [r["run_id"] for r in runs if r["has_phase3"]],
