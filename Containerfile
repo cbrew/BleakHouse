@@ -2,17 +2,19 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir fastapi uvicorn[standard]
+RUN pip install --no-cache-dir fastapi uvicorn[standard] pyyaml
 
 # Copy webapp code
 COPY webapp/ webapp/
 
-# webapp.app imports `enrichment.axes` at startup. axes.py is a pure
-# stdlib module — no anthropic/openai/hamilton deps — so copy just that
-# plus the package __init__; skip the rest of enrichment/ to keep the
-# image small and avoid pulling in heavy runtime deps we don't need.
+# webapp.app imports `enrichment.axes` at startup, which now loads
+# DVC-tracked values from params.yaml via enrichment.params. Ship the
+# three files it needs plus params.yaml; everything else in enrichment/
+# stays out to keep the image small.
 COPY enrichment/__init__.py enrichment/
 COPY enrichment/axes.py enrichment/
+COPY enrichment/params.py enrichment/
+COPY params.yaml ./
 
 # Copy poster web assets (HTML + provenance JS + logos + screenshots)
 COPY poster/poster_print.html poster/
