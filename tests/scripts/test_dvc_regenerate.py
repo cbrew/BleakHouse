@@ -9,7 +9,10 @@ from scripts.dvc_regenerate import _pipeline_argv, PHASES  # pyright: ignore[rep
 
 
 def test_phases_registered() -> None:
-    assert set(PHASES) == {"phase3", "phase4_post", "phase4_audio"}
+    assert set(PHASES) == {
+        "phase0", "phase1", "phase2",
+        "phase3", "phase4_post", "phase4_audio",
+    }
 
 
 def test_pipeline_argv_transport_hostprep() -> None:
