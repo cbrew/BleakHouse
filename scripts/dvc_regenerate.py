@@ -78,13 +78,29 @@ def _run_pipeline(argv: list[str]) -> None:
     subprocess.run(cmd, check=True, cwd=BASE_DIR)
 
 
-def regenerate_phase3(run_id: str) -> None:
+def _regenerate_phase_n(run_id: str, n: int) -> None:
     cfg = _load_cfg(run_id)
     _set_novel_env(cfg)
-    # resume_from=3 skips phases 0–2 (which are their own DVC stages and
-    # shouldn't be rerun here), so only phase3 regenerates.
-    argv = _pipeline_argv(run_id, cfg, phase=3, resume_from=3)
+    # `--phase n --resume-from n` produces exactly phase n's output,
+    # skipping earlier phases (they're their own DVC stages).
+    argv = _pipeline_argv(run_id, cfg, phase=n, resume_from=n)
     _run_pipeline(argv)
+
+
+def regenerate_phase0(run_id: str) -> None:
+    _regenerate_phase_n(run_id, 0)
+
+
+def regenerate_phase1(run_id: str) -> None:
+    _regenerate_phase_n(run_id, 1)
+
+
+def regenerate_phase2(run_id: str) -> None:
+    _regenerate_phase_n(run_id, 2)
+
+
+def regenerate_phase3(run_id: str) -> None:
+    _regenerate_phase_n(run_id, 3)
 
 
 def regenerate_phase4_post(run_id: str) -> None:
@@ -115,6 +131,9 @@ def regenerate_phase4_audio(run_id: str) -> None:
 
 
 PHASES = {
+    "phase0": regenerate_phase0,
+    "phase1": regenerate_phase1,
+    "phase2": regenerate_phase2,
     "phase3": regenerate_phase3,
     "phase4_post": regenerate_phase4_post,
     "phase4_audio": regenerate_phase4_audio,

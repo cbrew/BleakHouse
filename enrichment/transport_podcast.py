@@ -38,33 +38,30 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 REPORTS_DIR = BASE_DIR / "reports"
 
-PASSAGES_FILE = DATA_DIR / "passages_enriched.json"
-CLUSTERS_LITERARY_FILE = DATA_DIR / "clusters_literary.json"
-CLUSTERS_CHARACTERS_FILE = DATA_DIR / "clusters_characters.json"
 OUTPUT_FILE = DATA_DIR / "transport_assignments.json"
 
-# Novel data override: set via BLEAKHOUSE_NOVEL env var
-def _novel_data_dir() -> Path | None:
+
+# Every novel — including bleak_house — has its data at
+# data/novels/{novel}/. The BLEAKHOUSE_NOVEL env var selects the novel;
+# absent, we default to bleak_house. This uniformity matters for DVC:
+# phase1/2 stages can template `data/novels/${item.novel_id}/...`
+# without a bh special case.
+def _novel_data_dir() -> Path:
     import os
-    novel = os.environ.get("BLEAKHOUSE_NOVEL")
-    if novel and novel != "bleak_house":
-        return DATA_DIR / "novels" / novel
-    return None
+    novel = os.environ.get("BLEAKHOUSE_NOVEL") or "bleak_house"
+    return DATA_DIR / "novels" / novel
 
 
 def _passages_file() -> Path:
-    d = _novel_data_dir()
-    return d / "passages_enriched.json" if d else PASSAGES_FILE
+    return _novel_data_dir() / "passages_enriched.json"
 
 
 def _clusters_literary_file() -> Path:
-    d = _novel_data_dir()
-    return d / "clusters_literary.json" if d else CLUSTERS_LITERARY_FILE
+    return _novel_data_dir() / "clusters_literary.json"
 
 
 def _clusters_characters_file() -> Path:
-    d = _novel_data_dir()
-    return d / "clusters_characters.json" if d else CLUSTERS_CHARACTERS_FILE
+    return _novel_data_dir() / "clusters_characters.json"
 
 # ---------------------------------------------------------------------------
 # Constants

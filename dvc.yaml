@@ -16,6 +16,55 @@ vars:
 
 stages:
 
+  # -----------------------------------------------------------------
+  # Phase 0: segment design.
+  # Claude Haiku 4.5 proposes segment templates given expert panel +
+  # arc demands. See docs/pipeline.md.
+  # -----------------------------------------------------------------
+  phase0_segments:
+    foreach: ${runs_by_id}
+    do:
+      cmd: uv run python scripts/dvc_regenerate.py phase0 --run ${key}
+      deps:
+        - data/runs/${key}/config.json
+        - enrichment/design_segments.py
+        - enrichment/novel_prompts.py
+        - enrichment/transport_podcast.py
+        - enrichment/run_pipeline.py
+      outs:
+        - data/runs/${key}/phase0_segments.json:
+            cache: false
+
+  # -----------------------------------------------------------------
+  # Phase 1+2: passage matching and ordering.
+  # Transport uses Sinkhorn OT; no-passages skips matching; embedding
+  # uses cosine similarity. Dispatched on the pipeline axis.
+  # -----------------------------------------------------------------
+  phase1_assignments:
+    foreach: ${runs_by_id}
+    do:
+      cmd: uv run python scripts/dvc_regenerate.py phase1 --run ${key}
+      deps:
+        - data/runs/${key}/config.json
+        - data/runs/${key}/phase0_segments.json
+        - data/novels/${item.novel_id}/passages_enriched.json
+        - enrichment/run_pipeline.py
+      outs:
+        - data/runs/${key}/phase1_assignments.json:
+            cache: false
+
+  phase2_plan:
+    foreach: ${runs_by_id}
+    do:
+      cmd: uv run python scripts/dvc_regenerate.py phase2 --run ${key}
+      deps:
+        - data/runs/${key}/config.json
+        - data/runs/${key}/phase1_assignments.json
+        - enrichment/run_pipeline.py
+      outs:
+        - data/runs/${key}/phase2_plan.json:
+            cache: false
+
   phase3_episode:
     foreach: ${run_ids_phase3}
     do:
