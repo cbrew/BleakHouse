@@ -29,10 +29,12 @@ LOCAL_PORT="${LOCAL_PORT:-18080}"
 IMAGE_TAG="${IMAGE_TAG:-bleakhouse-demo}"
 CONTAINER_NAME="${CONTAINER_NAME:-bh-deploy-verify}"
 DRY_RUN=0
+ALLOW_STALE=0
 
 for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY_RUN=1 ;;
+        --allow-stale) ALLOW_STALE=1 ;;
         -h|--help)
             sed -n '2,28p' "$0"
             exit 0
@@ -43,13 +45,31 @@ done
 
 cd "$(dirname "$0")/.."
 
-echo "==> [1/5] Staging demo data"
+echo "==> [0/6] DVC provenance check"
+if uv run --no-sync dvc status 2>/dev/null | grep -q "up to date"; then
+    echo "    dvc status clean"
+else
+    if [ "$ALLOW_STALE" = 1 ]; then
+        echo "    WARNING: DVC reports stale runs but --allow-stale was passed; continuing." >&2
+    else
+        echo "    DVC reports stale runs. Summary:" >&2
+        uv run --no-sync python -m scripts.dvc_stale_report >&2 || true
+        echo "" >&2
+        echo "    Refusing to deploy a stale provenance graph." >&2
+        echo "    Options:" >&2
+        echo "      - regenerate the affected artefacts, then \`uv run dvc commit\`" >&2
+        echo "      - re-run with --allow-stale if you're knowingly shipping a stale state" >&2
+        exit 1
+    fi
+fi
+
+echo "==> [1/6] Staging demo data"
 bash scripts/stage_demo.sh demo_data
 
-echo "==> [2/5] Building container image ($IMAGE_TAG)"
+echo "==> [2/6] Building container image ($IMAGE_TAG)"
 podman build -t "$IMAGE_TAG" -f Containerfile .
 
-echo "==> [3/5] Running container locally on port $LOCAL_PORT and probing"
+echo "==> [3/6] Running container locally on port $LOCAL_PORT and probing"
 podman rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 podman run -d --name "$CONTAINER_NAME" -p "${LOCAL_PORT}:8080" "$IMAGE_TAG" >/dev/null
 
@@ -122,10 +142,10 @@ fi
 cleanup
 trap - EXIT
 
-echo "==> [4/5] fly deploy --local-only (app: $APP)"
+echo "==> [4/6] fly deploy --local-only (app: $APP)"
 fly deploy --local-only --app "$APP"
 
-echo "==> [5/5] Post-deploy smoke test: $PUBLIC_URL/tracker"
+echo "==> [5/6] Post-deploy smoke test: $PUBLIC_URL/tracker"
 # Machines may take a few seconds to accept traffic.
 for i in $(seq 1 15); do
     code=$(curl --max-time 15 -s -o /dev/null -w "%{http_code}" "${PUBLIC_URL}/tracker" || echo 000)
