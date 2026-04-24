@@ -62,7 +62,12 @@ def _load_model(model_id: str = DEFAULT_MODEL) -> Any:
 
     if torch.cuda.is_available():
         device_map = "cuda"
-        dtype = torch.bfloat16
+        # bf16 requires Ampere+ (compute cap >= 8.0). Turing (sm_75,
+        # RTX 20-series) has fp16 but fp16 triggers inf/nan in the
+        # code_predictor softmax and crashes torch.multinomial — same
+        # failure mode we see on MPS. Default to fp32 on Turing.
+        major, _minor = torch.cuda.get_device_capability()
+        dtype = torch.bfloat16 if major >= 8 else torch.float32
     elif torch.backends.mps.is_available():
         device_map = "mps"
         # fp16 on MPS produces inf/nan in the TTS code_predictor's softmax;
