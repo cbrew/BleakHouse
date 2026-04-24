@@ -8,7 +8,9 @@
 
 We have a literary-podcast pipeline that generates ~45-minute episodes: an LLM writes a multi-voice script (host + three expert personas discussing Dickens), and Gemini TTS turns it into audio. Rendering a single episode through Gemini is fine at one-off scale, but across 192 canonical runs the API bill adds up, and we wanted to experiment with cheaper, self-hostable alternatives.
 
-The obvious candidate: Qwen. Alibaba's Qwen3 family has a dedicated text-to-speech model, Apache-licensed, with zero-shot voice cloning. If it worked, we could render variants locally on a single NVIDIA card, comparing them against the Gemini baseline.
+The deeper goal, not just cost: **eventually, let listeners join the conversation.** A real-time voice agent that can speak in the host's voice, ask a question on the fly, and hand off to one of the expert voices to answer. That requires two things the current pipeline doesn't have yet — tolerable latency (well under 1× real-time, with short time-to-first-sound) and quality that holds up next to a human participant. Batch rendering is the staging ground; interactive is the destination.
+
+The obvious candidate: Qwen. Alibaba's Qwen3 family has a dedicated text-to-speech model, Apache-licensed, with zero-shot voice cloning. Documentation claims 97 ms streaming latency on big hardware. If it worked, we could render variants locally on a single NVIDIA card, compare them against the Gemini baseline, and start poking at what the interactive path would cost.
 
 This post is the story of *actually doing that* — which turned into a tour of every provenance assumption the pipeline had been quietly leaning on.
 
@@ -147,3 +149,15 @@ That, more than Qwen itself, is the lasting win from this experiment.
 For the apples-to-apples Gemini-vs-Qwen comparison, the right script to render through both engines is a *hostprep* script — one built from a Phase 2.5 host brief, where the host asks explicit questions and steers between experts. A separate investigation showed that non-hostprep scripts generate host-light dialogue (on average **1.8** interior host turns per episode vs **20.9** with hostprep; 30% of non-hostprep runs have zero interior host turns). That's being re-rendered now: `bh_trn_literary_hostprep`'s 726-utterance script running through Qwen3-TTS, same reference clips, ~1h50m wall.
 
 When that finishes, we'll have a matched pair: the same script, the same four cloned voices, rendered by two different TTS engines. Whatever that comparison says, the plumbing around it now actually tells us what it's comparing.
+
+## Where It Doesn't Reach (Yet)
+
+The batch-render numbers (0.84× real-time end-to-end) are workable for offline episodes, but they're at least an order of magnitude off the "listener joins the conversation" use case. For that we need:
+
+- **Time-to-first-sound well under a second**, so a listener's prompt produces an audible response feeling like a conversation rather than a turn-taking protocol.
+- **Sustained throughput above 1× real-time** with headroom, so the agent can keep talking while the next utterance is still decoding.
+- **Quality parity with the named voice** while the reference is a few seconds of recorded audio, because listeners will notice a drift mid-conversation far more than they notice it in a pre-rendered episode.
+
+The speed gap is probably solvable without a model change — Qwen3-TTS has a streaming mode (text-in streaming, audio-out streaming) that we haven't exercised, the 2070 Super is ancient by 2026 standards, and Turing's lack of bf16 is the specific reason we're stuck on fp32 here. On an Ampere or better card with flash-attention enabled and bf16 weights, published numbers for this family comfortably clear 2× RT. The quality gap is less obvious: `x_vector_only_mode` is giving up fidelity we might actually need when a listener's ear is on it. ICL mode was too flaky in batch; in an interactive setting with one carefully-curated reference per voice, it may behave better.
+
+Neither is here today. But the same experiment now has a defined baseline ("at 0.84× RT on a 2070 Super with x-vector cloning, this is what 363 utterances of Bleak House sound like"), and it has provenance machinery that will tell us whether a later-today version is actually better or just different.
