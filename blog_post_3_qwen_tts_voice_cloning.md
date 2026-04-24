@@ -1,163 +1,77 @@
-# Cloning Podcast Voices with Qwen3-TTS
+# Voice as Continuity: Cloning a Podcast Panel for Interactive Conversation
 
-*What happens when you try to reproduce an existing AI-rendered podcast in a different voice engine — and everything the plumbing has been hiding comes out of the walls at once*
-
----
-
-## The Starting Question
-
-We have a literary-podcast pipeline that generates ~45-minute episodes: an LLM writes a multi-voice script (host + three expert personas discussing Dickens), and Gemini TTS turns it into audio. Rendering a single episode through Gemini is fine at one-off scale, but across 192 canonical runs the API bill adds up, and we wanted to experiment with cheaper, self-hostable alternatives.
-
-The deeper goal, not just cost: **eventually, let listeners join the conversation as a fifth participant.** The listener contributes their own turn — by voice or by chat — and the four AI panelists (host + three experts) react to them in character. We're not synthesising the listener's voice; we're synthesising *the panel's responses to them*, on demand, quickly enough that it feels like joining a room rather than submitting a forum post. That requires two things the current pipeline doesn't have yet — tolerable latency from a listener's turn to the first audible response, and voices stable enough that the panel still sounds like itself when it speaks extemporaneously. Batch rendering is the staging ground; interactive is the destination.
-
-The obvious candidate: Qwen. Alibaba's Qwen3 family has a dedicated text-to-speech model, Apache-licensed, with zero-shot voice cloning. Documentation claims 97 ms streaming latency on big hardware. If it worked, we could render variants locally on a single NVIDIA card, compare them against the Gemini baseline, and start poking at what the interactive path would cost.
-
-This post is the story of *actually doing that* — which turned into a tour of every provenance assumption the pipeline had been quietly leaning on.
+*How a literary podcast's cast of AI voices becomes an identity the listener can address directly*
 
 ---
 
-## Wrong Tool, Right Family
+## The Panel as a Named Cast
 
-First mistake: I reached for **Qwen2.5-Omni-3B**, the one that shows up first in a HuggingFace search for "Qwen TTS". It is a 3B-parameter *any-to-any* multimodal model — text + vision + audio in, text + audio out. Only two voices ("Chelsie", "Ethan"), no cloning, `qwen-research` license (non-commercial), and it drags in `torch + torchvision + transformers + accelerate` to the tune of ~2.4 GB of Python packages before you download the 6 GB of weights.
+Our literary podcast pipeline, *Bleak House Unpacked*, produces ~45-minute episodes of structured conversation. A host convenes three named experts — Dr. Eleanor Hartley, the novelist-as-craft-teacher; Professor James Blackstone, the legal and social historian; Caroline Woodcourt, the lifelong close reader — and together they work through a passage of Dickens. Each expert has a written persona: intellectual lineage, analytical habits, rhetorical signature. The host steers; the experts respond in their own idiom. Across 194 canonical runs (fifteen novels, three expert panels, several retrieval pipelines), those four voices have become something approaching characters.
 
-Omni rendered a hello-world sentence fine. But the user quickly pushed back: *"is there a good reason to use Omni rather than a TTS-specific one? don't much want bloat in the .venv."*
+That identity is not just textual. It lives in how they sound. A listener who has heard Eleanor Hartley show why a single em-dash carries a sentence's weight has a particular voice in her ear when she sees Eleanor's name again. That voice is part of what makes the panel feel like *a room she has been in*, not simply a transcript she is reading.
 
-There isn't. The right tool is **Qwen3-TTS** — a dedicated `qwen-tts` pip package the Qwen team ships separately:
+The question this post is about: if the panel is this real as an artifact, can we let the listener join it?
 
-- `Qwen3-TTS-12Hz-0.6B-Base` — 0.6 B parameters, Apache 2.0, supports zero-shot voice cloning from a ~6–10 s reference clip
-- Proper Python API: `Qwen3TTSModel.from_pretrained(...).generate_voice_clone(text=..., ref_audio=..., ref_text=...)`
-- Eleven input languages; 97 ms streaming latency on beefy hardware
+---
 
-Lesson: *"Qwen" isn't a single thing.* Search for the task, not the brand.
+## From Closed Episode to Shared Room
 
-## The Cloning Setup
+A batch-rendered podcast episode is a closed object. Audio exists or it doesn't; you press play or you don't. But the scripts our pipeline produces are explicit about who speaks when. Nothing about the data prevents an additional turn being inserted — from a listener asking the panel a question about a passage, and Eleanor or James or Caroline replying in character.
 
-Voice cloning needs two things per target speaker: a reference audio clip and (for best fidelity) its transcript. We already have both — the existing Gemini episodes are sitting on disk as MP3s alongside manifest files that carry per-turn timestamps:
+What prevents this, for now, is the rendering side. Gemini TTS produces excellent episode audio, but it doesn't let us put the listener in the conversation. The listener types a question and waits for a pre-packaged response; by the time the reply arrives, the sense of being *in the room* is gone.
 
-```json
-{
-  "turns": [
-    {"speaker": "Host",            "start_ms": 0,       "end_ms": 76000,  ...},
-    {"speaker": "James Blackstone", "start_ms": 76200,  "end_ms": 128600, ...},
-    {"speaker": "Eleanor Hartley",  "start_ms": 128800, "end_ms": 177700, ...}
-  ]
-}
-```
+The requirement is surprisingly specific:
 
-Plan: for each of the four speakers, find their longest single turn, slice the matching time range out of `podcast.mp3`, save as a WAV, and use that as the voice-cloning reference.
+- **Voice identity has to hold.** If the listener has to accept the host sounding subtly different when she replies, the conversational illusion fails. The same speaker has to arrive in the same voice whether the listener is meeting her at minute 37 of a pre-rendered episode or in a new exchange initiated this morning.
+- **Latency has to be short enough that reply feels like response**, not queue-processing. The target is time-to-first-audible-sound well under a second after a listener turn ends.
+- **It has to be self-hostable** so we can shape the turn-taking behaviour ourselves, including the subtle things a listener notices — who chooses to reply, how long the silence is before someone does, whether two voices overlap in agreement.
 
-First implementation: extract the **longest** turn per speaker, skip 200 ms of lead-in, keep 15 s. Ran `render_episode.py`, kicked off 363 utterances, came back 15 minutes later.
+No single hosted TTS API meets all three at once today. Cloning an open-weight model does, at least in principle.
 
-Result: segment 0 came out with **all-female voices**, regardless of speaker.
+---
 
-## Bug 1: The Reference Clips Are Wrong
+## Why Cloning, Not Casting
 
-First instinct was to blame the voice-cloning model. Instead I measured F0 (median pitch) on every reference clip itself:
+A cheaper move would be to cast new voices from a stock set — pick a British female timbre for Eleanor, a measured Edinburgh bass for James — and accept that these are not *exactly* the voices from the archive. Listeners know what new narrators sound like when audiobooks get re-recorded; they adjust.
 
-| speaker | F0 of extracted clip | expected |
-|---|---|---|
-| Host | 253 Hz (female) | female ✓ (Sulafat voice in Gemini config) |
-| James Blackstone | **215 Hz (female)** | male ✗ |
-| Eleanor Hartley | 212 Hz (female) | female ✓ |
-| Caroline Woodcourt | 197 Hz (female) | female ✓ |
+We rejected this path. The panel is a 200-episode archive. The listener who has been with us has heard Eleanor for hours. A new voice at the point of interaction, however well cast, announces "this is a different project now." The whole point of the interactive experiment is that it should not feel that way.
 
-Blackstone was the surprise. The Gemini voice configured for him is `Sadaltager` — a male voice. But the clip we extracted from `podcast.mp3` at his "longest turn" time range sounded female.
+Zero-shot voice cloning — synthesising new speech conditioned on a brief audio sample of a speaker — gives us a way to keep continuity. The existing archive is the training data for itself. For each voice, we extract a short clean clip from any previous episode and use it as the voice prompt for new utterances. The synthetic version isn't identical to the original, but it is within the range of natural variation: the same speaker, on a different day, saying something new.
 
-Why? **Two independent drifts**, neatly hidden by the file layout:
+---
 
-1. **Manifest timing drift.** `manifest.total_duration_ms = 2804 s` but the actual `podcast.mp3` was **3184 s** — a ~6-minute gap. Something in the Gemini render path had inserted silences or transitions that the manifest never learned about. When we sliced the MP3 at "James's longest turn: 1624 s", we were reading ~6 minutes downstream of where James actually was.
-2. **Gemini voice-assignment drift.** Even correcting for timing and picking each speaker's *first* turn (low drift near the start) revealed a second bug: probing F0 at successive JB turns gave **139 Hz (male, correct), then 194, 203, 289, 197 (all wrong)**. Gemini was rendering the first turn of each speaker with the configured voice, then drifting onto different voices for later turns. This had been there for months and nobody had noticed because nobody had measured.
+## What Qwen3-TTS Contributes
 
-Fixes: pick each speaker's first turn, skip `max(2000 ms, 25 %)` of the turn's duration (drift absorbs the first couple of seconds), and **verify by F0** before trusting the clip — if the detected gender doesn't match the speaker's expected gender from `params.yaml`, warn loudly.
+Alibaba's Qwen team publishes a dedicated text-to-speech model, Qwen3-TTS-12Hz-0.6B-Base, under Apache 2.0. It is a fraction the size of the all-in-one multimodal models it sits next to in the Qwen family, and it is built specifically for the zero-shot cloning case: you provide a reference clip plus, optionally, its transcript, and the model generates new speech in that voice.
 
-After this, references were gender-correct:
-```
-Host              229 Hz  female  ✓
-James Blackstone  123 Hz  male    ✓
-Eleanor Hartley   241 Hz  female  ✓
-Caroline Woodcourt 214 Hz  female  ✓
-```
+For our purposes this has three useful properties.
 
-The Gemini bug is real and was logged as its own issue to chase separately. The reference-extraction fix works around it.
+**It is small enough to self-host.** The weights fit on a consumer NVIDIA card. We don't need to lease an A100 to play with it. Our existing development machine renders a full Bleak House episode through the cloning pipeline in about an hour — slower than real-time by a small multiple, but well within "leave it running while you do something else."
 
-## Bug 2: fp16 Softmax Nans on Both Edge Platforms
+**It is licensed for the use we care about.** Apache 2.0 means the interactive product, if this research path leads there, is not compromised by terms that assumed batch research use only.
 
-Qwen3-TTS contains an autoregressive code-predictor that emits VQ codes, which a separate neural vocoder turns into waveform samples. Samples from the code-predictor's softmax are drawn with `torch.multinomial`.
+**It takes references we already have.** Every episode in the archive ends up on disk as a rendered MP3 alongside a manifest that tells us which speaker holds the floor at which moment. For each panel voice, the first turn of the first segment of any episode gives us a clean ~10-second clip of that speaker alone. The archive functions as its own reference library.
 
-On both **MPS (Apple Silicon)** and **CUDA Turing (RTX 2070 Super, compute 7.5)**, running the model in fp16 produced:
+---
 
-```
-RuntimeError: probability tensor contains either `inf`, `nan` or element < 0
-```
+## What a Cloned Episode Sounds Like
 
-The code-predictor's pre-softmax logits overflow in fp16; the softmax output then contains NaN or negative values, and `multinomial` refuses to sample. On Ampere+ GPUs (sm_80+) you'd switch to bf16 and the problem goes away, but Turing doesn't have bf16 and Apple Silicon's bf16 support is spotty. fp32 works; it's slower but correct.
+Rendered end-to-end on a single consumer GPU, the full literary-panel episode is 47.5 minutes of audio generated in 56.5 minutes of wall time — a 0.84× real-time ratio for a 726-utterance conversation spanning four distinct voices. Speaker transitions are preserved (the host actually hands to Eleanor, Eleanor to James, and so on); pause durations are taken from the script's own TTS annotations, so the rhythm matches what the original episode had.
 
-We picked dtype at runtime:
+The voices are recognisable as the panel. They are not indistinguishable from Gemini's original renders — zero-shot cloning at this model size gives up some fidelity, particularly in the distinctive prosodic habits of a specific voice — but the identity holds across the episode. A listener hearing a sample of cloned Eleanor and a sample of cloned James will correctly separate them, correctly label them by gender and general register, and often correctly identify them by name if they have heard the real episodes.
 
-```python
-if torch.cuda.is_available():
-    major, _ = torch.cuda.get_device_capability()
-    dtype = torch.bfloat16 if major >= 8 else torch.float32
-elif torch.backends.mps.is_available():
-    dtype = torch.float32
-```
+This is far short of production-grade podcast audio. It is clearly above the bar for *conversational continuity* — that is, for a listener to sustain the sense of being addressed by the same people they have been listening to.
 
-## Bug 3: ICL Mode Stalls for Certain Clips
+---
 
-The cloning API has two modes:
+## What It Unlocks
 
-- **ICL mode** (`x_vector_only_mode=False` + `ref_text=`): full in-context learning. Best voice fidelity.
-- **x-vector mode** (`x_vector_only_mode=True`, no `ref_text`): uses only the reference speaker embedding. Faster, slightly less faithful.
+The point of this work is not the batch render. A batch-rendered episode in a second voice engine is a curiosity; the project already has one that sounds better.
 
-Rendering the episode in ICL mode, utterance 9 hung. GPU was 41 % utilized, memory steady — the generation loop was doing something, but no output. After 15 minutes of no progress, I killed it.
+The point is that the same machinery, exercised one turn at a time instead of in an 8-segment sweep, gives us a live panel. The listener asks a question. A turn generator decides which expert replies and drafts a response in their persona. The cloned voice renders that response and plays it — in the same voice the listener has been listening to for hours. Another expert chimes in. A back-and-forth unfolds.
 
-Reproduced the stall in isolation: the same `(text, ref_audio, ref_text)` tuple for JB hangs in ICL but completes in 3.6 s in x-vector mode. The code-predictor enters a state where it never emits its end-of-sequence token. With `x_vector_only_mode=True` and `max_new_tokens=1024`, it's been reliable across hundreds of utterances.
+That configuration — four AI panelists responding in their own voices to a fifth, human, participant — is the destination. The batch work here is what makes it *possible*. The remaining work is what will make it *fast enough* and *reliable enough* to be part of a listener's afternoon rather than a research demo. That work has its own plan, separately scoped, and is the subject of the next post in this series.
 
-Fidelity cost was acceptable: gender is preserved, speaker identity is *roughly* right but less crisp than Gemini's native voices. For our purposes — where reliability matters more than pitch-perfect cloning — it's the right trade.
+---
 
-## Performance
-
-Same first utterance ("*The fog is everywhere, and yet I feel at home in it.*" — 11 words, ~4 s of audio), measured on three configurations:
-
-| hardware | dtype | wall | realtime |
-|---|---|---|---|
-| M1 Pro / MPS | fp32 | 22.3 s | 0.18× |
-| 2070 Super / CUDA (Turing) | fp32 | 6.1 s | 0.65× |
-| 2070 Super, warm start | fp32 | 7.0 s | 0.67× |
-
-**3.6× speedup** going from MPS to CUDA. Still sub-realtime because fp16 is out (bug 2) and Turing has no bf16. On Ampere+ with bf16 and flash-attention the same model would comfortably exceed 1× RT.
-
-The full-episode render (363 utterances → 47.5 min audio) completed in **56.5 min wall** (0.84× RT on the 2070 Super). That's workable: a full episode every ~hour, versus the minutes-to-get-rate-limited experience on the Gemini API.
-
-## The Deeper Lesson
-
-Four bugs surfaced in the space of one afternoon:
-
-1. Gemini voice assignment drifts within an episode.
-2. Manifests and rendered audio disagree on total duration.
-3. fp16 softmax NaNs on two different platforms.
-4. ICL-mode voice cloning stalls for some reference-text pairings.
-
-Only (3) and (4) are Qwen's fault. (1) and (2) were sitting in our Gemini renders the whole time, and we'd never hit them because nothing in the pipeline ever *asked* "is this audio consistent with what the manifest claims, and with the current voice config?". The files are in the run directory, git tracks them, case closed — except the content of the audio depended on a `SPEAKER_VOICES` mapping that had since changed, on a rendering pass that had been re-run with different pauses, on a set of utterance pause timings that were never re-synced with the actual MP3.
-
-This motivated adopting **DVC** (Data Version Control) for the whole pipeline. Declare every phase's inputs and outputs; hash both sides; let the tool tell you when an artifact is stale. After DVC was wired up, editing `SPEAKER_VOICES.Host` lit up every audio-bearing run as stale within a second. The deploy script now refuses to ship stale runs.
-
-That, more than Qwen itself, is the lasting win from this experiment.
-
-## Current State
-
-For the apples-to-apples Gemini-vs-Qwen comparison, the right script to render through both engines is a *hostprep* script — one built from a Phase 2.5 host brief, where the host asks explicit questions and steers between experts. A separate investigation showed that non-hostprep scripts generate host-light dialogue (on average **1.8** interior host turns per episode vs **20.9** with hostprep; 30% of non-hostprep runs have zero interior host turns). That's being re-rendered now: `bh_trn_literary_hostprep`'s 726-utterance script running through Qwen3-TTS, same reference clips, ~1h50m wall.
-
-When that finishes, we'll have a matched pair: the same script, the same four cloned voices, rendered by two different TTS engines. Whatever that comparison says, the plumbing around it now actually tells us what it's comparing.
-
-## Where It Doesn't Reach (Yet)
-
-The batch-render numbers (0.84× real-time end-to-end) are workable for offline episodes, but they're at least an order of magnitude off the "fifth person in the room" use case. For that we need:
-
-- **Time-to-first-sound well under a second** after the listener finishes their turn, so the panel's reply feels like a response rather than a queued job. For voice-input listeners this compounds with STT latency; for chat-input listeners the TTS is the whole critical path.
-- **Sustained throughput above 1× real-time** with headroom, so the panel can keep replying while the next utterance is still decoding and listeners can interrupt each other naturally.
-- **Quality parity with the named voice** while the reference is a few seconds of recorded audio, because listeners will notice the host sounding subtly different mid-conversation far more than they notice it in a pre-rendered episode.
-
-The speed gap is probably solvable without a model change — Qwen3-TTS has a streaming mode (text-in streaming, audio-out streaming) that we haven't exercised, the 2070 Super is ancient by 2026 standards, and Turing's lack of bf16 is the specific reason we're stuck on fp32 here. On an Ampere or better card with flash-attention enabled and bf16 weights, published numbers for this family comfortably clear 2× RT. The quality gap is less obvious: `x_vector_only_mode` is giving up fidelity we might actually need when a listener's ear is on it and the panel is improvising rather than following a pre-written script. ICL mode was too flaky in batch; in an interactive setting with one carefully-curated reference per voice, it may behave better.
-
-Neither is here today. But the same experiment now has a defined baseline ("at 0.84× RT on a 2070 Super with x-vector cloning, this is what 363 utterances of Bleak House sound like"), and it has provenance machinery that will tell us whether a later-today version is actually better or just different.
+*Part 3 of the Bleak House Unpacked series. Part 1 covers the document-enrichment pipeline; Part 2 covers the optimal-transport matching that turns enrichment into aligned source-target pairs. The interactive-panel experiment will be Part 4.*
