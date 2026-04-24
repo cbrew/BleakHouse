@@ -30,14 +30,55 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Expected gender per speaker name (from persona text / voice config).
+# Used only for sanity-checking extracted clips; the Gemini renderer has
+# voice-drift bugs and a "wrong" F0 here doesn't fail the pipeline — just
+# warns.
+EXPECTED_GENDER: dict[str, str] = {
+    "Host": "female",              # config assigns Sulafat (female Gemini voice)
+    "Eleanor Hartley": "female",
+    "James Blackstone": "male",
+    "Caroline Woodcourt": "female",
+    "Edmund Leigh": "male",
+    "Daniel Rosen": "male",
+    "Oliver Trevelyan": "male",
+    "Sarah Chen": "female",
+    "Rebecca Martinez": "female",
+    "Elena Volkov": "female",
+}
+
+
+def _estimate_gender(wav_path: Path) -> tuple[str, float]:
+    """Return (gender_label, median_f0_hz) for a WAV via librosa.pyin.
+    Label is 'male' if F0 < 165 Hz, 'female' otherwise; 'unknown' if unvoiced."""
+    try:
+        import librosa  # type: ignore[import-not-found]
+        import numpy as np
+    except ImportError:
+        return "unknown", 0.0
+    y, sr = librosa.load(str(wav_path), sr=24000)
+    f0, voiced, _ = librosa.pyin(y, fmin=60, fmax=400, sr=sr)
+    vals = f0[voiced]
+    if vals.size == 0:
+        return "unknown", 0.0
+    med = float(np.nanmedian(vals))
+    return ("male" if med < 165 else "female"), med
+
 
 def _slug(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "_", name).strip("_")
 
 
-def _find_longest_turn_per_speaker(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """For each speaker, return the turn dict with the longest span."""
-    best: dict[str, dict[str, Any]] = {}
+def _find_first_turn_per_speaker(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """For each speaker, return the FIRST turn dict by `start_ms`.
+
+    Why first-not-longest: (1) the Gemini renderer has a voice-assignment
+    drift bug where later turns of a given speaker can come out with the
+    wrong voice. The first turn of each speaker is usually correctly
+    voiced. (2) manifest-to-audio timing drift accumulates over the
+    episode — it's smallest near the start.
+    """
+    first: dict[str, dict[str, Any]] = {}
     for seg in manifest.get("segments", []):
         for t in seg.get("turns", []):
             speaker = t.get("speaker") or "?"
@@ -45,11 +86,13 @@ def _find_longest_turn_per_speaker(manifest: dict[str, Any]) -> dict[str, dict[s
             end = t.get("end_ms")
             if start is None or end is None or end <= start:
                 continue
-            span = end - start
-            prev = best.get(speaker)
-            if prev is None or (prev["end_ms"] - prev["start_ms"]) < span:
-                best[speaker] = dict(t)
-    return best
+            prev = first.get(speaker)
+            if prev is None or start < prev["start_ms"]:
+                first[speaker] = dict(t)
+    return first
+
+
+_find_best_turn_per_speaker = _find_first_turn_per_speaker  # back-compat alias
 
 
 def extract_refs(
@@ -79,7 +122,7 @@ def extract_refs(
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    best_by_speaker = _find_longest_turn_per_speaker(manifest)
+    best_by_speaker = _find_first_turn_per_speaker(manifest)
     out: dict[str, Any] = {
         "run_dir": str(run_dir),
         "audio_path": str(audio_path),
@@ -92,17 +135,22 @@ def extract_refs(
         end_ms = int(turn["end_ms"])
         span_ms = end_ms - start_ms
 
-        # Cap the clip length. Prefer the beginning of the turn (the model
-        # needs only a few seconds of voice; longer doesn't always help and
-        # can introduce other speakers at turn boundaries if timing is off).
-        clip_ms = min(span_ms, int(max_seconds * 1000))
+        # Gemini's render_audio.py has a voice-assignment drift bug: a
+        # speaker's turn start in the manifest doesn't always line up with
+        # when they actually start speaking in podcast.mp3 — the previous
+        # speaker can run several seconds into the next turn's manifest
+        # time. Start ~25% into the turn (or at least 2s past the nominal
+        # start) to skip the drift zone.
+        lead_in_ms = max(2000, span_ms // 4)
+        usable_ms = max(span_ms - lead_in_ms, 0)
+        clip_ms = min(usable_ms, int(max_seconds * 1000))
         if clip_ms < int(min_seconds * 1000):
             logger.warning(
-                "  %s: longest turn is only %.1fs (< min_seconds=%.1f); using as-is",
-                speaker, span_ms / 1000, min_seconds,
+                "  %s: usable span only %.1fs (< min_seconds=%.1f) after %.1fs lead-in",
+                speaker, clip_ms / 1000, min_seconds, lead_in_ms / 1000,
             )
 
-        clip = audio[start_ms:start_ms + clip_ms]
+        clip = audio[start_ms + lead_in_ms: start_ms + lead_in_ms + clip_ms]
 
         slug = _slug(speaker)
         wav_path = out_dir / f"{slug}.wav"
@@ -121,6 +169,16 @@ def extract_refs(
             if cut > 0:
                 ref_text = ref_text[:cut]
 
+        detected_gender, f0_median = _estimate_gender(wav_path)
+        expected = EXPECTED_GENDER.get(speaker, "unknown")
+        gender_ok = expected == "unknown" or detected_gender == expected
+        if not gender_ok:
+            logger.warning(
+                "  %s: expected %s voice, clip sounds %s (F0=%.0fHz) — "
+                "likely Gemini voice-drift bug; clone will inherit the wrong voice",
+                speaker, expected, detected_gender, f0_median,
+            )
+
         sidecar = {
             "speaker": speaker,
             "role": turn.get("role", ""),
@@ -128,6 +186,10 @@ def extract_refs(
             "clip_ms": clip_ms,
             "ref_text": ref_text,
             "wav": wav_path.name,
+            "expected_gender": expected,
+            "detected_gender": detected_gender,
+            "f0_median_hz": round(f0_median, 1) if f0_median else None,
+            "gender_ok": gender_ok,
         }
         with open(out_dir / f"{slug}.json", "w") as f:
             json.dump(sidecar, f, indent=2)
