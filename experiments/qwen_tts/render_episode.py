@@ -123,12 +123,17 @@ def render_episode(
 
                 t0 = time.perf_counter()
                 try:
+                    # x_vector_only_mode=True uses only the speaker embedding
+                    # from the ref clip — faster, and avoids an ICL-path
+                    # stall we observed on certain (ref_audio, ref_text)
+                    # pairings where the code_predictor never emits EOS.
+                    # max_new_tokens capped to keep the failure bounded.
                     audio_list, sr = wrapper.generate_voice_clone(
                         text=text,
                         ref_audio=ref["wav_path"],
-                        ref_text=ref.get("ref_text") or None,
-                        x_vector_only_mode=False,
+                        x_vector_only_mode=True,
                         language="english",
+                        max_new_tokens=1024,
                     )
                     gen_seconds = time.perf_counter() - t0
                     if not audio_list:
