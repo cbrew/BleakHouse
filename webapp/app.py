@@ -982,6 +982,40 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     return summary
 
 
+def _dvc_stale_runs() -> dict[str, list[str]]:
+    """Return {run_id: [stale_stage_phase, ...]} by parsing `dvc status --json`.
+
+    Each DVC stage name is `<phase>@<run_id>` (see dvc.yaml matrix).
+    An empty return dict means everything is fresh. If dvc is unavailable
+    or errors, also returns empty dict — the tracker degrades gracefully
+    rather than breaking on a broken provenance tool.
+    """
+    import subprocess
+    try:
+        proc = subprocess.run(
+            ["uv", "run", "--no-sync", "dvc", "status", "--json"],
+            capture_output=True, text=True, timeout=20, cwd=BASE_DIR,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return {}
+    if proc.returncode != 0 and proc.returncode != 1:
+        # dvc status returns 1 when the graph is dirty — that's fine.
+        return {}
+    try:
+        data = json.loads(proc.stdout or "{}")
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    stale: dict[str, list[str]] = {}
+    for stage_name in data:
+        if "@" not in stage_name:
+            continue
+        phase, run_id = stage_name.split("@", 1)
+        stale.setdefault(run_id, []).append(phase)
+    return stale
+
+
 def _build_cached_snapshot() -> dict:
     runs_dir = DATA_DIR / "runs"
     novels: dict[str, list[dict]] = {}
@@ -990,12 +1024,14 @@ def _build_cached_snapshot() -> dict:
     p25_times: list[float] = []
     p3_times: list[float] = []
     versions_map: dict[str, list[dict]] = {}
+    stale_by_run = _dvc_stale_runs()
 
     if runs_dir.exists():
         for run_dir in sorted(runs_dir.iterdir()):
             if not run_dir.is_dir():
                 continue
             summary = _summarize_run_dir(run_dir)
+            summary["dvc_stale_phases"] = stale_by_run.get(summary["run_id"], [])
             run_summaries[summary["run_id"]] = summary
 
             if summary["title"] and summary["has_audio"]:
@@ -1498,8 +1534,12 @@ function _renderWithGenerator(data, gen) {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 const cdata = encodeURIComponent(JSON.stringify(c));
                 const audio = c.has_audio ? '<span style="font-size:0.7em;color:#27ae60" title="Audio available">&#9835;</span>' : '';
+                const stalePhases = c.dvc_stale_phases || [];
+                const stale = stalePhases.length > 0
+                    ? `<span style="font-size:0.7em;color:#c0392b" title="DVC stale: ${stalePhases.join(', ')}">&#9888;</span>`
+                    : '';
                 html += `<td class="d ${cls}" onclick="showRunDetail(event, '${cdata}')">` +
-                    `<span class="q">${c.q}</span>${audio}<br>` +
+                    `<span class="q">${c.q}</span>${audio}${stale}<br>` +
                     `<span class="r">${c.r}</span><br>` +
                     `<span class="w">${Math.round(c.w/1000)}k</span></td>`;
             }
