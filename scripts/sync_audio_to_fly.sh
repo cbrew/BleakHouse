@@ -99,9 +99,10 @@ echo "    paths-from list: $files_to_sync blob(s)"
 SSH_KEY=$(mktemp -t fly_ssh_key_XXXXXX)
 SSH_KEY_PUB="${SSH_KEY}-cert.pub"
 echo "==> Issuing temporary SSH credential (1h)"
-# fly ssh issue writes to <path> AND <path>-cert.pub — the OpenSSH cert.
-fly ssh issue --hours 1 -a "$APP" --overwrite "$SSH_KEY" >/dev/null
-[ -f "$SSH_KEY" ] || { echo "FAIL: SSH cert not issued" >&2; exit 1; }
+# fly ssh issue is org-scoped, not app-scoped — no -a flag. Writes to
+# <path> (private key) and <path>-cert.pub (signed certificate).
+fly ssh issue --hours 1 --overwrite "$SSH_KEY"
+[ -f "$SSH_KEY" ] || { echo "FAIL: SSH cert not issued at $SSH_KEY" >&2; exit 1; }
 chmod 600 "$SSH_KEY"
 
 machine_state() {
