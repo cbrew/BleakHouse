@@ -2,7 +2,7 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir fastapi uvicorn[standard] pyyaml
+RUN pip install --no-cache-dir fastapi uvicorn[standard] pyyaml dvc
 
 # Copy webapp code
 COPY webapp/ webapp/
