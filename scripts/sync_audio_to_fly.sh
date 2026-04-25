@@ -103,10 +103,11 @@ for mach in $MACHINES; do
     echo "==> Machine $mach"
     ensure_started "$mach"
 
-    # Probe what's already there (one ssh call).
+    # Probe what's already there. Ensure the cache dir exists first
+    # so `find` doesn't error on a missing directory.
     echo "    probing remote cache"
     existing=$(fly ssh console -a "$APP" --machine "$mach" -C \
-        "find $REMOTE_CACHE -type f -printf '%P\n'" 2>/dev/null \
+        "mkdir -p $REMOTE_CACHE && find $REMOTE_CACHE -type f -printf '%P\n'" \
         | tr -d '\r' \
         | awk -F/ 'NF==2 && length($1)==2 {print $1$2}')
     have=$(printf '%s\n' "$existing" | grep -c . || true)
@@ -120,9 +121,6 @@ for mach in $MACHINES; do
         continue
     fi
     echo "    missing on remote: $missing_count"
-
-    # Ensure the cache dir hierarchy exists.
-    fly ssh console -a "$APP" --machine "$mach" -C "mkdir -p $REMOTE_CACHE"
 
     pushed=0
     failed=()
