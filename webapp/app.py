@@ -676,6 +676,67 @@ async def serve_audio(run_id: str, filename: str):
 
 
 # ---------------------------------------------------------------------------
+# Admin: blob upload to the fly volume DVC cache.
+# Bypasses fly ssh entirely; uses the standard HTTPS edge.
+# ---------------------------------------------------------------------------
+
+import hashlib  # noqa: E402
+import os  # noqa: E402
+
+_ADMIN_TOKEN = os.environ.get("ADMIN_UPLOAD_TOKEN", "")
+_HASH_RE = re.compile(r"^[0-9a-f]{32}$")
+VOLUME_CACHE = Path("/app/audio_volume/dvc-cache/files/md5")
+
+
+def _check_admin(request: Request) -> None:
+    if not _ADMIN_TOKEN:
+        raise HTTPException(503, "admin endpoints disabled (no ADMIN_UPLOAD_TOKEN set)")
+    if request.headers.get("x-admin-token") != _ADMIN_TOKEN:
+        raise HTTPException(401, "invalid or missing X-Admin-Token")
+
+
+@app.get("/api/_admin/list-blobs")
+async def list_blobs(request: Request):
+    _check_admin(request)
+    if not VOLUME_CACHE.exists():
+        return {"hashes": [], "machine_id": os.environ.get("FLY_MACHINE_ID", "")}
+    hashes = []
+    for prefix in VOLUME_CACHE.iterdir():
+        if not prefix.is_dir() or len(prefix.name) != 2:
+            continue
+        for blob in prefix.iterdir():
+            if blob.is_file() and not blob.name.startswith("."):
+                hashes.append(prefix.name + blob.name)
+    return {"hashes": sorted(hashes), "machine_id": os.environ.get("FLY_MACHINE_ID", "")}
+
+
+@app.post("/api/_admin/upload-blob")
+async def upload_blob(request: Request, hash: str):
+    _check_admin(request)
+    if not _HASH_RE.match(hash):
+        raise HTTPException(400, "invalid hash format (expect 32 lowercase hex)")
+    data = await request.body()
+    actual = hashlib.md5(data, usedforsecurity=False).hexdigest()
+    if actual != hash:
+        raise HTTPException(
+            400, f"md5 mismatch: declared {hash}, computed {actual}, size {len(data)}"
+        )
+    target = VOLUME_CACHE / hash[:2] / hash[2:]
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Write atomically: tmp file + rename, so a partial write doesn't
+    # leave a corrupt-looking blob the next probe would mistake as done.
+    tmp = target.with_suffix(".tmp")
+    tmp.write_bytes(data)
+    tmp.rename(target)
+    return {
+        "ok": True,
+        "hash": hash,
+        "size": len(data),
+        "machine_id": os.environ.get("FLY_MACHINE_ID", ""),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Experiment tracker (SSE)
 # ---------------------------------------------------------------------------
 
