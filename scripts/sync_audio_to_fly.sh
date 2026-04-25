@@ -124,45 +124,48 @@ for mach in $MACHINES; do
     fi
     echo "    missing on remote: $missing_count"
 
-    pushed=0
-    failed=()
+    # Build a paths-file of cache-relative paths (e.g. "aa/bb1234...").
+    # Single tar stream per machine: keeps the SSH session continuously
+    # active (no auto-stop window), avoids per-blob handshake overhead.
+    # tar -x creates prefix directories on the fly.
+    paths_file=$(mktemp -t bh-tar-paths.XXXXXX)
+    : > "$paths_file"
     for h in $missing; do
         prefix="${h:0:2}"
         suffix="${h:2}"
-        local_path="$LOCAL_BLOBS_DIR/$prefix/$suffix"
-        if [ ! -f "$local_path" ]; then
+        if [ -f "$LOCAL_BLOBS_DIR/$prefix/$suffix" ]; then
+            echo "$prefix/$suffix" >> "$paths_file"
+        else
             echo "    WARN: local blob missing: $prefix/$suffix" >&2
-            continue
         fi
-        attempt=0
-        while : ; do
-            attempt=$((attempt + 1))
-            echo "    [$((pushed + 1))/$missing_count] $prefix/$suffix (attempt $attempt)"
-            # mkdir prefix dir on remote (cheap), then tar-pipe one blob.
-            if fly ssh console -a "$APP" --machine "$mach" -C \
-                    "mkdir -p $REMOTE_CACHE/$prefix" >/dev/null 2>&1 \
-               && tar -cf - -C "$LOCAL_BLOBS_DIR/$prefix" "$suffix" \
-                    | fly ssh console -a "$APP" --machine "$mach" -C \
-                        "tar -xf - -C $REMOTE_CACHE/$prefix"; then
-                pushed=$((pushed + 1))
-                sleep "$INTER_BLOB_PAUSE"
-                break
-            fi
-            if [ "$attempt" -ge "$RETRIES_PER_BLOB" ]; then
-                echo "    GIVE UP on $prefix/$suffix after $attempt attempts" >&2
-                failed+=("$prefix/$suffix")
-                break
-            fi
-            backoff=$((RETRY_BACKOFF_BASE * attempt))
-            echo "    attempt $attempt failed; retrying in ${backoff}s"
-            sleep "$backoff"
-        done
     done
-
-    echo "    machine $mach: pushed $pushed/$missing_count blob(s)"
-    if [ "${#failed[@]}" -gt 0 ]; then
-        echo "    failed: ${failed[*]}" >&2
+    blobs_to_send=$(wc -l < "$paths_file" | tr -d ' ')
+    if [ "$blobs_to_send" = "0" ]; then
+        rm -f "$paths_file"
+        continue
     fi
+    total_bytes=$(du -ch -B1 $(awk -v d="$LOCAL_BLOBS_DIR" '{print d "/" $0}' "$paths_file") 2>/dev/null \
+                  | tail -1 | awk '{print $1}' || echo "?")
+
+    echo "    streaming $blobs_to_send blob(s), ~$((${total_bytes:-0} / 1024 / 1024)) MB → $mach"
+    # Use --checkpoint and --totals so we can watch progress. tar -v
+    # would print one line per file but mix with the network output;
+    # checkpoint emits an unobtrusive progress marker.
+    set +e
+    tar -cf - --totals \
+        --checkpoint=200 --checkpoint-action="ttyout=    .. progress: %{r}T %T %u%n" \
+        -C "$LOCAL_BLOBS_DIR" -T "$paths_file" \
+      | fly ssh console -a "$APP" --machine "$mach" -C "tar -xf - -C $REMOTE_CACHE"
+    rc=${PIPESTATUS[0]}
+    rc_ssh=${PIPESTATUS[1]}
+    set -e
+    rm -f "$paths_file"
+    if [ "$rc" != "0" ] || [ "$rc_ssh" != "0" ]; then
+        echo "    machine $mach: stream ended with tar=$rc fly_ssh=$rc_ssh" >&2
+        echo "    re-run the script — the probe will skip already-extracted blobs" >&2
+        exit 1
+    fi
+    echo "    machine $mach: stream complete"
 done
 
 echo "SUCCESS: sync complete"
