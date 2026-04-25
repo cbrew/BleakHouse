@@ -145,17 +145,70 @@ for mach in $MACHINES; do
         continue
     fi
 
-    echo "    streaming $actual_count blob(s) to $mach"
-    # Single tar | fly ssh tar pipeline.
-    if tar -cf - -C "$LOCAL_BLOBS_DIR" -T "$paths_file" \
-        | fly ssh console -a "$APP" --machine "$mach" -C \
-            "sh -c 'cd $REMOTE_CACHE && tar -xf -'"; then
-        echo "    machine $mach: pushed $actual_count blob(s)"
-    else
-        echo "FAIL: tar pipe to machine $mach errored" >&2
-        rm -f "$paths_file"; exit 1
+    # fly ssh console kills sessions somewhere around 300-500 MB of
+    # cumulative payload, so we chunk into N-blob batches (~200 MB
+    # each) and retry on disconnect.
+    BATCH_SIZE="${BATCH_SIZE:-2}"
+    MAX_RETRIES="${MAX_RETRIES:-3}"
+    pushed_total=0
+    pushed_this_run=0
+    failed=0
+
+    push_chunk() {
+        local chunk_file="$1"
+        local n; n=$(wc -l < "$chunk_file" | tr -d ' ')
+        local attempt=0
+        while [ "$attempt" -lt "$MAX_RETRIES" ]; do
+            attempt=$((attempt + 1))
+            if tar -cf - -C "$LOCAL_BLOBS_DIR" -T "$chunk_file" \
+                 | fly ssh console -a "$APP" --machine "$mach" -C \
+                    "sh -c 'cd $REMOTE_CACHE && tar -xf -'" 2>/dev/null; then
+                return 0
+            fi
+            echo "    chunk push attempt $attempt/$MAX_RETRIES failed; sleeping 5s"
+            sleep 5
+        done
+        return 1
+    }
+
+    chunk_file=$(mktemp -t bh-sync-chunk-XXXXXX)
+    trap 'rm -f "$paths_file" "$chunk_file"' EXIT
+    while IFS= read -r line; do
+        echo "$line" >> "$chunk_file"
+        if [ "$(wc -l < "$chunk_file" | tr -d ' ')" -ge "$BATCH_SIZE" ]; then
+            n=$(wc -l < "$chunk_file" | tr -d ' ')
+            printf "    streaming %d-blob batch (%d/%d done so far)\n" \
+                "$n" "$pushed_total" "$actual_count"
+            if push_chunk "$chunk_file"; then
+                pushed_total=$((pushed_total + n))
+                pushed_this_run=$((pushed_this_run + n))
+            else
+                echo "FAIL: chunk to machine $mach errored after $MAX_RETRIES retries" >&2
+                failed=1; break
+            fi
+            : > "$chunk_file"
+        fi
+    done < "$paths_file"
+
+    # Final partial batch.
+    if [ "$failed" = "0" ] && [ -s "$chunk_file" ]; then
+        n=$(wc -l < "$chunk_file" | tr -d ' ')
+        printf "    streaming final %d-blob batch (%d/%d done so far)\n" \
+            "$n" "$pushed_total" "$actual_count"
+        if push_chunk "$chunk_file"; then
+            pushed_total=$((pushed_total + n))
+        else
+            echo "FAIL: final chunk to machine $mach errored after $MAX_RETRIES retries" >&2
+            failed=1
+        fi
     fi
-    rm -f "$paths_file"
+    rm -f "$paths_file" "$chunk_file"
+
+    if [ "$failed" = "1" ]; then
+        echo "    machine $mach: pushed $pushed_total/$actual_count before failure" >&2
+        exit 1
+    fi
+    echo "    machine $mach: pushed $pushed_total/$actual_count blob(s)"
 done
 
 echo "SUCCESS: sync complete"
