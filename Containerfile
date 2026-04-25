@@ -23,8 +23,10 @@ COPY poster/TheOhioStateUniversity-Scarlet-Vert-RGBHEX.jpg poster/
 COPY poster/lexisplusailogo.png poster/
 COPY poster/screenshots/ poster/screenshots/
 
-# Copy staged demo data (183 runs: 180 tracker grid + 3 interdisciplinary)
-# Audio mp3s are served from a fly volume mounted at /app/data/runs/*/audio/
+# Copy staged demo data (192 runs from the matrix + interdisciplinary +
+# alt-generator + versioned). Now includes 31 dereferenced MP3s
+# (~3 GB) — stage_demo.sh follows symlinks into the DVC cache so the
+# build context has real files.
 COPY demo_data/ data/
 
 EXPOSE 8080
