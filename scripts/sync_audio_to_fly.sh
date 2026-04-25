@@ -99,83 +99,90 @@ ensure_started() {
     return 1
 }
 
+probe_existing_hashes() {
+    local mach="$1"
+    fly ssh console -a "$APP" --machine "$mach" -C "mkdir -p $REMOTE_CACHE"
+    fly ssh console -a "$APP" --machine "$mach" -C \
+        "find $REMOTE_CACHE -type f -printf %P\\n" \
+        | tr -d '\r' \
+        | awk -F/ 'NF==2 && length($1)==2 {print $1$2}' \
+        | sort -u
+}
+
+push_missing_in_one_stream() {
+    # One tar pipe of all currently-missing blobs. Returns the
+    # PIPESTATUS of (tar, fly_ssh) joined with a colon — caller
+    # decides what to do.
+    local mach="$1"
+    local paths_file
+    paths_file=$(mktemp -t bh-tar-paths.XXXXXX)
+    local existing missing
+    existing=$(probe_existing_hashes "$mach")
+    missing=$(comm -23 <(printf '%s\n' "$HASHES" | sort -u) \
+                       <(printf '%s\n' "$existing" | sort -u))
+    : > "$paths_file"
+    for h in $missing; do
+        prefix="${h:0:2}"; suffix="${h:2}"
+        [ -f "$LOCAL_BLOBS_DIR/$prefix/$suffix" ] \
+            && echo "$prefix/$suffix" >> "$paths_file"
+    done
+    local n
+    n=$(wc -l < "$paths_file" | tr -d ' ')
+    if [ "$n" = "0" ]; then
+        rm -f "$paths_file"
+        echo "0:0"
+        return
+    fi
+    echo "    streaming $n blob(s) → $mach" >&2
+    set +e
+    tar -cf - --totals -C "$LOCAL_BLOBS_DIR" -T "$paths_file" \
+      | fly ssh console -a "$APP" --machine "$mach" -C "tar -xvf - -C $REMOTE_CACHE"
+    # Capture all of PIPESTATUS in one go — assigning out of it twice
+    # resets the array between reads.
+    local pstat=("${PIPESTATUS[@]}")
+    set -e
+    rm -f "$paths_file"
+    echo "${pstat[0]:-?}:${pstat[1]:-?}"
+}
+
 for mach in $MACHINES; do
     echo "==> Machine $mach"
     ensure_started "$mach"
 
-    # Probe what's already there. fly ssh -C passes the string as argv
-    # (no shell), so we can't use && or pipes inside one call. Split
-    # into two simple invocations: mkdir first, then find.
-    echo "    probing remote cache"
-    fly ssh console -a "$APP" --machine "$mach" -C "mkdir -p $REMOTE_CACHE"
-    existing=$(fly ssh console -a "$APP" --machine "$mach" -C \
-        "find $REMOTE_CACHE -type f -printf %P\\n" \
-        | tr -d '\r' \
-        | awk -F/ 'NF==2 && length($1)==2 {print $1$2}')
-    have=$(printf '%s\n' "$existing" | grep -c . || true)
-    echo "    already on remote: $have"
+    pass=0
+    MAX_STREAM_PASSES="${MAX_STREAM_PASSES:-25}"
+    while : ; do
+        pass=$((pass + 1))
+        echo "    pass $pass"
+        rc=$(push_missing_in_one_stream "$mach")
+        rc_tar="${rc%:*}"; rc_ssh="${rc#*:}"
 
-    missing=$(comm -23 <(printf '%s\n' "$HASHES" | sort -u) \
-                       <(printf '%s\n' "$existing" | sort -u))
-    missing_count=$(printf '%s\n' "$missing" | grep -c . || true)
-    if [ "$missing_count" = "0" ]; then
-        echo "    machine $mach: up to date"
-        continue
-    fi
-    echo "    missing on remote: $missing_count"
+        existing=$(probe_existing_hashes "$mach")
+        landed=$(printf '%s\n' "$existing" | grep -c . || true)
+        echo "    pass $pass: tar=$rc_tar fly_ssh=$rc_ssh — $landed/$HASH_COUNT blob(s) on remote"
 
-    # Build a paths-file of cache-relative paths (e.g. "aa/bb1234...").
-    # Single tar stream per machine: keeps the SSH session continuously
-    # active (no auto-stop window), avoids per-blob handshake overhead.
-    # tar -x creates prefix directories on the fly.
-    paths_file=$(mktemp -t bh-tar-paths.XXXXXX)
-    : > "$paths_file"
-    for h in $missing; do
-        prefix="${h:0:2}"
-        suffix="${h:2}"
-        if [ -f "$LOCAL_BLOBS_DIR/$prefix/$suffix" ]; then
-            echo "$prefix/$suffix" >> "$paths_file"
-        else
-            echo "    WARN: local blob missing: $prefix/$suffix" >&2
+        if [ "$landed" -ge "$HASH_COUNT" ]; then
+            echo "    machine $mach: complete after $pass pass(es)"
+            break
         fi
+        if [ "$pass" -ge "$MAX_STREAM_PASSES" ]; then
+            echo "FAIL: machine $mach stuck at $landed/$HASH_COUNT after $pass passes" >&2
+            exit 1
+        fi
+        # If the previous pass made no progress, sleep longer to let
+        # any flakiness clear.
+        if [ "${prev_landed:-0}" = "$landed" ]; then
+            echo "    no progress; sleeping 30s before next pass"
+            sleep 30
+        else
+            sleep 5
+        fi
+        prev_landed="$landed"
+        ensure_started "$mach"  # in case auto-stop triggered
     done
-    blobs_to_send=$(wc -l < "$paths_file" | tr -d ' ')
-    if [ "$blobs_to_send" = "0" ]; then
-        rm -f "$paths_file"
-        continue
-    fi
-    echo "    streaming $blobs_to_send blob(s) → $mach"
-
-    # Single tar pipe, all missing blobs. Verbose tar output (one line
-    # per extracted file) on the receiver side so we can watch each
-    # blob land. --totals at the end prints byte/time stats.
-    set +e
-    tar -cf - --totals -C "$LOCAL_BLOBS_DIR" -T "$paths_file" \
-      | fly ssh console -a "$APP" --machine "$mach" -C "tar -xvf - -C $REMOTE_CACHE"
-    rc_tar=${PIPESTATUS[0]}
-    rc_ssh=${PIPESTATUS[1]}
-    set -e
-    rm -f "$paths_file"
-
-    # Verify how many blobs actually landed.
-    landed=$(fly ssh console -a "$APP" --machine "$mach" -C \
-        "find $REMOTE_CACHE -type f -printf %P\\n" \
-        | tr -d '\r' \
-        | awk -F/ 'NF==2 && length($1)==2 {print $1$2}' \
-        | sort -u \
-        | wc -l | tr -d ' ')
-    echo "    machine $mach: tar=$rc_tar fly_ssh=$rc_ssh — $landed/$HASH_COUNT blob(s) on remote"
-    if [ "$landed" -lt "$HASH_COUNT" ]; then
-        echo "    NOT COMPLETE — re-run the script to push the rest" >&2
-        # don't exit — continue to next machine in case it fares better,
-        # then signal failure at end so caller knows.
-        SYNC_INCOMPLETE=1
-    fi
+    unset prev_landed
 done
 
-if [ "${SYNC_INCOMPLETE:-0}" = "1" ]; then
-    echo "FAIL: at least one machine is not fully synced; re-run." >&2
-    exit 1
-fi
+echo "SUCCESS: all machines fully synced"
 
 echo "SUCCESS: sync complete"
