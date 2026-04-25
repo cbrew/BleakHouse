@@ -82,11 +82,13 @@ ssh "$POPHOST" "cd $REMOTE_BASE && rm -rf $REMOTE_REFS_DIR && mkdir -p $REMOTE_R
         --audio $REMOTE_REF_SOURCE"
 
 echo "==> [4/6] render full episode on GPU (this is the slow step)"
+# render_episode.py treats --out as a directory and writes episode.wav
+# + episode.json + segment_NN.wav inside it.
 ssh "$POPHOST" "cd $REMOTE_BASE && rm -rf $REMOTE_OUT_DIR && mkdir -p $REMOTE_OUT_DIR && \
     .venv/bin/python -m experiments.qwen_tts.render_episode \
         --run $REMOTE_RUN_DIR \
         --refs $REMOTE_REFS_DIR \
-        --out $REMOTE_OUT_DIR/episode.wav"
+        --out $REMOTE_OUT_DIR"
 
 echo "==> [5/6] pull episode.wav + episode.json back"
 mkdir -p "$LOCAL_RUN_DIR/audio"
