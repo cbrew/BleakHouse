@@ -162,6 +162,32 @@ def regenerate_phase4_audio(run_id: str) -> None:
     subprocess.run(cmd, check=True, cwd=BASE_DIR)
 
 
+def regenerate_phase4_audio_qwen(run_id: str) -> None:
+    """Render Qwen audio for a run via render_qwen_remote.sh on pop-os.
+
+    Per-run ref source: defaults to data/runs/<run>/audio/podcast.mp3
+    if it exists locally (the Gemini DVC-tracked render). For runs
+    without a current Gemini render committed (e.g.
+    bh_trn_alternatives_hostprep), the dispatcher consults a
+    hand-maintained map below.
+    """
+    import subprocess
+    cfg = _load_cfg(run_id)  # noqa: F841 (sanity check that the run exists)
+
+    # Per-run ref-source override map. Speaker names verified to match
+    # the run's current phase3 before adding an entry here.
+    REF_SOURCE_OVERRIDES: dict[str, str] = {
+        "bh_trn_alternatives_hostprep":
+            "/Volumes/Crucial X9/bleakhouse_audio/_audio_archive/"
+            "ext_v19_all_swapped_hostprep/podcast.mp3",
+    }
+    cmd = ["bash", "scripts/render_qwen_remote.sh", run_id]
+    if run_id in REF_SOURCE_OVERRIDES:
+        cmd.extend(["--ref-source", REF_SOURCE_OVERRIDES[run_id]])
+    print(f"  [dvc-regenerate] $ {' '.join(cmd)}")
+    subprocess.run(cmd, check=True, cwd=BASE_DIR)
+
+
 PHASES = {
     "phase0": regenerate_phase0,
     "phase1": regenerate_phase1,
@@ -171,6 +197,7 @@ PHASES = {
     "phase3": regenerate_phase3,
     "phase4_post": regenerate_phase4_post,
     "phase4_audio": regenerate_phase4_audio,
+    "phase4_audio_qwen": regenerate_phase4_audio_qwen,
 }
 
 

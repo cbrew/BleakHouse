@@ -172,6 +172,30 @@ stages:
         - data/runs/${item}/quote_verification.json:
             cache: false
 
+  # Qwen3-TTS render — runs on a remote GPU host (pop-os.local) via
+  # scripts/render_qwen_remote.sh. Foreach iterates runs that already
+  # have podcast_qwen.mp3 on disk; new renders graduate into the
+  # foreach on the next `generate_runs_yaml` run, same idempotency
+  # pattern as phase4_audio. Code-only deps for now (the Gemini ref
+  # source isn't a uniform local path across runs); a follow-up can
+  # tighten that once the alternatives Gemini render is committed.
+  phase4_audio_qwen:
+    foreach: ${runs_by_id_qwen}
+    do:
+      cmd: uv run python scripts/dvc_regenerate.py phase4_audio_qwen --run ${key}
+      deps:
+        - data/runs/${key}/phase3_episode.json
+        - experiments/qwen_tts/render_episode.py
+        - experiments/qwen_tts/extract_refs.py
+        - scripts/render_qwen_remote.sh
+      params:
+        - speakers
+      outs:
+        - data/runs/${key}/audio/podcast_qwen.mp3:
+            cache: false
+        - data/runs/${key}/audio/manifest_qwen.json:
+            cache: false
+
   phase4_audio:
     foreach: ${run_ids_audio}
     do:

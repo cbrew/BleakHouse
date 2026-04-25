@@ -12,7 +12,7 @@ def test_phases_registered() -> None:
     assert set(PHASES) == {
         "phase0", "phase1", "phase2",
         "phase2_5", "phase2_5_reading_list",
-        "phase3", "phase4_post", "phase4_audio",
+        "phase3", "phase4_post", "phase4_audio", "phase4_audio_qwen",
     }
 
 
