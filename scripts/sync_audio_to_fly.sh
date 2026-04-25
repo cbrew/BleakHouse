@@ -83,7 +83,7 @@ fi
 
 # --- Build the files-from list (cache-relative paths like aa/bb...) ---
 PATHS_FILE=$(mktemp -t bh-sync-paths-XXXXXX)
-trap 'rm -f "$PATHS_FILE" "$SSH_KEY" 2>/dev/null || true; [ -n "${PROXY_PID:-}" ] && kill $PROXY_PID 2>/dev/null || true' EXIT
+trap 'rm -f "$PATHS_FILE" 2>/dev/null || true; [ -n "${PROXY_PID:-}" ] && kill $PROXY_PID 2>/dev/null || true' EXIT
 for h in $HASHES; do
     prefix="${h:0:2}"; suffix="${h:2}"
     if [ -f "$LOCAL_BLOBS_DIR/$prefix/$suffix" ]; then
@@ -95,15 +95,15 @@ done
 files_to_sync=$(wc -l < "$PATHS_FILE" | tr -d ' ')
 echo "    paths-from list: $files_to_sync blob(s)"
 
-# --- Issue a temporary SSH cert ---
-SSH_KEY=$(mktemp -t fly_ssh_key_XXXXXX)
-SSH_KEY_PUB="${SSH_KEY}-cert.pub"
-echo "==> Issuing temporary SSH credential (1h)"
-# fly ssh issue is org-scoped, not app-scoped — no -a flag. Writes to
-# <path> (private key) and <path>-cert.pub (signed certificate).
-fly ssh issue --hours 1 --overwrite "$SSH_KEY"
-[ -f "$SSH_KEY" ] || { echo "FAIL: SSH cert not issued at $SSH_KEY" >&2; exit 1; }
-chmod 600 "$SSH_KEY"
+# --- Issue a temporary SSH cert into ssh-agent ---
+# fly ssh issue is org-scoped (not app-scoped). It refuses to write a
+# key file non-interactively, but happily populates ssh-agent with
+# --agent. ssh/rsync without -i then pick the cert up from the agent.
+ORG="${FLY_ORG:-personal}"
+echo "==> Issuing temporary SSH credential into ssh-agent (1h, org=$ORG)"
+fly ssh issue --hours 1 --agent -o "$ORG" >/dev/null
+ssh-add -L 2>/dev/null | grep -q . \
+    || { echo "FAIL: ssh-agent has no identity after fly ssh issue" >&2; exit 1; }
 
 machine_state() {
     fly machines list -a "$APP" --json 2>/dev/null | python3 -c "
@@ -153,7 +153,7 @@ push_machine() {
         return 1
     fi
 
-    SSH_OPTS="-p $port -i $SSH_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+    SSH_OPTS="-p $port -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
     # mkdir -p the cache root.
     ssh $SSH_OPTS root@127.0.0.1 "mkdir -p $REMOTE_CACHE" \
         || { echo "FAIL: ssh mkdir on $mach" >&2; kill $PROXY_PID 2>/dev/null; PROXY_PID=""; return 1; }
