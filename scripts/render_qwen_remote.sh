@@ -52,6 +52,26 @@ fi
 REF_SOURCE_RESOLVED=$(python3 -c "import pathlib; print(pathlib.Path('$REF_SOURCE').resolve())")
 [ -f "$REF_SOURCE_RESOLVED" ] || { echo "FAIL: ref source resolves to missing $REF_SOURCE_RESOLVED" >&2; exit 1; }
 
+# Rsync retry helper — pop-os.local resolution sometimes flakes (mDNS
+# blip / brief ssh tunnel drop). Up to 5 attempts, exponential backoff,
+# ssh ConnectTimeout caps each attempt.
+rsync_retry() {
+    local n=0 max=5 delay=5
+    while : ; do
+        n=$((n + 1))
+        if rsync -e "ssh -o ConnectTimeout=15" "$@"; then
+            return 0
+        fi
+        if [ "$n" -ge "$max" ]; then
+            echo "FAIL: rsync failed after $n attempts (last args: $*)" >&2
+            return 1
+        fi
+        echo "    rsync attempt $n failed; retrying in ${delay}s" >&2
+        sleep "$delay"
+        delay=$((delay * 2))
+    done
+}
+
 POPHOST="${POPHOST:-cbrew@pop-os.local}"
 REMOTE_BASE="${REMOTE_BASE:-/home/cbrew/bleakhouse-qwen-tts}"
 REMOTE_RUN_DIR="$REMOTE_BASE/run_$RUN"
@@ -61,16 +81,16 @@ REMOTE_REF_SOURCE="$REMOTE_RUN_DIR/audio/podcast.mp3"
 
 echo "==> [1/6] sync run dir + ref source MP3 to $POPHOST"
 ssh "$POPHOST" "mkdir -p $REMOTE_RUN_DIR/audio"
-rsync -a --delete \
+rsync_retry -a --delete \
     --include='phase3_episode.json' --include='config.json' --include='manifest.json' \
     --include='phase2_5_*.json' --include='phase2_plan.json' \
     --exclude='*' \
     "$LOCAL_RUN_DIR/" "$POPHOST:$REMOTE_RUN_DIR/"
-rsync -a "$REF_SOURCE_RESOLVED" "$POPHOST:$REMOTE_REF_SOURCE"
+rsync_retry -a "$REF_SOURCE_RESOLVED" "$POPHOST:$REMOTE_REF_SOURCE"
 echo "    run dir + ref MP3 ($(du -h "$REF_SOURCE_RESOLVED" | awk '{print $1}')) on remote"
 
 echo "==> [2/6] sync renderer code (HEAD) to $POPHOST"
-rsync -a --delete experiments/qwen_tts/ "$POPHOST:$REMOTE_BASE/experiments/qwen_tts/"
+rsync_retry -a --delete experiments/qwen_tts/ "$POPHOST:$REMOTE_BASE/experiments/qwen_tts/"
 
 echo "==> [3/6] extract refs (per-speaker first-turn voice clips, F0-validated)"
 # && chain short-circuits on first failure; ssh returns that exit
@@ -92,9 +112,9 @@ ssh "$POPHOST" "cd $REMOTE_BASE && rm -rf $REMOTE_OUT_DIR && mkdir -p $REMOTE_OU
 
 echo "==> [5/6] pull episode.wav + episode.json back"
 mkdir -p "$LOCAL_RUN_DIR/audio"
-rsync -a --info=progress2 \
+rsync_retry -a --info=progress2 \
     "$POPHOST:$REMOTE_OUT_DIR/episode.wav" "$LOCAL_RUN_DIR/audio/podcast_qwen.wav"
-rsync -a "$POPHOST:$REMOTE_OUT_DIR/episode.json" "$LOCAL_RUN_DIR/audio/manifest_qwen.json"
+rsync_retry -a "$POPHOST:$REMOTE_OUT_DIR/episode.json" "$LOCAL_RUN_DIR/audio/manifest_qwen.json"
 
 echo "==> [6/6] convert wav → mp3 locally"
 # -loglevel error keeps progress lines off but lets real errors through.

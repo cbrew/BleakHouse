@@ -191,8 +191,9 @@ stages:
       params:
         - speakers
       outs:
-        - data/runs/${key}/audio/podcast_qwen.mp3:
-            cache: false
+        # Audio blob caches as DVC-tracked content (matches the phase4_
+        # audio Gemini pattern); manifest stays git-tracked (small json).
+        - data/runs/${key}/audio/podcast_qwen.mp3
         - data/runs/${key}/audio/manifest_qwen.json:
             cache: false
 
