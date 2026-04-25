@@ -1,37 +1,39 @@
 #!/bin/bash
 # Sync DVC cache blobs for phase4_audio outs to the fly audio_data volume
-# via fly-proxy + rsync.
+# via fly-proxy + plain ssh + scp.
 #
-# Why not `fly ssh console + tar pipe`: fly's ssh-console wrapper kills
-# sessions around ~50 MB / 2 minutes per stream. rsync over a fly-proxy
-# tunnel uses TCP directly, handles retries natively, and resumes
-# partial transfers via --partial.
+# Why this transport: fly ssh console + tar pipe has a hard ~50 MB /
+# 2-min ceiling per session. fly proxy <local>:22 <ipv6> exposes the
+# machine's port 22 on localhost, then we use plain ssh+scp over TCP —
+# no fly-ssh wrapper, no session ceiling. Verified 95 MB blob in 70s.
 #
-# Idempotent — rsync will only re-send files whose size/checksum differ.
+# rsync would be nicer (diff + --partial) but the deployed image
+# doesn't have rsync. scp + a manual probe-and-skip is enough.
+#
+# Idempotent: probes the remote cache once per machine and only scp's
+# blobs that are missing.
+#
+# Errors are NOT silenced — if anything goes wrong, you see the message.
 #
 # Usage:
 #   bash scripts/sync_audio_to_fly.sh
-#   bash scripts/sync_audio_to_fly.sh --machine <id>      # single machine
-#   bash scripts/sync_audio_to_fly.sh --dry-run           # report only
-#
-# Prerequisites:
-#   - fly CLI authenticated for app bleakhouse-demo
-#   - rsync installed locally
-#   - DVC cache at the local cache.dir (.dvc/config)
+#   bash scripts/sync_audio_to_fly.sh --machine <id>
+#   bash scripts/sync_audio_to_fly.sh --dry-run
 
 set -euo pipefail
 
 APP="${FLY_APP:-bleakhouse-demo}"
+ORG="${FLY_ORG:-personal}"
 REMOTE_CACHE="/app/audio_volume/dvc-cache/files/md5"
 DRY_RUN=0
 TARGET_MACHINE=""
-PROXY_PORT_BASE="${PROXY_PORT_BASE:-12222}"  # local port for fly proxy
+PROXY_PORT_BASE="${PROXY_PORT_BASE:-12222}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run) DRY_RUN=1; shift ;;
         --machine) TARGET_MACHINE="$2"; shift 2 ;;
-        -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
         *) echo "unknown arg: $1" >&2; exit 2 ;;
     esac
 done
@@ -61,11 +63,11 @@ echo "    found $HASH_COUNT phase4_audio blob hashes"
 [ "$HASH_COUNT" = "0" ] && { echo "nothing to sync"; exit 0; }
 
 echo "==> Resolving target machines (app=$APP)"
+MACHINES_JSON=$(fly machines list -a "$APP" --json)
 if [ -n "$TARGET_MACHINE" ]; then
     MACHINES="$TARGET_MACHINE"
 else
-    MACHINES=$(fly machines list -a "$APP" --json 2>/dev/null \
-        | python3 -c "
+    MACHINES=$(printf '%s' "$MACHINES_JSON" | python3 -c "
 import json, sys
 ms = json.load(sys.stdin)
 for m in ms:
@@ -77,39 +79,38 @@ fi
 echo "    machines: $(echo $MACHINES | tr '\n' ' ')"
 
 if [ "$DRY_RUN" = "1" ]; then
-    echo "--dry-run: would sync $HASH_COUNT blob(s) × $(echo $MACHINES | wc -w | tr -d ' ') machine(s) via fly proxy + rsync"
+    echo "--dry-run: would sync up to $HASH_COUNT blob(s) × $(echo $MACHINES | wc -w | tr -d ' ') machine(s)"
     exit 0
 fi
 
-# --- Build the files-from list (cache-relative paths like aa/bb...) ---
-PATHS_FILE=$(mktemp -t bh-sync-paths-XXXXXX)
-trap 'rm -f "$PATHS_FILE" 2>/dev/null || true; [ -n "${PROXY_PID:-}" ] && kill $PROXY_PID 2>/dev/null || true' EXIT
-for h in $HASHES; do
-    prefix="${h:0:2}"; suffix="${h:2}"
-    if [ -f "$LOCAL_BLOBS_DIR/$prefix/$suffix" ]; then
-        echo "$prefix/$suffix" >> "$PATHS_FILE"
-    else
-        echo "    WARN: local blob missing: $prefix/$suffix" >&2
-    fi
-done
-files_to_sync=$(wc -l < "$PATHS_FILE" | tr -d ' ')
-echo "    paths-from list: $files_to_sync blob(s)"
-
-# --- Issue a temporary SSH cert into ssh-agent ---
-# fly ssh issue is org-scoped (not app-scoped). It refuses to write a
-# key file non-interactively, but happily populates ssh-agent with
-# --agent. ssh/rsync without -i then pick the cert up from the agent.
-ORG="${FLY_ORG:-personal}"
+# --- Issue temp SSH cert into ssh-agent ---
 echo "==> Issuing temporary SSH credential into ssh-agent (1h, org=$ORG)"
-fly ssh issue --hours 1 --agent -o "$ORG" >/dev/null
+fly ssh issue --hours 1 --agent -o "$ORG"
 ssh-add -L 2>/dev/null | grep -q . \
     || { echo "FAIL: ssh-agent has no identity after fly ssh issue" >&2; exit 1; }
 
-machine_state() {
-    fly machines list -a "$APP" --json 2>/dev/null | python3 -c "
+PROXY_PID=""
+PROXY_LOG=$(mktemp -t bh-fly-proxy-XXXXXX.log)
+trap '[ -n "$PROXY_PID" ] && kill $PROXY_PID 2>/dev/null || true; rm -f "$PROXY_LOG"' EXIT
+
+machine_meta() {
+    # $1=machine id, $2=field (state|ipv6)
+    printf '%s' "$MACHINES_JSON" | python3 -c "
 import json, sys
 ms = json.load(sys.stdin)
 for m in ms:
+    if m['id'] == '$1':
+        if '$2' == 'state':
+            print(m['state'])
+        elif '$2' == 'ipv6':
+            print(m.get('private_ip', ''))
+"
+}
+
+machine_state_live() {
+    fly machines list -a "$APP" --json | python3 -c "
+import json, sys
+for m in json.load(sys.stdin):
     if m['id'] == '$1': print(m['state'])
 "
 }
@@ -117,19 +118,18 @@ for m in ms:
 ensure_started() {
     local mach="$1"
     local state
-    state=$(machine_state "$mach")
+    state=$(machine_state_live "$mach")
     if [ "$state" = "started" ]; then return 0; fi
     echo "    starting (was: $state)"
-    fly machines start "$mach" -a "$APP" >/dev/null
-    for _ in $(seq 1 15); do
-        state=$(machine_state "$mach")
+    fly machines start "$mach" -a "$APP"
+    for _ in $(seq 1 20); do
+        state=$(machine_state_live "$mach")
         [ "$state" = "started" ] && return 0
         sleep 2
     done
-    echo "FAIL: machine $mach did not start" >&2; return 1
+    echo "FAIL: machine $mach did not reach started state" >&2
+    return 1
 }
-
-PROXY_PID=""
 
 push_machine() {
     local mach="$1"
@@ -137,47 +137,78 @@ push_machine() {
 
     ensure_started "$mach"
 
-    echo "    starting fly proxy on localhost:$port → $mach:22"
-    fly proxy "$port:22" -a "$APP" --machine "$mach" >/dev/null 2>&1 &
+    local ipv6
+    ipv6=$(machine_meta "$mach" ipv6)
+    [ -n "$ipv6" ] || { echo "FAIL: no IPv6 for $mach" >&2; return 1; }
+    echo "    fly proxy: 127.0.0.1:$port → [$ipv6]:22"
+
+    : > "$PROXY_LOG"
+    fly proxy "$port:22" -a "$APP" "$ipv6" >"$PROXY_LOG" 2>&1 &
     PROXY_PID=$!
 
-    # Wait for the proxy to accept TCP.
+    # Wait for the proxy to bind. fly proxy logs "Proxying ..." when ready.
+    local ready=0
     for _ in $(seq 1 30); do
-        if nc -z 127.0.0.1 "$port" 2>/dev/null; then break; fi
+        if nc -z 127.0.0.1 "$port" 2>/dev/null; then ready=1; break; fi
         sleep 1
     done
-    if ! nc -z 127.0.0.1 "$port" 2>/dev/null; then
-        echo "FAIL: fly proxy didn't open port $port" >&2
-        kill "$PROXY_PID" 2>/dev/null || true
-        PROXY_PID=""
+    if [ "$ready" = "0" ]; then
+        echo "FAIL: fly proxy did not bind 127.0.0.1:$port — proxy log:" >&2
+        cat "$PROXY_LOG" >&2 || true
+        kill "$PROXY_PID" 2>/dev/null || true; PROXY_PID=""
         return 1
     fi
 
-    SSH_OPTS="-p $port -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
-    # mkdir -p the cache root.
-    ssh $SSH_OPTS root@127.0.0.1 "mkdir -p $REMOTE_CACHE" \
-        || { echo "FAIL: ssh mkdir on $mach" >&2; kill $PROXY_PID 2>/dev/null; PROXY_PID=""; return 1; }
+    SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
-    echo "    rsync $files_to_sync blob(s) → $mach"
-    if rsync -av --partial --info=progress2 -R \
-            --files-from="$PATHS_FILE" \
-            -e "ssh $SSH_OPTS" \
-            "$LOCAL_BLOBS_DIR/" "root@127.0.0.1:$REMOTE_CACHE/"; then
-        echo "    machine $mach: rsync ok"
-    else
-        echo "FAIL: rsync to $mach errored" >&2
-        kill $PROXY_PID 2>/dev/null; PROXY_PID=""
-        return 1
+    # 1. Probe existing blobs.
+    echo "    probing remote cache"
+    existing_raw=$(ssh -p "$port" $SSH_OPTS root@127.0.0.1 \
+        "mkdir -p $REMOTE_CACHE && find $REMOTE_CACHE -type f -printf '%P\n'") \
+        || { echo "FAIL: ssh probe failed" >&2; kill $PROXY_PID 2>/dev/null; PROXY_PID=""; return 1; }
+    existing_hashes=$(printf '%s\n' "$existing_raw" | tr -d '\r' \
+        | awk -F/ 'NF==2 && length($1)==2 {print $1$2}')
+    have_count=$(printf '%s\n' "$existing_hashes" | grep -c . || true)
+    echo "    existing on remote: $have_count"
+
+    # 2. Compute missing list.
+    missing=$(comm -23 <(printf '%s\n' "$HASHES" | sort -u) \
+                       <(printf '%s\n' "$existing_hashes" | sort -u))
+    missing_count=$(printf '%s\n' "$missing" | grep -c . || true)
+    if [ "$missing_count" = "0" ]; then
+        echo "    machine $mach: already up to date"
+        kill "$PROXY_PID" 2>/dev/null || true; PROXY_PID=""
+        return 0
     fi
+    echo "    missing on remote: $missing_count"
 
-    kill "$PROXY_PID" 2>/dev/null || true
-    PROXY_PID=""
+    # 3. scp each missing blob (one ssh session per blob; fly proxy
+    #    keeps the connection layer stable so this works fine).
+    pushed=0
+    for h in $missing; do
+        prefix="${h:0:2}"; suffix="${h:2}"
+        local_path="$LOCAL_BLOBS_DIR/$prefix/$suffix"
+        if [ ! -f "$local_path" ]; then
+            echo "    WARN: local blob missing: $prefix/$suffix" >&2
+            continue
+        fi
+        echo "    [$((pushed + 1))/$missing_count] $prefix/$suffix"
+        ssh -p "$port" $SSH_OPTS root@127.0.0.1 "mkdir -p $REMOTE_CACHE/$prefix" \
+            || { echo "FAIL: mkdir for $prefix failed" >&2; kill $PROXY_PID 2>/dev/null; PROXY_PID=""; return 1; }
+        scp -P "$port" $SSH_OPTS \
+            "$local_path" "root@127.0.0.1:$REMOTE_CACHE/$prefix/$suffix" \
+            || { echo "FAIL: scp $prefix/$suffix failed" >&2; kill $PROXY_PID 2>/dev/null; PROXY_PID=""; return 1; }
+        pushed=$((pushed + 1))
+    done
+    echo "    machine $mach: pushed $pushed/$missing_count blob(s)"
+
+    kill "$PROXY_PID" 2>/dev/null || true; PROXY_PID=""
 }
 
 port="$PROXY_PORT_BASE"
 for mach in $MACHINES; do
     echo "==> Machine $mach"
-    push_machine "$mach" "$port" || exit 1
+    push_machine "$mach" "$port"
     port=$((port + 1))
 done
 
