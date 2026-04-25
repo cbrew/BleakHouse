@@ -52,27 +52,24 @@ for run in $DEMO_RUNS; do
         [ -f "$src/$f" ] && cp "$src/$f" "$dst/"
     done
 
-    # Copy audio manifests. For the classic manifest.json, prefer the
-    # external drive (authoritative) over the run-local copy. Then merge
-    # any per-profile manifests (manifest_{profile}.json) from BOTH
-    # locations — external wins on conflict.
-    AUDIO_SRC="${PODCAST_AUDIO_DIR:-/Volumes/Crucial X9/bleakhouse_audio}"
-    if [ -f "$AUDIO_SRC/$run/manifest.json" ] || [ -f "$src/audio/manifest.json" ] \
-       || ls "$AUDIO_SRC/$run"/manifest_*.json >/dev/null 2>&1 \
-       || ls "$src/audio"/manifest_*.json >/dev/null 2>&1; then
+    # Copy the per-run audio manifest from the canonical local path.
+    # (Pre-2026-04-25 the script also looked at PODCAST_AUDIO_DIR; that
+    # layout no longer exists post audio-reorg — the canonical location
+    # is data/runs/<run>/audio/manifest.json.)
+    if [ -f "$src/audio/manifest.json" ]; then
         mkdir -p "$dst/audio"
-        if [ -f "$AUDIO_SRC/$run/manifest.json" ]; then
-            cp "$AUDIO_SRC/$run/manifest.json" "$dst/audio/"
-        elif [ -f "$src/audio/manifest.json" ]; then
-            cp "$src/audio/manifest.json" "$dst/audio/"
-        fi
-        # Local first, then external (external overwrites on conflict).
-        for extra in "$src/audio"/manifest_*.json; do
-            [ -f "$extra" ] && cp "$extra" "$dst/audio/"
-        done
-        for extra in "$AUDIO_SRC/$run"/manifest_*.json; do
-            [ -f "$extra" ] && cp "$extra" "$dst/audio/"
-        done
+        cp "$src/audio/manifest.json" "$dst/audio/"
+    fi
+    for extra in "$src/audio"/manifest_*.json; do
+        [ -f "$extra" ] && mkdir -p "$dst/audio" && cp "$extra" "$dst/audio/"
+    done
+
+    # Copy the MP3 itself with -L so symlinks into the DVC cache get
+    # dereferenced — the staged demo_data/ is the build context for
+    # podman, which can't follow symlinks pointing outside it.
+    if [ -L "$src/audio/podcast.mp3" ] || [ -f "$src/audio/podcast.mp3" ]; then
+        mkdir -p "$dst/audio"
+        cp -L "$src/audio/podcast.mp3" "$dst/audio/podcast.mp3"
     fi
 
     count=$((count + 1))
