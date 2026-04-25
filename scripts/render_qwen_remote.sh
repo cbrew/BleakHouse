@@ -59,7 +59,7 @@ REMOTE_REFS_DIR="$REMOTE_BASE/refs_$RUN"
 REMOTE_OUT_DIR="$REMOTE_BASE/out_$RUN"
 REMOTE_REF_SOURCE="$REMOTE_RUN_DIR/audio/podcast.mp3"
 
-echo "==> [1/6] sync run dir + ref source to $POPHOST"
+echo "==> [1/6] sync run dir + ref source MP3 to $POPHOST"
 ssh "$POPHOST" "mkdir -p $REMOTE_RUN_DIR/audio"
 rsync -a --delete \
     --include='phase3_episode.json' --include='config.json' --include='manifest.json' \
@@ -73,18 +73,20 @@ echo "==> [2/6] sync renderer code (HEAD) to $POPHOST"
 rsync -a --delete experiments/qwen_tts/ "$POPHOST:$REMOTE_BASE/experiments/qwen_tts/"
 
 echo "==> [3/6] extract refs (per-speaker first-turn voice clips, F0-validated)"
+# && chain short-circuits on first failure; ssh returns that exit
+# code. The earlier version's `| tail -30` masked the python error.
 ssh "$POPHOST" "cd $REMOTE_BASE && rm -rf $REMOTE_REFS_DIR && mkdir -p $REMOTE_REFS_DIR && \
     .venv/bin/python -m experiments.qwen_tts.extract_refs \
         --run $REMOTE_RUN_DIR \
         --out $REMOTE_REFS_DIR \
-        --audio $REMOTE_REF_SOURCE 2>&1 | tail -30"
+        --audio $REMOTE_REF_SOURCE"
 
 echo "==> [4/6] render full episode on GPU (this is the slow step)"
 ssh "$POPHOST" "cd $REMOTE_BASE && rm -rf $REMOTE_OUT_DIR && mkdir -p $REMOTE_OUT_DIR && \
     .venv/bin/python -m experiments.qwen_tts.render_episode \
         --run $REMOTE_RUN_DIR \
         --refs $REMOTE_REFS_DIR \
-        --out $REMOTE_OUT_DIR/episode.wav 2>&1 | tail -10"
+        --out $REMOTE_OUT_DIR/episode.wav"
 
 echo "==> [5/6] pull episode.wav + episode.json back"
 mkdir -p "$LOCAL_RUN_DIR/audio"
