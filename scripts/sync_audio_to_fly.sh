@@ -147,17 +147,42 @@ for mach in $MACHINES; do
         exit 1
     fi
 
-    SSH_CMD="ssh -p $port -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+    SSH_CMD="ssh -p $port -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
     $SSH_CMD root@127.0.0.1 "mkdir -p $REMOTE_CACHE"
 
-    echo "    rsync $files_to_sync blob(s) → $mach"
-    rsync -av --partial --info=progress2 -R \
-        --files-from="$PATHS_FILE" \
-        -e "$SSH_CMD" \
-        "$LOCAL_BLOBS_DIR/" \
-        "root@127.0.0.1:$REMOTE_CACHE/"
+    # fly's wireguard tunnel drops SSH after ~5-10 min. rsync --partial
+    # resumes from where it left off, so we just keep retrying until
+    # rsync reports clean (no more bytes to transfer).
+    attempt=0
+    MAX_RSYNC_ATTEMPTS="${MAX_RSYNC_ATTEMPTS:-30}"
+    while : ; do
+        attempt=$((attempt + 1))
+        echo "    rsync attempt $attempt → $mach"
+        if rsync -av --partial --info=progress2 -R \
+                --files-from="$PATHS_FILE" \
+                -e "$SSH_CMD" \
+                "$LOCAL_BLOBS_DIR/" \
+                "root@127.0.0.1:$REMOTE_CACHE/"; then
+            echo "    machine $mach: rsync ok (after $attempt attempt(s))"
+            break
+        fi
+        if [ "$attempt" -ge "$MAX_RSYNC_ATTEMPTS" ]; then
+            echo "FAIL: rsync gave up on $mach after $attempt attempts" >&2
+            exit 1
+        fi
+        echo "    rsync attempt $attempt failed; restarting fly proxy + retrying in 10s"
+        sleep 10
+        # Restart fly proxy — the previous tunnel is likely dead.
+        kill "$PROXY_PID" 2>/dev/null || true
+        : > "$PROXY_LOG"
+        fly proxy "$port:22" -a "$APP" "$ipv6" >"$PROXY_LOG" 2>&1 &
+        PROXY_PID=$!
+        for _ in $(seq 1 30); do
+            nc -z 127.0.0.1 "$port" 2>/dev/null && break
+            sleep 1
+        done
+    done
 
-    echo "    machine $mach: rsync ok"
     kill "$PROXY_PID" 2>/dev/null || true
     PROXY_PID=""
     port=$((port + 1))
