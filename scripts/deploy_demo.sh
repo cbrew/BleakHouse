@@ -12,8 +12,10 @@
 #   2. podman build -t bleakhouse-demo -f Containerfile .
 #   3. podman run + curl /tracker + /tracker/data (fail-loud on any error
 #      in container logs)
-#   4. fly deploy --local-only
-#   5. curl the public URL's /tracker; fail-loud on non-200
+#   4. sync_audio_to_fly.sh — push DVC audio blobs to the fly volume(s)
+#      so the deployed container's audio symlinks resolve. Idempotent.
+#   5. fly deploy --local-only
+#   6. curl the public URL's /tracker; fail-loud on non-200
 #
 # Any failure aborts. No step is optional.
 #
@@ -45,7 +47,7 @@ done
 
 cd "$(dirname "$0")/.."
 
-echo "==> [0/6] DVC provenance check"
+echo "==> [0/7] DVC provenance check"
 if uv run --no-sync dvc status 2>/dev/null | grep -q "up to date"; then
     echo "    dvc status clean"
 else
@@ -63,13 +65,13 @@ else
     fi
 fi
 
-echo "==> [1/6] Staging demo data"
+echo "==> [1/7] Staging demo data"
 bash scripts/stage_demo.sh demo_data
 
-echo "==> [2/6] Building container image ($IMAGE_TAG)"
+echo "==> [2/7] Building container image ($IMAGE_TAG)"
 podman build -t "$IMAGE_TAG" -f Containerfile .
 
-echo "==> [3/6] Running container locally on port $LOCAL_PORT and probing"
+echo "==> [3/7] Running container locally on port $LOCAL_PORT and probing"
 podman rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 podman run -d --name "$CONTAINER_NAME" -p "${LOCAL_PORT}:8080" "$IMAGE_TAG" >/dev/null
 
@@ -142,10 +144,13 @@ fi
 cleanup
 trap - EXIT
 
-echo "==> [4/6] fly deploy --local-only (app: $APP)"
+echo "==> [4/7] Sync DVC audio cache to fly volume(s)"
+bash scripts/sync_audio_to_fly.sh
+
+echo "==> [5/7] fly deploy --local-only (app: $APP)"
 fly deploy --local-only --app "$APP"
 
-echo "==> [5/6] Post-deploy smoke test: $PUBLIC_URL/tracker"
+echo "==> [6/7] Post-deploy smoke test: $PUBLIC_URL/tracker"
 # Machines may take a few seconds to accept traffic.
 for i in $(seq 1 15); do
     code=$(curl --max-time 15 -s -o /dev/null -w "%{http_code}" "${PUBLIC_URL}/tracker" || echo 000)
