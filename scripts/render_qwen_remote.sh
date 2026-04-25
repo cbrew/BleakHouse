@@ -52,8 +52,8 @@ fi
 REF_SOURCE_RESOLVED=$(python3 -c "import pathlib; print(pathlib.Path('$REF_SOURCE').resolve())")
 [ -f "$REF_SOURCE_RESOLVED" ] || { echo "FAIL: ref source resolves to missing $REF_SOURCE_RESOLVED" >&2; exit 1; }
 
-# Rsync retry helper — pop-os.local resolution sometimes flakes (mDNS
-# blip / brief ssh tunnel drop). Up to 5 attempts, exponential backoff,
+# Retry helpers — pop-os.local resolution sometimes flakes (mDNS blip
+# / brief ssh tunnel drop). Up to 5 attempts, exponential backoff,
 # ssh ConnectTimeout caps each attempt.
 rsync_retry() {
     local n=0 max=5 delay=5
@@ -72,6 +72,30 @@ rsync_retry() {
     done
 }
 
+# For short-lived ssh commands (mkdir, ls, extract_refs). NOT used for
+# the long render — that uses ServerAliveInterval inline so an mid-
+# flight idle disconnect doesn't kill 2h of GPU work mid-utterance.
+ssh_retry() {
+    local n=0 max=5 delay=5
+    while : ; do
+        n=$((n + 1))
+        if ssh -o ConnectTimeout=15 "$@"; then
+            return 0
+        fi
+        if [ "$n" -ge "$max" ]; then
+            echo "FAIL: ssh failed after $n attempts (last args: $*)" >&2
+            return 1
+        fi
+        echo "    ssh attempt $n failed; retrying in ${delay}s" >&2
+        sleep "$delay"
+        delay=$((delay * 2))
+    done
+}
+
+# Long-running render needs aggressive keep-alives so the SSH session
+# survives idle gaps between log lines without dropping.
+SSH_KEEPALIVE_OPTS="-o ServerAliveInterval=30 -o ServerAliveCountMax=10 -o ConnectTimeout=15"
+
 POPHOST="${POPHOST:-cbrew@pop-os.local}"
 REMOTE_BASE="${REMOTE_BASE:-/home/cbrew/bleakhouse-qwen-tts}"
 REMOTE_RUN_DIR="$REMOTE_BASE/run_$RUN"
@@ -80,7 +104,7 @@ REMOTE_OUT_DIR="$REMOTE_BASE/out_$RUN"
 REMOTE_REF_SOURCE="$REMOTE_RUN_DIR/audio/podcast.mp3"
 
 echo "==> [1/6] sync run dir + ref source MP3 to $POPHOST"
-ssh "$POPHOST" "mkdir -p $REMOTE_RUN_DIR/audio"
+ssh_retry "$POPHOST" "mkdir -p $REMOTE_RUN_DIR/audio"
 rsync_retry -a --delete \
     --include='phase3_episode.json' --include='config.json' --include='manifest.json' \
     --include='phase2_5_*.json' --include='phase2_plan.json' \
@@ -94,8 +118,9 @@ rsync_retry -a --delete experiments/qwen_tts/ "$POPHOST:$REMOTE_BASE/experiments
 
 echo "==> [3/6] extract refs (per-speaker first-turn voice clips, F0-validated)"
 # && chain short-circuits on first failure; ssh returns that exit
-# code. The earlier version's `| tail -30` masked the python error.
-ssh "$POPHOST" "cd $REMOTE_BASE && rm -rf $REMOTE_REFS_DIR && mkdir -p $REMOTE_REFS_DIR && \
+# code. extract_refs is fast (~minute) so ssh_retry is fine: a re-run
+# would just redo the same work.
+ssh_retry "$POPHOST" "cd $REMOTE_BASE && rm -rf $REMOTE_REFS_DIR && mkdir -p $REMOTE_REFS_DIR && \
     .venv/bin/python -m experiments.qwen_tts.extract_refs \
         --run $REMOTE_RUN_DIR \
         --out $REMOTE_REFS_DIR \
@@ -103,8 +128,10 @@ ssh "$POPHOST" "cd $REMOTE_BASE && rm -rf $REMOTE_REFS_DIR && mkdir -p $REMOTE_R
 
 echo "==> [4/6] render full episode on GPU (this is the slow step)"
 # render_episode.py treats --out as a directory and writes episode.wav
-# + episode.json + segment_NN.wav inside it.
-ssh "$POPHOST" "cd $REMOTE_BASE && rm -rf $REMOTE_OUT_DIR && mkdir -p $REMOTE_OUT_DIR && \
+# + episode.json + segment_NN.wav inside it. NOT wrapped in ssh_retry —
+# a connection blip mid-render would re-launch a fresh 2h render. The
+# keepalive opts prevent idle-disconnects in the first place.
+ssh $SSH_KEEPALIVE_OPTS "$POPHOST" "cd $REMOTE_BASE && rm -rf $REMOTE_OUT_DIR && mkdir -p $REMOTE_OUT_DIR && \
     .venv/bin/python -m experiments.qwen_tts.render_episode \
         --run $REMOTE_RUN_DIR \
         --refs $REMOTE_REFS_DIR \
