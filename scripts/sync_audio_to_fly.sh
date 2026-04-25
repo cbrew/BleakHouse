@@ -150,9 +150,10 @@ for mach in $MACHINES; do
     SSH_CMD="ssh -p $port -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
     $SSH_CMD root@127.0.0.1 "mkdir -p $REMOTE_CACHE"
 
-    # fly's wireguard tunnel drops SSH after ~5-10 min. rsync --partial
-    # resumes from where it left off, so we just keep retrying until
-    # rsync reports clean (no more bytes to transfer).
+    # The SSH session dies periodically (fly's wireguard tunnel drops
+    # the connection); rsync --partial resumes the interrupted file in
+    # the next attempt. The fly proxy itself usually stays alive — only
+    # restart it if it's actually dead.
     attempt=0
     MAX_RSYNC_ATTEMPTS="${MAX_RSYNC_ATTEMPTS:-30}"
     while : ; do
@@ -170,17 +171,32 @@ for mach in $MACHINES; do
             echo "FAIL: rsync gave up on $mach after $attempt attempts" >&2
             exit 1
         fi
-        echo "    rsync attempt $attempt failed; restarting fly proxy + retrying in 10s"
-        sleep 10
-        # Restart fly proxy — the previous tunnel is likely dead.
-        kill "$PROXY_PID" 2>/dev/null || true
-        : > "$PROXY_LOG"
-        fly proxy "$port:22" -a "$APP" "$ipv6" >"$PROXY_LOG" 2>&1 &
-        PROXY_PID=$!
-        for _ in $(seq 1 30); do
-            nc -z 127.0.0.1 "$port" 2>/dev/null && break
-            sleep 1
-        done
+
+        # Probe whether the proxy is still listening. Usually yes — the
+        # SSH session died but fly proxy itself is still up. Only
+        # restart on the rare case the proxy actually died.
+        sleep 5
+        if nc -z 127.0.0.1 "$port" 2>/dev/null; then
+            echo "    rsync attempt $attempt: ssh died, proxy still up; retrying"
+        else
+            echo "    rsync attempt $attempt: proxy dead; restarting on port $((port + 100))"
+            kill "$PROXY_PID" 2>/dev/null || true
+            port=$((port + 100))  # fresh port to avoid TIME_WAIT
+            : > "$PROXY_LOG"
+            fly proxy "$port:22" -a "$APP" "$ipv6" >"$PROXY_LOG" 2>&1 &
+            PROXY_PID=$!
+            for _ in $(seq 1 30); do
+                nc -z 127.0.0.1 "$port" 2>/dev/null && break
+                sleep 1
+            done
+            if ! nc -z 127.0.0.1 "$port" 2>/dev/null; then
+                echo "FAIL: fly proxy did not rebind on port $port" >&2
+                cat "$PROXY_LOG" >&2 || true
+                exit 1
+            fi
+            # SSH command needs the new port too.
+            SSH_CMD="ssh -p $port -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
+        fi
     done
 
     kill "$PROXY_PID" 2>/dev/null || true
