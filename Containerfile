@@ -2,7 +2,9 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir fastapi uvicorn[standard] pyyaml dvc
+RUN apt-get update && apt-get install -y --no-install-recommends rsync \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir fastapi uvicorn[standard] pyyaml dvc
 
 # Copy webapp code
 COPY webapp/ webapp/
