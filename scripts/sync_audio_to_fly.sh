@@ -103,11 +103,13 @@ for mach in $MACHINES; do
     echo "==> Machine $mach"
     ensure_started "$mach"
 
-    # Probe what's already there. Ensure the cache dir exists first
-    # so `find` doesn't error on a missing directory.
+    # Probe what's already there. fly ssh -C passes the string as argv
+    # (no shell), so we can't use && or pipes inside one call. Split
+    # into two simple invocations: mkdir first, then find.
     echo "    probing remote cache"
+    fly ssh console -a "$APP" --machine "$mach" -C "mkdir -p $REMOTE_CACHE"
     existing=$(fly ssh console -a "$APP" --machine "$mach" -C \
-        "mkdir -p $REMOTE_CACHE && find $REMOTE_CACHE -type f -printf '%P\n'" \
+        "find $REMOTE_CACHE -type f -printf %P\\n" \
         | tr -d '\r' \
         | awk -F/ 'NF==2 && length($1)==2 {print $1$2}')
     have=$(printf '%s\n' "$existing" | grep -c . || true)
