@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
 import time
 from pathlib import Path
@@ -31,11 +30,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-# Authoritative location for podcast audio (MP3s and audio manifests).
-# On Fly this is the persistent volume; locally it defaults to the external drive.
-PODCAST_AUDIO_DIR = Path(
-    os.environ.get("PODCAST_AUDIO_DIR", "/Volumes/Crucial X9/bleakhouse_audio")
-)
+# Audio lives at data/runs/<run>/audio/ — locally this is a symlink
+# into the DVC cache; in the container it's a real file bundled from
+# the staged demo_data/ tree. There used to be a PODCAST_AUDIO_DIR
+# env override pointing at a separate volume; that layout has been
+# folded into the canonical path.
 
 app = FastAPI(title="Literary Podcast Player")
 
@@ -139,20 +138,14 @@ def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]
     if not runs_dir.exists():
         return novels
     for run_dir in sorted(runs_dir.iterdir()):
-        ext_audio = PODCAST_AUDIO_DIR / run_dir.name / "podcast.mp3"
         audio_manifest = run_dir / "audio" / "manifest.json"
         run_manifest = run_dir / "manifest.json"
 
-        has_audio = ext_audio.exists() or audio_manifest.exists()
+        has_audio = audio_manifest.exists()
         if not has_audio and not include_scriptonly:
             continue
 
-        ext_manifest = PODCAST_AUDIO_DIR / run_dir.name / "manifest.json"
-        manifest_path = (
-            ext_manifest if ext_manifest.exists()
-            else audio_manifest if audio_manifest.exists()
-            else run_manifest
-        )
+        manifest_path = audio_manifest if audio_manifest.exists() else run_manifest
         if not manifest_path.exists():
             continue
 
@@ -562,13 +555,10 @@ def _available_versions(run_id: str) -> list[str]:
 
     "classic" if manifest.json exists, plus any manifest_{name}.json files.
     """
-    ext_dir = PODCAST_AUDIO_DIR / run_id
     local_dir = DATA_DIR / "runs" / run_id / "audio"
     found: set[str] = set()
-    for d in (ext_dir, local_dir):
-        if not d.exists():
-            continue
-        for p in d.iterdir():
+    if local_dir.exists():
+        for p in local_dir.iterdir():
             if p.name == "manifest.json":
                 found.add("classic")
             elif p.name.startswith("manifest_") and p.suffix == ".json":
@@ -581,7 +571,6 @@ async def get_manifest(run_id: str, version: str = "classic"):
     if not _PROFILE_RE.match(version):
         raise HTTPException(400, "Invalid version")
     filename = "manifest.json" if version == "classic" else f"manifest_{version}.json"
-    ext_manifest = PODCAST_AUDIO_DIR / run_id / filename
     audio_manifest = DATA_DIR / "runs" / run_id / "audio" / filename
     # Only fall back to run-level manifest.json for the default classic version.
     run_manifest = (
@@ -589,7 +578,7 @@ async def get_manifest(run_id: str, version: str = "classic"):
         if version == "classic"
         else None
     )
-    candidates = [ext_manifest, audio_manifest]
+    candidates = [audio_manifest]
     if run_manifest is not None:
         candidates.append(run_manifest)
     for candidate in candidates:
@@ -680,10 +669,7 @@ KOKORO_CACHE = AUDIO_VOLUME / "kokoro_cache"
 async def serve_audio(run_id: str, filename: str):
     if ".." in run_id or ".." in filename:
         raise HTTPException(400, "Invalid path")
-    # Check authoritative audio dir first, then run-local audio
-    audio_path = PODCAST_AUDIO_DIR / run_id / filename
-    if not audio_path.exists():
-        audio_path = DATA_DIR / "runs" / run_id / "audio" / filename
+    audio_path = DATA_DIR / "runs" / run_id / "audio" / filename
     if not audio_path.exists():
         raise HTTPException(404, f"Audio file not found: {filename}")
     return FileResponse(str(audio_path), media_type="audio/mpeg")
@@ -853,17 +839,16 @@ async def tracker_data():
 def _summarize_run_dir(run_dir: Path) -> dict:
     """Build one cached summary for a run directory."""
     name = run_dir.name
-    ext_audio_manifest = PODCAST_AUDIO_DIR / name / "manifest.json"
     audio_manifest_path = run_dir / "audio" / "manifest.json"
     run_manifest_path = run_dir / "manifest.json"
+    audio_mp3_path = run_dir / "audio" / "podcast.mp3"
     episode_path = run_dir / "phase3_episode.json"
     config_path = run_dir / "config.json"
     reading_list_path = run_dir / "phase2_5_reading_list.json"
     report_path = run_dir / "report.html"
 
     manifest = (
-        _load_json(ext_audio_manifest)
-        or _load_json(audio_manifest_path)
+        _load_json(audio_manifest_path)
         or _load_json(run_manifest_path)
     )
     episode = _load_json(episode_path) if episode_path.exists() else None
@@ -873,10 +858,7 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     novel = title.replace(": A Literary Discussion", "")
     base_name, version = _parse_version(name)
     condition, panel, hostprep, _generator = _classify_run(run_dir)
-    has_audio = (
-        (PODCAST_AUDIO_DIR / name / "podcast.mp3").exists()
-        or audio_manifest_path.exists()
-    )
+    has_audio = audio_mp3_path.exists() or audio_manifest_path.exists()
     has_host_prep = (run_dir / "phase2_5_host_briefs.json").exists()
 
     summary = {
