@@ -95,8 +95,9 @@ rsync -a --info=progress2 \
 rsync -a "$POPHOST:$REMOTE_OUT_DIR/episode.json" "$LOCAL_RUN_DIR/audio/manifest_qwen.json"
 
 echo "==> [6/6] convert wav → mp3 locally"
-ffmpeg -y -i "$LOCAL_RUN_DIR/audio/podcast_qwen.wav" \
-    -b:a 192k "$LOCAL_RUN_DIR/audio/podcast_qwen.mp3" 2>&1 | tail -3
+# -loglevel error keeps progress lines off but lets real errors through.
+ffmpeg -y -loglevel error -i "$LOCAL_RUN_DIR/audio/podcast_qwen.wav" \
+    -b:a 192k "$LOCAL_RUN_DIR/audio/podcast_qwen.mp3"
 rm "$LOCAL_RUN_DIR/audio/podcast_qwen.wav"
 
 ls -la "$LOCAL_RUN_DIR/audio/podcast_qwen.mp3" "$LOCAL_RUN_DIR/audio/manifest_qwen.json"
