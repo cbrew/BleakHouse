@@ -12,8 +12,8 @@
 #   2. podman build -t bleakhouse-demo -f Containerfile .
 #   3. podman run + curl /tracker + /tracker/data (fail-loud on any error
 #      in container logs)
-#   4. sync_audio_to_fly.sh — push DVC audio blobs to the fly volume(s)
-#      so the deployed container's audio symlinks resolve. Idempotent.
+#   4. sync_audio_via_http.py — push DVC audio blobs (Gemini + Qwen)
+#      to the fly volume(s) via HTTPS POST. Idempotent.
 #   5. fly deploy --local-only
 #   6. curl the public URL's /tracker; fail-loud on non-200
 #
@@ -144,8 +144,16 @@ fi
 cleanup
 trap - EXIT
 
-echo "==> [4/7] Sync DVC audio cache to fly volume(s)"
-bash scripts/sync_audio_to_fly.sh
+echo "==> [4/7] Sync DVC audio cache to fly volume(s) via HTTPS"
+# ADMIN_UPLOAD_TOKEN must match the fly secret. Stored locally at
+# ~/.bh-fly-admin-token by the deploy operator.
+if [ -z "${ADMIN_UPLOAD_TOKEN:-}" ] && [ -f "$HOME/.bh-fly-admin-token" ]; then
+    ADMIN_UPLOAD_TOKEN=$(cat "$HOME/.bh-fly-admin-token")
+    export ADMIN_UPLOAD_TOKEN
+fi
+[ -n "${ADMIN_UPLOAD_TOKEN:-}" ] \
+    || { echo "FAIL: ADMIN_UPLOAD_TOKEN not set and ~/.bh-fly-admin-token not found" >&2; exit 1; }
+uv run python -m scripts.sync_audio_via_http
 
 echo "==> [5/7] fly deploy --local-only (app: $APP)"
 fly deploy --local-only --app "$APP"
