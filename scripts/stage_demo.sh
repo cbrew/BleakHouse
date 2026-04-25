@@ -65,26 +65,25 @@ for run in $DEMO_RUNS; do
     done
 
     # Audio-symlink rewrite for the container build context.
-    # Locally, $src/audio/podcast.mp3 is a symlink pointing into the
+    # Locally, $src/audio/podcast*.mp3 is a symlink pointing into the
     # DVC cache on the external volume. We can't ship that symlink
     # verbatim (target doesn't exist in the container) and we don't
-    # want to dereference into the image (3 GB bloat). Instead, write
-    # a NEW symlink that points at the path the cache will live at
-    # inside the container (after the fly volume is mounted at
-    # /app/audio_volume): /app/audio_volume/dvc-cache/files/md5/<aa>/<bb...>.
-    if [ -L "$src/audio/podcast.mp3" ]; then
+    # want to dereference into the image. Instead, rewrite each
+    # symlink so it points at the in-container cache path:
+    #   /Volumes/Crucial X9/bleakhouse_audio  →  /app/audio_volume
+    # The fly mount makes that path valid at runtime.
+    for src_mp3 in "$src/audio"/podcast*.mp3; do
+        [ -e "$src_mp3" ] || [ -L "$src_mp3" ] || continue
+        fname=$(basename "$src_mp3")
         mkdir -p "$dst/audio"
-        # Resolve the local symlink to recover the cache-relative path.
-        # Local cache lives at /Volumes/Crucial X9/bleakhouse_audio/dvc-cache
-        # → rewrite the prefix to /app/audio_volume/dvc-cache.
-        local_target=$(readlink "$src/audio/podcast.mp3")
-        container_target=${local_target/\/Volumes\/Crucial X9\/bleakhouse_audio/\/app\/audio_volume}
-        ln -sfn "$container_target" "$dst/audio/podcast.mp3"
-    elif [ -f "$src/audio/podcast.mp3" ]; then
-        # Fallback for non-symlinked MP3s (shouldn't happen post-DVC).
-        mkdir -p "$dst/audio"
-        cp "$src/audio/podcast.mp3" "$dst/audio/podcast.mp3"
-    fi
+        if [ -L "$src_mp3" ]; then
+            local_target=$(readlink "$src_mp3")
+            container_target=${local_target/\/Volumes\/Crucial X9\/bleakhouse_audio/\/app\/audio_volume}
+            ln -sfn "$container_target" "$dst/audio/$fname"
+        elif [ -f "$src_mp3" ]; then
+            cp "$src_mp3" "$dst/audio/$fname"
+        fi
+    done
 
     count=$((count + 1))
 done
