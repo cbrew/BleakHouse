@@ -164,5 +164,36 @@ if [ "$code" != "200" ]; then
     exit 1
 fi
 
+echo "==> [7/7] Audio smoke test"
+# Pick the first run with audio from runs.yaml and probe its podcast.mp3.
+# Verifies (a) the symlink in the image, (b) the fly volume mount, and
+# (c) the cache blob arrived via sync_audio_to_fly. Failure here means
+# audio is broken in production even though /tracker looks fine.
+SMOKE_RUN=$(uv run --no-sync python -c "
+import yaml
+d = yaml.safe_load(open('runs.yaml'))
+ids = d.get('run_ids_audio') or []
+if not ids:
+    raise SystemExit('no run_ids_audio in runs.yaml')
+print(ids[0])
+")
+SMOKE_URL="${PUBLIC_URL}/audio/${SMOKE_RUN}/podcast.mp3"
+SMOKE_TMP=$(mktemp -t bh-smoke-XXXXXX.mp3)
+trap 'rm -f "$SMOKE_TMP"' EXIT
+
+http=$(curl --max-time 60 -s -o "$SMOKE_TMP" -w "%{http_code}" "$SMOKE_URL" || echo 000)
+size=$(stat -f "%z" "$SMOKE_TMP" 2>/dev/null || stat -c "%s" "$SMOKE_TMP" 2>/dev/null || echo 0)
+if [ "$http" != "200" ]; then
+    echo "FAIL: $SMOKE_URL returned $http (downloaded $size bytes)" >&2
+    echo "--- fly logs (last 40) ---" >&2
+    fly logs --app "$APP" --no-tail 2>&1 | tail -40 >&2 || true
+    exit 1
+fi
+if [ "$size" -lt 1000000 ]; then
+    echo "FAIL: $SMOKE_URL returned $http but only $size bytes (expected >1 MB)" >&2
+    exit 1
+fi
+echo "    OK: $SMOKE_RUN ($((size/1024/1024)) MB streamed via fly volume)"
+
 echo ""
-echo "SUCCESS. Live: $PUBLIC_URL/tracker"
+echo "SUCCESS. Live: $PUBLIC_URL/tracker  (audio verified for $SMOKE_RUN)"
