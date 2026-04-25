@@ -64,12 +64,26 @@ for run in $DEMO_RUNS; do
         [ -f "$extra" ] && mkdir -p "$dst/audio" && cp "$extra" "$dst/audio/"
     done
 
-    # Copy the MP3 itself with -L so symlinks into the DVC cache get
-    # dereferenced — the staged demo_data/ is the build context for
-    # podman, which can't follow symlinks pointing outside it.
-    if [ -L "$src/audio/podcast.mp3" ] || [ -f "$src/audio/podcast.mp3" ]; then
+    # Audio-symlink rewrite for the container build context.
+    # Locally, $src/audio/podcast.mp3 is a symlink pointing into the
+    # DVC cache on the external volume. We can't ship that symlink
+    # verbatim (target doesn't exist in the container) and we don't
+    # want to dereference into the image (3 GB bloat). Instead, write
+    # a NEW symlink that points at the path the cache will live at
+    # inside the container (after the fly volume is mounted at
+    # /app/audio_volume): /app/audio_volume/dvc-cache/files/md5/<aa>/<bb...>.
+    if [ -L "$src/audio/podcast.mp3" ]; then
         mkdir -p "$dst/audio"
-        cp -L "$src/audio/podcast.mp3" "$dst/audio/podcast.mp3"
+        # Resolve the local symlink to recover the cache-relative path.
+        # Local cache lives at /Volumes/Crucial X9/bleakhouse_audio/dvc-cache
+        # → rewrite the prefix to /app/audio_volume/dvc-cache.
+        local_target=$(readlink "$src/audio/podcast.mp3")
+        container_target=${local_target/\/Volumes\/Crucial X9\/bleakhouse_audio/\/app\/audio_volume}
+        ln -sfn "$container_target" "$dst/audio/podcast.mp3"
+    elif [ -f "$src/audio/podcast.mp3" ]; then
+        # Fallback for non-symlinked MP3s (shouldn't happen post-DVC).
+        mkdir -p "$dst/audio"
+        cp "$src/audio/podcast.mp3" "$dst/audio/podcast.mp3"
     fi
 
     count=$((count + 1))
