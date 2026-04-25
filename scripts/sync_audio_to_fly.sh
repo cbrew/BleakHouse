@@ -144,28 +144,38 @@ for mach in $MACHINES; do
         rm -f "$paths_file"
         continue
     fi
-    total_bytes=$(du -ch -B1 $(awk -v d="$LOCAL_BLOBS_DIR" '{print d "/" $0}' "$paths_file") 2>/dev/null \
-                  | tail -1 | awk '{print $1}' || echo "?")
+    echo "    streaming $blobs_to_send blob(s) → $mach"
 
-    echo "    streaming $blobs_to_send blob(s), ~$((${total_bytes:-0} / 1024 / 1024)) MB → $mach"
-    # Use --checkpoint and --totals so we can watch progress. tar -v
-    # would print one line per file but mix with the network output;
-    # checkpoint emits an unobtrusive progress marker.
+    # Single tar pipe, all missing blobs. Verbose tar output (one line
+    # per extracted file) on the receiver side so we can watch each
+    # blob land. --totals at the end prints byte/time stats.
     set +e
-    tar -cf - --totals \
-        --checkpoint=200 --checkpoint-action="ttyout=    .. progress: %{r}T %T %u%n" \
-        -C "$LOCAL_BLOBS_DIR" -T "$paths_file" \
-      | fly ssh console -a "$APP" --machine "$mach" -C "tar -xf - -C $REMOTE_CACHE"
-    rc=${PIPESTATUS[0]}
+    tar -cf - --totals -C "$LOCAL_BLOBS_DIR" -T "$paths_file" \
+      | fly ssh console -a "$APP" --machine "$mach" -C "tar -xvf - -C $REMOTE_CACHE"
+    rc_tar=${PIPESTATUS[0]}
     rc_ssh=${PIPESTATUS[1]}
     set -e
     rm -f "$paths_file"
-    if [ "$rc" != "0" ] || [ "$rc_ssh" != "0" ]; then
-        echo "    machine $mach: stream ended with tar=$rc fly_ssh=$rc_ssh" >&2
-        echo "    re-run the script — the probe will skip already-extracted blobs" >&2
-        exit 1
+
+    # Verify how many blobs actually landed.
+    landed=$(fly ssh console -a "$APP" --machine "$mach" -C \
+        "find $REMOTE_CACHE -type f -printf %P\\n" \
+        | tr -d '\r' \
+        | awk -F/ 'NF==2 && length($1)==2 {print $1$2}' \
+        | sort -u \
+        | wc -l | tr -d ' ')
+    echo "    machine $mach: tar=$rc_tar fly_ssh=$rc_ssh — $landed/$HASH_COUNT blob(s) on remote"
+    if [ "$landed" -lt "$HASH_COUNT" ]; then
+        echo "    NOT COMPLETE — re-run the script to push the rest" >&2
+        # don't exit — continue to next machine in case it fares better,
+        # then signal failure at end so caller knows.
+        SYNC_INCOMPLETE=1
     fi
-    echo "    machine $mach: stream complete"
 done
+
+if [ "${SYNC_INCOMPLETE:-0}" = "1" ]; then
+    echo "FAIL: at least one machine is not fully synced; re-run." >&2
+    exit 1
+fi
 
 echo "SUCCESS: sync complete"
