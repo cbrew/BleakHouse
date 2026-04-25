@@ -964,25 +964,38 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     return summary
 
 
+_DVC_AVAILABLE: bool | None = None  # cached after first call
+
+
 def _dvc_stale_runs() -> dict[str, list[str]]:
     """Return {run_id: [stale_stage_phase, ...]} by parsing `dvc status --json`.
 
     Each DVC stage name is `<phase>@<run_id>` (see dvc.yaml matrix).
-    An empty return dict means everything is fresh. If dvc is unavailable
-    or errors, also returns empty dict — the tracker degrades gracefully
-    rather than breaking on a broken provenance tool.
+    Empty dict means clean. In the deploy container `dvc`/`uv` aren't
+    on PATH so we cache that fact after the first FileNotFoundError
+    and avoid spawning a subprocess on every tracker request.
     """
+    global _DVC_AVAILABLE
+    if _DVC_AVAILABLE is False:
+        return {}
     import subprocess
     try:
         proc = subprocess.run(
             ["uv", "run", "--no-sync", "dvc", "status", "--json"],
             capture_output=True, text=True, timeout=20, cwd=BASE_DIR,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except FileNotFoundError:
+        _DVC_AVAILABLE = False
+        return {}
+    except subprocess.TimeoutExpired:
         return {}
     if proc.returncode != 0 and proc.returncode != 1:
         # dvc status returns 1 when the graph is dirty — that's fine.
+        # Other non-zero codes (e.g. dvc not installed, command not in
+        # uv env) mean we should give up permanently.
+        _DVC_AVAILABLE = False
         return {}
+    _DVC_AVAILABLE = True
     try:
         data = json.loads(proc.stdout or "{}")
     except json.JSONDecodeError:
