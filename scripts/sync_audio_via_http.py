@@ -87,40 +87,94 @@ def _ensure_started(mach: str) -> None:
 
 
 def _list_remote(mach: str, token: str) -> set[str]:
+    """List blobs already on a machine's volume, with transient retry."""
+    import time
     headers = {"X-Admin-Token": token, "Fly-Force-Instance-Id": mach}
-    r = requests.get(f"{APP_URL}/api/_admin/list-blobs", headers=headers, timeout=60)
-    if r.status_code == 503:
-        sys.exit("FAIL: admin endpoint disabled — set ADMIN_UPLOAD_TOKEN secret on fly")
-    r.raise_for_status()
-    body = r.json()
-    if body.get("machine_id") and body["machine_id"] != mach:
-        # fly's force-instance-id wasn't honoured — bail rather than write
-        # the wrong volume.
-        sys.exit(
-            f"FAIL: requested machine {mach}, got response from {body['machine_id']}. "
-            f"Try `fly machines start {mach}` so it's the only running one, then re-run."
-        )
-    return set(body["hashes"])
+    last_exc: Exception | None = None
+    delay = 5
+    for attempt in range(1, 6):
+        try:
+            r = requests.get(
+                f"{APP_URL}/api/_admin/list-blobs", headers=headers, timeout=60
+            )
+            if r.status_code == 503 and "ADMIN_UPLOAD_TOKEN" in (r.text or ""):
+                # Specific to "admin endpoint disabled" — not a transient.
+                sys.exit("FAIL: admin endpoint disabled — set ADMIN_UPLOAD_TOKEN secret on fly")
+            if r.status_code in _TRANSIENT_HTTP:
+                last_exc = requests.HTTPError(f"transient {r.status_code}")
+                print(f"      list-blobs attempt {attempt} got {r.status_code}; sleeping {delay}s",
+                      file=sys.stderr)
+                time.sleep(delay)
+                delay *= 2
+                continue
+            r.raise_for_status()
+            body = r.json()
+            if body.get("machine_id") and body["machine_id"] != mach:
+                sys.exit(
+                    f"FAIL: requested machine {mach}, got response from {body['machine_id']}. "
+                    f"Try `fly machines start {mach}` so it's the only running one, then re-run."
+                )
+            return set(body["hashes"])
+        except (requests.ConnectionError, requests.Timeout) as e:
+            last_exc = e
+            print(f"      list-blobs attempt {attempt} connection error: {e}; sleeping {delay}s",
+                  file=sys.stderr)
+            time.sleep(delay)
+            delay *= 2
+    raise RuntimeError(f"list-blobs failed after retries: {last_exc}")
+
+
+_TRANSIENT_HTTP = {502, 503, 504, 408, 429}
 
 
 def _push_blob(mach: str, h: str, blob_path: Path, token: str) -> None:
+    """POST one blob with retry on transient fly-edge errors.
+
+    fly's edge sporadically returns 502/503 when a target machine is
+    cold-starting or its ingress is briefly unhealthy. Per-call retry
+    keeps the deploy orchestrator (deploy_demo.sh) able to run end-to-
+    end without manual resumption.
+    """
+    import time
     headers = {
         "X-Admin-Token": token,
         "Fly-Force-Instance-Id": mach,
         "Content-Type": "application/octet-stream",
     }
-    with blob_path.open("rb") as f:
-        r = requests.post(
-            f"{APP_URL}/api/_admin/upload-blob",
-            params={"hash": h},
-            headers=headers,
-            data=f,  # streamed
-            timeout=600,
-        )
-    r.raise_for_status()
-    body = r.json()
-    if body.get("machine_id") and body["machine_id"] != mach:
-        sys.exit(f"FAIL: requested {mach}, response from {body['machine_id']}")
+    last_exc: Exception | None = None
+    delay = 5
+    for attempt in range(1, 6):
+        try:
+            with blob_path.open("rb") as f:
+                r = requests.post(
+                    f"{APP_URL}/api/_admin/upload-blob",
+                    params={"hash": h},
+                    headers=headers,
+                    data=f,  # streamed
+                    timeout=600,
+                )
+            if r.status_code in _TRANSIENT_HTTP:
+                print(
+                    f"      attempt {attempt} got {r.status_code} from fly edge; "
+                    f"sleeping {delay}s",
+                    file=sys.stderr,
+                )
+                last_exc = requests.HTTPError(f"transient {r.status_code}")
+                time.sleep(delay)
+                delay *= 2
+                continue
+            r.raise_for_status()
+            body = r.json()
+            if body.get("machine_id") and body["machine_id"] != mach:
+                sys.exit(f"FAIL: requested {mach}, response from {body['machine_id']}")
+            return
+        except (requests.ConnectionError, requests.Timeout) as e:
+            print(f"      attempt {attempt} connection error: {e}; sleeping {delay}s",
+                  file=sys.stderr)
+            last_exc = e
+            time.sleep(delay)
+            delay *= 2
+    raise RuntimeError(f"upload-blob failed after retries: {last_exc}")
 
 
 def main() -> None:
@@ -135,7 +189,8 @@ def main() -> None:
 
     hashes = _phase4_audio_hashes()
     if not hashes:
-        print("nothing to sync"); return
+        print("nothing to sync")
+        return
     print(f"==> {len(hashes)} phase4_audio blob hashes from dvc.lock")
 
     machines = [args.machine] if args.machine else _machines()
