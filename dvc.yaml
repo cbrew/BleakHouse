@@ -172,6 +172,27 @@ stages:
         - data/runs/${item}/quote_verification.json:
             cache: false
 
+  # Gemini 3.1 Flash TTS render via the trevelyan_v2 profile.
+  # Same shape as phase4_audio_qwen — code-only deps (the Gemini API
+  # call doesn't depend on local refs the way Qwen does), idempotent
+  # foreach over runs that already have podcast_trevelyan_v2.mp3 on
+  # disk, blob lives in DVC cache (cache:true), manifest_trevelyan_v2.json
+  # is git-tracked (cache:false).
+  phase4_audio_trevelyan_v2:
+    foreach: ${runs_by_id_trevelyan_v2}
+    do:
+      cmd: uv run python scripts/dvc_regenerate.py phase4_audio_trevelyan_v2 --run ${key}
+      deps:
+        - data/runs/${key}/phase3_episode.json
+        - enrichment/render_audio.py
+        - enrichment/tts_profiles/trevelyan_v2.py
+      params:
+        - speakers
+      outs:
+        - data/runs/${key}/audio/podcast_trevelyan_v2.mp3
+        - data/runs/${key}/audio/manifest_trevelyan_v2.json:
+            cache: false
+
   # Qwen3-TTS render — runs on a remote GPU host (pop-os.local) via
   # scripts/render_qwen_remote.sh. Foreach iterates runs that already
   # have podcast_qwen.mp3 on disk; new renders graduate into the

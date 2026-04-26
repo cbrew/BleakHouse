@@ -54,6 +54,7 @@ def collect_runs() -> list[dict[str, object]]:
             "has_phase3": (run_dir / "phase3_episode.json").exists(),
             "has_audio": (run_dir / "audio" / "podcast.mp3").exists(),
             "has_qwen_audio": (run_dir / "audio" / "podcast_qwen.mp3").exists(),
+            "has_trevelyan_v2_audio": (run_dir / "audio" / "podcast_trevelyan_v2.mp3").exists(),
             "has_reading_list": (run_dir / "phase2_5_reading_list.json").exists(),
             "has_host_briefs": (run_dir / "phase2_5_host_briefs.json").exists(),
             "has_interviews": (run_dir / "phase2_5_interviews.json").exists(),
@@ -83,6 +84,7 @@ def main() -> None:
     }
     runs_by_id_reading_list = {rid: r for rid, r in runs_by_id.items() if r["has_reading_list"]}
     runs_by_id_qwen = {rid: r for rid, r in runs_by_id.items() if r["has_qwen_audio"]}
+    runs_by_id_trevelyan_v2 = {rid: r for rid, r in runs_by_id.items() if r["has_trevelyan_v2_audio"]}
     doc = {
         "runs": runs,
         "runs_by_id": runs_by_id,
@@ -91,11 +93,13 @@ def main() -> None:
         "runs_by_id_phase2_5_briefs_only": runs_by_id_phase2_5_briefs_only,
         "runs_by_id_reading_list": runs_by_id_reading_list,
         "runs_by_id_qwen": runs_by_id_qwen,
+        "runs_by_id_trevelyan_v2": runs_by_id_trevelyan_v2,
         # Index by id for quick jinja/templating use.
         "run_ids": [r["run_id"] for r in runs],
         "run_ids_phase3": [r["run_id"] for r in runs if r["has_phase3"]],
         "run_ids_audio": [r["run_id"] for r in runs if r["has_audio"]],
         "run_ids_qwen_audio": [r["run_id"] for r in runs if r["has_qwen_audio"]],
+        "run_ids_trevelyan_v2_audio": [r["run_id"] for r in runs if r["has_trevelyan_v2_audio"]],
         "run_ids_hostprep": [r["run_id"] for r in runs if r["hostprep"]],
     }
     with open(OUT, "w") as f:

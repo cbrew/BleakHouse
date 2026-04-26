@@ -188,6 +188,21 @@ def regenerate_phase4_audio_qwen(run_id: str) -> None:
     subprocess.run(cmd, check=True, cwd=BASE_DIR)
 
 
+def regenerate_phase4_audio_trevelyan_v2(run_id: str) -> None:
+    """Render audio for a run using the trevelyan_v2 (Gemini 3.1 Flash) profile."""
+    import subprocess
+    cfg = _load_cfg(run_id)
+    _set_novel_env(cfg)
+    cmd = [
+        "uv", "run", "python", "-m", "enrichment.render_audio",
+        "--run", run_id,
+        "--profile", "trevelyan_v2",
+        "--concurrency", "4",
+    ]
+    print(f"  [dvc-regenerate] $ {' '.join(cmd)}")
+    subprocess.run(cmd, check=True, cwd=BASE_DIR)
+
+
 PHASES = {
     "phase0": regenerate_phase0,
     "phase1": regenerate_phase1,
@@ -198,6 +213,7 @@ PHASES = {
     "phase4_post": regenerate_phase4_post,
     "phase4_audio": regenerate_phase4_audio,
     "phase4_audio_qwen": regenerate_phase4_audio_qwen,
+    "phase4_audio_trevelyan_v2": regenerate_phase4_audio_trevelyan_v2,
 }
 
 
