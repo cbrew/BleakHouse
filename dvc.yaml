@@ -232,3 +232,14 @@ stages:
         # cache:true (default) — audio blob lives in the DVC cache, which
         # resolves to the external volume. Working-copy file is a symlink.
         - data/runs/${item}/audio/podcast.mp3
+
+  run_manifest:
+    foreach: ${runs_by_id}
+    do:
+      cmd: uv run python scripts/generate_run_manifest.py --run ${key}
+      deps:
+        - data/runs/${key}/config.json
+        - scripts/generate_run_manifest.py
+      outs:
+        - data/runs/${key}/run_manifest.json:
+            cache: false

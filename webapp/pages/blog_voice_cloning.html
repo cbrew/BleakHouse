@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Not In Our Time — Voice as Continuity</title>
+<link rel="stylesheet" href="/static/page_base.css">
+<script src="/static/nav.js?v=2" defer></script>
+</head>
+<body>
+<div class="content">
+
+<h1>Voice as Continuity: Cloning a Podcast Panel</h1>
+<p class="subtitle">How a literary podcast's cast of AI voices becomes an identity the listener can address directly</p>
+<p style="color:var(--text-dim);font-size:0.85em;">Part 11 of the <a href="/blog">Not In Our Time</a> series</p>
+
+<p>Our literary podcast pipeline, <em>Bleak House Unpacked</em>, produces ~45-minute episodes of structured conversation. A host convenes three named experts — Dr. Eleanor Hartley, the novelist-as-craft-teacher; Professor James Blackstone, the legal and social historian; Caroline Woodcourt, the lifelong close reader — and together they work through a passage of Dickens. Each expert has a written persona: intellectual lineage, analytical habits, rhetorical signature. The host steers; the experts respond in their own idiom. Across 180 runs (fifteen novels, two expert panels, three retrieval pipelines), those four voices have become something approaching characters.</p>
+
+<p>That identity is not just textual. It lives in how they sound. A listener who has heard Eleanor Hartley show why a single em-dash carries a sentence's weight has a particular voice in her ear when she sees Eleanor's name again. That voice is part of what makes the panel feel like <em>a room she has been in</em>, not simply a transcript she is reading.</p>
+
+<p>The question this post is about: if the panel is this real as an artifact, can we let the listener join it?</p>
+
+<h2>From Closed Episode to Shared Room</h2>
+
+<p>A batch-rendered podcast episode is a closed object. Audio exists or it doesn't; you press play or you don't. But the scripts our pipeline produces are explicit about who speaks when. Nothing about the data prevents an additional turn being inserted — from a listener asking the panel a question about a passage, and Eleanor or James or Caroline replying in character.</p>
+
+<p>What prevents this, for now, is the rendering side. Gemini TTS produces excellent episode audio, but it doesn't let us put the listener in the conversation. The listener types a question and waits for a pre-packaged response; by the time the reply arrives, the sense of being <em>in the room</em> is gone.</p>
+
+<p>The requirement is surprisingly specific:</p>
+
+<ul>
+<li><strong>Voice identity has to hold.</strong> If the listener has to accept the host sounding too different when she replies, the conversational illusion fails.</li>
+<li>The same speaker has to arrive in a recognizably similar voice whether the listener is meeting her at minute 37 of a pre-rendered episode or in a new exchange initiated this morning. We can ask for some suspension of disbelief and tolerance of some imperfections, but we need to be seen to be trying.</li>
+<li><strong>Latency has to be short enough that reply feels like response</strong>, not queue-processing. The target is time-to-first-audible-sound well under a second after a listener turn ends.</li>
+<li><strong>It has to be self-hostable</strong> so we can shape the turn-taking behaviour ourselves, including the subtle things a listener notices — who chooses to reply, how long the silence is before someone does, whether two voices overlap in agreement.</li>
+</ul>
+
+<p>No single hosted TTS API meets all three at once today. Cloning an open-weight model does, at least in principle.</p>
+
+<h2>Why Cloning, Not Casting</h2>
+
+<p>A cheaper move would be to cast new voices from a stock set — pick a British female timbre for Eleanor, a measured baritone for James — and accept that these are not <em>exactly</em> the voices from the archive. Listeners know what new narrators sound like when audiobooks get re-recorded; they adjust.</p>
+
+<p>We rejected this path. The panel is a 200-episode archive. The listener who has been with us has heard Eleanor for hours. A completely new voice at the point of interaction, however well cast, announces "this is a different project now." The whole point of the interactive experiment is that it should not feel that way.</p>
+
+<p>Zero-shot voice cloning — synthesising new speech conditioning on a brief audio sample of a speaker — gives us a way to keep continuity. The existing archive is the training data for itself. For each voice, we extract a short clean clip from any previous episode and use it as the voice prompt for new utterances. The synthetic version isn't identical to the original, but it is within the range of natural variation: the same speaker, on a different day, saying something new.</p>
+
+<h2>What Qwen-TTS Contributes</h2>
+
+<p>Alibaba's Qwen team publishes a dedicated text-to-speech model, <code>Qwen2-72B-Instruct</code> or more specifically their specialised TTS checkpoints like <code>Qwen-TTS-12Hz-0.6B-Base</code>, under Apache 2.0. It is built specifically for the zero-shot cloning case: you provide a reference clip plus, optionally, its transcript, and the model generates new speech in that voice.</p>
+
+<p>For our purposes this has three useful properties.</p>
+
+<p><strong>It is small enough to self-host.</strong> The weights fit on a consumer NVIDIA card. We don't need to lease an A100 to play with it. Our existing development machine renders a full Bleak House episode through the cloning pipeline in about an hour — slower than real-time by a small multiple, but well within "leave it running while you do something else."</p>
+
+<p><strong>It is licensed for the use we care about.</strong> Apache 2.0 means the interactive product, if this research path leads there, is not compromised by terms that assumed batch research use only.</p>
+
+<p><strong>It takes references we already have.</strong> Every episode in the archive ends up on disk as a rendered MP3 alongside a manifest that tells us which speaker holds the floor at which moment. For each panel voice, the first turn of the first segment of any episode gives us a clean ~10-second clip of that speaker alone. The archive functions as its own reference library.</p>
+
+<h2>What a Cloned Episode Sounds Like</h2>
+
+<p>Rendered end-to-end on a single consumer GPU, the full literary-panel episode is 47.5 minutes of audio generated in 56.5 minutes of wall time — a 0.84× real-time ratio for a 726-utterance conversation spanning four distinct voices. Speaker transitions are preserved; pause durations are taken from the script's own TTS annotations, so the rhythm matches what the original episode had.</p>
+
+<p>The voices are recognisable as the panel. They are not indistinguishable from Gemini's original renders — zero-shot cloning at this model size gives up some fidelity — but the identity holds across the episode. A listener hearing a sample of cloned Eleanor and a sample of cloned James will correctly separate them and correctly identify them by name if they have heard the real episodes.</p>
+
+<p>This is far short of production-grade podcast audio. It is clearly above the bar for <em>conversational continuity</em> — that is, for a listener to sustain the sense of being addressed by the same people they have been listening to.</p>
+
+<h2>What It Unlocks</h2>
+
+<p>The point of this work is not the batch render. A batch-rendered episode in a second voice engine is a curiosity; the project already has one that sounds better.</p>
+
+<p>The point is that the same machinery, exercised one turn at a time instead of in an 8-segment sweep, gives us a live panel. The listener asks a question. A turn generator decides which expert replies and drafts a response in their persona. The cloned voice renders that response and plays it — in the same voice the listener has been listening to for hours. Another expert chimes in. A back-and-forth unfolds.</p>
+
+<p>That configuration — four AI panelists responding in their own voices to a fifth, human, participant — is the destination. The batch work here is what makes it <em>possible</em>. The remaining work is what will make it <em>fast enough</em> and <em>reliable enough</em> to be part of a listener's afternoon rather than a research demo.</p>
+
+<p style="color:var(--text-dim);font-size:0.85em;margin-top:2em;">Next: <a href="/blog/legal_enrichment">From Scanned PDFs to Structured Legal Intelligence</a></p>
+
+</div>
+</body>
+</html>

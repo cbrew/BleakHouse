@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BleakHouse — Blog</title>
+<link rel="stylesheet" href="/static/page_base.css?v={{ v }}">
+<script src="/static/nav.js?v={{ v }}" defer></script>
+</head>
+<body>
+<div class="content">
+
+<h1>The Reader Makes the Reading</h1>
+<p class="subtitle">What happens when you give an LLM fifteen novels, three critics, and a microphone</p>
+
+<p>I've spent the last few weeks expanding a system that generates literary discussion podcasts. Not summaries, not reviews — actual multi-voice conversations in which
+    three expert panelists and a host discuss novels, quote passages, disagree with each other, and occasionally say things that surprise me. There was an early draft a year
+    ago. Claude Code makes it possible to do this kind of thing much faster.
+</p>
+
+<p>The system works well enough that you can <a href="/">listen to the results</a>. If you enjoy it, good. For me, it matters more that the system provides a tool for
+    playing with the creative processes that are involved. The host and the expert panelists are realized using an LLM, obviously. But the system design reflects my priorities
+    and judgments. Very much a first cut. I've just scratched the surface of what can be done so far.
+</p>
+
+    <p>
+        If I'm being grandiose, I might claim that this effort provides insight into real creative processes, or into the capabilities of current LLMs. That's a stretch, a snare
+        and possibly a delusion. Let's all try to avoid being fooled.
+    </p>
+
+<h2>The setup</h2>
+
+<p>Take a Victorian novel. Parse it into passages. Annotate each passage with an enrichment schema: interest score, seven "provision dimensions" (character development, social critique, narrative technique, etc.), characters present, themes, quotability. Then select passages for discussion using one of several algorithms, and hand them to an LLM along with expert personas and conversational scaffolding instructions. Out comes a structured podcast script — turns, quotations, prosodic annotations — which can be rendered to audio via TTS.</p>
+
+<p>I tested this across 15 novels (Dickens, Eliot, Gaskell, Forster, Collins, Gissing, Oliphant), <a href="/tracker">180 experimental conditions</a>, and about 60,000 passages.</p>
+
+<h2>Two kinds of retrieval</h2>
+
+<p>The embedding-based selection follows the approach described in Anthropic's <a href="https://www.anthropic.com/news/contextual-retrieval">Contextual Retrieval</a> work: each passage is embedded with context from the surrounding chapter, retrieved by cosine similarity to expert profile descriptions, and then curated by an LLM (Sonnet) which selects the most discussion-worthy passages from the candidate pool. This is a strong baseline — it's essentially RAG with LLM-in-the-loop curation.</p>
+
+<p>The transport-based selection takes a completely different approach. Instead of asking "which passages are semantically similar to this expert?", it asks "which passages satisfy this expert's demand for social critique, narrative technique, and character development at minimum cost?" The demand is a vector over seven provision dimensions; the supply is whatever the enrichment schema found in each passage. Min-cost network flow finds the optimal assignment in under 100ms with no LLM calls.</p>
+
+<h2>The finding that shouldn't have surprised me but did</h2>
+
+<p>These two methods select almost entirely different passages. Jaccard similarity: 0.057. That's fewer than 6% of passages in common.</p>
+
+<p>The min-cost flow method selects broadly: 59 passages from 28 chapters, weighted toward character development and plot. Call it the <em>synoptic reader</em>.</p>
+
+<p>The embedding method selects narrowly: 32 passages from 20 chapters, weighted toward social critique and thematic depth. Call it the <em>analytical reader</em>.</p>
+
+<p>These are recognisably different scholarly strategies. In a seminar room you'd notice the difference. But in the generated discussions, you can barely tell them apart.
+    Other factors seem to have larger impact, as we will see. It looks as if the setup of the podcast as a panel discussion is the most important.
+    This is hard to measure, so we measure shallow properties that can stand in as plausible proxies.
+    Expert airtime varies by less than 2 percentage points regardless of which algorithm did the selecting.</p>
+
+<p>A caveat. This isn't really a finding, it is arguably baked in by design — enrichment dimensions match demand profiles, the selector optimises for demand, host prep interviews each expert individually, and the script prompt instructs distinctive perspectives. Whether the finding reflects interpretive discourse or pipeline engineering is an open question.</p>
+
+<h2>Non-expert experts</h2>
+
+<p>For fun, I replaced the literary scholars with three Americans from outside literary studies: a computer scientist who specialises in NLP, an astronomer who studies stellar formation, and a musicologist who studies Cold War cultural diplomacy.</p>
+
+<p>The astronomer reads Dickens's fog as a physical formation condition. The NLP scientist analyses agent deletion in the syntax. The musicologist compares Chancery to Soviet institutions. Two things happened: framework dominance still held, and the experts brought their <em>metaphors</em> but not their <em>methods</em>.</p>
+
+<p>You can <a href="/report/interdisciplinary_trn_hostprep">read the full report</a> or <a href="/player?run=interdisciplinary_trn_hostprep">listen to the audio</a>.</p>
+
+<h2>Reading without having read</h2>
+
+<p>The no-passages condition is where things get genuinely interesting. With no source passages, the LLM must discuss the novel from prior knowledge alone.</p>
+
+<p>With grounding (either transport or embedding), quote verification is 98.0% and 97.2% respectively — near-perfect for all 15 novels. Without passages, the mean drops to 49%, ranging from 57% (Middlemarch) to 0% (Hester, Oliphant 1883). We also experimented with plain RAG retrieval and random passage selection for Bleak House — these produce intermediate verification rates (~95% and ~94% respectively), confirming that any form of grounding helps but that the <em>method</em> of grounding matters far less than the <em>fact</em> of it.</p>
+
+<p>All fifteen novels are on Project Gutenberg. What varies is the analytical reinforcement — study guides, Wikipedia articles, academic papers that re-quote specific passages. The within-author evidence is compelling: among Dickens's four novels, Bleak House (53%) > David Copperfield (44%) > Hard Times (39%) > Our Mutual Friend (29%). Same prose style, different cultural prominence.</p>
+
+<h2>Pastiche, not hallucination</h2>
+
+<p>When the LLM can't quote accurately, it produces <em>pastiche</em>. Of 726 invented quotes, 82% draw 90-100% of their words from the novel's vocabulary. "I am very weak, but I shall begin the world" — every word appears in Bleak House, but this sentence doesn't exist.</p>
+
+<p>Confabulation rate, it turns out, is an instrument for measuring LLM literary knowledge.</p>
+
+<p>The direct comparison between grounded and ungrounded generation across 15 novels — including several that have received very little modern critical attention (Oliphant's Hester, Gissing's Odd Women, Collins's No Name) — shows precisely what happens when an LLM is left to its own devices with texts it barely knows. The degradation is not random: it is graduated, vocabulary-preserving, and correlated with measurable proxies for critical-cultural prominence. The within-author gradients (four Dickens novels, three Eliots, two Gaskells) control for prose style and isolate the effect of analytical reinforcement. This is discussed in detail on the <a href="/research">research page</a> and in the <a href="/static/img/knowledge_gradient.png">knowledge gradient chart</a>.</p>
+
+<h2>Try it</h2>
+
+<p>The <a href="/tracker">tracker</a>, <a href="/report/ext_v01_baseline_hostprep">reports</a>, and <a href="/">audio</a> are live. You can browse the 180-condition experiment matrix, listen to generated episodes, and drill down into passage backlinks, host preparation data, and quote verification for every run.</p>
+
+<h2>Technical deep dives</h2>
+<ol>
+<li><strong>This post</strong> — The Reader Makes the Reading (overview)</li>
+<li><a href="/blog/enrichment">Enrichment at Scale</a> — 60,000 passages, 20 fields each</li>
+<li><a href="/blog/transport">Min-Cost Flow vs Embeddings</a> — two ways to read a novel</li>
+<li><a href="/blog/hostprep">Host Preparation</a> — from monologue to dialogue</li>
+<li><a href="/blog/audio">Making It Sound Right</a> — structured output for TTS</li>
+<li><a href="/blog/pastiche">Pastiche, Not Hallucination</a> — what LLMs do when they haven't read the book</li>
+<li><a href="/blog/friends">Non-Expert Experts</a> — an NLP scientist, an astronomer, and a musicologist</li>
+<li><a href="/blog/claudecode">Building This With Claude Code</a> — the development workflow</li>
+<li><a href="/blog/transparency">Transparency About Authoring</a> — how we track and disclose what was written by whom</li>
+<li><a href="/blog/references">What Have You Been Reading?</a> — giving fictional experts access to real scholarship</li>
+<li><a href="/blog/voice_cloning">Voice as Continuity</a> — cloning the podcast panel for interactive conversation</li>
+<li><a href="/blog/legal_enrichment">Legal Enrichment Pipeline</a> — the technical inspiration from legal document analysis</li>
+<li><a href="/blog/legal_matching">Legal Matching Pipeline</a> — using optimal transport for precise information retrieval</li>
+<li><a href="/blog/cerebras">Generating Scripts with Cerebras</a> — adapting a structured-output pipeline to an ultra-fast API</li>
+</ol>
+
+</div>
+</body>
+</html>

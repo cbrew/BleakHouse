@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Not In Our Time — Legal Document Matching</title>
+<link rel="stylesheet" href="/static/page_base.css">
+<script src="/static/nav.js?v=2" defer></script>
+</head>
+<body>
+<div class="content">
+
+<h1>Optimal Transport for Legal Document Matching</h1>
+<p class="subtitle">When min-cost flow beats greedy heuristics for complex information retrieval</p>
+<p style="color:var(--text-dim);font-size:0.85em;">Part 13 of the <a href="/blog">Not In Our Time</a> series</p>
+
+<p><em>Note: This post describes the matching algorithm that inspired the transport-based selection in the Not In Our Time project.</em></p>
+
+<h2>The Matching Problem</h2>
+
+<p>After enriching legal documents, we have source sentences with provisions and target report sections with needs. The goal is to match sources to targets so that every target's needs are satisfied. A greedy approach — finding the best source for each target individually — fails because it leads to over-assignment (one "popular" sentence cited repeatedly) and poor overall coverage.</p>
+
+<h2>The Optimal Transport Solution</h2>
+
+<p>We reframed matching as a <strong>resource allocation problem</strong>: sources have supply, targets have demand, and we need to find the minimum-cost way to satisfy all demand. This is a classic <strong>min-cost flow</strong> problem. Each (section, dimension) pair becomes a separate flow problem, ensuring global optimization and explicit gap detection.</p>
+
+<h2>The Flow Network</h2>
+
+<p>For each (section, dimension) pair, we construct a flow network with a super-source, a super-sink, and a <strong>NULL node</strong>. Arcs from real sources have low costs (1 for strong matches, 2 for weak), while the arc from the NULL node has a very high cost (100). The solver (Google OR-Tools) minimizes total cost, meaning it will only use the NULL node when no real sources can satisfy the demand.</p>
+
+<h2>Gap Detection: NULL Flows</h2>
+
+<p>The magic is in the NULL node. When real sources can't satisfy demand, flow must come from NULL. The amount of flow through the NULL node is the precise measure of the gap. No arbitrary thresholds are required — the gap is exactly the amount of unmet demand.</p>
+
+<h2>Why This Beats the Heuristic Approach</h2>
+
+<p>We replaced a 4-stage heuristic pipeline (filtering, scoring, BM25, and LLM verification) with a single optimization pass. The results are deterministic, faster, and cheaper because they remove the LLM from the matching loop. In a typical case, runtime dropped from 45 seconds to 0.3 seconds with zero API cost and improved coverage.</p>
+
+<h2>Semantic Direction</h2>
+
+<p>To prevent matching sentences with identical dimensions but opposite meanings (e.g., "Defendant owed a duty" vs "Defendant owed no duty"), we added <strong>SemanticDirection</strong>. This metadata captures legal stance and party alignment, ensuring that sources are only matched to targets with compatible semantic intent.</p>
+
+<h2>Key Takeaways</h2>
+
+<ul>
+<li>Model matching as resource allocation, not similarity search.</li>
+<li>Solve per (section, dimension) to keep problems small and fast.</li>
+<li>NULL flows provide exact, threshold-free gap detection.</li>
+<li>Deterministic algorithms like min-cost flow beat greedy LLM-in-the-loop heuristics.</li>
+</ul>
+
+<p>This approach — using mathematical optimization to bridge the gap between structured metadata and editorial requirements — is the core technical innovation that makes both the legal pipeline and the literary podcast possible.</p>
+
+<p style="color:var(--text-dim);font-size:0.85em;margin-top:2em;">Next: <a href="/blog/cerebras">Generating Scripts with Cerebras</a></p>
+
+</div>
+</body>
+</html>

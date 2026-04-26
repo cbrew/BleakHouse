@@ -13,12 +13,14 @@ import asyncio
 import json
 import logging
 import re
+import subprocess
 import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import StreamingResponse
 
@@ -29,6 +31,24 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+
+
+def get_git_sha() -> str:
+    """Get short git SHA for cache-busting."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=BASE_DIR,
+            stderr=subprocess.DEVNULL
+        ).decode("ascii").strip()
+    except Exception:
+        return "unknown"
+
+
+GIT_SHA = get_git_sha()
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+templates.env.globals["v"] = GIT_SHA
 
 # Audio lives at data/runs/<run>/audio/ — locally this is a symlink
 # into the DVC cache; in the container it's a real file bundled from
@@ -44,7 +64,7 @@ class NoCacheNavJs(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
         response = await call_next(request)
-        if request.url.path == "/static/nav.js?v=2":
+        if request.url.path == f"/static/nav.js?v={GIT_SHA}":
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -185,63 +205,63 @@ PAGES_DIR = Path(__file__).resolve().parent / "pages"
 
 
 @app.get("/", response_class=HTMLResponse)
-async def landing():
-    return FileResponse(str(PAGES_DIR / "landing.html"))
+async def landing(request: Request):
+    return templates.TemplateResponse(request, "landing.html")
 
 
 @app.get("/player", response_class=HTMLResponse)
-async def player():
-    return FileResponse(str(STATIC_DIR / "index.html"))
+async def player(request: Request):
+    return templates.TemplateResponse(request, "player.html")
 
 
 @app.get("/about", response_class=HTMLResponse)
-async def about_page():
-    return FileResponse(str(PAGES_DIR / "about.html"))
+async def about_page(request: Request):
+    return templates.TemplateResponse(request, "about.html")
 
 
 @app.get("/blog", response_class=HTMLResponse)
-async def blog_page():
-    return FileResponse(str(PAGES_DIR / "blog.html"))
+async def blog_page(request: Request):
+    return templates.TemplateResponse(request, "blog_index.html")
 
 
 @app.get("/blog/{post_id}", response_class=HTMLResponse)
-async def blog_post(post_id: str):
+async def blog_post(request: Request, post_id: str):
     if ".." in post_id:
         raise HTTPException(400, "Invalid path")
-    path = PAGES_DIR / f"blog_{post_id}.html"
-    if not path.exists():
+    template_name = f"blog_{post_id}.html"
+    if not (TEMPLATES_DIR / template_name).exists():
         raise HTTPException(404, f"Blog post not found: {post_id}")
-    return FileResponse(str(path))
+    return templates.TemplateResponse(request, template_name)
 
 
 @app.get("/prompts", response_class=HTMLResponse)
-async def prompts_page():
-    return FileResponse(str(PAGES_DIR / "prompts.html"))
+async def prompts_page(request: Request):
+    return templates.TemplateResponse(request, "prompts.html")
 
 
 @app.get("/metrics", response_class=HTMLResponse)
-async def metrics_page():
-    return FileResponse(str(PAGES_DIR / "metrics.html"))
+async def metrics_page(request: Request):
+    return templates.TemplateResponse(request, "metrics.html")
 
 
 @app.get("/examples", response_class=HTMLResponse)
-async def examples_page():
-    return FileResponse(str(PAGES_DIR / "examples.html"))
+async def examples_page(request: Request):
+    return templates.TemplateResponse(request, "examples.html")
 
 
 @app.get("/help", response_class=HTMLResponse)
-async def help_page():
-    return FileResponse(str(PAGES_DIR / "help.html"))
+async def help_page(request: Request):
+    return templates.TemplateResponse(request, "help.html")
 
 
 @app.get("/references", response_class=HTMLResponse)
-async def references_page():
-    return FileResponse(str(PAGES_DIR / "references.html"))
+async def references_page(request: Request):
+    return templates.TemplateResponse(request, "references.html")
 
 
 @app.get("/research", response_class=HTMLResponse)
-async def research_page():
-    return FileResponse(str(PAGES_DIR / "research.html"))
+async def research_page(request: Request):
+    return templates.TemplateResponse(request, "research.html")
 
 
 @app.get("/poster", response_class=HTMLResponse)
@@ -553,17 +573,35 @@ async def list_all_runs():
 _PROFILE_RE = re.compile(r"^[a-z0-9_]+$")
 
 
+def _load_run_manifest(run_id: str) -> dict | None:
+    """Load the run-level manifest if it exists."""
+    path = DATA_DIR / "runs" / run_id / "run_manifest.json"
+    if path.exists():
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except Exception:
+            logger.error(f"Failed to load run_manifest for {run_id}")
+    return None
+
+
 def _available_versions(run_id: str) -> list[str]:
     """Return the render versions a user can actually play.
 
-    Discovery is by audio file presence, not manifest convention:
-      - podcast.mp3 present → 'classic' is available, regardless of
-        whether manifest.json sits in audio/ (the Gemini render's
-        metadata may live at the run-level manifest.json instead).
-      - podcast_<X>.mp3 present, and manifest_<X>.json also present
-        → '<X>' is available.
-      - podcast_segment_*.mp3 are per-segment shards, not full renders.
+    Single source of truth is run_manifest.json if it exists.
+    Otherwise fall back to filesystem discovery.
     """
+    manifest = _load_run_manifest(run_id)
+    if manifest and "audio_variants" in manifest:
+        # Check if the files actually exist before claiming they are available
+        available = []
+        for v in manifest["audio_variants"]:
+            audio_path = BASE_DIR / v["audio_file"]
+            if audio_path.exists():
+                available.append(v["name"])
+        return available
+
+    # Fallback to filesystem convention
     local_dir = DATA_DIR / "runs" / run_id / "audio"
     if not local_dir.exists():
         return []
@@ -574,6 +612,7 @@ def _available_versions(run_id: str) -> list[str]:
     for f in files:
         if not (f.startswith("podcast_") and f.endswith(".mp3")):
             continue
+        # ... rest of fallback logic ...
         profile = f.removeprefix("podcast_").removesuffix(".mp3")
         if profile.startswith("segment"):
             continue  # segment_NN.mp3 shards, not a render variant
@@ -661,19 +700,19 @@ async def get_prep(run_id: str):
 
 
 @app.get("/prep", response_class=HTMLResponse)
-async def prep_page():
-    return FileResponse(str(PAGES_DIR / "prep.html"))
+async def prep_page(request: Request):
+    return templates.TemplateResponse(request, "prep.html")
 
 
 @app.get("/script/{run_id}", response_class=HTMLResponse)
-async def script_viewer(run_id: str):
+async def script_viewer(request: Request, run_id: str):
     """Serve the script viewer page for a run."""
     if ".." in run_id:
         raise HTTPException(400, "Invalid path")
     ep_path = DATA_DIR / "runs" / run_id / "phase3_episode.json"
     if not ep_path.exists():
         raise HTTPException(404, f"No episode for run {run_id}")
-    return HTMLResponse(SCRIPT_VIEWER_HTML)
+    return HTMLResponse(SCRIPT_VIEWER_HTML.replace("{{ v }}", GIT_SHA))
 
 
 AUDIO_VOLUME = Path("/app/audio_volume")
@@ -685,10 +724,39 @@ KOKORO_CACHE = AUDIO_VOLUME / "kokoro_cache"
 async def serve_audio(run_id: str, filename: str):
     if ".." in run_id or ".." in filename:
         raise HTTPException(400, "Invalid path")
+
+    # Single source of truth: run_manifest.json
+    manifest = _load_run_manifest(run_id)
+    if manifest and "audio_variants" in manifest:
+        # Map requested filename to the path in the manifest
+        # (1) Exact match (e.g. manifest_qwen.json)
+        for v in manifest["audio_variants"]:
+            if v["audio_file"] and Path(v["audio_file"]).name == filename:
+                return FileResponse(str(BASE_DIR / v["audio_file"]), media_type="audio/mpeg")
+            if v["audio_manifest"] and Path(v["audio_manifest"]).name == filename:
+                return FileResponse(str(BASE_DIR / v["audio_manifest"]), media_type="application/json")
+
+        # (2) Alias match for "classic" (player.js asks for manifest.json and podcast.mp3)
+        if filename in ("manifest.json", "podcast.mp3"):
+            for v in manifest["audio_variants"]:
+                if v["name"] == "classic":
+                    if filename == "podcast.mp3" and v["audio_file"]:
+                        return FileResponse(str(BASE_DIR / v["audio_file"]), media_type="audio/mpeg")
+                    if filename == "manifest.json" and v["audio_manifest"]:
+                        return FileResponse(str(BASE_DIR / v["audio_manifest"]), media_type="application/json")
+
+    # Fallback to filesystem convention
     audio_path = DATA_DIR / "runs" / run_id / "audio" / filename
     if not audio_path.exists():
-        raise HTTPException(404, f"Audio file not found: {filename}")
-    return FileResponse(str(audio_path), media_type="audio/mpeg")
+        # Fallback for Gemini renders where manifest sits at run-level
+        if filename == "manifest.json":
+            run_mf = DATA_DIR / "runs" / run_id / "manifest.json"
+            if run_mf.exists():
+                return FileResponse(str(run_mf), media_type="application/json")
+        raise HTTPException(404, f"Audio/manifest file not found: {filename}")
+
+    media_type = "audio/mpeg" if filename.endswith(".mp3") else "application/json"
+    return FileResponse(str(audio_path), media_type=media_type)
 
 
 # ---------------------------------------------------------------------------
@@ -904,8 +972,8 @@ def _load_quote_verification(rd: Path) -> dict | None:
 
 
 @app.get("/tracker", response_class=HTMLResponse)
-async def tracker_page():
-    return HTMLResponse(TRACKER_HTML)
+async def tracker_page(request: Request):
+    return HTMLResponse(TRACKER_HTML.replace("{{ v }}", GIT_SHA))
 
 
 @app.get("/tracker/data")
@@ -1391,9 +1459,9 @@ async def tracker_versions_data():
     return await RUN_INDEX.get_versions()
 
 
-@app.get("/versions", response_class=HTMLResponse)
-async def versions_page():
-    return HTMLResponse(VERSIONS_HTML)
+@app.get("/script-versions", response_class=HTMLResponse)
+async def versions_page(request: Request):
+    return HTMLResponse(VERSIONS_HTML.replace("{{ v }}", GIT_SHA))
 
 
 @app.get("/tracker/stream")
@@ -1416,7 +1484,7 @@ TRACKER_HTML = """\
 <head>
 <meta charset="utf-8">
 <title>BleakHouse Experiment Tracker</title>
-<script src="/static/nav.js?v=2" defer></script>
+<script src="/static/nav.js?v={{ v }}" defer></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -1463,7 +1531,7 @@ td.lo { background:#f8d7da; }
 <h1>BleakHouse Experiment Matrix</h1>
 <div class="sub">15 novels &times; 3 pipelines &times; 3 panels &times; 2 host-prep = 270 cells per generator
  &mdash; <span id="status">connecting...</span></div>
-<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.6em">Click any cell to see details and links. Columns: Lit/Alt/Int = literary, alternatives, interdisciplinary panels; HP = with host preparation. <a href="/help" style="color:#6fa8dc">More help</a> &middot; <a href="/versions" style="color:#e94560">Version comparison (v1.1+) &rarr;</a></div>
+<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.6em">Click any cell to see details and links. Columns: Lit/Alt/Int = literary, alternatives, interdisciplinary panels; HP = with host preparation. <a href="/help" style="color:#6fa8dc">More help</a> &middot; <a href="/script-versions" style="color:#e94560">Version comparison (v1.1+) &rarr;</a></div>
 <div id="gen-select-container" style="margin-bottom:0.8em;font-size:0.9em;">
   <label for="gen-select" style="margin-right:6px;">Generator:</label>
   <select id="gen-select" style="font-size:1em;padding:2px 6px;"></select>
@@ -1912,7 +1980,7 @@ VERSIONS_HTML = """\
 <head>
 <meta charset="utf-8">
 <title>Version Comparison — Not In Our Time</title>
-<script src="/static/nav.js?v=2" defer></script>
+<script src="/static/nav.js?v={{ v }}" defer></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
