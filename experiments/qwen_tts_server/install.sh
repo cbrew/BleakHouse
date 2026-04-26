@@ -41,7 +41,17 @@ if [ ! -s "$ETC_DIR/token" ]; then
 fi
 
 # Pin the renderer code rev so cached jobs invalidate when the code changes.
-sudo -u "$USER_NAME" bash -c "cd '$REPO_DIR' && git rev-parse HEAD" > "$STATE_DIR/code_rev"
+# Prefer an explicit rev (from $CODE_REV or $REPO_DIR/CODE_REV — written by the
+# deploy script before rsync) since pop-os may not have the .git dir.
+if [ -n "${CODE_REV:-}" ]; then
+    printf '%s' "$CODE_REV" > "$STATE_DIR/code_rev"
+elif [ -s "$REPO_DIR/CODE_REV" ]; then
+    cp "$REPO_DIR/CODE_REV" "$STATE_DIR/code_rev"
+elif [ -d "$REPO_DIR/.git" ]; then
+    sudo -u "$USER_NAME" bash -c "cd '$REPO_DIR' && git rev-parse HEAD" > "$STATE_DIR/code_rev"
+else
+    printf 'unknown' > "$STATE_DIR/code_rev"
+fi
 chown "$USER_NAME":"$USER_NAME" "$STATE_DIR/code_rev"
 
 install -m 0644 "$REPO_DIR/experiments/qwen_tts_server/qwen-tts-server.service" \
