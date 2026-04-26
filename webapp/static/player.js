@@ -211,11 +211,23 @@ async function loadRun(runId, version = null) {
     segmentNav.innerHTML = "";
     openPassageTurnId = null;
 
-    const resolvedVersion = version
+    let resolvedVersion = version
         || new URLSearchParams(window.location.search).get("version")
         || "classic";
-    const mfUrl = `/api/runs/${runId}/manifest?version=${encodeURIComponent(resolvedVersion)}`;
+    let mfUrl = `/api/runs/${runId}/manifest?version=${encodeURIComponent(resolvedVersion)}`;
     manifest = await fetch(mfUrl).then(r => r.json());
+    // If the requested version isn't actually available for this run
+    // (e.g. URL has ?version=classic but only qwen was rendered), fall
+    // through to the first available version and reload the manifest.
+    const available = (manifest && manifest.available_versions) || [];
+    if (available.length && !available.includes(resolvedVersion)) {
+        resolvedVersion = available[0];
+        const url = new URL(window.location);
+        url.searchParams.set("version", resolvedVersion);
+        history.replaceState(null, "", url.toString());
+        mfUrl = `/api/runs/${runId}/manifest?version=${encodeURIComponent(resolvedVersion)}`;
+        manifest = await fetch(mfUrl).then(r => r.json());
+    }
     renderVersionSwitcher(runId, manifest);
 
     // Expert chips
@@ -301,11 +313,14 @@ function renderVersionSwitcher(runId, mf) {
     const host = document.getElementById("version-switcher");
     if (!host) return;
     const versions = (mf && mf.available_versions) || [];
-    if (versions.length <= 1) {
+    if (versions.length === 0) {
+        // No audio at all — hide the switcher entirely.
         host.innerHTML = "";
         host.style.display = "none";
         return;
     }
+    // Show the pill(s) even at length 1 — the label tells the user
+    // which synthesis engine they're hearing (e.g. qwen-only runs).
     host.style.display = "";
     const current = mf.version || "classic";
     const buttons = versions.map(v => {

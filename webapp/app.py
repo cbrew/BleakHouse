@@ -141,10 +141,13 @@ def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]
         audio_manifest = run_dir / "audio" / "manifest.json"
         run_manifest = run_dir / "manifest.json"
 
-        has_audio = audio_manifest.exists()
+        # Same audio-presence rule as _available_versions / has_audio.
+        has_audio = bool(_available_versions(run_dir.name))
         if not has_audio and not include_scriptonly:
             continue
 
+        # Prefer the per-render manifest under audio/, fall back to the
+        # run-level one (older Gemini renders' metadata lives there).
         manifest_path = audio_manifest if audio_manifest.exists() else run_manifest
         if not manifest_path.exists():
             continue
@@ -551,18 +554,31 @@ _PROFILE_RE = re.compile(r"^[a-z0-9_]+$")
 
 
 def _available_versions(run_id: str) -> list[str]:
-    """Return list of available render versions for a run.
+    """Return the render versions a user can actually play.
 
-    "classic" if manifest.json exists, plus any manifest_{name}.json files.
+    Discovery is by audio file presence, not manifest convention:
+      - podcast.mp3 present → 'classic' is available, regardless of
+        whether manifest.json sits in audio/ (the Gemini render's
+        metadata may live at the run-level manifest.json instead).
+      - podcast_<X>.mp3 present, and manifest_<X>.json also present
+        → '<X>' is available.
+      - podcast_segment_*.mp3 are per-segment shards, not full renders.
     """
     local_dir = DATA_DIR / "runs" / run_id / "audio"
+    if not local_dir.exists():
+        return []
+    files = {p.name for p in local_dir.iterdir()}
     found: set[str] = set()
-    if local_dir.exists():
-        for p in local_dir.iterdir():
-            if p.name == "manifest.json":
-                found.add("classic")
-            elif p.name.startswith("manifest_") and p.suffix == ".json":
-                found.add(p.stem.removeprefix("manifest_"))
+    if "podcast.mp3" in files:
+        found.add("classic")
+    for f in files:
+        if not (f.startswith("podcast_") and f.endswith(".mp3")):
+            continue
+        profile = f.removeprefix("podcast_").removesuffix(".mp3")
+        if profile.startswith("segment"):
+            continue  # segment_NN.mp3 shards, not a render variant
+        if f"manifest_{profile}.json" in files:
+            found.add(profile)
     return sorted(found)
 
 
@@ -919,7 +935,11 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     novel = title.replace(": A Literary Discussion", "")
     base_name, version = _parse_version(name)
     condition, panel, hostprep, _generator = _classify_run(run_dir)
-    has_audio = audio_mp3_path.exists() or audio_manifest_path.exists()
+    # has_audio is true if any playable render exists (Gemini classic
+    # OR a profile render like Qwen). Driven by the same discovery
+    # rule as _available_versions so the matrix and player agree.
+    versions = _available_versions(name)
+    has_audio = bool(versions)
     has_host_prep = (run_dir / "phase2_5_host_briefs.json").exists()
 
     summary = {
