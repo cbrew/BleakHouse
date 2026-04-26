@@ -233,12 +233,11 @@ def find_transport_runs(
 
         if novel not in results:
             results[novel] = {}
-        # Prefer ext over trn if both exist
+        # Post-migration there is no ext/trn split to resolve — axes uses
+        # a single canonical `trn` for all transport runs. Keep the first
+        # match we see so behaviour is deterministic.
         if panel in results[novel]:
-            existing = results[novel][panel]
-            existing_cond = classify_run(existing.parent.name)[1]
-            if existing_cond == "ext":
-                continue  # keep ext
+            continue
         results[novel][panel] = rd
 
     return results

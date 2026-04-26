@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
 import time
 from pathlib import Path
@@ -23,17 +22,19 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import StreamingResponse
 
+from enrichment import axes
+
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-# Authoritative location for podcast audio (MP3s and audio manifests).
-# On Fly this is the persistent volume; locally it defaults to the external drive.
-PODCAST_AUDIO_DIR = Path(
-    os.environ.get("PODCAST_AUDIO_DIR", "/Volumes/Crucial X9/bleakhouse_audio")
-)
+# Audio lives at data/runs/<run>/audio/ — locally this is a symlink
+# into the DVC cache; in the container it's a real file bundled from
+# the staged demo_data/ tree. There used to be a PODCAST_AUDIO_DIR
+# env override pointing at a separate volume; that layout has been
+# folded into the canonical path.
 
 app = FastAPI(title="Literary Podcast Player")
 
@@ -74,28 +75,47 @@ def _version_sort_key(version: str) -> tuple[int, ...]:
     return tuple(nums or [0])
 
 
-def _classify_run(name: str) -> tuple[str, str, bool]:
-    """Return (condition, panel, hostprep) from a run directory name."""
-    if "_nop_" in name or name.startswith("nop_"):
-        condition = "no passages"
-    elif "_emb_" in name or name.startswith("emb_"):
-        condition = "embedding"
-    elif "_rag_" in name or name.startswith("rag_"):
-        condition = "RAG"
-    elif "_rand_" in name or name.startswith("rand_"):
-        condition = "random"
-    else:
-        condition = "transport"
+# Human-readable labels for the display layer.
+_PIPELINE_LABELS: dict[str, str] = {
+    "trn": "transport",
+    "emb": "embedding",
+    "nop": "no passages",
+    "rag": "RAG",
+}
+_PANEL_LABELS: dict[str, str] = {
+    "literary": "Panel A (Hartley / Blackstone / Woodcourt)",
+    "alternatives": "Panel B (Trevelyan / Leigh / Rosen)",
+    "interdisciplinary": "Panel C (Chen / Martinez / Volkov)",
+}
 
-    if "interdisciplinary" in name:
-        panel = "Chen / Martinez / Volkov"
-    elif "_v19_" in name:
-        panel = "Panel B (Trevelyan / Leigh / Rosen)"
-    else:
-        panel = "Panel A (Hartley / Blackstone / Woodcourt)"
 
-    hostprep = "_hostprep" in name
-    return condition, panel, hostprep
+def _classify_run(run_dir: Path) -> tuple[str, str, bool, str]:
+    """Return (condition, panel, hostprep, generator) from config.json['axes'].
+
+    Post-migration this is a plain lookup — no dir-name string matching.
+    Legacy dirs (under _archive/) with no axes block fall back to
+    axes.parse_run_dir_name, which rejects anything that doesn't fit the
+    canonical shape; in that case all fields are best-effort defaults.
+    """
+    cfg_path = run_dir / "config.json"
+    run_axes = None
+    if cfg_path.exists():
+        try:
+            with open(cfg_path) as f:
+                cfg = json.load(f)
+            if isinstance(cfg, dict) and isinstance(cfg.get("axes"), dict):
+                run_axes = axes.RunAxes.from_dict(cfg["axes"])
+        except (OSError, json.JSONDecodeError, KeyError, ValueError):
+            run_axes = None
+    if run_axes is None:
+        try:
+            run_axes = axes.parse_run_dir_name(run_dir.name)
+        except ValueError:
+            return "unknown", "unknown", "_hostprep" in run_dir.name, ""
+
+    condition = _PIPELINE_LABELS.get(run_axes.pipeline) or run_axes.pipeline
+    panel = _PANEL_LABELS.get(run_axes.panel) or run_axes.panel
+    return condition, panel, run_axes.hostprep, run_axes.generator
 
 
 def _load_json(path: Path) -> dict | list | None:
@@ -118,20 +138,14 @@ def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]
     if not runs_dir.exists():
         return novels
     for run_dir in sorted(runs_dir.iterdir()):
-        ext_audio = PODCAST_AUDIO_DIR / run_dir.name / "podcast.mp3"
         audio_manifest = run_dir / "audio" / "manifest.json"
         run_manifest = run_dir / "manifest.json"
 
-        has_audio = ext_audio.exists() or audio_manifest.exists()
+        has_audio = audio_manifest.exists()
         if not has_audio and not include_scriptonly:
             continue
 
-        ext_manifest = PODCAST_AUDIO_DIR / run_dir.name / "manifest.json"
-        manifest_path = (
-            ext_manifest if ext_manifest.exists()
-            else audio_manifest if audio_manifest.exists()
-            else run_manifest
-        )
+        manifest_path = audio_manifest if audio_manifest.exists() else run_manifest
         if not manifest_path.exists():
             continue
 
@@ -142,7 +156,7 @@ def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]
 
         name = run_dir.name
         base_name, version = _parse_version(name)
-        condition, panel, hostprep = _classify_run(name)
+        condition, panel, hostprep, generator = _classify_run(run_dir)
 
         run_info = {
             "run_id": name,
@@ -153,6 +167,7 @@ def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]
             "condition": condition,
             "panel": panel,
             "hostprep": hostprep,
+            "generator": generator,
             "passage_source": mf.get("passage_source", "unknown"),
             "experts": mf.get("experts", []),
             "total_duration_ms": mf.get("total_duration_ms", 0),
@@ -540,13 +555,10 @@ def _available_versions(run_id: str) -> list[str]:
 
     "classic" if manifest.json exists, plus any manifest_{name}.json files.
     """
-    ext_dir = PODCAST_AUDIO_DIR / run_id
     local_dir = DATA_DIR / "runs" / run_id / "audio"
     found: set[str] = set()
-    for d in (ext_dir, local_dir):
-        if not d.exists():
-            continue
-        for p in d.iterdir():
+    if local_dir.exists():
+        for p in local_dir.iterdir():
             if p.name == "manifest.json":
                 found.add("classic")
             elif p.name.startswith("manifest_") and p.suffix == ".json":
@@ -559,7 +571,6 @@ async def get_manifest(run_id: str, version: str = "classic"):
     if not _PROFILE_RE.match(version):
         raise HTTPException(400, "Invalid version")
     filename = "manifest.json" if version == "classic" else f"manifest_{version}.json"
-    ext_manifest = PODCAST_AUDIO_DIR / run_id / filename
     audio_manifest = DATA_DIR / "runs" / run_id / "audio" / filename
     # Only fall back to run-level manifest.json for the default classic version.
     run_manifest = (
@@ -567,7 +578,7 @@ async def get_manifest(run_id: str, version: str = "classic"):
         if version == "classic"
         else None
     )
-    candidates = [ext_manifest, audio_manifest]
+    candidates = [audio_manifest]
     if run_manifest is not None:
         candidates.append(run_manifest)
     for candidate in candidates:
@@ -658,13 +669,71 @@ KOKORO_CACHE = AUDIO_VOLUME / "kokoro_cache"
 async def serve_audio(run_id: str, filename: str):
     if ".." in run_id or ".." in filename:
         raise HTTPException(400, "Invalid path")
-    # Check authoritative audio dir first, then run-local audio
-    audio_path = PODCAST_AUDIO_DIR / run_id / filename
-    if not audio_path.exists():
-        audio_path = DATA_DIR / "runs" / run_id / "audio" / filename
+    audio_path = DATA_DIR / "runs" / run_id / "audio" / filename
     if not audio_path.exists():
         raise HTTPException(404, f"Audio file not found: {filename}")
     return FileResponse(str(audio_path), media_type="audio/mpeg")
+
+
+# ---------------------------------------------------------------------------
+# Admin: blob upload to the fly volume DVC cache.
+# Bypasses fly ssh entirely; uses the standard HTTPS edge.
+# ---------------------------------------------------------------------------
+
+import hashlib  # noqa: E402
+import os  # noqa: E402
+
+_ADMIN_TOKEN = os.environ.get("ADMIN_UPLOAD_TOKEN", "")
+_HASH_RE = re.compile(r"^[0-9a-f]{32}$")
+VOLUME_CACHE = Path("/app/audio_volume/dvc-cache/files/md5")
+
+
+def _check_admin(request: Request) -> None:
+    if not _ADMIN_TOKEN:
+        raise HTTPException(503, "admin endpoints disabled (no ADMIN_UPLOAD_TOKEN set)")
+    if request.headers.get("x-admin-token") != _ADMIN_TOKEN:
+        raise HTTPException(401, "invalid or missing X-Admin-Token")
+
+
+@app.get("/api/_admin/list-blobs")
+async def list_blobs(request: Request):
+    _check_admin(request)
+    if not VOLUME_CACHE.exists():
+        return {"hashes": [], "machine_id": os.environ.get("FLY_MACHINE_ID", "")}
+    hashes = []
+    for prefix in VOLUME_CACHE.iterdir():
+        if not prefix.is_dir() or len(prefix.name) != 2:
+            continue
+        for blob in prefix.iterdir():
+            if blob.is_file() and not blob.name.startswith("."):
+                hashes.append(prefix.name + blob.name)
+    return {"hashes": sorted(hashes), "machine_id": os.environ.get("FLY_MACHINE_ID", "")}
+
+
+@app.post("/api/_admin/upload-blob")
+async def upload_blob(request: Request, hash: str):
+    _check_admin(request)
+    if not _HASH_RE.match(hash):
+        raise HTTPException(400, "invalid hash format (expect 32 lowercase hex)")
+    data = await request.body()
+    actual = hashlib.md5(data, usedforsecurity=False).hexdigest()
+    if actual != hash:
+        raise HTTPException(
+            400, f"md5 mismatch: declared {hash}, computed {actual}, size {len(data)}"
+        )
+    target = VOLUME_CACHE / hash[:2] / hash[2:]
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Write atomically: tmp file + rename, so a partial write doesn't
+    # leave a corrupt-looking blob the next probe would mistake as done.
+    tmp = target.with_suffix(".tmp")
+    tmp.write_bytes(data)
+    tmp.rename(target)
+    return {
+        "ok": True,
+        "hash": hash,
+        "size": len(data),
+        "machine_id": os.environ.get("FLY_MACHINE_ID", ""),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -679,49 +748,30 @@ REACTIVE_RE = re.compile(
 )
 
 TRACKER_NOVELS = [
-    ("bleak_house", "Bleak House", "Dickens", 1853),
-    ("our_mutual_friend", "Our Mutual Friend", "Dickens", 1865),
-    ("david_copperfield", "David Copperfield", "Dickens", 1850),
-    ("hard_times", "Hard Times", "Dickens", 1854),
-    ("mill_on_the_floss", "Mill on the Floss", "Eliot", 1860),
-    ("middlemarch", "Middlemarch", "Eliot", 1871),
-    ("daniel_deronda", "Daniel Deronda", "Eliot", 1876),
-    ("north_and_south", "North and South", "Gaskell", 1855),
-    ("cranford", "Cranford", "Gaskell", 1853),
-    ("passage_to_india", "Passage to India", "Forster", 1924),
-    ("no_name", "No Name", "Collins", 1862),
-    ("new_grub_street", "New Grub Street", "Gissing", 1891),
-    ("odd_women", "The Odd Women", "Gissing", 1893),
-    ("miss_marjoribanks", "Miss Marjoribanks", "Oliphant", 1866),
-    ("hester", "Hester", "Oliphant", 1883),
+    (n.id, n.title, n.author, n.year) for n in axes.NOVELS
 ]
 
-TRACKER_PREFIXES = {
-    "bleak_house": "", "our_mutual_friend": "omf", "mill_on_the_floss": "motf",
-    "north_and_south": "nas", "passage_to_india": "pti", "hard_times": "ht",
-    "middlemarch": "mid", "daniel_deronda": "dd", "david_copperfield": "dc",
-    "cranford": "cran", "no_name": "noname", "new_grub_street": "ngs",
-    "odd_women": "oddw", "miss_marjoribanks": "mmar", "hester": "hest",
+# Matrix axes: pipelines × panels × hostprep.
+TRACKER_PIPELINES: tuple[str, ...] = ("trn", "emb", "nop")
+TRACKER_PANELS: tuple[str, ...] = ("literary", "alternatives", "interdisciplinary")
+TRACKER_PANEL_SHORT: dict[str, str] = {
+    "literary": "Lit",
+    "alternatives": "Alt",
+    "interdisciplinary": "Int",
 }
-
 TRACKER_CONDITIONS = [
-    ("trn", "v01_baseline", False), ("trn", "v01_baseline", True),
-    ("trn", "v19_all_swapped", False), ("trn", "v19_all_swapped", True),
-    ("emb", "v01_baseline", False), ("emb", "v01_baseline", True),
-    ("emb", "v19_all_swapped", False), ("emb", "v19_all_swapped", True),
-    ("nop", "v01_baseline", False), ("nop", "v01_baseline", True),
-    ("nop", "v19_all_swapped", False), ("nop", "v19_all_swapped", True),
+    (pp, panel, hp)
+    for pp in TRACKER_PIPELINES
+    for panel in TRACKER_PANELS
+    for hp in (False, True)
 ]
 
 
 def _tracker_run_name(novel_key: str, pp: str, panel: str, hp: bool) -> str:
-    np = TRACKER_PREFIXES[novel_key]
-    if novel_key == "bleak_house" and pp == "trn":
-        pp = "ext"
-    name = f"{np}_{pp}_{panel}" if np else f"{pp}_{panel}"
-    if hp:
-        name += "_hostprep"
-    return name
+    """Canonical dir name via axes.run_dir_name; novel_key may be the full id
+    ('bleak_house') or the short axes key ('bh')."""
+    nk = axes.NOVEL_BY_ID[novel_key].key if novel_key in axes.NOVEL_BY_ID else novel_key
+    return axes.run_dir_name(novel=nk, pipeline=pp, panel=panel, hostprep=hp)
 
 
 def _measure(path: Path) -> dict | None:
@@ -850,17 +900,16 @@ async def tracker_data():
 def _summarize_run_dir(run_dir: Path) -> dict:
     """Build one cached summary for a run directory."""
     name = run_dir.name
-    ext_audio_manifest = PODCAST_AUDIO_DIR / name / "manifest.json"
     audio_manifest_path = run_dir / "audio" / "manifest.json"
     run_manifest_path = run_dir / "manifest.json"
+    audio_mp3_path = run_dir / "audio" / "podcast.mp3"
     episode_path = run_dir / "phase3_episode.json"
     config_path = run_dir / "config.json"
     reading_list_path = run_dir / "phase2_5_reading_list.json"
     report_path = run_dir / "report.html"
 
     manifest = (
-        _load_json(ext_audio_manifest)
-        or _load_json(audio_manifest_path)
+        _load_json(audio_manifest_path)
         or _load_json(run_manifest_path)
     )
     episode = _load_json(episode_path) if episode_path.exists() else None
@@ -869,11 +918,8 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     title = (manifest or episode or {}).get("title", name)
     novel = title.replace(": A Literary Discussion", "")
     base_name, version = _parse_version(name)
-    condition, panel, hostprep = _classify_run(name)
-    has_audio = (
-        (PODCAST_AUDIO_DIR / name / "podcast.mp3").exists()
-        or audio_manifest_path.exists()
-    )
+    condition, panel, hostprep, _generator = _classify_run(run_dir)
+    has_audio = audio_mp3_path.exists() or audio_manifest_path.exists()
     has_host_prep = (run_dir / "phase2_5_host_briefs.json").exists()
 
     summary = {
@@ -979,6 +1025,42 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     return summary
 
 
+def _dvc_stale_runs() -> dict[str, list[str]]:
+    """Return {run_id: [stale_stage_phase, ...]} by parsing `dvc status --json`.
+
+    Each DVC stage name is `<phase>@<run_id>` (see dvc.yaml matrix).
+    Empty dict means clean.
+
+    `dvc` is expected on PATH (in the deploy container it's pip-
+    installed; locally it's in the uv-managed project venv). Anything
+    that prevents it from running cleanly degrades to {}.
+    """
+    import subprocess
+    try:
+        proc = subprocess.run(
+            ["dvc", "status", "--json"],
+            capture_output=True, text=True, timeout=20, cwd=BASE_DIR,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return {}
+    if proc.returncode != 0 and proc.returncode != 1:
+        # dvc status returns 1 when the graph is dirty — that's fine.
+        return {}
+    try:
+        data = json.loads(proc.stdout or "{}")
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    stale: dict[str, list[str]] = {}
+    for stage_name in data:
+        if "@" not in stage_name:
+            continue
+        phase, run_id = stage_name.split("@", 1)
+        stale.setdefault(run_id, []).append(phase)
+    return stale
+
+
 def _build_cached_snapshot() -> dict:
     runs_dir = DATA_DIR / "runs"
     novels: dict[str, list[dict]] = {}
@@ -987,12 +1069,14 @@ def _build_cached_snapshot() -> dict:
     p25_times: list[float] = []
     p3_times: list[float] = []
     versions_map: dict[str, list[dict]] = {}
+    stale_by_run = _dvc_stale_runs()
 
     if runs_dir.exists():
         for run_dir in sorted(runs_dir.iterdir()):
             if not run_dir.is_dir():
                 continue
             summary = _summarize_run_dir(run_dir)
+            summary["dvc_stale_phases"] = stale_by_run.get(summary["run_id"], [])
             run_summaries[summary["run_id"]] = summary
 
             if summary["title"] and summary["has_audio"]:
@@ -1049,22 +1133,47 @@ def _build_cached_snapshot() -> dict:
             if timings.get("p3_min") is not None:
                 p3_times.append(timings["p3_min"])
 
+    # Per-generator matrix: each row holds cells_by_generator[gen_id] so the
+    # client can switch dimensions without a refetch. Default generator's
+    # cells are duplicated into `row.cells` for back-compat.
+    tracker_generators = sorted(axes.GENERATORS)
     rows = []
+    totals_by_generator: dict[str, dict[str, int]] = {
+        g: {"total": 0, "done": 0, "running": 0} for g in tracker_generators
+    }
+    # Legacy scalar totals track the default generator.
     total = 0
     done = 0
     running_count = 0
     for novel_key, title, author, year in TRACKER_NOVELS:
-        cells = []
-        for pp, panel, hp in TRACKER_CONDITIONS:
-            total += 1
-            rn = _tracker_run_name(novel_key, pp, panel, hp)
-            detail = run_summaries.get(rn, {"name": rn, "status": "missing"})
-            if detail["status"] == "done":
+        cells_by_generator: dict[str, list[dict]] = {}
+        for gen in tracker_generators:
+            cells: list[dict] = []
+            nk_short = axes.NOVEL_BY_ID[novel_key].key if novel_key in axes.NOVEL_BY_ID else novel_key
+            for pp, panel, hp in TRACKER_CONDITIONS:
+                rn = axes.run_dir_name(novel=nk_short, pipeline=pp, panel=panel,
+                                       hostprep=hp, generator=gen)
+                detail = run_summaries.get(rn, {"name": rn, "status": "missing"})
+                totals_by_generator[gen]["total"] += 1
+                if detail["status"] == "done":
+                    totals_by_generator[gen]["done"] += 1
+                elif detail["status"] == "running":
+                    totals_by_generator[gen]["running"] += 1
+                cells.append(detail)
+            cells_by_generator[gen] = cells
+
+        default_cells = cells_by_generator[axes.DEFAULT_GENERATOR]
+        total += len(default_cells)
+        for c in default_cells:
+            if c["status"] == "done":
                 done += 1
-            elif detail["status"] == "running":
+            elif c["status"] == "running":
                 running_count += 1
-            cells.append(detail)
-        rows.append({"key": novel_key, "title": title, "author": author, "year": year, "cells": cells})
+        rows.append({
+            "key": novel_key, "title": title, "author": author, "year": year,
+            "cells": default_cells,
+            "cells_by_generator": cells_by_generator,
+        })
 
     refreshed_at = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
     versions = dict(
@@ -1170,6 +1279,12 @@ def _build_cached_snapshot() -> dict:
             "refreshed_at": refreshed_at,
             "interdisciplinary": inter_runs,
             "panel_scripts": panel_scripts,
+            "generators": [
+                {"id": g, "display": axes.GENERATOR_BY_ID[g].display}
+                for g in tracker_generators
+            ],
+            "default_generator": axes.DEFAULT_GENERATOR,
+            "totals_by_generator": totals_by_generator,
         },
         "versions": {"versions": versions, "runs": version_runs},
         "refreshed_at": refreshed_at,
@@ -1326,23 +1441,28 @@ td.lo { background:#f8d7da; }
 </head>
 <body>
 <h1>BleakHouse Experiment Matrix</h1>
-<div class="sub">15 novels &times; 2 panels &times; 3 pipelines &times; 2 host-prep = 180 runs
+<div class="sub">15 novels &times; 3 pipelines &times; 3 panels &times; 2 host-prep = 270 cells per generator
  &mdash; <span id="status">connecting...</span></div>
-<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.8em">Click any cell to see details and links. Columns: A/B = expert panels, HP = with host preparation. <a href="/help" style="color:#6fa8dc">More help</a> &middot; <a href="/versions" style="color:#e94560">Version comparison (v1.1+) &rarr;</a></div>
+<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.6em">Click any cell to see details and links. Columns: Lit/Alt/Int = literary, alternatives, interdisciplinary panels; HP = with host preparation. <a href="/help" style="color:#6fa8dc">More help</a> &middot; <a href="/versions" style="color:#e94560">Version comparison (v1.1+) &rarr;</a></div>
+<div id="gen-select-container" style="margin-bottom:0.8em;font-size:0.9em;">
+  <label for="gen-select" style="margin-right:6px;">Generator:</label>
+  <select id="gen-select" style="font-size:1em;padding:2px 6px;"></select>
+  <span id="gen-totals" style="margin-left:10px;color:#666;"></span>
+</div>
 <div id="progress"></div>
 <div id="procinfo" style="font-size:0.85em; color:#555; margin-bottom:1em;"></div>
 <table>
 <thead>
 <tr>
     <th rowspan="2">Novel</th><th rowspan="2">Author</th><th rowspan="2">Year</th>
-    <th colspan="4" class="g">Transport</th>
-    <th colspan="4" class="g">Embedding</th>
-    <th colspan="4" class="g">No Passages</th>
+    <th colspan="6" class="g">Transport</th>
+    <th colspan="6" class="g">Embedding</th>
+    <th colspan="6" class="g">No Passages</th>
 </tr>
 <tr>
-    <th>A</th><th>A+HP</th><th>B</th><th>B+HP</th>
-    <th>A</th><th>A+HP</th><th>B</th><th>B+HP</th>
-    <th>A</th><th>A+HP</th><th>B</th><th>B+HP</th>
+    <th>Lit</th><th>Lit+HP</th><th>Alt</th><th>Alt+HP</th><th>Int</th><th>Int+HP</th>
+    <th>Lit</th><th>Lit+HP</th><th>Alt</th><th>Alt+HP</th><th>Int</th><th>Int+HP</th>
+    <th>Lit</th><th>Lit+HP</th><th>Alt</th><th>Alt+HP</th><th>Int</th><th>Int+HP</th>
 </tr>
 </thead>
 <tbody id="tbody"></tbody>
@@ -1385,13 +1505,42 @@ td.lo { background:#f8d7da; }
 <tbody id="panel-scripts-tbody"></tbody>
 </table>
 <script>
+let _lastData = null;
+let _currentGen = null;
+
 function render(data) {
-    const pct = Math.round(data.done * 100 / data.total);
-    const remaining = data.total - data.done;
-    let status = `<strong>${data.done}/${data.total}</strong> (${pct}%) &mdash; ${remaining} remaining `;
-    if (data.running > 0) status += `<span style="color:#004085">&bull; ${data.running} in progress</span> `;
-    status += `<br><span class="bar-bg"><span class="bar" style="width:${data.done*300/data.total}px"></span></span>`;
+    _lastData = data;
+    const gens = data.generators || [];
+    if (gens.length > 0) {
+        const sel = document.getElementById('gen-select');
+        if (sel && sel.options.length === 0) {
+            sel.innerHTML = gens.map(g =>
+                `<option value="${g.id}">${g.display}</option>`
+            ).join('');
+            sel.value = data.default_generator || gens[0].id;
+            sel.addEventListener('change', () => {
+                _currentGen = sel.value;
+                _renderWithGenerator(_lastData, _currentGen);
+            });
+            _currentGen = sel.value;
+        }
+    }
+    _renderWithGenerator(data, _currentGen || data.default_generator);
+}
+
+function _renderWithGenerator(data, gen) {
+    const totals = (data.totals_by_generator || {})[gen] ||
+                   { total: data.total, done: data.done, running: data.running };
+    const pct = totals.total ? Math.round(totals.done * 100 / totals.total) : 0;
+    const remaining = totals.total - totals.done;
+    let status = `<strong>${totals.done}/${totals.total}</strong> (${pct}%) &mdash; ${remaining} remaining `;
+    if (totals.running > 0) status += `<span style="color:#004085">&bull; ${totals.running} in progress</span> `;
+    const barW = totals.total ? Math.round(totals.done * 300 / totals.total) : 0;
+    status += `<br><span class="bar-bg"><span class="bar" style="width:${barW}px"></span></span>`;
     document.getElementById('progress').innerHTML = status;
+    // Per-generator totals readout next to dropdown.
+    const gtSpan = document.getElementById('gen-totals');
+    if (gtSpan) gtSpan.textContent = `${totals.done}/${totals.total} runs for this generator`;
     // Process info
     let pinfo = '';
     if (data.running > 0) {
@@ -1409,7 +1558,10 @@ function render(data) {
     let html = '';
     for (const row of data.rows) {
         html += `<tr><td class="n">${row.title}</td><td class="a">${row.author}</td><td class="y">${row.year}</td>`;
-        for (const c of row.cells) {
+        const cells = (row.cells_by_generator && row.cells_by_generator[gen])
+            ? row.cells_by_generator[gen]
+            : row.cells;
+        for (const c of cells) {
             if (c.status === 'missing') {
                 html += '<td class="m">&mdash;</td>';
             } else if (c.status === 'running') {
@@ -1427,8 +1579,12 @@ function render(data) {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 const cdata = encodeURIComponent(JSON.stringify(c));
                 const audio = c.has_audio ? '<span style="font-size:0.7em;color:#27ae60" title="Audio available">&#9835;</span>' : '';
+                const stalePhases = c.dvc_stale_phases || [];
+                const stale = stalePhases.length > 0
+                    ? `<span style="font-size:0.7em;color:#c0392b" title="DVC stale: ${stalePhases.join(', ')}">&#9888;</span>`
+                    : '';
                 html += `<td class="d ${cls}" onclick="showRunDetail(event, '${cdata}')">` +
-                    `<span class="q">${c.q}</span>${audio}<br>` +
+                    `<span class="q">${c.q}</span>${audio}${stale}<br>` +
                     `<span class="r">${c.r}</span><br>` +
                     `<span class="w">${Math.round(c.w/1000)}k</span></td>`;
             }

@@ -1,0 +1,16 @@
+repos:
+  - repo: local
+    hooks:
+      - id: dvc-status
+        name: DVC status — refuse committing a stale provenance graph
+        entry: bash -c 'status=$(uv run --no-sync dvc status 2>&1); if echo "$status" | grep -q "up to date"; then exit 0; else echo "DVC reports stale runs. Either regenerate the affected artefacts and \`dvc commit\`, or \`git commit --no-verify\` if you intend to land a known-stale state:"; echo "$status" | head -40; exit 1; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: runs-yaml-current
+        name: runs.yaml reflects the current data/runs/ directory
+        entry: bash -c 'uv run --no-sync python -m scripts.generate_runs_yaml > /dev/null && git diff --quiet runs.yaml || { echo "runs.yaml is out of date — run `uv run python -m scripts.generate_runs_yaml` and stage the diff"; exit 1; }'
+        language: system
+        pass_filenames: false
+        files: ^(runs\.yaml|data/runs/.*/config\.json)$

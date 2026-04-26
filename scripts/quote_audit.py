@@ -31,7 +31,7 @@ import spacy
 
 DATA_DIR = Path("data")
 RUNS_DIR = DATA_DIR / "runs"
-PASSAGES_FILE = DATA_DIR / "passages_enriched.json"
+PASSAGES_FILE = DATA_DIR / "novels" / "bleak_house" / "passages_enriched.json"
 REPORT_DIR = Path("reports/quote_audit")
 
 # Pipeline prefixes → condition names

@@ -1,19 +1,37 @@
-"""Generate a run-tracking HTML page showing the 120-run experiment matrix.
+"""Generate a run-tracking HTML page showing the experiment matrix.
 
 Inspired by the evaluation tables in Croft, Metzler & Strohman's
 *Search Engines: Information Retrieval in Practice* — topics down the
 rows, systems across the columns, scores in each cell.
 
+Schema: axes are sourced from `enrichment.axes` (one place, no duplication).
+Dir names follow `{novel}_{pipeline}_{panel}[_hostprep][_{generator}]`.
+Cell tooltips show every axis explicitly so panel/novel/hostprep/generator
+are never inferred from the name at display time.
+
 Usage:
     uv run python -m webapp.run_tracker
-    # Opens data/run_tracker.html
+    uv run python -m webapp.run_tracker --generator cerebras_qwen
 """
 
+from __future__ import annotations
+
+import argparse
 import json
 import re
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+
+from enrichment.axes import (
+    DEFAULT_GENERATOR,
+    GENERATOR_BY_ID,
+    GENERATORS,
+    NOVELS,
+    PANELS_TUPLE,
+    RunAxes,
+    run_dir_name,
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUNS_DIR = BASE_DIR / "data" / "runs"
@@ -26,73 +44,38 @@ REACTIVE = re.compile(
     re.I,
 )
 
-NOVELS = [
-    ("bleak_house", "Bleak House", "Dickens", 1853),
-    ("our_mutual_friend", "Our Mutual Friend", "Dickens", 1865),
-    ("david_copperfield", "David Copperfield", "Dickens", 1850),
-    ("hard_times", "Hard Times", "Dickens", 1854),
-    ("mill_on_the_floss", "Mill on the Floss", "Eliot", 1860),
-    ("middlemarch", "Middlemarch", "Eliot", 1871),
-    ("daniel_deronda", "Daniel Deronda", "Eliot", 1876),
-    ("north_and_south", "North and South", "Gaskell", 1855),
-    ("cranford", "Cranford", "Gaskell", 1853),
-    ("passage_to_india", "Passage to India", "Forster", 1924),
-    ("no_name", "No Name", "Collins", 1862),
-    ("new_grub_street", "New Grub Street", "Gissing", 1891),
-    ("odd_women", "The Odd Women", "Gissing", 1893),
-    ("miss_marjoribanks", "Miss Marjoribanks", "Oliphant", 1866),
-    ("hester", "Hester", "Oliphant", 1883),
-]
-
-NOVEL_PREFIXES = {
-    "bleak_house": "",
-    "our_mutual_friend": "omf",
-    "mill_on_the_floss": "motf",
-    "north_and_south": "nas",
-    "passage_to_india": "pti",
-    "hard_times": "ht",
-    "middlemarch": "mid",
-    "daniel_deronda": "dd",
-    "david_copperfield": "dc",
-    "cranford": "cran",
-    "no_name": "noname",
-    "new_grub_street": "ngs",
-    "odd_women": "oddw",
-    "miss_marjoribanks": "mmar",
-    "hester": "hest",
+# Column order: pipelines × panels × hostprep, stable & wide.
+# Pipelines: trn first (most-used) then emb, nop.
+#
+# `rag` and `rand` are paper-only baselines — plain-retrieval and random-
+# passages respectively — used as ablation pairs against `emb`. They are
+# intentionally *excluded* from the tracker: they don't belong on a
+# generation-quality grid. Use --include-rag to force them in.
+#
+# Panels: literary, alternatives, interdisciplinary — matches the legacy
+#   "A / B / Inter" ordering from the pre-migration CONDITIONS tuple.
+DEFAULT_PIPELINE_ORDER: tuple[str, ...] = ("trn", "emb", "nop")
+PIPELINE_ORDER_WITH_RAG: tuple[str, ...] = ("trn", "emb", "nop", "rag")
+PANEL_ORDER: tuple[str, ...] = ("literary", "alternatives", "interdisciplinary")
+PANEL_SHORT: dict[str, str] = {
+    "literary": "Lit",
+    "alternatives": "Alt",
+    "interdisciplinary": "Int",
+}
+HOSTPREP_ORDER: tuple[bool, ...] = (False, True)
+PIPELINE_DISPLAY: dict[str, str] = {
+    "trn": "Transport",
+    "emb": "Embedding (curated)",
+    "nop": "No-passages",
+    "rag": "RAG (plain)",
 }
 
-CONDITIONS = [
-    ("trn", "v01_baseline", False, "Transport A"),
-    ("trn", "v01_baseline", True, "Transport A + HP"),
-    ("trn", "v19_all_swapped", False, "Transport B"),
-    ("trn", "v19_all_swapped", True, "Transport B + HP"),
-    ("emb", "v01_baseline", False, "Embedding A"),
-    ("emb", "v01_baseline", True, "Embedding A + HP"),
-    ("emb", "v19_all_swapped", False, "Embedding B"),
-    ("emb", "v19_all_swapped", True, "Embedding B + HP"),
-]
 
-
-def run_dir_name(novel_key: str, pipeline_prefix: str, panel: str, hostprep: bool) -> str:
-    """Build the run directory name."""
-    np = NOVEL_PREFIXES[novel_key]
-    # Bleak House uses 'ext' for transport
-    if novel_key == "bleak_house" and pipeline_prefix == "trn":
-        pipeline_prefix = "ext"
-    if np:
-        name = f"{np}_{pipeline_prefix}_{panel}"
-    else:
-        name = f"{pipeline_prefix}_{panel}"
-    if hostprep:
-        name += "_hostprep"
-    return name
-
-
-def measure_episode(path: str) -> dict | None:
+def measure_episode(path: Path) -> dict | None:
     """Extract key metrics from a phase3_episode.json."""
     try:
-        ep = json.load(open(path))
+        with open(path) as f:
+            ep = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
@@ -157,7 +140,25 @@ def _balance_score(expert_words: dict[str, int]) -> float:
     return round(1.0 - deviation, 2)
 
 
-def cell_html(metrics: dict | None, run_name: str) -> str:
+def _config_axes(run_dir: Path) -> RunAxes | None:
+    """Read the `axes` block from config.json; None if missing or invalid."""
+    cfg_path = run_dir / "config.json"
+    if not cfg_path.exists():
+        return None
+    try:
+        with open(cfg_path) as f:
+            cfg = json.load(f)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(cfg, dict) or "axes" not in cfg:
+        return None
+    try:
+        return RunAxes.from_dict(cfg["axes"])
+    except (KeyError, ValueError):
+        return None
+
+
+def cell_html(metrics: dict | None, axes: RunAxes, run_name: str) -> str:
     """Render one cell of the matrix."""
     if metrics is None:
         return '<td class="missing" title="Not yet generated">—</td>'
@@ -166,7 +167,6 @@ def cell_html(metrics: dict | None, run_name: str) -> str:
     r = metrics["react_per_seg"]
     w = metrics["words"]
 
-    # Color by Q/seg: higher = more conversational
     if q >= 5:
         cls = "high"
     elif q >= 2:
@@ -176,6 +176,8 @@ def cell_html(metrics: dict | None, run_name: str) -> str:
 
     tooltip = (
         f"{run_name}\n"
+        f"novel={axes.novel}, pipeline={axes.pipeline}, panel={axes.panel}, "
+        f"hostprep={axes.hostprep}, generator={axes.generator}\n"
         f"{w:,} words, {metrics['segments']} segments, {metrics['turns']} turns\n"
         f"Q/seg: {q}, React/seg: {r}\n"
         f"Host: {metrics['host_pct']}%, Balance: {metrics['expert_balance']}\n"
@@ -191,44 +193,81 @@ def cell_html(metrics: dict | None, run_name: str) -> str:
     )
 
 
-def generate_html() -> str:
-    """Build the full tracking page."""
-    rows = []
+def _iter_columns(pipeline_order: tuple[str, ...]) -> list[tuple[str, str, bool, str]]:
+    """(pipeline, panel, hostprep, short_label) in display order."""
+    cols: list[tuple[str, str, bool, str]] = []
+    for pipeline in pipeline_order:
+        for panel in PANEL_ORDER:
+            for hostprep in HOSTPREP_ORDER:
+                short = f"{PIPELINE_DISPLAY[pipeline][:3]} {PANEL_SHORT[panel]}"
+                if hostprep:
+                    short += " +HP"
+                cols.append((pipeline, panel, hostprep, short))
+    return cols
+
+
+def generate_html(generator: str, pipeline_order: tuple[str, ...]) -> str:
+    """Build the tracking page for one generator."""
+    if generator not in GENERATORS:
+        raise ValueError(f"unknown generator {generator!r}; one of {sorted(GENERATORS)}")
+
+    columns = _iter_columns(pipeline_order)
+    rows: list[str] = []
     total = 0
     done = 0
 
-    for novel_key, title, author, year in NOVELS:
-        cells = []
-        for pipeline_prefix, panel, hostprep, _label in CONDITIONS:
+    for novel in NOVELS:
+        cells: list[str] = []
+        for pipeline, panel, hostprep, _short in columns:
             total += 1
-            rn = run_dir_name(novel_key, pipeline_prefix, panel, hostprep)
-            ep_path = RUNS_DIR / rn / "phase3_episode.json"
-            metrics = measure_episode(str(ep_path))
+            rn = run_dir_name(
+                novel=novel.key, pipeline=pipeline, panel=panel,
+                hostprep=hostprep, generator=generator,
+            )
+            run_path = RUNS_DIR / rn
+            axes_from_cfg = _config_axes(run_path)
+            # Prefer axes from config.json (authoritative) over the name-derived
+            # ones; fall back to constructed axes if config is missing but
+            # phase3 exists (e.g. a freshly-created dir not yet configured).
+            displayed_axes = axes_from_cfg or RunAxes(
+                novel=novel.key, pipeline=pipeline, panel=panel,
+                hostprep=hostprep, generator=generator,
+            )
+            metrics = measure_episode(run_path / "phase3_episode.json")
             if metrics:
                 done += 1
-            cells.append(cell_html(metrics, rn))
+            cells.append(cell_html(metrics, displayed_axes, rn))
 
         rows.append(
             f"<tr>"
-            f'<td class="novel">{title}</td>'
-            f'<td class="author">{author}</td>'
-            f'<td class="year">{year}</td>'
+            f'<td class="novel">{novel.title}</td>'
+            f'<td class="author">{novel.author}</td>'
+            f'<td class="year">{novel.year}</td>'
             f"{''.join(cells)}"
             f"</tr>"
         )
 
-    col_headers = "".join(
-        f"<th>{label}</th>" for _, _, _, label in CONDITIONS
-    )
+    # Two-row header: pipeline group, then pipeline×panel×hostprep.
+    group_row = ""
+    for pipeline in pipeline_order:
+        span = len(PANEL_ORDER) * len(HOSTPREP_ORDER)
+        group_row += f'<th colspan="{span}" class="group">{PIPELINE_DISPLAY[pipeline]}</th>'
+    col_row = "".join(f"<th>{short}</th>" for _, _, _, short in columns)
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    gen_info = GENERATOR_BY_ID[generator]
+    other_gens = [g for g in sorted(GENERATORS) if g != generator]
+    gen_links = " · ".join(
+        f'<a href="run_tracker_{g}.html">{GENERATOR_BY_ID[g].display}</a>'
+        for g in other_gens
+    )
 
     return f"""\
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>BleakHouse Experiment Matrix — {done}/{total}</title>
+<title>BleakHouse Experiment Matrix — {gen_info.display} ({done}/{total})</title>
 <style>
 body {{
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -238,112 +277,49 @@ body {{
 }}
 h1 {{ font-size: 1.4em; margin-bottom: 0.3em; }}
 .subtitle {{ color: #666; margin-bottom: 1.5em; font-size: 0.9em; }}
-table {{
-    border-collapse: collapse;
-    font-size: 0.8em;
-    width: 100%;
-}}
+table {{ border-collapse: collapse; font-size: 0.8em; width: 100%; }}
 th, td {{
     border: 1px solid #ccc;
     padding: 4px 6px;
     text-align: center;
     vertical-align: middle;
 }}
-th {{
-    background: #2c3e50;
-    color: white;
-    font-weight: 500;
-    font-size: 0.85em;
-}}
-th.group {{
-    background: #34495e;
-}}
-td.novel {{
-    text-align: left;
-    font-weight: 600;
-    background: #fff;
-    white-space: nowrap;
-}}
-td.author {{
-    text-align: left;
-    color: #666;
-    background: #fff;
-    white-space: nowrap;
-}}
-td.year {{
-    color: #888;
-    background: #fff;
-}}
-td.missing {{
-    background: #f5f5f5;
-    color: #ccc;
-}}
-td.done {{
-    cursor: help;
-}}
-td.done.high {{
-    background: #d4edda;
-}}
-td.done.mid {{
-    background: #fff3cd;
-}}
-td.done.low {{
-    background: #f8d7da;
-}}
-span.q {{
-    font-weight: 700;
-    font-size: 1.1em;
-}}
-span.r {{
-    color: #555;
-    font-size: 0.85em;
-}}
-span.w {{
-    color: #999;
-    font-size: 0.8em;
-}}
-.legend {{
-    margin-top: 1em;
-    font-size: 0.8em;
-    color: #666;
-}}
+th {{ background: #2c3e50; color: white; font-weight: 500; font-size: 0.85em; }}
+th.group {{ background: #34495e; }}
+td.novel {{ text-align: left; font-weight: 600; background: #fff; white-space: nowrap; }}
+td.author {{ text-align: left; color: #666; background: #fff; white-space: nowrap; }}
+td.year {{ color: #888; background: #fff; }}
+td.missing {{ background: #f5f5f5; color: #ccc; }}
+td.done {{ cursor: help; }}
+td.done.high {{ background: #d4edda; }}
+td.done.mid {{ background: #fff3cd; }}
+td.done.low {{ background: #f8d7da; }}
+span.q {{ font-weight: 700; font-size: 1.1em; }}
+span.r {{ color: #555; font-size: 0.85em; }}
+span.w {{ color: #999; font-size: 0.8em; }}
+.legend {{ margin-top: 1em; font-size: 0.8em; color: #666; }}
 .legend span {{
-    display: inline-block;
-    width: 14px;
-    height: 14px;
-    margin-right: 3px;
-    vertical-align: middle;
-    border: 1px solid #ccc;
+    display: inline-block; width: 14px; height: 14px;
+    margin-right: 3px; vertical-align: middle; border: 1px solid #ccc;
 }}
-.progress {{
-    font-size: 1.1em;
-    margin-bottom: 1em;
-}}
-.progress .bar {{
-    display: inline-block;
-    height: 20px;
-    background: #27ae60;
-    border-radius: 3px;
-    vertical-align: middle;
-}}
-.progress .bar-bg {{
-    display: inline-block;
-    height: 20px;
-    width: 300px;
-    background: #eee;
-    border-radius: 3px;
-    vertical-align: middle;
-}}
+.progress {{ font-size: 1.1em; margin-bottom: 1em; }}
+.progress .bar {{ display: inline-block; height: 20px; background: #27ae60; border-radius: 3px; vertical-align: middle; }}
+.progress .bar-bg {{ display: inline-block; height: 20px; width: 300px; background: #eee; border-radius: 3px; vertical-align: middle; }}
+.gen-switch {{ margin-top: 0.5em; font-size: 0.85em; color: #666; }}
 </style>
 </head>
 <body>
 <h1>BleakHouse Experiment Matrix</h1>
-<div class="subtitle">15 novels &times; 2 panels &times; 2 pipelines &times; 2 host-prep = 120 runs &mdash; Generated {now}</div>
+<div class="subtitle">
+    Generator: <strong>{gen_info.display}</strong> · {len(NOVELS)} novels &times; {len(pipeline_order)} pipelines &times; {len(PANEL_ORDER)} panels &times; {len(HOSTPREP_ORDER)} host-prep = {total} cells &mdash; Generated {now}
+</div>
 
 <div class="progress">
-    <strong>{done}/{total}</strong> runs complete ({done*100//total}%)
-    <div class="bar-bg"><div class="bar" style="width: {done*300//total}px"></div></div>
+    <strong>{done}/{total}</strong> runs complete ({done*100//total if total else 0}%)
+    <div class="bar-bg"><div class="bar" style="width: {done*300//total if total else 0}px"></div></div>
 </div>
+
+<div class="gen-switch">Other generators: {gen_links or '(none)'}</div>
 
 <table>
 <thead>
@@ -351,11 +327,10 @@ span.w {{
     <th rowspan="2">Novel</th>
     <th rowspan="2">Author</th>
     <th rowspan="2">Year</th>
-    <th colspan="4" class="group">Transport</th>
-    <th colspan="4" class="group">Embedding</th>
+    {group_row}
 </tr>
 <tr>
-    {col_headers}
+    {col_row}
 </tr>
 </thead>
 <tbody>
@@ -364,8 +339,8 @@ span.w {{
 </table>
 
 <div class="legend">
-    <p>Each cell shows: <strong>Q/seg</strong> (questions per segment) / reactive markers per seg / word count.
-    Hover for details.</p>
+    <p>Each cell: <strong>Q/seg</strong> / reactive markers per seg / word count.
+    Hover for all five axes + metrics.</p>
     <p>
         <span style="background:#d4edda"></span> Q/seg &ge; 5 (strong dialogue) &nbsp;
         <span style="background:#fff3cd"></span> Q/seg 2&ndash;5 (moderate) &nbsp;
@@ -379,9 +354,44 @@ span.w {{
 
 
 def main() -> None:
-    html = generate_html()
-    OUTPUT_PATH.write_text(html)
-    print(f"Written to {OUTPUT_PATH}")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--generator",
+        default=DEFAULT_GENERATOR,
+        choices=sorted(GENERATORS),
+        help=f"Which generator's matrix to render (default: {DEFAULT_GENERATOR}).",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Render one file per generator: run_tracker.html (default) plus run_tracker_<gen>.html for each non-default.",
+    )
+    parser.add_argument(
+        "--include-rag",
+        action="store_true",
+        help="Include the RAG (plain retrieval) pipeline column (paper-only baseline; hidden by default).",
+    )
+    args = parser.parse_args()
+
+    # Quick sanity check that the canonical panel list aligns with axes.
+    panel_ids = {p.id for p in PANELS_TUPLE}
+    assert set(PANEL_ORDER) <= panel_ids, (
+        f"PANEL_ORDER has panel ids not in axes.PANELS_TUPLE: {set(PANEL_ORDER) - panel_ids}"
+    )
+
+    pipeline_order = PIPELINE_ORDER_WITH_RAG if args.include_rag else DEFAULT_PIPELINE_ORDER
+
+    if args.all:
+        for g in sorted(GENERATORS):
+            html = generate_html(g, pipeline_order)
+            out = OUTPUT_PATH if g == DEFAULT_GENERATOR else OUTPUT_PATH.with_name(f"run_tracker_{g}.html")
+            out.write_text(html)
+            print(f"Written {out}")
+    else:
+        html = generate_html(args.generator, pipeline_order)
+        out = OUTPUT_PATH if args.generator == DEFAULT_GENERATOR else OUTPUT_PATH.with_name(f"run_tracker_{args.generator}.html")
+        out.write_text(html)
+        print(f"Written {out}")
 
 
 if __name__ == "__main__":

@@ -64,42 +64,53 @@ def verify_run(run_dir: Path, source_text: str) -> dict:
     return {"verified": verified, "total": total, "rate": rate}
 
 
+def _verify_one(run_dir: Path, source_cache: dict[str, str]) -> None:
+    novel = detect_novel(run_dir.name)
+    if novel not in source_cache:
+        logger.info("Loading source text for %s", novel)
+        source_cache[novel] = load_source_text(novel, RUNS_DIR)
+    result = verify_run(run_dir, source_cache[novel])
+    (run_dir / CACHE_FILE).write_text(json.dumps(result))
+    logger.info(
+        "%s: %d/%d verified (%.1f%%)",
+        run_dir.name, result["verified"], result["total"], result["rate"],
+    )
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--force", action="store_true", help="Recompute even if cached")
+    parser.add_argument(
+        "--run", default=None,
+        help="Verify only this run id (default: walk every run with phase3)",
+    )
     args = parser.parse_args()
 
-    # Load source texts once per novel
     source_cache: dict[str, str] = {}
+
+    if args.run:
+        run_dir = RUNS_DIR / args.run
+        if not (run_dir / "phase3_episode.json").exists():
+            logger.warning("%s has no phase3_episode.json — skipping", args.run)
+            return
+        _verify_one(run_dir, source_cache)
+        return
+
     computed = 0
     skipped = 0
-
     for run_dir in sorted(RUNS_DIR.iterdir()):
         if not run_dir.is_dir():
             continue
         if not (run_dir / "phase3_episode.json").exists():
             continue
-
         cache_path = run_dir / CACHE_FILE
         if cache_path.exists() and not args.force:
             skipped += 1
             continue
-
-        novel = detect_novel(run_dir.name)
-        if novel not in source_cache:
-            logger.info("Loading source text for %s", novel)
-            source_cache[novel] = load_source_text(novel, RUNS_DIR)
-
-        result = verify_run(run_dir, source_cache[novel])
-        cache_path.write_text(json.dumps(result))
+        _verify_one(run_dir, source_cache)
         computed += 1
-        logger.info(
-            "%s: %d/%d verified (%.1f%%)",
-            run_dir.name, result["verified"], result["total"], result["rate"],
-        )
-
     logger.info("Done: %d computed, %d skipped (cached)", computed, skipped)
 
 
