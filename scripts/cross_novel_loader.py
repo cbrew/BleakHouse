@@ -12,42 +12,34 @@ import re
 from collections import Counter
 from pathlib import Path
 
+from enrichment.axes import NOVELS, parse_run_dir_name
+
 SCRIPTS_DIR = Path(__file__).resolve().parent
 BASE_DIR = SCRIPTS_DIR.parent
 RUNS_DIR = BASE_DIR / "data" / "runs"
 NOVELS_DIR = BASE_DIR / "data" / "novels"
 
-# Novel keys and their run-name prefixes
-NOVEL_PREFIXES = {
-    "omf": "our_mutual_friend",
-    "motf": "mill_on_the_floss",
-    "nas": "north_and_south",
-    "pti": "passage_to_india",
+# Subset of non-BH novels this analysis script targets.
+_CROSS_NOVEL_KEYS: frozenset[str] = frozenset({
+    "our_mutual_friend", "mill_on_the_floss",
+    "north_and_south", "passage_to_india",
+})
+NOVEL_PREFIXES: dict[str, str] = {
+    n.key: n.id for n in NOVELS if n.id in _CROSS_NOVEL_KEYS
 }
+NOVEL_TITLES: dict[str, str] = {n.id: n.title for n in NOVELS if n.id in _CROSS_NOVEL_KEYS}
 
-NOVEL_TITLES = {
-    "our_mutual_friend": "Our Mutual Friend",
-    "mill_on_the_floss": "The Mill on the Floss",
-    "north_and_south": "North and South",
-    "passage_to_india": "A Passage to India",
-}
-
-COND_PREFIXES = {
+# Legacy axes-pipeline → display label used elsewhere in this analysis.
+COND_PREFIXES: dict[str, str] = {
     "trn": "transport",
     "emb": "embedding",
     "nop": "no_passages",
 }
 
-PANEL_IDS = [
-    "v01_baseline",
-    "v11_rosen_blackstone_woodcourt",
-    "v21_hartley_blackstone_edmund",
-    "v22_hartley_blackstone_rosen",
-    "v23_hartley_rosen_woodcourt",
-    "v26_blackstone_woodcourt_edmund",
-    "v29_rosen_blackstone_trevelyan",
-    "v30_woodcourt_edmund_trevelyan",
-]
+# Canonical panels under the new schema; analyses compute on these plus any
+# archived legacy panel dirs the caller explicitly points at (see
+# data/runs/_archive/).
+PANEL_IDS: list[str] = ["literary", "alternatives", "interdisciplinary"]
 
 ALL_EXPERTS = {
     "Eleanor Hartley", "James Blackstone", "Caroline Woodcourt",
@@ -64,18 +56,25 @@ PROVISION_DIMS = [
 
 
 def parse_run_name(dirname: str) -> tuple[str, str, str] | None:
-    """Parse a cross-novel run directory name.
+    """Parse a canonical run dir name into (novel_id, condition, panel_id).
 
-    Returns (novel_key, condition, panel_id) or None if not parseable.
+    Only returns runs in _CROSS_NOVEL_KEYS with a non-default generator =
+    DEFAULT_GENERATOR and panel in PANEL_IDS. Legacy dir names are rejected
+    (they live in data/runs/_archive/ post-migration).
     """
-    for npfx, novel_key in NOVEL_PREFIXES.items():
-        for cpfx, condition in COND_PREFIXES.items():
-            prefix = f"{npfx}_{cpfx}_"
-            if dirname.startswith(prefix):
-                panel_id = dirname[len(prefix):]
-                if panel_id in PANEL_IDS:
-                    return novel_key, condition, panel_id
-    return None
+    try:
+        axes = parse_run_dir_name(dirname)
+    except ValueError:
+        return None
+    novel_id = NOVEL_PREFIXES.get(axes.novel)
+    if novel_id is None:
+        return None
+    if axes.panel not in PANEL_IDS:
+        return None
+    condition = COND_PREFIXES.get(axes.pipeline)
+    if condition is None:
+        return None
+    return novel_id, condition, axes.panel
 
 
 def discover_runs() -> dict[tuple[str, str, str], Path]:

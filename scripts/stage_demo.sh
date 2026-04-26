@@ -17,6 +17,9 @@ from pathlib import Path
 from enrichment.run_full_matrix import build_matrix
 grid = {r['name'] for r in build_matrix()}
 inter = {d.name for d in Path('data/runs').iterdir() if 'interdisciplinary' in d.name and (d / 'phase3_episode.json').exists()}
+# Alt-generator runs (cerebras_qwen, cerebras_zai_glm, ...) so the demo matrix
+# can compare generators side-by-side against the Anthropic default.
+alt_gen = {d.name for d in Path('data/runs').iterdir() if '_cerebras_' in d.name and (d / 'phase3_episode.json').exists()}
 # Include versioned runs (v1_1, v1_2, etc.) that have a phase3_episode.json or reading list
 versioned = set()
 for d in Path('data/runs').iterdir():
@@ -24,12 +27,14 @@ for d in Path('data/runs').iterdir():
         (d / 'phase3_episode.json').exists() or (d / 'phase2_5_reading_list.json').exists()
     ):
         versioned.add(d.name)
+# Legacy panel-script artefacts still referenced by paper/poster. Absent post-migration
+# (archived); the existence check in the loop skips them gracefully.
 panel_scripts = {
     'arc_v01_baseline', 'arc_v19_all_swapped',
     'hest_trn_v01_baseline_hostprep_refs',
     'hest_trn_v19_all_swapped_hostprep_refs',
 }
-for name in sorted(grid | inter | versioned | panel_scripts):
+for name in sorted(grid | inter | alt_gen | versioned | panel_scripts):
     print(name)
 ")
 
@@ -47,28 +52,38 @@ for run in $DEMO_RUNS; do
         [ -f "$src/$f" ] && cp "$src/$f" "$dst/"
     done
 
-    # Copy audio manifests. For the classic manifest.json, prefer the
-    # external drive (authoritative) over the run-local copy. Then merge
-    # any per-profile manifests (manifest_{profile}.json) from BOTH
-    # locations — external wins on conflict.
-    AUDIO_SRC="${PODCAST_AUDIO_DIR:-/Volumes/Crucial X9/bleakhouse_audio}"
-    if [ -f "$AUDIO_SRC/$run/manifest.json" ] || [ -f "$src/audio/manifest.json" ] \
-       || ls "$AUDIO_SRC/$run"/manifest_*.json >/dev/null 2>&1 \
-       || ls "$src/audio"/manifest_*.json >/dev/null 2>&1; then
+    # Copy the per-run audio manifest from the canonical local path.
+    # (Pre-2026-04-25 the script also looked at PODCAST_AUDIO_DIR; that
+    # layout no longer exists post audio-reorg — the canonical location
+    # is data/runs/<run>/audio/manifest.json.)
+    if [ -f "$src/audio/manifest.json" ]; then
         mkdir -p "$dst/audio"
-        if [ -f "$AUDIO_SRC/$run/manifest.json" ]; then
-            cp "$AUDIO_SRC/$run/manifest.json" "$dst/audio/"
-        elif [ -f "$src/audio/manifest.json" ]; then
-            cp "$src/audio/manifest.json" "$dst/audio/"
-        fi
-        # Local first, then external (external overwrites on conflict).
-        for extra in "$src/audio"/manifest_*.json; do
-            [ -f "$extra" ] && cp "$extra" "$dst/audio/"
-        done
-        for extra in "$AUDIO_SRC/$run"/manifest_*.json; do
-            [ -f "$extra" ] && cp "$extra" "$dst/audio/"
-        done
+        cp "$src/audio/manifest.json" "$dst/audio/"
     fi
+    for extra in "$src/audio"/manifest_*.json; do
+        [ -f "$extra" ] && mkdir -p "$dst/audio" && cp "$extra" "$dst/audio/"
+    done
+
+    # Audio-symlink rewrite for the container build context.
+    # Locally, $src/audio/podcast*.mp3 is a symlink pointing into the
+    # DVC cache on the external volume. We can't ship that symlink
+    # verbatim (target doesn't exist in the container) and we don't
+    # want to dereference into the image. Instead, rewrite each
+    # symlink so it points at the in-container cache path:
+    #   /Volumes/Crucial X9/bleakhouse_audio  →  /app/audio_volume
+    # The fly mount makes that path valid at runtime.
+    for src_mp3 in "$src/audio"/podcast*.mp3; do
+        [ -e "$src_mp3" ] || [ -L "$src_mp3" ] || continue
+        fname=$(basename "$src_mp3")
+        mkdir -p "$dst/audio"
+        if [ -L "$src_mp3" ]; then
+            local_target=$(readlink "$src_mp3")
+            container_target=${local_target/\/Volumes\/Crucial X9\/bleakhouse_audio/\/app\/audio_volume}
+            ln -sfn "$container_target" "$dst/audio/$fname"
+        elif [ -f "$src_mp3" ]; then
+            cp "$src_mp3" "$dst/audio/$fname"
+        fi
+    done
 
     count=$((count + 1))
 done

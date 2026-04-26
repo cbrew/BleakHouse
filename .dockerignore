@@ -4,6 +4,14 @@
 # Include webapp code
 !webapp/
 
+# webapp.app imports `enrichment.axes` at startup, which reads values
+# from params.yaml via enrichment.params. Whitelist all three.
+!enrichment/
+!enrichment/__init__.py
+!enrichment/axes.py
+!enrichment/params.py
+!params.yaml
+
 # Include poster web assets
 !poster/poster_print.html
 !poster/poster_provenance.js
@@ -11,18 +19,8 @@
 !poster/lexisplusailogo.png
 !poster/screenshots/
 
-# Include staged demo data
+# Include staged demo data (everything the webapp serves at runtime,
+# including dereferenced MP3s from the DVC cache). Containerfile does
+# `COPY demo_data/ data/`, so this is the only data source the image
+# needs — no separate data/runs/ whitelisting required.
 !demo_data/
-
-# Include run data — files the webapp needs at runtime:
-!data/runs/*/manifest.json
-!data/runs/*/report.html
-!data/runs/*/config.json
-!data/runs/*/quote_verification.json
-!data/runs/*/phase3_episode.json
-!data/runs/*/phase2_5_host_briefs.json
-!data/runs/*/phase2_5_interviews.json
-!data/runs/*/audio/manifest.json
-
-# Audio mp3s go on a fly volume, NOT in the image.
-# Mount volume at /app/data/audio/ and symlink or serve from there.

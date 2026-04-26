@@ -2,7 +2,6 @@
 """Extract comprehensive statistics from BleakHouse experiment data for paper revision."""
 
 import json
-import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -11,55 +10,69 @@ RUNS = Path("/Users/brewc/PycharmProjects/BleakHouse/data/runs")
 NOVELS_DIR = Path("/Users/brewc/PycharmProjects/BleakHouse/data/novels")
 BH_ENRICHED = Path("/Users/brewc/PycharmProjects/BleakHouse/data/passages_enriched.json")
 
-# Novel prefix -> novel key mapping (inferred from config.json or directory names)
-NOVEL_PREFIXES = {
-    "cran": "cranford",
-    "dc": "david_copperfield",
-    "dd": "daniel_deronda",
-    "ht": "hard_times",
-    "hest": "hester",
-    "mid": "middlemarch",
-    "motf": "mill_on_the_floss",
-    "mmar": "miss_marjoribanks",
-    "ngs": "new_grub_street",
-    "noname": "no_name",
-    "nas": "north_and_south",
-    "oddw": "odd_women",
-    "omf": "our_mutual_friend",
-    "pti": "passage_to_india",
-}
+# Prefix-keyed lookup derived from enrichment.axes.NOVELS.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from enrichment.axes import NOVELS, parse_run_dir_name  # noqa: E402
 
-# BH-only pipeline prefixes (no novel prefix)
-BH_PIPELINE_PREFIXES = {
+NOVEL_PREFIXES: dict[str, str] = {n.key: n.id for n in NOVELS}
+
+# Legacy pre-migration pipeline prefixes, kept so we can still classify runs
+# living under data/runs/_archive/. Active runs now always use canonical
+# single-letter pipelines (trn/emb/nop/rag) matching axes.PIPELINES.
+LEGACY_PIPELINE_PREFIXES: dict[str, str] = {
     "ext": "transport",
     "emb": "embedding",
     "nop": "no_passages",
-    "arc": "transport",   # transport variant
-    "hia": "transport",   # transport variant
+    "arc": "transport",
+    "hia": "transport",
     "rag": "plain_rag",
     "rand": "random",
+    "trn": "transport",
+}
+# Canonical pipelines → paper-label display names.
+PIPELINE_DISPLAY: dict[str, str] = {
+    "trn": "transport",
+    "emb": "embedding",
+    "nop": "no_passages",
+    "rag": "plain_rag",
 }
 
 
 def classify_run(run_id: str) -> tuple[str, str, str, bool]:
-    """Return (novel, pipeline, panel_version, is_hostprep) for a run_id."""
+    """Return (novel, pipeline, panel_version, is_hostprep) for a run_id.
+
+    Canonical names parse via axes.parse_run_dir_name; legacy pre-migration
+    names (under data/runs/_archive/) fall back to the historical prefix
+    matcher.
+    """
+    # Canonical path first.
+    try:
+        axes_t = parse_run_dir_name(run_id)
+    except ValueError:
+        pass
+    else:
+        novel_id = next((n.id for n in NOVELS if n.key == axes_t.novel), axes_t.novel)
+        return (
+            novel_id,
+            PIPELINE_DISPLAY.get(axes_t.pipeline, axes_t.pipeline) or axes_t.pipeline,
+            axes_t.panel,
+            axes_t.hostprep,
+        )
+
+    # Legacy fallback for archived dirs.
     is_hostprep = run_id.endswith("_hostprep")
     base = run_id.removesuffix("_hostprep")
 
-    # Try non-BH novels first: {prefix}_{pipeline}_{version}
     for prefix, novel in sorted(NOVEL_PREFIXES.items(), key=lambda x: -len(x[0])):
         if base.startswith(prefix + "_"):
             rest = base[len(prefix) + 1:]
-            # rest is like trn_v01_baseline, emb_v19_all_swapped, nop_v01_baseline
             parts = rest.split("_", 1)
             pipe_code = parts[0]
             version = parts[1] if len(parts) > 1 else ""
-            pipeline_map = {"trn": "transport", "emb": "embedding", "nop": "no_passages"}
-            pipeline = pipeline_map.get(pipe_code, pipe_code)
+            pipeline = LEGACY_PIPELINE_PREFIXES.get(pipe_code, pipe_code)
             return novel, pipeline, version, is_hostprep
 
-    # BH runs: {pipeline_prefix}_{version}
-    for prefix, pipeline in sorted(BH_PIPELINE_PREFIXES.items(), key=lambda x: -len(x[0])):
+    for prefix, pipeline in sorted(LEGACY_PIPELINE_PREFIXES.items(), key=lambda x: -len(x[0])):
         if base.startswith(prefix + "_"):
             version = base[len(prefix) + 1:]
             return "bleak_house", pipeline, version, is_hostprep
@@ -232,7 +245,7 @@ def main():
                     hp_reactive[label].append(s["reactive_count"])
                     hp_words[label].append(s["total_words"])
 
-    print(f"\nPaired comparisons (runs that have both hostprep and non-hostprep):")
+    print("\nPaired comparisons (runs that have both hostprep and non-hostprep):")
     print(f"  Pairs found: {len([k for k, v in hostprep_pairs.items() if True in v and False in v])}")
     for metric, data in [("Q/segment", hp_q_per_seg), ("Reactive markers", hp_reactive), ("Total words", hp_words)]:
         for label in ["no_hostprep", "hostprep"]:
@@ -252,7 +265,7 @@ def main():
                 for st, count in s["sentence_types"].items():
                     hp_stypes[label][st] += count
 
-    print(f"\n  Sentence type distribution (aggregated):")
+    print("\n  Sentence type distribution (aggregated):")
     all_stypes = sorted(set(hp_stypes["hostprep"]) | set(hp_stypes["no_hostprep"]))
     print(f"    {'type':<20} {'no_hostprep':>12} {'hostprep':>12}")
     for st in all_stypes:
@@ -292,7 +305,7 @@ def main():
         print(f"{p:<20} {len(words):>4} {avg_w:>12.0f} {min(words):>8} {max(words):>8} {avg_s:>10.1f} {avg_d:>13.1f}")
 
     # Also break down by novel for the 3 main pipelines
-    print(f"\nWord counts by novel x pipeline (non-hostprep, all panels):")
+    print("\nWord counts by novel x pipeline (non-hostprep, all panels):")
     main_pipes = ["transport", "embedding", "no_passages"]
     all_novels_wc = sorted({info["novel"] for info in runs.values()})
 
@@ -347,7 +360,7 @@ def main():
         airtime_by_novel[novel] = expert_pcts
 
     # Summary: std dev of expert percentages across novels
-    print(f"\nAirtime stability across novels:")
+    print("\nAirtime stability across novels:")
     all_experts = set()
     for pcts in airtime_by_novel.values():
         all_experts.update(pcts.keys())
@@ -446,7 +459,7 @@ def main():
 
     # Print table
     short_dims = [d.replace("prov_", "") for d in PROV_DIMS]
-    print(f"\nMean provision scores (0=none, 1=weak, 2=strong):")
+    print("\nMean provision scores (0=none, 1=weak, 2=strong):")
     print(f"{'Novel':<25}", end="")
     for sd in short_dims:
         print(f"  {sd[:10]:>10}", end="")
@@ -468,7 +481,7 @@ def main():
         print(f"  {n_pass:>10}")
 
     # Dimension-level summary
-    print(f"\nDimension summary across novels:")
+    print("\nDimension summary across novels:")
     for dim, short in zip(PROV_DIMS, short_dims):
         vals = [novel_dim_scores[n].get(dim, 0) for n in novel_dim_scores]
         if vals:

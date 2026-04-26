@@ -1,0 +1,52 @@
+# DVC ignore patterns. Keep the graph focused on pipeline artefacts;
+# don't let DVC scan code/data it has no business tracking.
+# See https://dvc.org/doc/user-guide/project-structure/dvcignore-files
+
+# Python environments + caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# JS / node
+node_modules/
+poster/workspace/node_modules/
+
+# Git + tooling state
+.git/
+.beads/
+.claude/
+.idea/
+.vscode/
+.playwright-mcp/
+
+# Existing gitignored bulk data (unrelated to pipeline)
+data/bleak_house_vectors/
+data/novels/*/vectors/
+data/novels/*/images/
+data/novels/*/*.zip
+data/tts_models/
+
+# LaTeX / poster build artefacts
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.synctex.gz
+beamerposter.*
+poster.log
+
+# macOS
+.DS_Store
+
+# Legacy migration metadata — not pipeline artefacts
+data/runs/_archive/
+data/runs/_inventory.json
+data/runs/_migration_plan.json
+data/runs/_migration_overrides.json
+
+# demo_data is a staging output, not a source of truth
+demo_data/

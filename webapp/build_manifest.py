@@ -14,9 +14,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 from pathlib import Path
 
+from enrichment import axes
 from enrichment.podcast_types import PodcastEpisode, Turn
 from enrichment.tts_profiles import EpisodeContext, TTSProfile, get_profile
 
@@ -25,40 +25,23 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
-# Authoritative location for rendered podcast audio.
-PODCAST_AUDIO_DIR = Path(
-    os.environ.get("PODCAST_AUDIO_DIR", "/Volumes/Crucial X9/bleakhouse_audio")
-)
+# Audio for every run lives at data/runs/<run>/audio/. Locally these
+# are symlinks into the DVC cache; in the demo container they're real
+# files bundled from the staged demo_data/.
 
-# Novel title (as it appears in episode JSON, minus ": A Literary Discussion")
-# → relative path under data/ to passages_enriched.json
-_NOVEL_DIRS: dict[str, str] = {
-    "Bleak House": "",
-    "Our Mutual Friend": "novels/our_mutual_friend",
-    "The Mill on the Floss": "novels/mill_on_the_floss",
-    "North and South": "novels/north_and_south",
-    "A Passage to India": "novels/passage_to_india",
-    "Hard Times": "novels/hard_times",
-    "Middlemarch": "novels/middlemarch",
-    "Daniel Deronda": "novels/daniel_deronda",
-    "David Copperfield": "novels/david_copperfield",
-    "Cranford": "novels/cranford",
-    "No Name": "novels/no_name",
-    "New Grub Street": "novels/new_grub_street",
-    "The Odd Women": "novels/odd_women",
-    "Miss Marjoribanks": "novels/miss_marjoribanks",
-    "Hester": "novels/hester",
-}
+# Novel title → path under data/ to passages_enriched.json. Every novel
+# (including bleak_house, normalised 2026-04-24) lives at
+# data/novels/<id>/.
+_NOVEL_DIRS: dict[str, str] = {n.title: f"novels/{n.id}" for n in axes.NOVELS}
 
 
 def _load_enriched_passages(novel_title: str) -> list[dict]:
     """Load all enriched passages for a novel."""
     novel_key = novel_title.replace(": A Literary Discussion", "")
-    subdir = _NOVEL_DIRS.get(novel_key, "")
-    if subdir:
-        path = DATA_DIR / subdir / "passages_enriched.json"
-    else:
-        path = DATA_DIR / "passages_enriched.json"
+    subdir = _NOVEL_DIRS.get(novel_key)
+    if not subdir:
+        return []
+    path = DATA_DIR / subdir / "passages_enriched.json"
     if not path.exists():
         return []
     with open(path) as f:
@@ -226,9 +209,7 @@ def build_manifest(
     profile = get_profile(profile_name, classic_model_id=classic_model_id)
 
     if audio:
-        audio_dir = PODCAST_AUDIO_DIR / run_id
-        if not audio_dir.exists():
-            audio_dir = run_dir / "audio"
+        audio_dir = run_dir / "audio"
         if not audio_dir.exists():
             logger.warning("No audio dir for run %s", run_id)
             return None
@@ -399,7 +380,10 @@ def build_manifest(
             with open(reading_list_path) as f:
                 host_prep["reading_list"] = json.load(f)
 
-    manifest = {
+    # Pass the canonical axes block straight through from config.json so
+    # downstream consumers (webapp matrix, tracker, report builders) don't
+    # need to re-parse the run-dir name.
+    manifest: dict[str, object] = {
         "run_id": run_id,
         "title": episode.title,
         "experts": experts,
@@ -409,18 +393,27 @@ def build_manifest(
         "has_audio": audio,
         "total_duration_ms": cursor_ms,
     }
+    cfg_path = run_dir / "config.json"
+    if cfg_path.exists():
+        try:
+            with open(cfg_path) as f:
+                cfg = json.load(f)
+            if isinstance(cfg, dict) and isinstance(cfg.get("axes"), dict):
+                manifest["axes"] = cfg["axes"]
+        except (OSError, json.JSONDecodeError):
+            pass
     if host_prep:
         manifest["host_prep"] = host_prep
 
     if audio:
-        ext_audio_dir = PODCAST_AUDIO_DIR / run_id
-        ext_audio_dir.mkdir(parents=True, exist_ok=True)
+        out_audio_dir = run_dir / "audio"
+        out_audio_dir.mkdir(parents=True, exist_ok=True)
         filename = (
             "manifest.json"
             if profile.name == "classic"
             else f"manifest_{profile.name}.json"
         )
-        out_path = ext_audio_dir / filename
+        out_path = out_audio_dir / filename
     else:
         out_path = run_dir / "manifest.json"
     with open(out_path, "w") as f:

@@ -7,49 +7,20 @@ under --profile classic (the default).
 """
 from __future__ import annotations
 
+from enrichment import params as _params
 from enrichment.podcast_types import Turn, VoicePolicy
 from enrichment.tts_profiles.base import EpisodeContext
 
-SPEAKER_VOICES: dict[str, str] = {
-    "Host": "Sulafat",
-    "Eleanor Hartley": "Zephyr",
-    "James Blackstone": "Sadaltager",
-    "Caroline Woodcourt": "Achernar",
-    "Narrator": "Schedar",
-    "Edmund Leigh": "Algenib",
-    "Daniel Rosen": "Alnilam",
-    "Oliver Trevelyan": "Achird",
-    "Sarah Chen": "Zephyr",
-    "Rebecca Martinez": "Achernar",
-    "Elena Volkov": "Aoede",
-}
+# Load DVC-tracked values from params.yaml. The module-level constants
+# stay under the same names so callers don't need to change; values
+# come from a single source of truth that DVC sees.
+_speakers = _params.get("speakers", default={}) or {}
 
-SPEAKER_ACCENTS: dict[str, str] = {
-    "Host": "speaks with a warm Home Counties accent, like a BBC Radio 4 presenter",
-    "Eleanor Hartley": "speaks with a lively Cambridge accent, articulate and precise",
-    "James Blackstone": "speaks with a measured Edinburgh accent, dry and authoritative",
-    "Caroline Woodcourt": "speaks with a gentle Bristol accent, warm and intimate",
-    "Narrator": "speaks with a clear, neutral British accent",
-    "Edmund Leigh": "speaks with a patrician Oxford accent, unhurried and precise",
-    "Daniel Rosen": "speaks with a clear London accent, purposeful and direct",
-    "Oliver Trevelyan": "speaks with a warm, theatrical Home Counties accent, varied and lively",
-    "Sarah Chen": "speaks with a clear California accent, precise and direct, like a tech professional giving a talk",
-    "Rebecca Martinez": "speaks with a soft American Southwest accent, unhurried and thoughtful, with occasional pauses for emphasis",
-    "Elena Volkov": "speaks with a crisp American East Coast accent, the cadence of someone trained at Juilliard and Columbia, intellectually sharp",
-}
-
+SPEAKER_VOICES: dict[str, str] = dict(_speakers.get("voices", {}))
+SPEAKER_ACCENTS: dict[str, str] = dict(_speakers.get("accents", {}))
 SPEAKER_VOICE_POLICIES: dict[str, VoicePolicy] = {
-    "Host": VoicePolicy(rate=0.98, energy="medium", pause_bias_ms=220, style="presenter_warm"),
-    "Eleanor Hartley": VoicePolicy(rate=1.01, energy="medium_high", pause_bias_ms=170, style="analytic_bright"),
-    "James Blackstone": VoicePolicy(rate=0.96, energy="medium_low", pause_bias_ms=260, style="measured_dry"),
-    "Caroline Woodcourt": VoicePolicy(rate=0.97, energy="medium", pause_bias_ms=240, style="reflective_intimate"),
-    "Narrator": VoicePolicy(rate=1.0, energy="medium", pause_bias_ms=200, style="neutral"),
-    "Edmund Leigh": VoicePolicy(rate=0.94, energy="medium_low", pause_bias_ms=280, style="patrician_measured"),
-    "Daniel Rosen": VoicePolicy(rate=0.99, energy="medium_high", pause_bias_ms=200, style="passionate_precise"),
-    "Oliver Trevelyan": VoicePolicy(rate=1.02, energy="medium_high", pause_bias_ms=190, style="raconteur_warm"),
-    "Sarah Chen": VoicePolicy(rate=1.01, energy="medium_high", pause_bias_ms=180, style="analytical_clear"),
-    "Rebecca Martinez": VoicePolicy(rate=0.96, energy="medium", pause_bias_ms=250, style="contemplative_measured"),
-    "Elena Volkov": VoicePolicy(rate=0.98, energy="medium", pause_bias_ms=210, style="engaged_analytical"),
+    name: VoicePolicy(**fields)
+    for name, fields in (_speakers.get("voice_policies") or {}).items()
 }
 
 
