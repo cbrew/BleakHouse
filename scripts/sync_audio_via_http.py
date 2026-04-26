@@ -33,25 +33,21 @@ APP_URL = os.environ.get("PUBLIC_URL", f"https://{APP}.fly.dev")
 def _phase4_audio_hashes() -> list[str]:
     """Hashes for every cached audio output across phase4_audio variants.
 
-    Currently covers phase4_audio (Gemini classic) and phase4_audio_qwen
-    (Qwen3-TTS). Manifest JSON outs are skipped — they're git-tracked
-    via cache:false, no blob on the fly volume.
+    Matches any stage whose name starts with `phase4_audio` (covers
+    `phase4_audio@<run>`, `phase4_audio_qwen@<run>`, `phase4_audio_
+    trevelyan_v2@<run>`, and any future variant we add). The .mp3
+    path filter ensures we only return blobs DVC actually caches —
+    manifest JSONs (cache:false) have no md5 in the lock and would
+    skip on the `o.get('md5')` check anyway.
     """
     lock = yaml.safe_load(Path("dvc.lock").read_text())
     out: list[str] = []
     for stage_name, stage in (lock.get("stages") or {}).items():
-        if not (
-            stage_name.startswith("phase4_audio@")
-            or stage_name.startswith("phase4_audio_qwen@")
-        ):
+        if "@" not in stage_name or not stage_name.startswith("phase4_audio"):
             continue
         for o in stage.get("outs") or []:
-            # Only blobs DVC actually caches; manifests are cache:false
-            # and lack an md5 entry on disk under .dvc/cache.
             if not o.get("md5"):
                 continue
-            # Cache-tracked outputs in dvc.lock have an md5; the path
-            # tells us if it's an audio blob (the only kind we ship).
             path = o.get("path") or ""
             if path.endswith(".mp3"):
                 out.append(o["md5"])
