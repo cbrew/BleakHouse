@@ -31,26 +31,34 @@ APP_URL = os.environ.get("PUBLIC_URL", f"https://{APP}.fly.dev")
 
 
 def _phase4_audio_hashes() -> list[str]:
-    """Hashes for every cached audio output across phase4_audio variants.
+    """Hashes for every cached audio blob DVC tracks for any run.
 
-    Matches any stage whose name starts with `phase4_audio` (covers
-    `phase4_audio@<run>`, `phase4_audio_qwen@<run>`, `phase4_audio_
-    trevelyan_v2@<run>`, and any future variant we add). The .mp3
-    path filter ensures we only return blobs DVC actually caches —
-    manifest JSONs (cache:false) have no md5 in the lock and would
-    skip on the `o.get('md5')` check anyway.
+    No stage-name matching — that's the same kind of name-guess
+    discovery we're moving away from in the webapp. Instead: any
+    output in dvc.lock whose path lives under data/runs/<run>/audio/,
+    ends in .mp3, and has an md5 (i.e. is DVC-cached) is shipped.
+    Manifest JSONs are cache:false → no md5 entry → naturally skipped.
+
+    The architecturally correct version is per-run `audio_variants`
+    coming out of a `run_manifest` DVC stage (see
+    docs/webapp_dvc_architecture.md, bead BleakHouse-... "B").
+    Until that lands, this filter at least reads structural fields
+    of dvc.lock rather than pattern-matching stage names.
     """
     lock = yaml.safe_load(Path("dvc.lock").read_text())
     out: list[str] = []
-    for stage_name, stage in (lock.get("stages") or {}).items():
-        if "@" not in stage_name or not stage_name.startswith("phase4_audio"):
-            continue
+    for stage in (lock.get("stages") or {}).values():
         for o in stage.get("outs") or []:
-            if not o.get("md5"):
+            md5 = o.get("md5")
+            path = (o.get("path") or "").replace("\\", "/")
+            if not md5 or not path:
                 continue
-            path = o.get("path") or ""
-            if path.endswith(".mp3"):
-                out.append(o["md5"])
+            parts = path.split("/")
+            if (len(parts) >= 5
+                    and parts[0] == "data" and parts[1] == "runs"
+                    and parts[3] == "audio"
+                    and path.endswith(".mp3")):
+                out.append(md5)
     return out
 
 
