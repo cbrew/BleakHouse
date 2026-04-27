@@ -26,7 +26,9 @@ from pathlib import Path
 
 import httpx
 
-DEFAULT_BASE_URL = os.environ.get("QWEN_TTS_BASE_URL", "http://pop-os.local:8765")
+# Default to the LAN IP, not pop-os.local — mDNS is unreliable through some
+# docks and from sandboxed subprocesses. Override with QWEN_TTS_BASE_URL.
+DEFAULT_BASE_URL = os.environ.get("QWEN_TTS_BASE_URL", "http://192.168.4.34:8765")
 TOKEN_PATH = Path(os.environ.get("QWEN_TTS_TOKEN_FILE", str(Path.home() / ".config/qwen-tts/token")))
 POLL_SECONDS = int(os.environ.get("QWEN_TTS_POLL", "15"))
 RETRY_SECONDS = int(os.environ.get("QWEN_TTS_RETRY", "10"))

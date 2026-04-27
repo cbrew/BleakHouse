@@ -10,7 +10,8 @@
 #   scripts/render_qwen_remote.sh <run_id> [--ref-source <path>]
 #
 # Env (optional):
-#   QWEN_TTS_BASE_URL  default http://pop-os.local:8765
+#   QWEN_TTS_BASE_URL  default http://192.168.4.34:8765 (LAN IP — mDNS is
+#                      flaky on some docks and from sandboxed subprocesses)
 #   QWEN_TTS_TOKEN     direct token (otherwise read from ~/.config/qwen-tts/token)
 
 set -euo pipefail
