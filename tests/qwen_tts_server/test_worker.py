@@ -5,10 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from experiments.qwen_tts_server.config import Config
-from experiments.qwen_tts_server.db import JobStatus, JobStore
-from experiments.qwen_tts_server.storage import JobStorage
-from experiments.qwen_tts_server.worker import Worker
+from experiments.qwen_tts_server.app import Worker
+from experiments.qwen_tts_server.state import Config, JobStatus, JobStorage, JobStore
 
 
 @pytest.fixture

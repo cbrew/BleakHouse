@@ -4,6 +4,14 @@ FastAPI service on `pop-os.local` that owns the GPU and runs Qwen3-TTS renders.
 Replaces the long-lived ssh+python wrapper (`scripts/render_qwen_remote.sh`)
 that broke whenever the ssh connection flapped.
 
+Three Python files form the service:
+
+- `state.py` — `Config`, `JobStore` (sqlite), `JobStorage` (per-job FS layout), `job_hash`
+- `app.py` — `build_app()` (FastAPI routes), bearer auth, `Worker` (background queue runner), `main()` entrypoint
+- `__init__.py` — package docstring
+
+Entrypoint: `python -m experiments.qwen_tts_server.app`
+
 ## Endpoints
 
 - `POST /render` — multipart upload of (`manifest.json`, `phase3_episode.json`,

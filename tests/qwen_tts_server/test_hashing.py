@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from experiments.qwen_tts_server.hashing import job_hash
+from experiments.qwen_tts_server.state import job_hash
 
 
 @pytest.fixture

@@ -1,14 +1,129 @@
-"""SQLite-backed job store. Per-call connections; WAL for safe concurrent reads."""
+"""Stateful surface: config, sqlite store, per-job filesystem layout, idempotency hash.
+
+All the parts that a future smoke test or admin tool needs to import without
+pulling in FastAPI.
+"""
 from __future__ import annotations
 
 import enum
+import hashlib
 import json
+import os
 import sqlite3
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+
+# ---------- Config -------------------------------------------------------
+
+@dataclass(frozen=True)
+class Config:
+    state_dir: Path
+    jobs_dir: Path
+    db_path: Path
+    token_path: Path
+    bind_host: str
+    bind_port: int
+    code_rev_path: Path | None
+
+    @classmethod
+    def from_env(cls) -> "Config":
+        state = Path(os.environ.get("QWEN_TTS_STATE_DIR", "/var/lib/qwen-tts-server"))
+        return cls(
+            state_dir=state,
+            jobs_dir=state / "jobs",
+            db_path=state / "jobs.db",
+            token_path=Path(os.environ.get("QWEN_TTS_TOKEN_PATH", "/etc/qwen-tts-server/token")),
+            bind_host=os.environ.get("QWEN_TTS_HOST", "0.0.0.0"),
+            bind_port=int(os.environ.get("QWEN_TTS_PORT", "8765")),
+            code_rev_path=Path(os.environ["QWEN_TTS_CODE_REV"]) if "QWEN_TTS_CODE_REV" in os.environ else None,
+        )
+
+    def ensure_dirs(self) -> None:
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self.jobs_dir.mkdir(parents=True, exist_ok=True)
+
+    def load_token(self) -> str:
+        return self.token_path.read_text().strip()
+
+    def code_rev(self) -> str:
+        if self.code_rev_path and self.code_rev_path.exists():
+            return self.code_rev_path.read_text().strip()
+        return "unknown"
+
+
+# ---------- Idempotency hash --------------------------------------------
+
+def job_hash(files: Sequence[Path], *, code_rev: str, chunk: int = 1 << 20) -> str:
+    """sha256 over (each file's bytes, in given order) + code_rev sentinel.
+
+    Order matters: callers must canonicalise the file list.
+    """
+    h = hashlib.sha256()
+    for path in files:
+        with path.open("rb") as f:
+            while True:
+                buf = f.read(chunk)
+                if not buf:
+                    break
+                h.update(buf)
+        h.update(b"\x00FILEBOUNDARY\x00")
+    h.update(b"\x00CODEREV\x00")
+    h.update(code_rev.encode())
+    return h.hexdigest()
+
+
+# ---------- Per-job filesystem layout -----------------------------------
+
+@dataclass(frozen=True)
+class JobStorage:
+    jobs_dir: Path
+    job_id: str
+
+    @property
+    def root(self) -> Path:
+        return self.jobs_dir / self.job_id
+
+    @property
+    def inputs(self) -> Path:
+        return self.root / "inputs"
+
+    @property
+    def refs(self) -> Path:
+        return self.root / "refs"
+
+    @property
+    def out(self) -> Path:
+        return self.root / "out"
+
+    @property
+    def log(self) -> Path:
+        return self.root / "log.txt"
+
+    def create(self) -> None:
+        for d in (self.inputs, self.refs, self.out):
+            d.mkdir(parents=True, exist_ok=True)
+
+    def save_input(self, name: str, data: bytes) -> Path:
+        # `name` is a fixed kind chosen by the server, never user-controlled.
+        path = self.inputs / name
+        path.write_bytes(data)
+        return path
+
+    def result_path(self, name: str) -> Path:
+        # `name` is taken from the request URL — confine to self.out.
+        candidate = (self.out / name).resolve()
+        try:
+            candidate.relative_to(self.out.resolve())
+        except ValueError as exc:
+            raise ValueError(f"path escapes out dir: {name!r}") from exc
+        return candidate
+
+
+# ---------- SQLite job store --------------------------------------------
 
 class JobStatus(str, enum.Enum):
     QUEUED = "queued"
@@ -122,7 +237,6 @@ class JobStore:
             c.execute("UPDATE jobs SET progress=? WHERE id=?", (json.dumps(progress), job_id))
 
     def pop_next_queued(self) -> Job | None:
-        # Atomic: pick oldest queued job and mark running in one transaction.
         with self._conn() as c:
             c.execute("BEGIN IMMEDIATE")
             row = c.execute(

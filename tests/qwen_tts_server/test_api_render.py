@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from experiments.qwen_tts_server.config import Config
-from experiments.qwen_tts_server.main import build_app
+from experiments.qwen_tts_server.app import build_app
+from experiments.qwen_tts_server.state import Config
 
 
 @pytest.fixture

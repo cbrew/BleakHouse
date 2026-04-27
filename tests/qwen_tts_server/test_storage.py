@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from experiments.qwen_tts_server.storage import JobStorage
+from experiments.qwen_tts_server.state import JobStorage
 
 
 @pytest.fixture

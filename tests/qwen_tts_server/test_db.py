@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from experiments.qwen_tts_server.db import JobStatus, JobStore
+from experiments.qwen_tts_server.state import JobStatus, JobStore
 
 
 @pytest.fixture
