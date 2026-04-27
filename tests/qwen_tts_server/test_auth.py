@@ -6,7 +6,7 @@ import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from experiments.qwen_tts_server.auth import bearer_auth_factory
+from experiments.qwen_tts_server.app import bearer_auth_factory
 
 
 @pytest.fixture
