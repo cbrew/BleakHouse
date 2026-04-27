@@ -14,18 +14,21 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Default to LAN IP — `pop-os.local` mDNS resolution fails from sandboxed
-# subprocesses (Claude Code, etc). Override with POP_HOST if your DHCP gave
-# the box a different IP.
-POP_HOST="${POP_HOST:-cbrew@192.168.4.34}"
+# Default to the `pop-os` ssh-config alias (set up by the user to map to the
+# LAN IP + cbrew user). Override with POP_HOST=cbrew@192.168.4.34 if needed.
+POP_HOST="${POP_HOST:-pop-os}"
 POP_DIR="${POP_DIR:-/home/cbrew/bleakhouse-qwen-tts}"
 
-# Sanity: fail fast if the host isn't reachable.
-HOST_ONLY="${POP_HOST#*@}"
-if ! nc -z -G 5 "$HOST_ONLY" 22 2>/dev/null; then
-    echo "FAIL: cannot reach $HOST_ONLY:22 — check that pop-os is awake on the LAN" >&2
+# Sanity: fail fast if the host isn't reachable. Use ssh itself rather than nc
+# so we don't depend on the alias resolving in raw DNS.
+if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "$POP_HOST" true 2>/dev/null; then
+    echo "FAIL: cannot ssh $POP_HOST — check that pop-os is awake and key auth works" >&2
     exit 1
 fi
+
+# We still need an IP for the post-deploy curl smoke check (curl can't see the
+# ssh-only alias). Resolve via ssh.
+POP_LAN_IP=$(ssh "$POP_HOST" "ip -4 -o addr show | awk '/wlp4s0|enp/ && !/127.0.0.1/ {split(\$4,a,\"/\"); print a[1]; exit}'")
 
 REV=$(git rev-parse HEAD)
 echo "==> capturing local rev: $REV"
@@ -62,9 +65,9 @@ mkdir -p "$HOME/.config/qwen-tts"
 ssh "$POP_HOST" "cat /etc/qwen-tts-server/token" > "$HOME/.config/qwen-tts/token"
 chmod 600 "$HOME/.config/qwen-tts/token"
 
-echo "==> smoke check /jobs"
+echo "==> smoke check /jobs (via $POP_LAN_IP)"
 TOKEN=$(cat "$HOME/.config/qwen-tts/token")
-curl -fsS -m 10 -H "Authorization: Bearer $TOKEN" "http://$HOST_ONLY:8765/jobs" | head -c 200
+curl -fsS -m 10 -H "Authorization: Bearer $TOKEN" "http://$POP_LAN_IP:8765/jobs" | head -c 200
 echo
 
 rm -f CODE_REV
