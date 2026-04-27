@@ -31,12 +31,23 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-# Gemini's Sulafat voice for Host. Empirical from bh_trn_literary ref:
-# F0 median 247 Hz. Real RP female lands 180–280; widen for headroom.
-HOST_F0_MIN = 195.0
-HOST_F0_MAX = 295.0
+# Per-speaker F0 ranges. Empirical from bh_trn_literary refs (sidecar JSON
+# in the existing extract_refs output). Widened slightly for headroom; clips
+# whose pyin median F0 lands outside the range are rejected as Gemini drift.
+SPEAKER_F0: dict[str, tuple[float, float]] = {
+    "Host":               (195.0, 295.0),
+    "Eleanor Hartley":    (180.0, 280.0),
+    "Caroline Woodcourt": (180.0, 280.0),
+    "James Blackstone":   (95.0,  170.0),
+    "Edmund Leigh":       (95.0,  170.0),
+    "Daniel Rosen":       (95.0,  170.0),
+    "Oliver Trevelyan":   (95.0,  170.0),
+    "Sarah Chen":         (180.0, 290.0),
+    "Rebecca Martinez":   (180.0, 290.0),
+    "Elena Volkov":       (180.0, 290.0),
+}
 
-# Clip length window — F5-TTS prefers 4–15 s training clips.
+# Clip length window — broad enough to give the speaker encoder material.
 MIN_CLIP_S = 4.0
 MAX_CLIP_S = 12.0
 # Skip first 2 s of each turn (Gemini voice-drift zone, see extract_refs.py).
@@ -59,8 +70,8 @@ def _f0_in_range(wav_path: Path, lo: float, hi: float) -> tuple[bool, float]:
     return lo <= med <= hi, med
 
 
-def _find_runs(repo: Path) -> list[Path]:
-    runs = sorted((repo / "data" / "runs").glob("bh_*/manifest.json"))
+def _find_runs(repo: Path, run_glob: str = "*") -> list[Path]:
+    runs = sorted((repo / "data" / "runs").glob(f"{run_glob}/manifest.json"))
     out = []
     for r in runs:
         audio = r.parent / "audio" / "podcast.mp3"
@@ -69,11 +80,11 @@ def _find_runs(repo: Path) -> list[Path]:
     return out
 
 
-def _host_turns(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+def _speaker_turns(manifest: dict[str, Any], speaker: str) -> list[dict[str, Any]]:
     out = []
     for seg in manifest.get("segments", []):
         for t in seg.get("turns", []):
-            if t.get("speaker") != "Host":
+            if t.get("speaker") != speaker:
                 continue
             s, e = t.get("start_ms"), t.get("end_ms")
             if s is None or e is None or e <= s:
@@ -94,7 +105,8 @@ def _trim_text(ref_text: str, frac: float) -> str:
     return ref_text[:cut] if cut > 0 else ref_text
 
 
-def build(repo: Path, out_dir: Path, target_minutes: float) -> dict[str, Any]:
+def build(repo: Path, out_dir: Path, target_minutes: float, speaker: str,
+          f0_min: float, f0_max: float, run_glob: str = "*") -> dict[str, Any]:
     from pydub import AudioSegment
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -102,11 +114,12 @@ def build(repo: Path, out_dir: Path, target_minutes: float) -> dict[str, Any]:
     wav_dir.mkdir(exist_ok=True)
     target_s = target_minutes * 60.0
 
-    runs = _find_runs(repo)
+    runs = _find_runs(repo, run_glob)
     rows: list[dict[str, Any]] = []
     rejected = {"f0_out_of_range": 0, "no_text": 0, "audio_load_fail": 0, "too_short": 0}
     total_s = 0.0
     n = 0
+    speaker_slug = _slug(speaker).lower()
 
     for r_path in runs:
         if total_s >= target_s:
@@ -121,7 +134,7 @@ def build(repo: Path, out_dir: Path, target_minutes: float) -> dict[str, Any]:
             rejected["audio_load_fail"] += 1
             continue
 
-        for turn in _host_turns(manifest):
+        for turn in _speaker_turns(manifest, speaker):
             if total_s >= target_s:
                 break
             start_ms = int(turn["start_ms"])
@@ -138,12 +151,12 @@ def build(repo: Path, out_dir: Path, target_minutes: float) -> dict[str, Any]:
             ref_text = _trim_text(ref_text, clip_dur_s / turn_dur_s)
 
             n += 1
-            tag = f"host_{n:04d}_{_slug(r_path.parent.name)[:30]}"
+            tag = f"{speaker_slug}_{n:04d}_{_slug(r_path.parent.name)[:30]}"
             wav_path = wav_dir / f"{tag}.wav"
             clip = audio[start_ms + int(LEAD_IN_S * 1000): start_ms + int(LEAD_IN_S * 1000) + int(clip_dur_s * 1000)]
             clip.export(str(wav_path), format="wav")
 
-            ok, med = _f0_in_range(wav_path, HOST_F0_MIN, HOST_F0_MAX)
+            ok, med = _f0_in_range(wav_path, f0_min, f0_max)
             if not ok:
                 wav_path.unlink()
                 rejected["f0_out_of_range"] += 1
@@ -183,14 +196,31 @@ def build(repo: Path, out_dir: Path, target_minutes: float) -> dict[str, Any]:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--speaker", default="Host",
+                   help=f"speaker name as it appears in run manifests; one of {sorted(SPEAKER_F0)}")
     p.add_argument("--target-minutes", type=float, default=15.0)
     p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--run-glob", default="*",
+                   help="glob pattern for run dirs under data/runs/ (default *: all novels)")
+    p.add_argument("--f0-min", type=float, default=None,
+                   help="override per-speaker default F0 floor")
+    p.add_argument("--f0-max", type=float, default=None,
+                   help="override per-speaker default F0 ceiling")
     args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
+    if args.speaker not in SPEAKER_F0 and (args.f0_min is None or args.f0_max is None):
+        raise SystemExit(
+            f"unknown speaker {args.speaker!r}; provide --f0-min and --f0-max, "
+            f"or pick one of {sorted(SPEAKER_F0)}"
+        )
+    f0_min = args.f0_min if args.f0_min is not None else SPEAKER_F0[args.speaker][0]
+    f0_max = args.f0_max if args.f0_max is not None else SPEAKER_F0[args.speaker][1]
+
     repo = Path(__file__).resolve().parent.parent
-    summary = build(repo, args.out, args.target_minutes)
+    summary = build(repo, args.out, args.target_minutes, args.speaker, f0_min, f0_max, args.run_glob)
     print()
+    print(f"speaker: {args.speaker}  F0 range: [{f0_min}, {f0_max}] Hz")
     print(f"clips: {summary['total_clips']}, audio: {summary['total_minutes']:.1f} min")
     print(f"rejected: {summary['rejected']}")
     print(f"metadata: {args.out / 'metadata.csv'}")
