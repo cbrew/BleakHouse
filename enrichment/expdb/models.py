@@ -38,3 +38,26 @@ class GenerationRun:
     config: dict[str, Any]
     started_at: float | None
     finished_at: float
+
+
+@dataclass(frozen=True)
+class TTSConfig:
+    id: int
+    engine: str
+    profile: str | None
+    voice_ref_ver: str | None
+    config: dict[str, Any]
+    created_at: float
+
+
+@dataclass(frozen=True)
+class AudioArtifact:
+    id: int
+    script_version_id: int
+    tts_config_id: int
+    name: str
+    path: str
+    dvc_hash: str | None
+    duration_s: float | None
+    audio_manifest_path: str | None
+    created_at: float
