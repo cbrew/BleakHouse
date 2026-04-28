@@ -1,12 +1,13 @@
 """Experiment ledger Store — SQLite, stdlib only."""
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
 from importlib.resources import files
 from pathlib import Path
 
-from .models import Episode, ScriptVersion
+from .models import Episode, GenerationRun, ScriptVersion
 
 EXPECTED_USER_VERSION = 1
 
@@ -98,6 +99,36 @@ class Store:
             ).fetchall()
         return [_row_to_script(r) for r in rows]
 
+    # ---- GenerationRun ----
+
+    def create_generation_run(self, *, script_version_id: int, generator: str,
+                              git_commit: str | None, dvc_rev: str | None,
+                              config: dict, finished_at: float,
+                              started_at: float | None = None) -> int:
+        with self._conn() as c:
+            cur = c.execute(
+                "INSERT INTO generation_run"
+                "(script_version_id, generator, git_commit, dvc_rev, config_json,"
+                " started_at, finished_at) VALUES(?,?,?,?,?,?,?)",
+                (script_version_id, generator, git_commit, dvc_rev,
+                 json.dumps(config), started_at, finished_at),
+            )
+            assert cur.lastrowid is not None
+            return int(cur.lastrowid)
+
+    def get_generation_run(self, rid: int) -> GenerationRun | None:
+        with self._conn() as c:
+            row = c.execute("SELECT * FROM generation_run WHERE id=?", (rid,)).fetchone()
+        return _row_to_run(row) if row else None
+
+    def list_runs_for_script(self, script_version_id: int) -> list[GenerationRun]:
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT * FROM generation_run WHERE script_version_id=? ORDER BY id",
+                (script_version_id,),
+            ).fetchall()
+        return [_row_to_run(r) for r in rows]
+
 
 def _row_to_episode(row: sqlite3.Row) -> Episode:
     return Episode(
@@ -121,4 +152,17 @@ def _row_to_script(row: sqlite3.Row) -> ScriptVersion:
         n_turns=int(row["n_turns"]),
         n_utterances=int(row["n_utterances"]),
         created_at=float(row["created_at"]),
+    )
+
+
+def _row_to_run(row: sqlite3.Row) -> GenerationRun:
+    return GenerationRun(
+        id=int(row["id"]),
+        script_version_id=int(row["script_version_id"]),
+        generator=row["generator"],
+        git_commit=row["git_commit"],
+        dvc_rev=row["dvc_rev"],
+        config=json.loads(row["config_json"] or "{}"),
+        started_at=float(row["started_at"]) if row["started_at"] is not None else None,
+        finished_at=float(row["finished_at"]),
     )
