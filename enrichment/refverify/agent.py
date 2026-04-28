@@ -1,21 +1,24 @@
-"""Citation verifier — OpenAlex + Wikipedia, Haiku for query massaging
-and result composition only.
+"""Citation verifier — OpenAlex + Wikipedia, two Haiku calls per citation.
 
-Flow per citation:
-  1. Haiku formulates an initial query and parallel-calls
-     search_openalex + search_wikipedia.
-  2. A DETERMINISTIC match gate (enrichment.refverify.match) runs over
-     the returned candidates. If anything passes, we skip ahead to
-     composition.
-  3. If nothing passed and we have budget left, Haiku gets one chance to
-     reformulate the query and re-search.
-  4. Composition: given the chosen candidate (or "no match"), Haiku writes
-     a 1-2-sentence listener-friendly description grounded in the
-     candidate's metadata. Verdict (verified yes/no) is the gate's result,
-     never Haiku's opinion.
+Flow:
+  1. SEARCH turn — Haiku reads the raw citation, formulates several
+     parallel queries (different angles) for search_openalex /
+     search_wikipedia. All run concurrently in one turn; pooled results
+     come back in one ToolResult batch.
+  2. JUDGE turn — Haiku sees the original raw + the candidate list with
+     full metadata, picks the best match (or null) and composes a
+     1-2 sentence listener-friendly description in one shot.
+     Output: {matched_index: int | null, description: str}.
 
-Output: ReadingListEntry — title, authors, year, type, publisher,
-description, cite count, URL, audience tag, plus accounting fields.
+No `parse_citation`, no Jaccard / year-delta gate. The model handles the
+matching directly — it has the raw citation and each candidate's title,
+authors, year, type, publisher, abstract right in front of it. A
+deterministic gate using regex-extracted fields is brittle (the year-
+parse bug we just hit) and forfeits the LLM's pattern-matching strength
+for no precision gain on tasks where the inputs are right there.
+
+The "audience" flag (general vs scholarly) IS deterministic — it reads
+off the candidate's publisher and citation count.
 """
 from __future__ import annotations
 
@@ -29,23 +32,18 @@ from typing import Any, Literal
 import anthropic
 from anthropic.types import (
     MessageParam,
-    ToolResultBlockParam,
     ToolUnionParam,
     ToolUseBlock,
 )
 
-from .match import audience, best_match
-from .sources import openalex_search, parse_citation, wikipedia_search
+from .match import audience
+from .sources import openalex_search, wikipedia_search
 
 logger = logging.getLogger(__name__)
 
 AGENT_MODEL = "claude-haiku-4-5-20251001"
 HAIKU_INPUT_PER_MTOK = 1.00
 HAIKU_OUTPUT_PER_MTOK = 5.00
-
-# Search-turn budget (does NOT include the composition turn). 1 = single
-# round of parallel calls; 2 = a chance to massage and retry.
-MAX_SEARCH_TURNS = 2
 
 
 # ---------- Result type ------------------------------------------------------
@@ -64,10 +62,6 @@ class ReadingListEntry:
     url: str | None = None
     source: str | None = None
     audience: Literal["general", "scholarly"] | None = None
-    # Match diagnostics — useful for downstream auditing.
-    title_jaccard: float | None = None
-    year_delta: int | None = None
-    # Accounting
     haiku_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
@@ -80,29 +74,24 @@ class ReadingListEntry:
         )
 
 
-# ---------- Tool schemas -----------------------------------------------------
+# ---------- Tool schemas (search turn) --------------------------------------
 
 TOOL_DEFS: list[ToolUnionParam] = [
     {
         "name": "search_openalex",
         "description": (
-            "OpenAlex academic graph. Broad coverage: articles, books, "
-            "chapters, theses, conference papers. Returns up to 5 "
-            "candidates with title, authors, year, type, publisher, "
-            "abstract, citation count, DOI/URL. Use for academic citations."
+            "OpenAlex academic graph. Broad coverage — articles, books, "
+            "chapters, theses, conference papers — with title, authors, "
+            "year, type, publisher, abstract, citation count, DOI/URL. "
+            "Use for academic citations. Call multiple times in one turn "
+            "with different query phrasings (full citation; surname + "
+            "title-keywords; surname only) to maximise the chance of "
+            "catching the actual work."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "query": {
-                    "type": "string",
-                    "description": (
-                        "Free-text search query. Combine author surname + "
-                        "key title words. If first attempt is empty, try "
-                        "again with surname only or with a different title "
-                        "fragment."
-                    ),
-                },
+                "query": {"type": "string", "description": "Free-text search query."},
             },
             "required": ["query"],
         },
@@ -112,8 +101,8 @@ TOOL_DEFS: list[ToolUnionParam] = [
         "description": (
             "English Wikipedia article search with intro extracts. Use for "
             "Acts of Parliament, canonical works, historical events, "
-            "well-known persons — anything likely to have its own article. "
-            "Returns up to 5 articles with title, intro extract, and URL."
+            "well-known persons — items likely to have their own article. "
+            "Returns title, intro extract, URL."
         ),
         "input_schema": {
             "type": "object",
@@ -140,44 +129,37 @@ TOOL_DISPATCH: dict[str, Any] = {
 }
 
 
-# ---------- System prompts ---------------------------------------------------
+# ---------- Prompts ----------------------------------------------------------
 
 SEARCH_PROMPT = """\
-You are searching for a real-world citation. Your job in this phase is to
-formulate effective queries for two tools — OpenAlex (academic) and
-Wikipedia (canonical works, Acts, historical events). You are NOT
-deciding whether the citation is real; a deterministic check runs after
-your search and decides.
-
-GUIDANCE
-- For academic citations: parallel-call search_openalex AND search_wikipedia
-  on turn 1. OpenAlex catches articles, books, theses; Wikipedia catches
-  canonical works that have their own article (rare but high-signal).
-- For UK Acts of Parliament, named historical events, famous works:
-  Wikipedia is the better starting point.
-- A query like '"Author Title (Year)"' is usually too specific. Prefer
-  unquoted "Author key-title-words". OpenAlex handles natural-language
-  queries well.
-- If turn 1 returned nothing useful and you have a second search turn,
-  try: surname-only, title-fragment-only, or swap the source.
-
-After your tool calls return, the system runs a deterministic match check
-on the candidates and either accepts one (you'll be asked to compose the
-final entry) or asks you to retry with a different query.
+You have a citation to look up against OpenAlex (academic) and
+Wikipedia (canonical works, Acts, historical events). Fire several
+parallel searches in this single turn with different query angles —
+they run concurrently. Don't judge anything here; you'll see all
+candidates afterwards.
 """
 
-COMPOSE_PROMPT = """\
-You have one job: take a CANDIDATE returned by OpenAlex or Wikipedia and
-write a 1-2 sentence description that helps a podcast listener decide
-whether to read it. Use only what's in the candidate metadata (title,
-authors, abstract, publisher, type). Do NOT invent.
+JUDGE_PROMPT = """\
+You have a citation and a list of CANDIDATES. Pick the candidate that
+is the work being cited, or null if none clearly is. Then write 1-2
+plain-English sentences from that candidate's abstract or extract that
+tell a podcast listener what the work is about.
 
-If the candidate has an abstract, summarise it in plain language.
-If it's a Wikipedia article, summarise the intro extract.
-Avoid jargon, hedging, and meta-talk like "this work argues that…".
+To pick a candidate, ALL of these must hold:
+- Its title clearly corresponds to the cited title — same subject, same
+  scope. Sharing a few keywords is NOT enough.
+- The citation's author surname appears in the candidate's authors OR
+  in the candidate's title. Wikipedia articles are exempt (they have
+  no authors).
+- The candidate's year is within roughly 5 years of the cited year, or
+  one side has no year.
 
-Output ONE JSON object — no prose, no code fences:
-{"description": "<1-2 sentences>"}
+If any of these fail for every candidate, return matched_index = null.
+Spurious matches mislead listeners — null is the right answer when no
+candidate is clearly the cited work.
+
+Output ONE JSON object only — no prose, no code fences:
+{"matched_index": <0-based index, or null>, "description": "<1-2 sentences, or empty>"}
 """
 
 
@@ -203,12 +185,12 @@ def _run_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
     return {"candidates": candidates[:5]}
 
 
-def _candidate_for_model(c: dict[str, Any]) -> dict[str, Any]:
-    """Trim a candidate dict to fields useful to the model — drop noisy
-    fields, truncate the abstract."""
+def _candidate_for_judge(c: dict[str, Any]) -> dict[str, Any]:
+    """Trim a candidate to fields useful for matching + composition.
+    Truncates the abstract to keep prompt tokens bounded."""
     abstract = c.get("abstract") or ""
-    if len(abstract) > 800:
-        abstract = abstract[:800] + "…"
+    if len(abstract) > 700:
+        abstract = abstract[:700] + "…"
     return {
         "title": c.get("title"),
         "authors": c.get("authors"),
@@ -223,18 +205,29 @@ def _candidate_for_model(c: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-_DESC_RE = re.compile(r'\{[^{}]*"description"[^{}]*\}', re.DOTALL)
+_JSON_RE = re.compile(r"\{[^{}]*\"matched_index\"[^{}]*\}", re.DOTALL)
 
 
-def _parse_description(text: str) -> str:
-    m = _DESC_RE.search(text)
+def _parse_judge(text: str) -> tuple[int | None, str]:
+    m = _JSON_RE.search(text)
     if not m:
-        return ""
+        logger.warning("no judge JSON in: %r", text[:200])
+        return None, ""
     try:
         data = json.loads(m.group(0))
-    except json.JSONDecodeError:
-        return ""
-    return str(data.get("description") or "").strip()
+    except json.JSONDecodeError as exc:
+        logger.warning("judge JSON decode failed (%s): %r", exc, m.group(0)[:200])
+        return None, ""
+    raw_idx = data.get("matched_index")
+    idx: int | None
+    if raw_idx is None:
+        idx = None
+    else:
+        try:
+            idx = int(raw_idx)
+        except (TypeError, ValueError):
+            idx = None
+    return idx, str(data.get("description") or "").strip()
 
 
 # ---------- Main entry point -------------------------------------------------
@@ -243,29 +236,13 @@ def assess_citation(
     raw_text: str,
     *,
     client: anthropic.Anthropic | None = None,
-    max_search_turns: int = MAX_SEARCH_TURNS,
 ) -> ReadingListEntry:
     """Verify a single citation. Returns a ReadingListEntry — verified=True
-    with rich metadata if the deterministic gate accepted a candidate;
-    verified=False otherwise."""
+    with rich metadata if Haiku picked a candidate, verified=False otherwise.
+    Always uses exactly 2 Haiku calls (search + judge)."""
     if client is None:
         client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-    parsed = parse_citation(raw_text)
-
-    messages: list[MessageParam] = [{
-        "role": "user",
-        "content": (
-            f"Citation to verify:\n\n{raw_text}\n\n"
-            f"Parsed hint — author: {parsed.get('author')!r}, "
-            f"title: {parsed.get('title')!r}, year: {parsed.get('year')!r}.\n\n"
-            "Search for it using the tools."
-        ),
-    }]
-
-    candidates: list[dict[str, Any]] = []
-    chosen: dict[str, Any] | None = None
-    chosen_features = None
     input_tokens = 0
     output_tokens = 0
     haiku_calls = 0
@@ -276,83 +253,81 @@ def assess_citation(
         input_tokens += getattr(usage, "input_tokens", 0) or 0
         output_tokens += getattr(usage, "output_tokens", 0) or 0
 
-    # Search turns (1 or 2)
-    for turn in range(max_search_turns):
-        msg = client.messages.create(
-            model=AGENT_MODEL,
-            max_tokens=1024,
-            system=SEARCH_PROMPT,
-            tools=TOOL_DEFS,
-            messages=messages,
-        )
-        _accumulate(msg.usage)
-        if msg.stop_reason != "tool_use":
-            break
+    # ---- SEARCH TURN ----
+    search_messages: list[MessageParam] = [{
+        "role": "user",
+        "content": (
+            f"Citation:\n{raw_text}\n\n"
+            "Fire your parallel searches now."
+        ),
+    }]
+    search_msg = client.messages.create(
+        model=AGENT_MODEL,
+        max_tokens=1024,
+        system=SEARCH_PROMPT,
+        tools=TOOL_DEFS,
+        messages=search_messages,
+    )
+    _accumulate(search_msg.usage)
 
-        tool_results: list[ToolResultBlockParam] = []
-        for block in msg.content:
+    candidates: list[dict[str, Any]] = []
+    if search_msg.stop_reason == "tool_use":
+        for block in search_msg.content:
             if not isinstance(block, ToolUseBlock):
                 continue
             tool_input = block.input if isinstance(block.input, dict) else {}
             result = _run_tool(block.name, tool_input)
             for c in result.get("candidates", []):
                 candidates.append(c)
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": block.id,
-                "content": json.dumps(result, default=str),
-            })
 
-        messages.append({"role": "assistant", "content": msg.content})
-        messages.append({"role": "user", "content": tool_results})
+    # Deduplicate by URL — different queries often return the same hit
+    seen_urls: set[str] = set()
+    unique_candidates: list[dict[str, Any]] = []
+    for c in candidates:
+        url = c.get("url") or ""
+        if url and url in seen_urls:
+            continue
+        if url:
+            seen_urls.add(url)
+        unique_candidates.append(c)
 
-        # Deterministic gate after each search round
-        chosen, chosen_features = best_match(parsed, candidates)
-        if chosen is not None:
-            break
-
-        # Otherwise prompt the model to reformulate (only if we have budget)
-        if turn + 1 < max_search_turns:
-            messages.append({
-                "role": "user",
-                "content": (
-                    "No candidate passed the deterministic match gate. "
-                    "Try ONE alternate query — e.g. surname only, a "
-                    "different title fragment, or a different tool."
-                ),
-            })
-
-    # No match: return verified=False, no composition turn, no extra cost.
-    if chosen is None or chosen_features is None:
+    # No candidates at all → drop without spending the judge call
+    if not unique_candidates:
         return ReadingListEntry(
-            raw_text=raw_text,
-            verified=False,
+            raw_text=raw_text, verified=False,
             haiku_calls=haiku_calls,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
+            input_tokens=input_tokens, output_tokens=output_tokens,
         )
 
-    # Composition turn (one Haiku call, no tools)
-    cand_for_model = _candidate_for_model(chosen)
-    compose_msg = client.messages.create(
+    # ---- JUDGE TURN ----
+    judge_input = "\n".join([
+        f"Citation: {raw_text}",
+        "",
+        "Candidates:",
+        json.dumps(
+            [_candidate_for_judge(c) for c in unique_candidates],
+            indent=2, default=str,
+        ),
+    ])
+    judge_msg = client.messages.create(
         model=AGENT_MODEL,
-        max_tokens=400,
-        system=COMPOSE_PROMPT,
-        messages=[{
-            "role": "user",
-            "content": (
-                f"Original citation: {raw_text}\n\n"
-                f"Candidate:\n{json.dumps(cand_for_model, indent=2)}\n\n"
-                "Compose the JSON description."
-            ),
-        }],
+        max_tokens=512,
+        system=JUDGE_PROMPT,
+        messages=[{"role": "user", "content": judge_input}],
     )
-    _accumulate(compose_msg.usage)
-    description = _parse_description(_extract_text(compose_msg.content))
+    _accumulate(judge_msg.usage)
+    matched_index, description = _parse_judge(_extract_text(judge_msg.content))
 
+    if matched_index is None or not (0 <= matched_index < len(unique_candidates)):
+        return ReadingListEntry(
+            raw_text=raw_text, verified=False,
+            haiku_calls=haiku_calls,
+            input_tokens=input_tokens, output_tokens=output_tokens,
+        )
+
+    chosen = unique_candidates[matched_index]
     return ReadingListEntry(
-        raw_text=raw_text,
-        verified=True,
+        raw_text=raw_text, verified=True,
         title=chosen.get("title"),
         authors=list(chosen.get("authors") or []),
         year=chosen.get("year"),
@@ -363,8 +338,6 @@ def assess_citation(
         url=chosen.get("url"),
         source=chosen.get("source"),
         audience=audience(chosen),
-        title_jaccard=chosen_features.title_jaccard,
-        year_delta=chosen_features.year_delta,
         haiku_calls=haiku_calls,
         input_tokens=input_tokens,
         output_tokens=output_tokens,

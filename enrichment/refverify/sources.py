@@ -8,7 +8,6 @@ the listener was returned by one of these two APIs.
 from __future__ import annotations
 
 import logging
-import re
 import time
 from typing import Any
 
@@ -22,8 +21,6 @@ USER_AGENT = (
 )
 TIMEOUT = 15.0
 TOP_N = 5
-
-_YEAR_RE = re.compile(r"\b(1[5-9]\d\d|20\d\d)\b")
 
 
 # ---------- HTTP helper ------------------------------------------------------
@@ -51,34 +48,6 @@ def _retrying_get(url: str, *, params: dict, headers: dict,
             continue
         return r
     return None
-
-
-# ---------- Citation parsing -------------------------------------------------
-
-def parse_citation(raw: str) -> dict[str, Any]:
-    """Heuristic parse: pull author surname (first capitalized run before
-    first comma), the year (4-digit between 1500–2099), and a candidate
-    title. Best-effort — used to seed the deterministic match gate."""
-    raw = raw.strip()
-    # Take the LAST year — citations often have "Title 1830-1864 (1995)"
-    # and we want 1995 (the publication year), not 1830 (in the title).
-    yr_matches = list(_YEAR_RE.finditer(raw))
-    year = int(yr_matches[-1].group(1)) if yr_matches else None
-
-    quoted = re.search(r"['\"]([^'\"]{8,})['\"]", raw)
-    quoted_title = quoted.group(1) if quoted else None
-
-    pre_comma = raw.split(",")[0].strip()
-    pre_comma = re.sub(r"^(Dr|Prof|Sir|Mr|Mrs|Ms|Lord|Lady)\.?\s+", "", pre_comma)
-    author = pre_comma if len(pre_comma.split()) <= 4 else None
-
-    title_chunk = raw[len(pre_comma) + 1:].strip().lstrip(",").strip()
-    if year and str(year) in title_chunk:
-        title_chunk = title_chunk[: title_chunk.find(str(year))].rstrip(" ,(")
-    title_chunk = re.sub(r"\s*\([^)]*\)\s*$", "", title_chunk).strip()
-    title = quoted_title or title_chunk or raw
-
-    return {"author": author, "title": title, "year": year}
 
 
 # ---------- OpenAlex ---------------------------------------------------------
