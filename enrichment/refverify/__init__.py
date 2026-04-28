@@ -9,10 +9,6 @@ Per citation:
      gate's output, never Haiku's opinion.
 """
 
-from .agent import (
-    MAX_SEARCH_TURNS,
-    ReadingListEntry,
-    assess_citation,
-)
+from .agent import ReadingListEntry, assess_citation
 
-__all__ = ["assess_citation", "ReadingListEntry", "MAX_SEARCH_TURNS"]
+__all__ = ["assess_citation", "ReadingListEntry"]
