@@ -1,17 +1,20 @@
-"""Re-verify unverified citations in phase2_5_reading_list.json files via a
-multi-source web verifier. Writes a sibling phase2_5_reading_list_v2.json
-(does NOT modify the original).
+"""Re-assess unverified citations in phase2_5_reading_list.json via a
+Haiku-driven agent that wraps the source APIs as tools. Writes a sibling
+phase2_5_reading_list_v2.json (does NOT modify the original).
 
-Free no-auth sources: CrossRef, Semantic Scholar, Fatcat, CiNii,
-legislation.gov.uk. Auth-optional: CourtListener, GovInfo (read from .env).
+The agent (claude-haiku-4-5) decides which tools to call (CrossRef,
+Semantic Scholar, Fatcat, CiNii, legislation.gov.uk, CourtListener,
+GovInfo, faculty pages) and emits a calibrated odds ratio of "real" vs
+"confabulated" for each citation.
 
-LLM judge biased toward NO MATCH: we'd rather miss a real citation than
-fake-verify a pastiche. High precision is the primary requirement.
+Promotion threshold: odds_real_to_confab >= --threshold (default 5.0).
+Each entry receives `verification_odds`, `verification_source`,
+`verification_url`, and `verification_summary` regardless of promotion.
 
 Usage:
     uv run python scripts/web_verify_references.py --run cran_trn_literary_hostprep_retrofit_20260428T060147Z
     uv run python scripts/web_verify_references.py --all
-    uv run python scripts/web_verify_references.py --all --limit 50
+    uv run python scripts/web_verify_references.py --all --limit 50 --threshold 10
 """
 from __future__ import annotations
 
@@ -19,6 +22,7 @@ import argparse
 import copy
 import json
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -26,7 +30,11 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
-from enrichment.refverify.verify import verify_citation
+from enrichment.refverify.agent import (
+    DEFAULT_PROMOTE_THRESHOLD,
+    Assessment,
+    assess_citation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,31 +52,47 @@ def lists_to_process(args: argparse.Namespace) -> list[Path]:
     sys.exit("FAIL: pass --run <id> or --all")
 
 
-def reverify_list(rl_path: Path, client: anthropic.Anthropic, limit: int | None) -> dict:
+def _annotate(entry: dict, a: Assessment, *, promoted: bool) -> dict:
+    entry = copy.deepcopy(entry)
+    entry["verification_odds"] = a.odds_real_to_confab
+    entry["verification_summary"] = a.evidence_summary
+    entry["verification_tools_used"] = a.tools_used
+    if promoted:
+        entry["verified"] = True
+        entry["verification_source"] = f"web:{a.matched_source}" if a.matched_source else "web"
+        entry["verification_url"] = a.primary_url
+    return entry
+
+
+def reassess_list(
+    rl_path: Path,
+    client: anthropic.Anthropic,
+    limit: int | None,
+    threshold: float,
+) -> dict:
     rl = json.loads(rl_path.read_text())
     unverified = rl.get("unverified", [])
     if limit:
         unverified = unverified[:limit]
     print(f"\n=== {rl_path.parent.name} ({len(unverified)} unverified) ===")
 
-    new_rl = copy.deepcopy(rl)
     promoted: list[dict] = []
     still_unverified: list[dict] = []
 
     for entry in unverified:
         raw = entry["raw_text"]
-        result = verify_citation(raw, client=client)
-        if result.verified:
-            entry = copy.deepcopy(entry)
-            entry["verified"] = True
-            entry["verification_source"] = f"web:{result.source}"
-            entry["verification_url"] = result.url
-            promoted.append(entry)
-            print(f"  [{result.source:18s}] {raw[:90]}")
+        a = assess_citation(raw, client=client)
+        is_promoted = a.odds_real_to_confab >= threshold
+        annotated = _annotate(entry, a, promoted=is_promoted)
+        if is_promoted:
+            promoted.append(annotated)
+            src = a.matched_source or "?"
+            print(f"  [{a.odds_real_to_confab:6.1f}× {src:18s}] {raw[:80]}")
         else:
-            still_unverified.append(entry)
-        time.sleep(0.3)  # be polite to free APIs
+            still_unverified.append(annotated)
+            print(f"  [{a.odds_real_to_confab:6.2f}× — confab     ] {raw[:80]}")
 
+    new_rl = copy.deepcopy(rl)
     new_rl["verified"] = (rl.get("verified", []) or []) + promoted
     new_rl["unverified"] = still_unverified + (rl.get("unverified", [])[len(unverified):] if limit else [])
     new_rl["total_verified"] = len(new_rl["verified"])
@@ -78,6 +102,8 @@ def reverify_list(rl_path: Path, client: anthropic.Anthropic, limit: int | None)
         )
     new_rl["web_verifier"] = {
         "applied_at": time.time(),
+        "model": "claude-haiku-4-5",
+        "threshold": threshold,
         "promoted": len(promoted),
         "still_unverified": len(still_unverified),
         "limit": limit,
@@ -99,22 +125,27 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--run", help="re-verify a single run's reading list")
-    g.add_argument("--all", action="store_true", help="re-verify every reading list in data/runs/")
+    g.add_argument("--all", action="store_true",
+                   help="re-verify every reading list in data/runs/")
     p.add_argument("--limit", type=int, default=None,
                    help="max unverified entries per list (sanity-check small batches)")
+    p.add_argument("--threshold", type=float, default=DEFAULT_PROMOTE_THRESHOLD,
+                   help=f"odds_real_to_confab threshold for promotion "
+                        f"(default {DEFAULT_PROMOTE_THRESHOLD})")
     args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    # Suppress noisy httpx INFO logs from per-tool calls
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     load_dotenv()
-    import os
     if "ANTHROPIC_API_KEY" not in os.environ:
-        sys.exit("FAIL: ANTHROPIC_API_KEY not set (judge needs it)")
+        sys.exit("FAIL: ANTHROPIC_API_KEY not set (Haiku agent needs it)")
     client = anthropic.Anthropic()
 
     lists = lists_to_process(args)
     summaries = []
     for rl_path in lists:
-        summaries.append(reverify_list(rl_path, client, args.limit))
+        summaries.append(reassess_list(rl_path, client, args.limit, args.threshold))
 
     print("\n=== summary ===")
     for s in summaries:
