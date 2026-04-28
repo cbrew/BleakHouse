@@ -59,8 +59,6 @@ def _annotate(entry: dict, e: ReadingListEntry) -> dict:
             "url": e.url,
             "source": e.source,
             "audience": e.audience,
-            "title_jaccard": e.title_jaccard,
-            "year_delta": e.year_delta,
         }
     return out
 
@@ -95,8 +93,8 @@ def reassess_list(
         if e.verified:
             promoted.append(annotated)
             print(
-                f"  [J={e.title_jaccard:.2f} {e.audience or '?':9s} {e.source or '?':10s}] "
-                f"({dt:4.1f}s, {e.haiku_calls}c, ${e.cost_usd:.4f})  "
+                f"  [{e.audience or '?':9s} {e.source or '?':10s}] "
+                f"({dt:4.1f}s, ${e.cost_usd:.4f})  "
                 f"{(e.title or '')[:70]}"
             )
         else:
