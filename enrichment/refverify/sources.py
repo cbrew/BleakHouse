@@ -25,11 +25,37 @@ TOP_N = 5
 
 # ---------- HTTP helper ------------------------------------------------------
 
+# Per-host minimum interval between calls (politeness gate).
+# OpenAlex's free pool limits anonymous traffic; staying under ~5 RPS keeps
+# us well clear. The polite pool (set by adding mailto=) gets 10 RPS.
+_HOST_MIN_INTERVAL: dict[str, float] = {
+    "api.openalex.org": 0.25,
+    "en.wikipedia.org": 0.10,
+}
+_LAST_HOST_CALL: dict[str, float] = {}
+
+
+def _throttle(url: str) -> None:
+    from urllib.parse import urlparse
+    host = urlparse(url).netloc
+    interval = _HOST_MIN_INTERVAL.get(host)
+    if interval is None:
+        return
+    now = time.monotonic()
+    last = _LAST_HOST_CALL.get(host, 0.0)
+    wait = interval - (now - last)
+    if wait > 0:
+        time.sleep(wait)
+    _LAST_HOST_CALL[host] = time.monotonic()
+
+
 def _retrying_get(url: str, *, params: dict, headers: dict,
-                  timeout: float = TIMEOUT, retries: int = 3) -> httpx.Response | None:
-    """GET with retry on 429 / 5xx / transient errors. Returns None on
-    permanent failure (caller should treat as no candidates)."""
+                  timeout: float = TIMEOUT, retries: int = 2) -> httpx.Response | None:
+    """GET with throttle + bounded retry. Gives up immediately on huge
+    Retry-After windows (>30s) — caller treats as no candidates rather
+    than blocking the batch."""
     for attempt in range(retries):
+        _throttle(url)
         try:
             r = httpx.get(url, params=params, headers=headers, timeout=timeout)
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
@@ -40,8 +66,12 @@ def _retrying_get(url: str, *, params: dict, headers: dict,
             continue
         if r.status_code == 429:
             wait = float(r.headers.get("Retry-After", 2.0)) or 2.0
+            if wait > 30:
+                logger.warning("GET %s 429 with huge Retry-After=%.0fs; giving up",
+                               url, wait)
+                return None
             logger.info("GET %s 429; backing off %.1fs", url, wait)
-            time.sleep(min(wait, 5.0))
+            time.sleep(wait)
             continue
         if r.status_code >= 500:
             time.sleep(0.5 * (2 ** attempt))
@@ -70,8 +100,14 @@ def openalex_search(query: str) -> list[dict[str, Any]]:
         return []
     r = _retrying_get(
         "https://api.openalex.org/works",
-        params={"search": query[:200], "per_page": TOP_N},
-        headers={"User-Agent": USER_AGENT, "mailto": "brewc@cbrew.com"},
+        # mailto as a QUERY PARAM (not a header) puts us in the polite pool,
+        # which has substantially higher rate limits.
+        params={
+            "search": query[:200],
+            "per_page": TOP_N,
+            "mailto": "brewc@cbrew.com",
+        },
+        headers={"User-Agent": USER_AGENT},
     )
     if r is None or r.status_code != 200:
         return []
