@@ -58,20 +58,33 @@ class ReadingListEntry:
 CLEAN_PROMPT = """\
 You receive a raw scholarly citation. Output ONE JSON object only:
 
-{"plausible": true|false, "kind": "academic"|"canonical", "query": "..."}
+{"plausible": true|false, "query": "..."}
 
-- plausible: false only for obvious fabrications. When in doubt, true.
-- kind: "canonical" for Acts, named events, famous works, official
-  reports, persons. "academic" for everything else.
+- plausible: false only for obvious fabrications (nonsense title +
+  nonsense author + invented journal). When in doubt, true — the
+  search step is the real filter.
 - query: how you'd type this into a search box.
 """
 
 
 JUDGE_PROMPT = """\
 You have a citation and a list of CANDIDATES. Pick the one that is the
-cited work, or null if none clearly is. Write 1-2 plain-English
+cited work, or null if none clearly is. Then write 1-2 plain-English
 sentences from that candidate's abstract or extract for a podcast
 listener.
+
+A candidate matches when ALL hold:
+- Its title clearly corresponds to the cited title — same subject, same
+  scope. Sharing a few keywords without titular agreement is NOT a match.
+- The cited author's surname appears in the candidate's authors OR in
+  the candidate's title. (Reviews like "Review of X by Smith" count —
+  pick them, and say so in the description.)
+- The candidate's year is within ~5 years of the cited year (or one
+  side has no year).
+
+Wikipedia articles are exempt from the author check.
+
+If nothing meets the bar, return matched_index = null.
 
 Output ONE JSON object only:
 {"matched_index": <0-based index, or null>, "description": "<1-2 sentences, or empty>"}
@@ -92,8 +105,21 @@ _JSON_RE = re.compile(r"\{.*?\}", re.DOTALL)
 @dataclass(frozen=True)
 class _Cleaned:
     plausible: bool
-    kind: str
     query: str
+
+
+_YEAR_RE = re.compile(r"\b(1[5-9]\d\d|20\d\d)\b")
+_INITIAL_DOT_RE = re.compile(r"\b([A-Z])\.")
+
+
+def _normalize_query(q: str) -> str:
+    """Mechanical fixes that improve OpenAlex search ranking:
+    drop standalone publication years (they pollute results), and
+    drop periods after single-letter initials ('P.W.J.' -> 'P W J').
+    """
+    q = _YEAR_RE.sub("", q)
+    q = _INITIAL_DOT_RE.sub(r"\1", q)
+    return re.sub(r"\s+", " ", q).strip()
 
 
 def _parse_clean(text: str) -> _Cleaned | None:
@@ -107,13 +133,9 @@ def _parse_clean(text: str) -> _Cleaned | None:
     query = str(data.get("query") or "").strip()
     if not query:
         return None
-    kind = data.get("kind") or "academic"
-    if kind not in ("academic", "canonical"):
-        kind = "academic"
     return _Cleaned(
         plausible=bool(data.get("plausible", True)),
-        kind=kind,
-        query=query,
+        query=_normalize_query(query),
     )
 
 
@@ -190,12 +212,10 @@ def assess_citation(
         )
 
     # ---- APIs ----
-    if cleaned.kind == "canonical":
-        candidates = wikipedia_search(cleaned.query) or openalex_search(cleaned.query)
-    else:
-        oa = openalex_search(cleaned.query)
-        wp = wikipedia_search(cleaned.query)
-        candidates = oa + wp  # both available to the judge
+    # Always run both sources and pool the candidates. The CLEAN step's
+    # 'kind' hint was causing misclassifications (e.g. an academic book
+    # tagged 'canonical' would run Wikipedia only and miss OpenAlex).
+    candidates = openalex_search(cleaned.query) + wikipedia_search(cleaned.query)
 
     seen: set[str] = set()
     unique: list[dict[str, Any]] = []
