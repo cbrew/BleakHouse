@@ -1,16 +1,13 @@
-"""Per-source candidate retrievers for citation verification.
+"""Two source APIs for citation verification: OpenAlex and Wikipedia.
 
-Each function takes a citation's raw text and returns a list of candidate
-hits in a uniform shape:
-    [{"title": str, "authors": list[str], "year": int | None,
-      "url": str, "doi": str | None, "source": str}, ...]
-Sources truncate to a small top-N (default 5). Failures (HTTP errors, empty
-results) return [].
+Both return rich metadata that the agent uses to compose a listener-facing
+reading-list entry — title, authors, year, description, publisher, type,
+cite count. The agent never invents these fields; everything visible to
+the listener was returned by one of these two APIs.
 """
 from __future__ import annotations
 
 import logging
-import os
 import re
 import time
 from typing import Any
@@ -19,40 +16,23 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "BleakHouse-RefVerifier/1.0 (https://github.com/cbrew/BleakHouse; brewc@cbrew.com)"
+USER_AGENT = (
+    "BleakHouse-RefVerifier/2.0 "
+    "(https://github.com/cbrew/BleakHouse; brewc@cbrew.com)"
+)
 TIMEOUT = 15.0
 TOP_N = 5
 
-
-# Per-host throttle: minimum seconds between consecutive calls to a host.
-# Semantic Scholar's free tier is ~1 RPS and aggressively returns 429.
-_HOST_MIN_INTERVAL = {
-    "api.semanticscholar.org": 1.5,
-    "api.search.brave.com": 1.1,  # Brave free tier is 1 RPS
-}
-_LAST_HOST_CALL: dict[str, float] = {}
+_YEAR_RE = re.compile(r"\b(1[5-9]\d\d|20\d\d)\b")
 
 
-def _throttle(url: str) -> None:
-    from urllib.parse import urlparse
-    host = urlparse(url).netloc
-    interval = _HOST_MIN_INTERVAL.get(host)
-    if interval is None:
-        return
-    now = time.monotonic()
-    last = _LAST_HOST_CALL.get(host, 0.0)
-    wait = interval - (now - last)
-    if wait > 0:
-        time.sleep(wait)
-    _LAST_HOST_CALL[host] = time.monotonic()
-
+# ---------- HTTP helper ------------------------------------------------------
 
 def _retrying_get(url: str, *, params: dict, headers: dict,
                   timeout: float = TIMEOUT, retries: int = 3) -> httpx.Response | None:
-    """GET with retry on 429 (exponential backoff) and transient errors.
-    Returns None on permanent failure (caller should treat as no candidates)."""
+    """GET with retry on 429 / 5xx / transient errors. Returns None on
+    permanent failure (caller should treat as no candidates)."""
     for attempt in range(retries):
-        _throttle(url)
         try:
             r = httpx.get(url, params=params, headers=headers, timeout=timeout)
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
@@ -73,90 +53,51 @@ def _retrying_get(url: str, *, params: dict, headers: dict,
     return None
 
 
-# ---------- Citation parsing ----------------------------------------------
-
-_YEAR_RE = re.compile(r"\b(1[5-9]\d\d|20\d\d)\b")
-
+# ---------- Citation parsing -------------------------------------------------
 
 def parse_citation(raw: str) -> dict[str, Any]:
     """Heuristic parse: pull author surname (first capitalized run before
     first comma), the year (4-digit between 1500–2099), and a candidate
-    title (the first quoted phrase or the longest non-author chunk).
-
-    Best-effort only — verification still has the raw text and the LLM
-    judge does the actual matching.
-    """
+    title. Best-effort — used to seed the deterministic match gate."""
     raw = raw.strip()
-    # Year
-    yr_match = _YEAR_RE.search(raw)
-    year = int(yr_match.group(1)) if yr_match else None
+    # Take the LAST year — citations often have "Title 1830-1864 (1995)"
+    # and we want 1995 (the publication year), not 1830 (in the title).
+    yr_matches = list(_YEAR_RE.finditer(raw))
+    year = int(yr_matches[-1].group(1)) if yr_matches else None
 
-    # First quoted phrase as title hint
     quoted = re.search(r"['\"]([^'\"]{8,})['\"]", raw)
     quoted_title = quoted.group(1) if quoted else None
 
-    # Author: first chunk up to comma, dropping titles
     pre_comma = raw.split(",")[0].strip()
     pre_comma = re.sub(r"^(Dr|Prof|Sir|Mr|Mrs|Ms|Lord|Lady)\.?\s+", "", pre_comma)
     author = pre_comma if len(pre_comma.split()) <= 4 else None
 
-    # Title fallback: text after the first comma, up to year-or-end
     title_chunk = raw[len(pre_comma) + 1:].strip().lstrip(",").strip()
     if year and str(year) in title_chunk:
         title_chunk = title_chunk[: title_chunk.find(str(year))].rstrip(" ,(")
-    # Strip trailing publisher-like cruft
     title_chunk = re.sub(r"\s*\([^)]*\)\s*$", "", title_chunk).strip()
     title = quoted_title or title_chunk or raw
 
     return {"author": author, "title": title, "year": year}
 
 
-# ---------- Source: CrossRef --------------------------------------------------
+# ---------- OpenAlex ---------------------------------------------------------
 
-def crossref_search(raw: str) -> list[dict[str, Any]]:
-    parsed = parse_citation(raw)
-    params: dict[str, Any] = {"rows": TOP_N}
-    if parsed["author"]:
-        params["query.author"] = parsed["author"]
-    if parsed["title"]:
-        params["query.bibliographic"] = parsed["title"][:200]
-    r = _retrying_get(
-        "https://api.crossref.org/works",
-        params=params,
-        headers={"User-Agent": USER_AGENT, "mailto": "brewc@cbrew.com"},
-    )
-    if r is None or r.status_code != 200:
-        return []
-    items = r.json().get("message", {}).get("items", [])
-    out = []
-    for it in items[:TOP_N]:
-        title = (it.get("title") or [""])[0]
-        authors = [
-            f"{a.get('given','')} {a.get('family','')}".strip()
-            for a in it.get("author", [])
-        ]
-        year = None
-        for k in ("issued", "published", "published-print", "published-online"):
-            parts = it.get(k, {}).get("date-parts", [[None]])
-            if parts and parts[0] and parts[0][0]:
-                year = int(parts[0][0])
-                break
-        doi = it.get("DOI")
-        url = it.get("URL") or (f"https://doi.org/{doi}" if doi else "")
-        out.append({"title": title, "authors": authors, "year": year,
-                    "url": url, "doi": doi, "source": "crossref"})
-    return out
+def _invert_abstract(inv: dict[str, list[int]] | None) -> str:
+    """Reconstruct an abstract from OpenAlex's inverted index."""
+    if not inv:
+        return ""
+    word_at: dict[int, str] = {}
+    for word, positions in inv.items():
+        for p in positions:
+            word_at[p] = word
+    return " ".join(word_at[i] for i in sorted(word_at) if i in word_at)
 
 
-# ---------- Source: OpenAlex -------------------------------------------------
-
-def openalex_search(raw: str) -> list[dict[str, Any]]:
-    """OpenAlex (free, no auth) — major academic graph with very broad
-    coverage including pre-print servers, theses, and books with DOIs."""
-    parsed = parse_citation(raw)
-    q_parts = [parsed["author"] or "", parsed["title"][:160] if parsed["title"] else ""]
-    query = " ".join(p for p in q_parts if p).strip()
-    if not query:
+def openalex_search(query: str) -> list[dict[str, Any]]:
+    """Search OpenAlex. Returns up to TOP_N candidates with rich metadata
+    suitable for composing a reading-list entry."""
+    if not query.strip():
         return []
     r = _retrying_get(
         "https://api.openalex.org/works",
@@ -170,306 +111,84 @@ def openalex_search(raw: str) -> list[dict[str, Any]]:
         title = w.get("display_name") or ""
         authors = [
             (a.get("author") or {}).get("display_name", "")
-            for a in (w.get("authorships") or [])[:5]
+            for a in (w.get("authorships") or [])[:8]
         ]
         year = w.get("publication_year")
-        doi = w.get("doi") or None
+        doi = w.get("doi")
         url = doi if (doi and doi.startswith("http")) else (
-            f"https://doi.org/{doi.replace('https://doi.org/','')}"
+            f"https://doi.org/{doi.replace('https://doi.org/', '')}"
             if doi else (w.get("id") or "")
         )
-        out.append({"title": title, "authors": authors, "year": year,
-                    "url": url, "doi": doi,
-                    "cited_by": w.get("cited_by_count") or 0,
-                    "source": "openalex"})
+        host_venue = w.get("host_venue") or {}
+        primary_loc = w.get("primary_location") or {}
+        venue_source = primary_loc.get("source") or {}
+        publisher = (host_venue.get("publisher")
+                     or venue_source.get("host_organization_name")
+                     or venue_source.get("publisher")
+                     or "")
+        venue_name = host_venue.get("display_name") or venue_source.get("display_name") or ""
+        abstract = _invert_abstract(w.get("abstract_inverted_index"))
+        out.append({
+            "title": title,
+            "authors": [a for a in authors if a],
+            "year": year,
+            "type": w.get("type") or "",
+            "publisher": publisher,
+            "venue": venue_name,
+            "abstract": abstract,
+            "cited_by": w.get("cited_by_count") or 0,
+            "url": url,
+            "doi": doi,
+            "source": "openalex",
+        })
     return out
 
 
-# ---------- Source: Wikipedia ------------------------------------------------
+# ---------- Wikipedia --------------------------------------------------------
 
-def wikipedia_search(raw: str) -> list[dict[str, Any]]:
-    """English Wikipedia article search. Useful for Acts of Parliament,
-    famous historical works, well-known persons. Not for ordinary
-    academic articles."""
-    parsed = parse_citation(raw)
-    title_hint = parsed["title"] or raw
-    if not title_hint:
+def wikipedia_search(query: str) -> list[dict[str, Any]]:
+    """Search English Wikipedia. Uses generator=search to combine ranked
+    matches with plain-text intro extracts in a single request."""
+    if not query.strip():
         return []
     r = _retrying_get(
         "https://en.wikipedia.org/w/api.php",
         params={
-            "action": "query", "list": "search",
-            "srsearch": title_hint[:200], "srlimit": TOP_N,
+            "action": "query",
+            "generator": "search",
+            "gsrsearch": query[:300],
+            "gsrlimit": TOP_N,
+            "prop": "extracts|info",
+            "exintro": "1",
+            "explaintext": "1",
+            "exchars": "800",
+            "inprop": "url",
             "format": "json",
+            "redirects": "1",
         },
         headers={"User-Agent": USER_AGENT},
     )
     if r is None or r.status_code != 200:
         return []
-    out = []
-    for item in r.json().get("query", {}).get("search", [])[:TOP_N]:
-        wp_title = item.get("title", "")
-        snippet_html = item.get("snippet", "")
-        snippet = re.sub(r"<[^>]+>", "", snippet_html)
-        slug = wp_title.replace(" ", "_")
-        out.append({"title": wp_title, "authors": [], "year": None,
-                    "url": f"https://en.wikipedia.org/wiki/{slug}",
-                    "doi": None, "snippet": snippet,
-                    "source": "wikipedia"})
+    pages = (r.json().get("query") or {}).get("pages") or {}
+    # Preserve search rank from the index field
+    items = sorted(pages.values(), key=lambda p: p.get("index", 999))
+    out: list[dict[str, Any]] = []
+    for p in items[:TOP_N]:
+        title = p.get("title") or ""
+        extract = p.get("extract") or ""
+        url = p.get("fullurl") or f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}"
+        out.append({
+            "title": title,
+            "authors": [],
+            "year": None,
+            "type": "wikipedia_article",
+            "publisher": "Wikipedia",
+            "venue": "Wikipedia",
+            "abstract": extract,
+            "cited_by": None,
+            "url": url,
+            "doi": None,
+            "source": "wikipedia",
+        })
     return out
-
-
-# ---------- Source: Semantic Scholar -----------------------------------------
-
-def semantic_scholar_search(raw: str) -> list[dict[str, Any]]:
-    parsed = parse_citation(raw)
-    q_parts = [parsed["author"] or "", parsed["title"][:120]]
-    query = " ".join(p for p in q_parts if p).strip()
-    if not query:
-        return []
-    headers = {"User-Agent": USER_AGENT}
-    api_key = os.environ.get("SEMANTIC_SCHOLAR_API_KEY")
-    if api_key:
-        headers["x-api-key"] = api_key
-    r = _retrying_get(
-        "https://api.semanticscholar.org/graph/v1/paper/search",
-        params={
-            "query": query,
-            "limit": TOP_N,
-            "fields": "title,authors,year,externalIds,openAccessPdf,url",
-        },
-        headers=headers,
-    )
-    if r is None or r.status_code != 200:
-        return []
-    out = []
-    for it in r.json().get("data", []):
-        title = it.get("title") or ""
-        authors = [a.get("name", "") for a in it.get("authors") or []]
-        year = it.get("year")
-        ext = it.get("externalIds") or {}
-        doi = ext.get("DOI")
-        url = it.get("url") or (f"https://doi.org/{doi}" if doi else "")
-        out.append({"title": title, "authors": authors, "year": year,
-                    "url": url, "doi": doi, "source": "semantic_scholar"})
-    return out
-
-
-# ---------- Source: Fatcat (Internet Archive Scholar) ------------------------
-
-def fatcat_search(raw: str) -> list[dict[str, Any]]:
-    """Fatcat (Internet Archive's bibliographic catalog). Their elasticsearch
-    endpoint can be slow; we give it a generous timeout."""
-    parsed = parse_citation(raw)
-    q = parsed["title"][:120]
-    if parsed["author"]:
-        q = f"{parsed['author']} {q}"
-    if not q:
-        return []
-    r = _retrying_get(
-        "https://search.fatcat.wiki/fatcat_release/_search",
-        params={"q": q, "size": TOP_N},
-        headers={"User-Agent": USER_AGENT},
-        timeout=30.0,
-        retries=2,
-    )
-    if r is None or r.status_code != 200:
-        return []
-    try:
-        hits = r.json().get("hits", {}).get("hits", [])
-    except ValueError:
-        return []
-    out = []
-    for h in hits[:TOP_N]:
-        s = h.get("_source", {})
-        title = s.get("title") or ""
-        authors = [c.get("raw_name", "") for c in s.get("contribs") or [] if c.get("raw_name")]
-        year = s.get("release_year")
-        ident = s.get("ident")
-        out.append({"title": title, "authors": authors, "year": year,
-                    "url": f"https://fatcat.wiki/release/{ident}" if ident else "",
-                    "doi": (s.get("ext_ids") or {}).get("doi"),
-                    "source": "fatcat"})
-    return out
-
-
-# ---------- Source: HathiTrust ----------------------------------------------
-
-def hathitrust_search(raw: str) -> list[dict[str, Any]]:
-    """HathiTrust catalog search — title-only; their public API doesn't
-    accept author+title combined queries, so we bias on title."""
-    parsed = parse_citation(raw)
-    title = parsed["title"][:120]
-    if not title:
-        return []
-    try:
-        r = httpx.get(
-            "https://catalog.hathitrust.org/Search/Home",
-            params={
-                "lookfor": title,
-                "type": "title",
-                "format": "json",
-                "limit": TOP_N,
-            },
-            headers={"User-Agent": USER_AGENT},
-            timeout=TIMEOUT,
-        )
-        r.raise_for_status()
-    except (httpx.HTTPError, httpx.TimeoutException) as exc:
-        logger.warning("hathitrust_search failed: %s", exc)
-        return []
-    # HathiTrust's search response is HTML; we use a different endpoint that
-    # returns JSON via the bib API for known IDs. Fall back to empty here —
-    # HathiTrust as a fallback source is best-effort.
-    # The proper API is per-record via /api/volumes/brief/{id-type}/{id}/json.
-    # Without full-text search auth, we can only confirm if an LCCN/OCLC is given.
-    return []
-
-
-# ---------- Source: CiNii (Japan NII) ---------------------------------------
-
-def cinii_search(raw: str) -> list[dict[str, Any]]:
-    parsed = parse_citation(raw)
-    q = parsed["title"][:120]
-    if parsed["author"]:
-        q = f"{parsed['author']} {q}"
-    r = _retrying_get(
-        "https://cir.nii.ac.jp/opensearch/all",
-        params={"q": q, "format": "json", "count": TOP_N},
-        headers={"User-Agent": USER_AGENT},
-    )
-    if r is None or r.status_code != 200:
-        return []
-    try:
-        feed = r.json()
-    except ValueError:
-        return []
-    items = feed.get("@graph", [])
-    if items and isinstance(items, list):
-        items = items[0].get("items", []) if isinstance(items[0], dict) else []
-    out = []
-    for it in items[:TOP_N]:
-        title = it.get("title") or it.get("dc:title") or ""
-        creator = it.get("dc:creator") or []
-        if isinstance(creator, str):
-            creator = [creator]
-        authors = [str(c) for c in creator]
-        year_str = it.get("prism:publicationDate") or it.get("dc:date") or ""
-        year_match = _YEAR_RE.search(str(year_str))
-        year = int(year_match.group(1)) if year_match else None
-        url = it.get("@id") or it.get("link") or ""
-        out.append({"title": title, "authors": authors, "year": year,
-                    "url": url, "doi": None, "source": "cinii"})
-    return out
-
-
-# ---------- Source: legislation.gov.uk ---------------------------------------
-
-def legislation_gov_uk_search(raw: str) -> list[dict[str, Any]]:
-    """Acts of Parliament. Their search is form-based but each Act has a
-    canonical URL like https://www.legislation.gov.uk/<type>/<year>/<chapter>.
-    We extract type/year from the citation and try a direct GET; on 200 the
-    Act exists.
-    """
-    # Heuristic: find "(N & M Vict. c. K)" or "Act 1873" in the citation
-    m = re.search(r"\b(\d{4})\s*(?:\([^)]*c\.?\s*(\d+)\))?", raw)
-    if not m:
-        return []
-    year = m.group(1)
-    chapter = m.group(2)
-    if not (1800 <= int(year) <= 2100):
-        return []
-    candidates = []
-    if chapter:
-        url = f"https://www.legislation.gov.uk/ukpga/{year}/{chapter}"
-        try:
-            r = httpx.head(url, headers={"User-Agent": USER_AGENT},
-                           timeout=TIMEOUT, follow_redirects=True)
-            if r.status_code == 200:
-                candidates.append({
-                    "title": f"UK Public General Act {year} c. {chapter}",
-                    "authors": [], "year": int(year),
-                    "url": url, "doi": None, "source": "legislation_gov_uk",
-                })
-        except httpx.HTTPError as exc:
-            logger.warning("legislation_gov_uk HEAD failed: %s", exc)
-    return candidates
-
-
-# ---------- Source: CourtListener (auth via env) -----------------------------
-
-def courtlistener_search(raw: str) -> list[dict[str, Any]]:
-    token = os.environ.get("COURTLISTENER_API_KEY")
-    if not token:
-        return []
-    parsed = parse_citation(raw)
-    q = parsed["title"][:120]
-    if not q:
-        return []
-    r = _retrying_get(
-        "https://www.courtlistener.com/api/rest/v3/search/",
-        params={"q": q, "type": "o"},
-        headers={"User-Agent": USER_AGENT, "Authorization": f"Token {token}"},
-    )
-    if r is None or r.status_code != 200:
-        return []
-    out = []
-    for it in r.json().get("results", [])[:TOP_N]:
-        title = it.get("caseName") or it.get("caseNameShort") or ""
-        year = None
-        date_filed = it.get("dateFiled") or ""
-        if date_filed:
-            ym = _YEAR_RE.search(date_filed)
-            if ym:
-                year = int(ym.group(1))
-        out.append({"title": title, "authors": [],  # cases don't have authors
-                    "year": year,
-                    "url": "https://www.courtlistener.com" + (it.get("absolute_url") or ""),
-                    "doi": None, "source": "courtlistener"})
-    return out
-
-
-# ---------- Source: GovInfo (auth via env) -----------------------------------
-
-def govinfo_search(raw: str) -> list[dict[str, Any]]:
-    """US government publications. Search Service API uses POST with a JSON
-    body and requires offsetMark='*' to start a new search."""
-    key = os.environ.get("GOVINFO_API_KEY")
-    if not key:
-        return []
-    parsed = parse_citation(raw)
-    q = parsed["title"][:120]
-    if not q:
-        return []
-    body = {
-        "query": q,
-        "pageSize": TOP_N,
-        "offsetMark": "*",
-        "sorts": [{"field": "score", "sortOrder": "DESC"}],
-    }
-    try:
-        r = httpx.post(
-            "https://api.govinfo.gov/search",
-            json=body,
-            headers={
-                "User-Agent": USER_AGENT,
-                "X-Api-Key": key,
-                "Content-Type": "application/json",
-            },
-            timeout=TIMEOUT,
-        )
-        r.raise_for_status()
-    except (httpx.HTTPError, httpx.TimeoutException) as exc:
-        logger.warning("govinfo_search failed: %s", exc)
-        return []
-    out = []
-    for it in r.json().get("results", [])[:TOP_N]:
-        title = it.get("title") or ""
-        year_match = _YEAR_RE.search(it.get("dateIssued") or "")
-        year = int(year_match.group(1)) if year_match else None
-        url = it.get("packageLink") or it.get("download", {}).get("pdfLink") or ""
-        out.append({"title": title, "authors": [], "year": year,
-                    "url": url, "doi": None, "source": "govinfo"})
-    return out
-
-

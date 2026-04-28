@@ -1,16 +1,21 @@
-"""Haiku-driven citation assessor with sources packaged as tools.
+"""Citation verifier — OpenAlex + Wikipedia, Haiku for query massaging
+and result composition only.
 
-Replaces the older fixed-chain verifier (`verify.py` + `judge.py`). Instead
-of a hardcoded routing of citation→sources→judge, the model itself decides
-which tools to call. Output is a calibrated odds ratio: how much more
-likely the citation is real than confabulated, given the evidence gathered.
+Flow per citation:
+  1. Haiku formulates an initial query and parallel-calls
+     search_openalex + search_wikipedia.
+  2. A DETERMINISTIC match gate (enrichment.refverify.match) runs over
+     the returned candidates. If anything passes, we skip ahead to
+     composition.
+  3. If nothing passed and we have budget left, Haiku gets one chance to
+     reformulate the query and re-search.
+  4. Composition: given the chosen candidate (or "no match"), Haiku writes
+     a 1-2-sentence listener-friendly description grounded in the
+     candidate's metadata. Verdict (verified yes/no) is the gate's result,
+     never Haiku's opinion.
 
-Tools wrap the source functions in `sources.py` and `faculty.py`. Haiku can
-call any tool with structured inputs of its choosing, may call several in
-one turn or across turns, and may revise its query if results are weak.
-
-Bias is set in the system prompt: lean toward "confabulated" when in doubt.
-A fake-verified pastiche is worse than a missed real citation.
+Output: ReadingListEntry — title, authors, year, type, publisher,
+description, cite count, URL, audience tag, plus accounting fields.
 """
 from __future__ import annotations
 
@@ -19,7 +24,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import anthropic
 from anthropic.types import (
@@ -29,58 +34,43 @@ from anthropic.types import (
     ToolUseBlock,
 )
 
-from . import cache as _cache
-from .faculty import faculty_search
-from .sources import (
-    cinii_search,
-    courtlistener_search,
-    crossref_search,
-    govinfo_search,
-    legislation_gov_uk_search,
-    openalex_search,
-    semantic_scholar_search,
-    wikipedia_search,
-)
-# NOTE: fatcat_search intentionally not imported — see TOOL_DEFS comment.
+from .match import audience, best_match
+from .sources import openalex_search, parse_citation, wikipedia_search
 
 logger = logging.getLogger(__name__)
 
 AGENT_MODEL = "claude-haiku-4-5-20251001"
+HAIKU_INPUT_PER_MTOK = 1.00
+HAIKU_OUTPUT_PER_MTOK = 5.00
 
-# Hard cap on model calls per citation. Tool use is multi-turn by protocol
-# (model -> tool_use -> tool_result -> model), but a tight cap keeps cost
-# bounded. Typical flow: turn 1 emits 1–3 tool_use blocks, turn 2 finalises
-# the JSON. Turn 3 leaves room for one revision when the first round
-# returned nothing useful.
-MAX_HAIKU_CALLS = 3
-
-DEFAULT_PROMOTE_THRESHOLD = 5.0  # odds_real_to_confab needed to count as verified
+# Search-turn budget (does NOT include the composition turn). 1 = single
+# round of parallel calls; 2 = a chance to massage and retry.
+MAX_SEARCH_TURNS = 2
 
 
 # ---------- Result type ------------------------------------------------------
 
-# Haiku 4.5 pricing as of 2026-04 ($/MTok). Update when pricing changes.
-HAIKU_INPUT_PER_MTOK = 1.00
-HAIKU_OUTPUT_PER_MTOK = 5.00
-
-
 @dataclass(frozen=True)
-class Assessment:
-    """Haiku's final judgement of a citation."""
-    odds_real_to_confab: float
-    evidence_summary: str
-    primary_url: str | None
-    matched_source: str | None
-    tools_used: list[str] = field(default_factory=list)
-    raw_response: str | None = None
+class ReadingListEntry:
+    raw_text: str
+    verified: bool
+    title: str | None = None
+    authors: list[str] = field(default_factory=list)
+    year: int | None = None
+    type: str | None = None
+    publisher: str | None = None
+    description: str | None = None
+    cited_by: int | None = None
+    url: str | None = None
+    source: str | None = None
+    audience: Literal["general", "scholarly"] | None = None
+    # Match diagnostics — useful for downstream auditing.
+    title_jaccard: float | None = None
+    year_delta: int | None = None
+    # Accounting
+    haiku_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
-    haiku_calls: int = 0
-    cache_hits: int = 0
-
-    @property
-    def verified(self) -> bool:
-        return self.odds_real_to_confab >= DEFAULT_PROMOTE_THRESHOLD
 
     @property
     def cost_usd(self) -> float:
@@ -90,55 +80,40 @@ class Assessment:
         )
 
 
-# ---------- Tool schemas (sent to Haiku) -------------------------------------
+# ---------- Tool schemas -----------------------------------------------------
 
 TOOL_DEFS: list[ToolUnionParam] = [
     {
-        "name": "search_crossref",
-        "description": (
-            "FAST (~1-2s). DOI registry. USE FOR: scholarly articles, books, "
-            "chapters, conference papers. The single best first call for any "
-            "academic citation. DO NOT USE FOR: Acts of Parliament (no DOI), "
-            "legal cases, government reports, Wikipedia-style references, or "
-            "items where the citation lacks a clear author + title."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "author": {"type": "string", "description": "Author surname or full name"},
-                "title": {"type": "string", "description": "Title or substantive fragment"},
-            },
-            "required": ["title"],
-        },
-    },
-    {
         "name": "search_openalex",
         "description": (
-            "FAST (~1-2s). OpenAlex is the broadest academic graph: covers "
-            "DOIs, books, theses, preprints, including older works missed "
-            "by CrossRef. USE IN PARALLEL with search_crossref on turn 1 "
-            "for academic citations — both are FAST and cheap, and "
-            "OpenAlex often catches what CrossRef misses (and vice versa). "
-            "DO NOT USE FOR: Acts, legal cases, government reports."
+            "OpenAlex academic graph. Broad coverage: articles, books, "
+            "chapters, theses, conference papers. Returns up to 5 "
+            "candidates with title, authors, year, type, publisher, "
+            "abstract, citation count, DOI/URL. Use for academic citations."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "author": {"type": "string"},
-                "title": {"type": "string", "description": "Title or substantive fragment"},
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Free-text search query. Combine author surname + "
+                        "key title words. If first attempt is empty, try "
+                        "again with surname only or with a different title "
+                        "fragment."
+                    ),
+                },
             },
-            "required": ["title"],
+            "required": ["query"],
         },
     },
     {
         "name": "search_wikipedia",
         "description": (
-            "FAST (~1-2s). English Wikipedia article search. USE FOR: Acts "
-            "of Parliament (often have detailed articles), famous "
-            "historical works, canonical persons, parliamentary reports, "
-            "well-known events. STRONG signal when an Act or work has its "
-            "own Wikipedia page. DO NOT USE FOR: ordinary academic "
-            "articles (almost never have Wikipedia pages)."
+            "English Wikipedia article search with intro extracts. Use for "
+            "Acts of Parliament, canonical works, historical events, "
+            "well-known persons — anything likely to have its own article. "
+            "Returns up to 5 articles with title, intro extract, and URL."
         ),
         "input_schema": {
             "type": "object",
@@ -146,372 +121,154 @@ TOOL_DEFS: list[ToolUnionParam] = [
                 "query": {"type": "string"},
             },
             "required": ["query"],
-        },
-    },
-    {
-        "name": "search_semantic_scholar",
-        "description": (
-            "MEDIUM (~2-4s, 1.5s/req throttle). Academic paper search with "
-            "good humanities/CS coverage. USE FOR: academic articles where "
-            "CrossRef + OpenAlex returned nothing useful. DO NOT USE FOR: "
-            "pre-1900 works (poor coverage), Acts, legal cases, government "
-            "reports, or non-scholarly material."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Free-text query (author + title)"},
-            },
-            "required": ["query"],
-        },
-    },
-    # NOTE: search_fatcat dropped — its elastic endpoint times out reliably
-    # on every query and adds ~30s of dead time per citation. Re-enable here
-    # and in TOOL_DISPATCH if it ever comes back to life.
-    # {
-    #     "name": "search_fatcat",
-    #     "description": "...",
-    #     "input_schema": {...},
-    # },
-    {
-        "name": "search_cinii",
-        "description": (
-            "MEDIUM (~2-3s). Japan NII academic catalog. USE FOR: citations "
-            "with Japanese authors (kanji/hiragana/katakana OR romanized "
-            "Japanese surnames like Kondo, Yamada, Tanaka, Kobayashi) or "
-            "Japanese-language scholarship. DO NOT USE FOR: anglophone "
-            "citations — coverage is essentially zero outside Japan."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "lookup_uk_act",
-        "description": (
-            "FAST (~1s). Direct legislation.gov.uk URL probe. USE ONLY for "
-            "UK Acts of Parliament with a regnal-year citation that gives "
-            "BOTH year AND chapter, e.g. '(45 & 46 Vict. c. 75)'. DO NOT USE "
-            "for: Acts without a chapter number, US statutes, secondary "
-            "sources, or anything that isn't a UK public general act."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "year": {"type": "integer"},
-                "chapter": {"type": "integer"},
-            },
-            "required": ["year", "chapter"],
-        },
-    },
-    {
-        "name": "search_courtlistener",
-        "description": (
-            "MEDIUM (~2-4s, sometimes 5xx). USE ONLY for US legal opinions "
-            "with case-name + reporter, e.g. 'Smith v. Jones, 123 U.S. 456 "
-            "(1899)'. DO NOT USE FOR: UK cases (no coverage), academic "
-            "articles, Acts of Parliament, government publications."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Case name or partial citation"},
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "search_govinfo",
-        "description": (
-            "MEDIUM (~2-3s). USE ONLY for US federal government "
-            "publications — congressional reports, hearings, bills, Federal "
-            "Register, GAO reports, agency documents. DO NOT USE FOR: "
-            "academic articles, books from commercial publishers, UK "
-            "government material, anything pre-1900, or non-US sources."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "search_faculty_pages",
-        "description": (
-            "SLOW (~5-10s). Web search filtered to faculty/academic domains "
-            "(.edu, .ac.*, Project MUSE, Cambridge, JSTOR, archive.org). "
-            "USE FOR: niche real academic works missed by CrossRef/S2 — this "
-            "is the only tool that catches author CVs, department pages, "
-            "and small-press / older works. CALL IT IN PARALLEL with "
-            "search_semantic_scholar on turn 2 when search_crossref missed; "
-            "the 3-turn cap means you cannot afford to try it sequentially. "
-            "DO NOT USE FOR: Acts, legal cases, government documents."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "author": {"type": "string"},
-                "title": {"type": "string", "description": "Title or substantive fragment"},
-            },
-            "required": ["author", "title"],
         },
     },
 ]
 
 
-# ---------- Tool dispatch ----------------------------------------------------
-
-def _as_raw(*parts: str | None) -> str:
-    """Glue structured args into the 'Author, Title (Year)' shape that the
-    underlying source functions parse internally."""
-    return ", ".join(p for p in parts if p)
-
-
-def _tool_search_crossref(args: dict[str, Any]) -> list[dict[str, Any]]:
-    return crossref_search(_as_raw(args.get("author"), args.get("title")))
-
-
 def _tool_search_openalex(args: dict[str, Any]) -> list[dict[str, Any]]:
-    return openalex_search(_as_raw(args.get("author"), args.get("title")))
+    return openalex_search(args["query"])
 
 
 def _tool_search_wikipedia(args: dict[str, Any]) -> list[dict[str, Any]]:
     return wikipedia_search(args["query"])
 
 
-def _tool_search_semantic_scholar(args: dict[str, Any]) -> list[dict[str, Any]]:
-    return semantic_scholar_search(args["query"])
-
-
-def _tool_search_cinii(args: dict[str, Any]) -> list[dict[str, Any]]:
-    return cinii_search(args["query"])
-
-
-def _tool_lookup_uk_act(args: dict[str, Any]) -> list[dict[str, Any]]:
-    raw = f"{args['year']} (c. {args['chapter']})"
-    return legislation_gov_uk_search(raw)
-
-
-def _tool_search_courtlistener(args: dict[str, Any]) -> list[dict[str, Any]]:
-    return courtlistener_search(args["query"])
-
-
-def _tool_search_govinfo(args: dict[str, Any]) -> list[dict[str, Any]]:
-    return govinfo_search(args["query"])
-
-
-def _tool_search_faculty_pages(args: dict[str, Any]) -> list[dict[str, Any]]:
-    return faculty_search(_as_raw(args["author"], args["title"]))
-
-
 TOOL_DISPATCH: dict[str, Any] = {
-    "search_crossref": _tool_search_crossref,
     "search_openalex": _tool_search_openalex,
     "search_wikipedia": _tool_search_wikipedia,
-    "search_semantic_scholar": _tool_search_semantic_scholar,
-    # "search_fatcat": _tool_search_fatcat,  # disabled — see TOOL_DEFS note
-    "search_cinii": _tool_search_cinii,
-    "lookup_uk_act": _tool_lookup_uk_act,
-    "search_courtlistener": _tool_search_courtlistener,
-    "search_govinfo": _tool_search_govinfo,
-    "search_faculty_pages": _tool_search_faculty_pages,
 }
 
 
-# ---------- System prompt ----------------------------------------------------
+# ---------- System prompts ---------------------------------------------------
 
-SYSTEM_PROMPT = """\
-You verify scholarly citations. Many of these were generated by an LLM and
-could be confabulated (made up). Use the search tools to gather evidence and
-produce a calibrated odds ratio of "real" vs "confabulated".
+SEARCH_PROMPT = """\
+You are searching for a real-world citation. Your job in this phase is to
+formulate effective queries for two tools — OpenAlex (academic) and
+Wikipedia (canonical works, Acts, historical events). You are NOT
+deciding whether the citation is real; a deterministic check runs after
+your search and decides.
 
-PRINCIPLES
-- BE CONSERVATIVE. We'd rather miss a real citation than fake-verify a
-  pastiche. When in doubt, lean toward confabulated.
-- USE PARALLEL TOOL CALLS. Within a single turn you can emit multiple
-  tool_use blocks at once and they run concurrently. This is almost always
-  the right move on turn 2 when turn 1 missed — fire several alternates in
-  parallel rather than sequentially.
+GUIDANCE
+- For academic citations: parallel-call search_openalex AND search_wikipedia
+  on turn 1. OpenAlex catches articles, books, theses; Wikipedia catches
+  canonical works that have their own article (rare but high-signal).
+- For UK Acts of Parliament, named historical events, famous works:
+  Wikipedia is the better starting point.
+- A query like '"Author Title (Year)"' is usually too specific. Prefer
+  unquoted "Author key-title-words". OpenAlex handles natural-language
+  queries well.
+- If turn 1 returned nothing useful and you have a second search turn,
+  try: surname-only, title-fragment-only, or swap the source.
 
-CALL BUDGET (hard cap: 3 model turns per citation)
-- Turn 1: parallel-call the cheap structured indexes that fit the citation
-  TYPE. For an academic item: parallel-call search_crossref + search_openalex
-  (both FAST, broad coverage; either may hit). For a UK Act: parallel-call
-  lookup_uk_act + search_wikipedia. For a US case: search_courtlistener
-  alone.
-- Turn 2: if turn 1 missed, fire fallbacks IN PARALLEL — typically
-  search_semantic_scholar + search_faculty_pages together. Add
-  search_cinii in parallel if the author looks Japanese.
-- Turn 3: forced finalise (no tools available). Output the JSON.
+After your tool calls return, the system runs a deterministic match check
+on the candidates and either accepts one (you'll be asked to compose the
+final entry) or asks you to retry with a different query.
+"""
 
-TOOL SPEED TIERS (parallel calls in the same turn only cost as much
-wall-clock as the slowest one)
-- FAST   (~1-2s):  search_crossref, search_openalex, search_wikipedia,
-                   lookup_uk_act
-- MEDIUM (~2-4s):  search_semantic_scholar, search_cinii,
-                   search_courtlistener, search_govinfo
-- SLOW   (~5-10s): search_faculty_pages
+COMPOSE_PROMPT = """\
+You have one job: take a CANDIDATE returned by OpenAlex or Wikipedia and
+write a 1-2 sentence description that helps a podcast listener decide
+whether to read it. Use only what's in the candidate metadata (title,
+authors, abstract, publisher, type). Do NOT invent.
 
-ROUTING SUMMARY (read each tool's own description for full do/don't lists)
-- Academic article / book / chapter   -> turn 1: search_crossref +
-  search_openalex in parallel. Turn 2 (on miss): search_semantic_scholar +
-  search_faculty_pages in parallel.
-- UK Act of Parliament                 -> search_wikipedia + lookup_uk_act
-  in parallel (Wikipedia almost always has an article on a real Act,
-  even when regnal-year parsing fails).
-- US legal case ('Smith v. Jones, 123 U.S. 456') -> search_courtlistener.
-- US federal / government publication  -> search_govinfo + search_wikipedia.
-- Japanese-language / Japanese author  -> include search_cinii.
+If the candidate has an abstract, summarise it in plain language.
+If it's a Wikipedia article, summarise the intro extract.
+Avoid jargon, hedging, and meta-talk like "this work argues that…".
 
-DO NOTs (wasted calls — never do these)
-- DO NOT call search_govinfo for academic articles, UK material, or pre-
-  1900 sources.
-- DO NOT call search_courtlistener for UK cases, academic articles, or
-  non-legal items.
-- DO NOT call search_cinii for anglophone works without Japanese authors.
-- DO NOT call lookup_uk_act unless the citation gives BOTH year AND
-  chapter number.
-- DO NOT call search_wikipedia for ordinary academic articles — almost
-  none have Wikipedia pages.
-- DO NOT call search_crossref / search_openalex / search_semantic_scholar
-  for Acts, legal cases, or government reports — they have no DOIs.
-
-MATCH STANDARD
-A candidate confirms a citation when ALL hold:
-  (a) author surname appears (or the work is a legal case / Act where
-      authors don't apply);
-  (b) candidate title overlaps substantively with the citation title — not
-      just a single common word; subtitle differences are fine;
-  (c) the year is within ±1, allowing for hardback/paperback gaps and
-      reprints.
-
-OUTPUT FORMAT
-On your final turn (no tools), reply with ONE JSON object only — no prose,
-no code fences:
-
-{"odds_real_to_confab": <float>, "evidence_summary": "<1-2 sentences>", "primary_url": "<best URL or null>", "matched_source": "<tool name or null, e.g. search_crossref>"}
-
-ODDS GUIDANCE
-- 100.0  strong textual match (DOI agrees; author + title + year all check)
--  20.0  good evidence (multiple weaker sources agree on title/author,
-                        OR a faculty page lists the title verbatim)
--   5.0  some evidence with caveats (year off, partial title match)
--   1.0  even — could be real or confabulated
--   0.2  searched but found nothing convincing
--   0.05 clearly confabulated (specific searches turned up no plausible match)
-
-Don't quote these guidelines. Output only the JSON object on your final turn.
+Output ONE JSON object — no prose, no code fences:
+{"description": "<1-2 sentences>"}
 """
 
 
-# ---------- Agent loop -------------------------------------------------------
+# ---------- Helpers ----------------------------------------------------------
 
 def _extract_text(content_blocks: Any) -> str:
-    out = []
-    for b in content_blocks:
-        if getattr(b, "type", None) == "text":
-            t = getattr(b, "text", "")
-            if t:
-                out.append(t)
-    return "".join(out)
+    return "".join(
+        getattr(b, "text", "")
+        for b in content_blocks
+        if getattr(b, "type", None) == "text" and getattr(b, "text", "")
+    )
 
 
 def _run_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
     fn = TOOL_DISPATCH.get(name)
     if fn is None:
         return {"error": f"unknown tool: {name}"}
-    cached = _cache.get(name, tool_input)
-    if cached is not None:
-        return {"candidates": cached, "cached": True}
     try:
         candidates = fn(tool_input)
     except Exception as exc:
         logger.warning("tool %s raised: %s", name, exc)
-        # Don't cache failures — transient errors should retry next call.
         return {"error": str(exc)}
-    top = candidates[:5]
-    _cache.put(name, tool_input, top)
-    return {"candidates": top}
+    return {"candidates": candidates[:5]}
 
 
-_JSON_OBJ_RE = re.compile(
-    r"\{[^{}]*\"odds_real_to_confab\"[^{}]*\}", re.DOTALL,
-)
+def _candidate_for_model(c: dict[str, Any]) -> dict[str, Any]:
+    """Trim a candidate dict to fields useful to the model — drop noisy
+    fields, truncate the abstract."""
+    abstract = c.get("abstract") or ""
+    if len(abstract) > 800:
+        abstract = abstract[:800] + "…"
+    return {
+        "title": c.get("title"),
+        "authors": c.get("authors"),
+        "year": c.get("year"),
+        "type": c.get("type"),
+        "publisher": c.get("publisher"),
+        "venue": c.get("venue"),
+        "abstract": abstract,
+        "cited_by": c.get("cited_by"),
+        "url": c.get("url"),
+        "source": c.get("source"),
+    }
 
 
-def _parse_assessment(
-    text: str,
-    tools_used: list[str],
-    *,
-    input_tokens: int,
-    output_tokens: int,
-    haiku_calls: int,
-    cache_hits: int,
-) -> Assessment:
-    metrics: dict[str, Any] = dict(
-        tools_used=tools_used, raw_response=text,
-        input_tokens=input_tokens, output_tokens=output_tokens,
-        haiku_calls=haiku_calls, cache_hits=cache_hits,
-    )
-    m = _JSON_OBJ_RE.search(text)
-    if m is None:
-        logger.warning("no JSON assessment found in: %r", text[:200])
-        return Assessment(
-            odds_real_to_confab=1.0, evidence_summary="parse_failed",
-            primary_url=None, matched_source=None, **metrics,
-        )
+_DESC_RE = re.compile(r'\{[^{}]*"description"[^{}]*\}', re.DOTALL)
+
+
+def _parse_description(text: str) -> str:
+    m = _DESC_RE.search(text)
+    if not m:
+        return ""
     try:
         data = json.loads(m.group(0))
-    except json.JSONDecodeError as exc:
-        logger.warning("JSON decode failed (%s): %r", exc, m.group(0)[:200])
-        return Assessment(
-            odds_real_to_confab=1.0, evidence_summary="json_decode_failed",
-            primary_url=None, matched_source=None, **metrics,
-        )
-    return Assessment(
-        odds_real_to_confab=float(data.get("odds_real_to_confab", 1.0)),
-        evidence_summary=str(data.get("evidence_summary") or ""),
-        primary_url=data.get("primary_url") or None,
-        matched_source=data.get("matched_source") or None,
-        **metrics,
-    )
+    except json.JSONDecodeError:
+        return ""
+    return str(data.get("description") or "").strip()
 
+
+# ---------- Main entry point -------------------------------------------------
 
 def assess_citation(
     raw_text: str,
     *,
     client: anthropic.Anthropic | None = None,
-    max_haiku_calls: int = MAX_HAIKU_CALLS,
-) -> Assessment:
-    """Hand the citation to Haiku with the source tools available; return
-    Haiku's final odds ratio + summary.
-
-    Caps total Haiku calls at `max_haiku_calls` (default 3). On the final
-    permitted call, force the model to stop calling tools by switching
-    `tool_choice` to disabling tools and asking explicitly for the JSON.
-    """
+    max_search_turns: int = MAX_SEARCH_TURNS,
+) -> ReadingListEntry:
+    """Verify a single citation. Returns a ReadingListEntry — verified=True
+    with rich metadata if the deterministic gate accepted a candidate;
+    verified=False otherwise."""
     if client is None:
         client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+    parsed = parse_citation(raw_text)
 
     messages: list[MessageParam] = [{
         "role": "user",
         "content": (
             f"Citation to verify:\n\n{raw_text}\n\n"
-            "Use the tools to gather evidence, then produce the final JSON."
+            f"Parsed hint — author: {parsed.get('author')!r}, "
+            f"title: {parsed.get('title')!r}, year: {parsed.get('year')!r}.\n\n"
+            "Search for it using the tools."
         ),
     }]
-    tools_used: list[str] = []
-    final_text = ""
+
+    candidates: list[dict[str, Any]] = []
+    chosen: dict[str, Any] | None = None
+    chosen_features = None
     input_tokens = 0
     output_tokens = 0
     haiku_calls = 0
-    cache_hits = 0
 
     def _accumulate(usage: Any) -> None:
         nonlocal input_tokens, output_tokens, haiku_calls
@@ -519,49 +276,27 @@ def assess_citation(
         input_tokens += getattr(usage, "input_tokens", 0) or 0
         output_tokens += getattr(usage, "output_tokens", 0) or 0
 
-    for call_idx in range(max_haiku_calls):
-        is_last_call = call_idx == max_haiku_calls - 1
-        if is_last_call:
-            # On the final call, force termination: drop tools and ask
-            # explicitly for the JSON given evidence so far.
-            messages.append({
-                "role": "user",
-                "content": "Final answer required now: output the JSON assessment based on evidence gathered.",
-            })
-            msg = client.messages.create(
-                model=AGENT_MODEL,
-                max_tokens=512,
-                system=SYSTEM_PROMPT,
-                messages=messages,
-            )
-            _accumulate(msg.usage)
-            final_text = _extract_text(msg.content)
-            break
-
+    # Search turns (1 or 2)
+    for turn in range(max_search_turns):
         msg = client.messages.create(
             model=AGENT_MODEL,
             max_tokens=1024,
-            system=SYSTEM_PROMPT,
+            system=SEARCH_PROMPT,
             tools=TOOL_DEFS,
             messages=messages,
         )
         _accumulate(msg.usage)
-        if msg.stop_reason in ("end_turn", "stop_sequence"):
-            final_text = _extract_text(msg.content)
-            break
         if msg.stop_reason != "tool_use":
-            final_text = _extract_text(msg.content)
             break
 
         tool_results: list[ToolResultBlockParam] = []
         for block in msg.content:
             if not isinstance(block, ToolUseBlock):
                 continue
-            tools_used.append(block.name)
             tool_input = block.input if isinstance(block.input, dict) else {}
             result = _run_tool(block.name, tool_input)
-            if result.get("cached"):
-                cache_hits += 1
+            for c in result.get("candidates", []):
+                candidates.append(c)
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": block.id,
@@ -571,10 +306,66 @@ def assess_citation(
         messages.append({"role": "assistant", "content": msg.content})
         messages.append({"role": "user", "content": tool_results})
 
-    return _parse_assessment(
-        final_text, tools_used,
+        # Deterministic gate after each search round
+        chosen, chosen_features = best_match(parsed, candidates)
+        if chosen is not None:
+            break
+
+        # Otherwise prompt the model to reformulate (only if we have budget)
+        if turn + 1 < max_search_turns:
+            messages.append({
+                "role": "user",
+                "content": (
+                    "No candidate passed the deterministic match gate. "
+                    "Try ONE alternate query — e.g. surname only, a "
+                    "different title fragment, or a different tool."
+                ),
+            })
+
+    # No match: return verified=False, no composition turn, no extra cost.
+    if chosen is None or chosen_features is None:
+        return ReadingListEntry(
+            raw_text=raw_text,
+            verified=False,
+            haiku_calls=haiku_calls,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+    # Composition turn (one Haiku call, no tools)
+    cand_for_model = _candidate_for_model(chosen)
+    compose_msg = client.messages.create(
+        model=AGENT_MODEL,
+        max_tokens=400,
+        system=COMPOSE_PROMPT,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"Original citation: {raw_text}\n\n"
+                f"Candidate:\n{json.dumps(cand_for_model, indent=2)}\n\n"
+                "Compose the JSON description."
+            ),
+        }],
+    )
+    _accumulate(compose_msg.usage)
+    description = _parse_description(_extract_text(compose_msg.content))
+
+    return ReadingListEntry(
+        raw_text=raw_text,
+        verified=True,
+        title=chosen.get("title"),
+        authors=list(chosen.get("authors") or []),
+        year=chosen.get("year"),
+        type=chosen.get("type"),
+        publisher=chosen.get("publisher"),
+        description=description or None,
+        cited_by=chosen.get("cited_by"),
+        url=chosen.get("url"),
+        source=chosen.get("source"),
+        audience=audience(chosen),
+        title_jaccard=chosen_features.title_jaccard,
+        year_delta=chosen_features.year_delta,
+        haiku_calls=haiku_calls,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
-        haiku_calls=haiku_calls,
-        cache_hits=cache_hits,
     )
