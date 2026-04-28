@@ -7,7 +7,7 @@ import time
 from importlib.resources import files
 from pathlib import Path
 
-from .models import Episode, GenerationRun, ScriptVersion
+from .models import AudioArtifact, Episode, GenerationRun, ScriptVersion, TTSConfig
 
 EXPECTED_USER_VERSION = 1
 
@@ -129,6 +129,60 @@ class Store:
             ).fetchall()
         return [_row_to_run(r) for r in rows]
 
+    # ---- TTSConfig ----
+
+    def upsert_tts_config(self, *, engine: str, profile: str | None,
+                           voice_ref_ver: str | None, config: dict) -> int:
+        cfg_json = json.dumps(config, sort_keys=True)
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT id FROM tts_config WHERE engine=? AND "
+                "COALESCE(profile,'')=COALESCE(?,'') AND "
+                "COALESCE(voice_ref_ver,'')=COALESCE(?,'') AND "
+                "config_json=?",
+                (engine, profile, voice_ref_ver, cfg_json),
+            ).fetchone()
+            if row is not None:
+                return int(row["id"])
+            cur = c.execute(
+                "INSERT INTO tts_config(engine, profile, voice_ref_ver, config_json, created_at) "
+                "VALUES(?,?,?,?,?)",
+                (engine, profile, voice_ref_ver, cfg_json, time.time()),
+            )
+            assert cur.lastrowid is not None
+            return int(cur.lastrowid)
+
+    # ---- AudioArtifact ----
+
+    def create_audio_artifact(self, *, script_version_id: int, tts_config_id: int,
+                               name: str, path: str, dvc_hash: str | None,
+                               duration_s: float | None = None,
+                               audio_manifest_path: str | None = None) -> int:
+        with self._conn() as c:
+            cur = c.execute(
+                "INSERT INTO audio_artifact"
+                "(script_version_id, tts_config_id, name, path, dvc_hash, "
+                " duration_s, audio_manifest_path, created_at)"
+                " VALUES(?,?,?,?,?,?,?,?)",
+                (script_version_id, tts_config_id, name, path, dvc_hash,
+                 duration_s, audio_manifest_path, time.time()),
+            )
+            assert cur.lastrowid is not None
+            return int(cur.lastrowid)
+
+    def get_audio_artifact(self, aid: int) -> AudioArtifact | None:
+        with self._conn() as c:
+            row = c.execute("SELECT * FROM audio_artifact WHERE id=?", (aid,)).fetchone()
+        return _row_to_audio(row) if row else None
+
+    def list_audio_for_script(self, script_version_id: int) -> list[AudioArtifact]:
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT * FROM audio_artifact WHERE script_version_id=? ORDER BY id",
+                (script_version_id,),
+            ).fetchall()
+        return [_row_to_audio(r) for r in rows]
+
 
 def _row_to_episode(row: sqlite3.Row) -> Episode:
     return Episode(
@@ -165,4 +219,18 @@ def _row_to_run(row: sqlite3.Row) -> GenerationRun:
         config=json.loads(row["config_json"] or "{}"),
         started_at=float(row["started_at"]) if row["started_at"] is not None else None,
         finished_at=float(row["finished_at"]),
+    )
+
+
+def _row_to_audio(row: sqlite3.Row) -> AudioArtifact:
+    return AudioArtifact(
+        id=int(row["id"]),
+        script_version_id=int(row["script_version_id"]),
+        tts_config_id=int(row["tts_config_id"]),
+        name=row["name"],
+        path=row["path"],
+        dvc_hash=row["dvc_hash"],
+        duration_s=float(row["duration_s"]) if row["duration_s"] is not None else None,
+        audio_manifest_path=row["audio_manifest_path"],
+        created_at=float(row["created_at"]),
     )
