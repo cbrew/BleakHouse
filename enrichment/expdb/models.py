@@ -12,6 +12,7 @@ class Episode:
     panel: str
     pipeline: str
     hostprep: bool
+    generator: str
     label: str
     created_at: float
 

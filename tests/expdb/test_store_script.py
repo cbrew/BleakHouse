@@ -12,7 +12,8 @@ def store_with_episode(tmp_db_path: Path) -> tuple[Store, int]:
     s = Store(tmp_db_path)
     s.init_schema()
     eid = s.upsert_episode(novel="bh", panel="literary", pipeline="trn",
-                            hostprep=False, label="bh_trn_literary")
+                            hostprep=False, generator="anthropic_sonnet_4_6",
+                            label="bh_trn_literary")
     return s, eid
 
 

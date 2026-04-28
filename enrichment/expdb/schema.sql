@@ -1,14 +1,18 @@
--- The logical episode: a (novel, panel, pipeline-axes) tuple. Multiple
--- generation runs can produce different scripts for the same episode.
+-- The logical episode: a fully-specified experimental condition. Generator
+-- (which LLM produced the script) is a treatment axis — running the same
+-- (novel, panel, pipeline, hostprep) tuple through Anthropic Sonnet vs
+-- Cerebras Qwen vs Z.AI GLM is three separate experiments, not three
+-- realisations of one experiment.
 CREATE TABLE episode (
     id           INTEGER PRIMARY KEY,
     novel        TEXT NOT NULL,
     panel        TEXT NOT NULL,
     pipeline     TEXT NOT NULL,
     hostprep     INTEGER NOT NULL,
+    generator    TEXT NOT NULL,
     label        TEXT NOT NULL,
     created_at   REAL NOT NULL,
-    UNIQUE(novel, panel, pipeline, hostprep)
+    UNIQUE(novel, panel, pipeline, hostprep, generator)
 );
 
 -- One generated script. Produced by exactly one generation_run.

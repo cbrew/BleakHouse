@@ -20,7 +20,7 @@ from .models import (
 # TTSConfig is imported for re-export — callers may want the row dataclass.
 _ = TTSConfig
 
-EXPECTED_USER_VERSION = 1
+EXPECTED_USER_VERSION = 2
 
 
 def _schema_sql() -> str:
@@ -42,26 +42,34 @@ class Store:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._conn() as c:
             current = c.execute("PRAGMA user_version").fetchone()[0]
-            if current >= EXPECTED_USER_VERSION:
+            if current == EXPECTED_USER_VERSION:
                 return
-            c.executescript(_schema_sql())
-            c.execute(f"PRAGMA user_version = {EXPECTED_USER_VERSION}")
+            if current == 0:
+                c.executescript(_schema_sql())
+                c.execute(f"PRAGMA user_version = {EXPECTED_USER_VERSION}")
+                return
+            raise RuntimeError(
+                f"DB at {self.path} is at user_version={current}, "
+                f"expected {EXPECTED_USER_VERSION}. The DB is regenerable from "
+                f"data/runs — delete it and re-run `python -m enrichment.expdb scan`."
+            )
 
     # ---- Episode ----
 
     def upsert_episode(self, *, novel: str, panel: str, pipeline: str,
-                       hostprep: bool, label: str) -> int:
+                       hostprep: bool, generator: str, label: str) -> int:
         with self._conn() as c:
             row = c.execute(
-                "SELECT id FROM episode WHERE novel=? AND panel=? AND pipeline=? AND hostprep=?",
-                (novel, panel, pipeline, int(hostprep)),
+                "SELECT id FROM episode WHERE novel=? AND panel=? AND pipeline=? "
+                "AND hostprep=? AND generator=?",
+                (novel, panel, pipeline, int(hostprep), generator),
             ).fetchone()
             if row is not None:
                 return int(row["id"])
             cur = c.execute(
-                "INSERT INTO episode(novel, panel, pipeline, hostprep, label, created_at) "
-                "VALUES(?,?,?,?,?,?)",
-                (novel, panel, pipeline, int(hostprep), label, time.time()),
+                "INSERT INTO episode(novel, panel, pipeline, hostprep, generator, "
+                "label, created_at) VALUES(?,?,?,?,?,?,?)",
+                (novel, panel, pipeline, int(hostprep), generator, label, time.time()),
             )
             assert cur.lastrowid is not None
             return int(cur.lastrowid)
@@ -256,6 +264,7 @@ def _row_to_episode(row: sqlite3.Row) -> Episode:
         panel=row["panel"],
         pipeline=row["pipeline"],
         hostprep=bool(row["hostprep"]),
+        generator=row["generator"],
         label=row["label"],
         created_at=float(row["created_at"]),
     )
