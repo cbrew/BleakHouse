@@ -7,7 +7,18 @@ import time
 from importlib.resources import files
 from pathlib import Path
 
-from .models import AudioArtifact, Episode, GenerationRun, ScriptVersion, TTSConfig
+from .models import (
+    AudioArtifact,
+    Episode,
+    Evaluation,
+    GenerationRun,
+    RegenerationRequest,
+    ScriptVersion,
+    TTSConfig,
+)
+
+# TTSConfig is imported for re-export — callers may want the row dataclass.
+_ = TTSConfig
 
 EXPECTED_USER_VERSION = 1
 
@@ -183,6 +194,60 @@ class Store:
             ).fetchall()
         return [_row_to_audio(r) for r in rows]
 
+    # ---- Evaluation ----
+
+    def record_evaluation(self, *, script_version_id: int | None,
+                           audio_artifact_id: int | None,
+                           metric_kind: str, metric: dict) -> int:
+        if script_version_id is None and audio_artifact_id is None:
+            raise ValueError("evaluation must reference a script or an audio artefact")
+        with self._conn() as c:
+            cur = c.execute(
+                "INSERT INTO evaluation"
+                "(script_version_id, audio_artifact_id, metric_kind, metric_json, created_at)"
+                " VALUES(?,?,?,?,?)",
+                (script_version_id, audio_artifact_id, metric_kind,
+                 json.dumps(metric), time.time()),
+            )
+            assert cur.lastrowid is not None
+            return int(cur.lastrowid)
+
+    def list_evaluations_for_script(self, sid: int) -> list[Evaluation]:
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT * FROM evaluation WHERE script_version_id=? ORDER BY id",
+                (sid,),
+            ).fetchall()
+        return [_row_to_eval(r) for r in rows]
+
+    def list_evaluations_for_audio(self, aid: int) -> list[Evaluation]:
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT * FROM evaluation WHERE audio_artifact_id=? ORDER BY id",
+                (aid,),
+            ).fetchall()
+        return [_row_to_eval(r) for r in rows]
+
+    # ---- RegenerationRequest ----
+
+    def create_regeneration_request(self, *, audio_artifact_id: int,
+                                      new_tts_config_id: int, scope: str) -> int:
+        with self._conn() as c:
+            cur = c.execute(
+                "INSERT INTO regeneration_request"
+                "(audio_artifact_id, new_tts_config_id, scope, requested_at)"
+                " VALUES(?,?,?,?)",
+                (audio_artifact_id, new_tts_config_id, scope, time.time()),
+            )
+            assert cur.lastrowid is not None
+            return int(cur.lastrowid)
+
+    def get_regeneration_request(self, rid: int) -> RegenerationRequest | None:
+        with self._conn() as c:
+            row = c.execute("SELECT * FROM regeneration_request WHERE id=?",
+                            (rid,)).fetchone()
+        return _row_to_regen(row) if row else None
+
 
 def _row_to_episode(row: sqlite3.Row) -> Episode:
     return Episode(
@@ -233,4 +298,27 @@ def _row_to_audio(row: sqlite3.Row) -> AudioArtifact:
         duration_s=float(row["duration_s"]) if row["duration_s"] is not None else None,
         audio_manifest_path=row["audio_manifest_path"],
         created_at=float(row["created_at"]),
+    )
+
+
+def _row_to_eval(row: sqlite3.Row) -> Evaluation:
+    return Evaluation(
+        id=int(row["id"]),
+        script_version_id=int(row["script_version_id"]) if row["script_version_id"] is not None else None,
+        audio_artifact_id=int(row["audio_artifact_id"]) if row["audio_artifact_id"] is not None else None,
+        metric_kind=row["metric_kind"],
+        metric=json.loads(row["metric_json"]),
+        created_at=float(row["created_at"]),
+    )
+
+
+def _row_to_regen(row: sqlite3.Row) -> RegenerationRequest:
+    return RegenerationRequest(
+        id=int(row["id"]),
+        audio_artifact_id=int(row["audio_artifact_id"]),
+        new_tts_config_id=int(row["new_tts_config_id"]),
+        scope=row["scope"],
+        requested_at=float(row["requested_at"]),
+        fulfilled_audio_artifact=int(row["fulfilled_audio_artifact"]) if row["fulfilled_audio_artifact"] is not None else None,
+        fulfilled_at=float(row["fulfilled_at"]) if row["fulfilled_at"] is not None else None,
     )
