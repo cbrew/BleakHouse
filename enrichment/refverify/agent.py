@@ -37,7 +37,9 @@ from .sources import (
     crossref_search,
     govinfo_search,
     legislation_gov_uk_search,
+    openalex_search,
     semantic_scholar_search,
+    wikipedia_search,
 )
 # NOTE: fatcat_search intentionally not imported — see TOOL_DEFS comment.
 
@@ -110,13 +112,50 @@ TOOL_DEFS: list[ToolUnionParam] = [
         },
     },
     {
+        "name": "search_openalex",
+        "description": (
+            "FAST (~1-2s). OpenAlex is the broadest academic graph: covers "
+            "DOIs, books, theses, preprints, including older works missed "
+            "by CrossRef. USE IN PARALLEL with search_crossref on turn 1 "
+            "for academic citations — both are FAST and cheap, and "
+            "OpenAlex often catches what CrossRef misses (and vice versa). "
+            "DO NOT USE FOR: Acts, legal cases, government reports."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "author": {"type": "string"},
+                "title": {"type": "string", "description": "Title or substantive fragment"},
+            },
+            "required": ["title"],
+        },
+    },
+    {
+        "name": "search_wikipedia",
+        "description": (
+            "FAST (~1-2s). English Wikipedia article search. USE FOR: Acts "
+            "of Parliament (often have detailed articles), famous "
+            "historical works, canonical persons, parliamentary reports, "
+            "well-known events. STRONG signal when an Act or work has its "
+            "own Wikipedia page. DO NOT USE FOR: ordinary academic "
+            "articles (almost never have Wikipedia pages)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
         "name": "search_semantic_scholar",
         "description": (
             "MEDIUM (~2-4s, 1.5s/req throttle). Academic paper search with "
             "good humanities/CS coverage. USE FOR: academic articles where "
-            "CrossRef returned nothing useful. DO NOT USE FOR: pre-1900 "
-            "works (poor coverage), Acts, legal cases, government reports, "
-            "or non-scholarly material."
+            "CrossRef + OpenAlex returned nothing useful. DO NOT USE FOR: "
+            "pre-1900 works (poor coverage), Acts, legal cases, government "
+            "reports, or non-scholarly material."
         ),
         "input_schema": {
             "type": "object",
@@ -238,6 +277,14 @@ def _tool_search_crossref(args: dict[str, Any]) -> list[dict[str, Any]]:
     return crossref_search(_as_raw(args.get("author"), args.get("title")))
 
 
+def _tool_search_openalex(args: dict[str, Any]) -> list[dict[str, Any]]:
+    return openalex_search(_as_raw(args.get("author"), args.get("title")))
+
+
+def _tool_search_wikipedia(args: dict[str, Any]) -> list[dict[str, Any]]:
+    return wikipedia_search(args["query"])
+
+
 def _tool_search_semantic_scholar(args: dict[str, Any]) -> list[dict[str, Any]]:
     return semantic_scholar_search(args["query"])
 
@@ -265,6 +312,8 @@ def _tool_search_faculty_pages(args: dict[str, Any]) -> list[dict[str, Any]]:
 
 TOOL_DISPATCH: dict[str, Any] = {
     "search_crossref": _tool_search_crossref,
+    "search_openalex": _tool_search_openalex,
+    "search_wikipedia": _tool_search_wikipedia,
     "search_semantic_scholar": _tool_search_semantic_scholar,
     # "search_fatcat": _tool_search_fatcat,  # disabled — see TOOL_DEFS note
     "search_cinii": _tool_search_cinii,
@@ -291,31 +340,33 @@ PRINCIPLES
   parallel rather than sequentially.
 
 CALL BUDGET (hard cap: 3 model turns per citation)
-- Turn 1: pick the highest-precedence tool for the citation type. For most
-  academic items that is search_crossref alone. For Acts, lookup_uk_act
-  alone. Cheapest if it works.
+- Turn 1: parallel-call the cheap structured indexes that fit the citation
+  TYPE. For an academic item: parallel-call search_crossref + search_openalex
+  (both FAST, broad coverage; either may hit). For a UK Act: parallel-call
+  lookup_uk_act + search_wikipedia. For a US case: search_courtlistener
+  alone.
 - Turn 2: if turn 1 missed, fire fallbacks IN PARALLEL — typically
-  search_semantic_scholar AND search_faculty_pages together. Add
-  search_cinii in parallel if author looks Japanese. Don't be sequential
-  with the 3-turn cap.
+  search_semantic_scholar + search_faculty_pages together. Add
+  search_cinii in parallel if the author looks Japanese.
 - Turn 3: forced finalise (no tools available). Output the JSON.
 
-TOOL SPEED TIERS (only relevant within a single turn — parallel calls in
-the same turn cost only as much wall-clock as the slowest one)
-- FAST   (~1-2s):  search_crossref, lookup_uk_act
+TOOL SPEED TIERS (parallel calls in the same turn only cost as much
+wall-clock as the slowest one)
+- FAST   (~1-2s):  search_crossref, search_openalex, search_wikipedia,
+                   lookup_uk_act
 - MEDIUM (~2-4s):  search_semantic_scholar, search_cinii,
                    search_courtlistener, search_govinfo
-- SLOW   (~5-10s): search_faculty_pages — but it is the only thing that
-                   catches niche real works missed by the structured APIs,
-                   so DO call it on turn 2 when turn 1 missed.
+- SLOW   (~5-10s): search_faculty_pages
 
 ROUTING SUMMARY (read each tool's own description for full do/don't lists)
-- Academic article / book / chapter   -> search_crossref first; on miss,
-  parallel-call search_semantic_scholar + search_faculty_pages.
-- UK Act of Parliament with regnal-year (e.g. '45 & 46 Vict. c. 75')
-                                       -> lookup_uk_act ONLY.
+- Academic article / book / chapter   -> turn 1: search_crossref +
+  search_openalex in parallel. Turn 2 (on miss): search_semantic_scholar +
+  search_faculty_pages in parallel.
+- UK Act of Parliament                 -> search_wikipedia + lookup_uk_act
+  in parallel (Wikipedia almost always has an article on a real Act,
+  even when regnal-year parsing fails).
 - US legal case ('Smith v. Jones, 123 U.S. 456') -> search_courtlistener.
-- US federal / government publication  -> search_govinfo.
+- US federal / government publication  -> search_govinfo + search_wikipedia.
 - Japanese-language / Japanese author  -> include search_cinii.
 
 DO NOTs (wasted calls — never do these)
@@ -326,8 +377,10 @@ DO NOTs (wasted calls — never do these)
 - DO NOT call search_cinii for anglophone works without Japanese authors.
 - DO NOT call lookup_uk_act unless the citation gives BOTH year AND
   chapter number.
-- DO NOT call search_crossref or search_semantic_scholar for Acts, legal
-  cases, or government reports — they have no DOIs.
+- DO NOT call search_wikipedia for ordinary academic articles — almost
+  none have Wikipedia pages.
+- DO NOT call search_crossref / search_openalex / search_semantic_scholar
+  for Acts, legal cases, or government reports — they have no DOIs.
 
 MATCH STANDARD
 A candidate confirms a citation when ALL hold:
