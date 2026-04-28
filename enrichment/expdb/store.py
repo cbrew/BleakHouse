@@ -6,7 +6,7 @@ import time
 from importlib.resources import files
 from pathlib import Path
 
-from .models import Episode
+from .models import Episode, ScriptVersion
 
 EXPECTED_USER_VERSION = 1
 
@@ -70,6 +70,34 @@ class Store:
             rows = c.execute(sql, params).fetchall()
         return [_row_to_episode(r) for r in rows]
 
+    # ---- ScriptVersion ----
+
+    def create_script_version(self, *, episode_id: int, path: str,
+                              dvc_hash: str | None, n_segments: int,
+                              n_turns: int, n_utterances: int) -> int:
+        with self._conn() as c:
+            cur = c.execute(
+                "INSERT INTO script_version"
+                "(episode_id, path, dvc_hash, n_segments, n_turns, n_utterances, created_at)"
+                " VALUES(?,?,?,?,?,?,?)",
+                (episode_id, path, dvc_hash, n_segments, n_turns, n_utterances, time.time()),
+            )
+            assert cur.lastrowid is not None
+            return int(cur.lastrowid)
+
+    def get_script_version(self, sid: int) -> ScriptVersion | None:
+        with self._conn() as c:
+            row = c.execute("SELECT * FROM script_version WHERE id=?", (sid,)).fetchone()
+        return _row_to_script(row) if row else None
+
+    def list_scripts_for_episode(self, episode_id: int) -> list[ScriptVersion]:
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT * FROM script_version WHERE episode_id=? ORDER BY id",
+                (episode_id,),
+            ).fetchall()
+        return [_row_to_script(r) for r in rows]
+
 
 def _row_to_episode(row: sqlite3.Row) -> Episode:
     return Episode(
@@ -79,5 +107,18 @@ def _row_to_episode(row: sqlite3.Row) -> Episode:
         pipeline=row["pipeline"],
         hostprep=bool(row["hostprep"]),
         label=row["label"],
+        created_at=float(row["created_at"]),
+    )
+
+
+def _row_to_script(row: sqlite3.Row) -> ScriptVersion:
+    return ScriptVersion(
+        id=int(row["id"]),
+        episode_id=int(row["episode_id"]),
+        path=row["path"],
+        dvc_hash=row["dvc_hash"],
+        n_segments=int(row["n_segments"]),
+        n_turns=int(row["n_turns"]),
+        n_utterances=int(row["n_utterances"]),
         created_at=float(row["created_at"]),
     )
