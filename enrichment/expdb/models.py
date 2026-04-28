@@ -61,3 +61,24 @@ class AudioArtifact:
     duration_s: float | None
     audio_manifest_path: str | None
     created_at: float
+
+
+@dataclass(frozen=True)
+class Evaluation:
+    id: int
+    script_version_id: int | None
+    audio_artifact_id: int | None
+    metric_kind: str
+    metric: dict[str, Any]
+    created_at: float
+
+
+@dataclass(frozen=True)
+class RegenerationRequest:
+    id: int
+    audio_artifact_id: int
+    new_tts_config_id: int
+    scope: str
+    requested_at: float
+    fulfilled_audio_artifact: int | None
+    fulfilled_at: float | None
