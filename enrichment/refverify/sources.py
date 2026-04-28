@@ -8,6 +8,7 @@ the listener was returned by one of these two APIs.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any
 
@@ -98,15 +99,20 @@ def openalex_search(query: str) -> list[dict[str, Any]]:
     suitable for composing a reading-list entry."""
     if not query.strip():
         return []
+    params: dict[str, Any] = {
+        "search": query[:200],
+        "per_page": TOP_N,
+    }
+    api_key = os.environ.get("OPENALEX_API_KEY")
+    if api_key:
+        # Authenticated requests bypass the anonymous-pool throttle.
+        params["api_key"] = api_key
+    else:
+        # Polite-pool fallback for unauthenticated callers.
+        params["mailto"] = "brewc@cbrew.com"
     r = _retrying_get(
         "https://api.openalex.org/works",
-        # mailto as a QUERY PARAM (not a header) puts us in the polite pool,
-        # which has substantially higher rate limits.
-        params={
-            "search": query[:200],
-            "per_page": TOP_N,
-            "mailto": "brewc@cbrew.com",
-        },
+        params=params,
         headers={"User-Agent": USER_AGENT},
     )
     if r is None or r.status_code != 200:
