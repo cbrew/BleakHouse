@@ -1,20 +1,12 @@
-"""Re-assess unverified citations in phase2_5_reading_list.json via a
-Haiku-driven agent that wraps the source APIs as tools. Writes a sibling
-phase2_5_reading_list_v2.json (does NOT modify the original).
-
-The agent (claude-haiku-4-5) decides which tools to call (CrossRef,
-Semantic Scholar, Fatcat, CiNii, legislation.gov.uk, CourtListener,
-GovInfo, faculty pages) and emits a calibrated odds ratio of "real" vs
-"confabulated" for each citation.
-
-Promotion threshold: odds_real_to_confab >= --threshold (default 5.0).
-Each entry receives `verification_odds`, `verification_source`,
-`verification_url`, and `verification_summary` regardless of promotion.
+"""Re-verify the unverified citations in phase2_5_reading_list.json files
+via the OpenAlex + Wikipedia agent. Writes a sibling
+phase2_5_reading_list_v2.json with rich entries for citations that the
+deterministic match gate accepted.
 
 Usage:
-    uv run python scripts/web_verify_references.py --run cran_trn_literary_hostprep_retrofit_20260428T060147Z
+    uv run python scripts/web_verify_references.py --run <run-id>
     uv run python scripts/web_verify_references.py --all
-    uv run python scripts/web_verify_references.py --all --limit 50 --threshold 10
+    uv run python scripts/web_verify_references.py --all --limit 5
 """
 from __future__ import annotations
 
@@ -30,11 +22,7 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
-from enrichment.refverify.agent import (
-    DEFAULT_PROMOTE_THRESHOLD,
-    Assessment,
-    assess_citation,
-)
+from enrichment.refverify import ReadingListEntry, assess_citation
 
 logger = logging.getLogger(__name__)
 
@@ -52,24 +40,35 @@ def lists_to_process(args: argparse.Namespace) -> list[Path]:
     sys.exit("FAIL: pass --run <id> or --all")
 
 
-def _annotate(entry: dict, a: Assessment, *, promoted: bool) -> dict:
-    entry = copy.deepcopy(entry)
-    entry["verification_odds"] = a.odds_real_to_confab
-    entry["verification_summary"] = a.evidence_summary
-    entry["verification_tools_used"] = a.tools_used
-    entry["verification_cost_usd"] = round(a.cost_usd, 6)
-    if promoted:
-        entry["verified"] = True
-        entry["verification_source"] = f"web:{a.matched_source}" if a.matched_source else "web"
-        entry["verification_url"] = a.primary_url
-    return entry
+def _annotate(entry: dict, e: ReadingListEntry) -> dict:
+    out = copy.deepcopy(entry)
+    out["verification_haiku_calls"] = e.haiku_calls
+    out["verification_cost_usd"] = round(e.cost_usd, 6)
+    if e.verified:
+        out["verified"] = True
+        out["verification_source"] = f"web:{e.source}" if e.source else "web"
+        out["verification_url"] = e.url
+        out["resolved"] = {
+            "title": e.title,
+            "authors": e.authors,
+            "year": e.year,
+            "type": e.type,
+            "publisher": e.publisher,
+            "description": e.description,
+            "cited_by": e.cited_by,
+            "url": e.url,
+            "source": e.source,
+            "audience": e.audience,
+            "title_jaccard": e.title_jaccard,
+            "year_delta": e.year_delta,
+        }
+    return out
 
 
 def reassess_list(
     rl_path: Path,
     client: anthropic.Anthropic,
     limit: int | None,
-    threshold: float,
 ) -> dict:
     rl = json.loads(rl_path.read_text())
     unverified = rl.get("unverified", [])
@@ -82,30 +81,31 @@ def reassess_list(
     total_in = 0
     total_out = 0
     total_calls = 0
-    total_cache_hits = 0
     list_started = time.monotonic()
 
     for entry in unverified:
         raw = entry["raw_text"]
         t0 = time.monotonic()
-        a = assess_citation(raw, client=client)
+        e = assess_citation(raw, client=client)
         dt = time.monotonic() - t0
-        total_in += a.input_tokens
-        total_out += a.output_tokens
-        total_calls += a.haiku_calls
-        total_cache_hits += a.cache_hits
-        is_promoted = a.odds_real_to_confab >= threshold
-        annotated = _annotate(entry, a, promoted=is_promoted)
-        verdict = (a.matched_source or "?") if is_promoted else "— confab"
-        print(
-            f"  [{a.odds_real_to_confab:6.1f}× {verdict:18s}] "
-            f"({dt:4.1f}s, {a.haiku_calls} calls, {a.input_tokens:5d}+{a.output_tokens:4d} tok, ${a.cost_usd:.4f}) "
-            f"{raw[:60]}"
-        )
-        if is_promoted:
+        total_in += e.input_tokens
+        total_out += e.output_tokens
+        total_calls += e.haiku_calls
+        annotated = _annotate(entry, e)
+        if e.verified:
             promoted.append(annotated)
+            print(
+                f"  [J={e.title_jaccard:.2f} {e.audience or '?':9s} {e.source or '?':10s}] "
+                f"({dt:4.1f}s, {e.haiku_calls}c, ${e.cost_usd:.4f})  "
+                f"{(e.title or '')[:70]}"
+            )
         else:
             still_unverified.append(annotated)
+            print(
+                f"  [DROP                            ] "
+                f"({dt:4.1f}s, {e.haiku_calls}c, ${e.cost_usd:.4f})  "
+                f"{raw[:70]}"
+            )
 
     elapsed = time.monotonic() - list_started
     list_cost = (total_in * 1.00 + total_out * 5.00) / 1_000_000
@@ -121,7 +121,7 @@ def reassess_list(
     new_rl["web_verifier"] = {
         "applied_at": time.time(),
         "model": "claude-haiku-4-5",
-        "threshold": threshold,
+        "sources": ["openalex", "wikipedia"],
         "promoted": len(promoted),
         "still_unverified": len(still_unverified),
         "limit": limit,
@@ -137,7 +137,6 @@ def reassess_list(
     print(
         f"  → promoted {len(promoted)}/{len(unverified)} "
         f"({elapsed:.1f}s, {total_calls} haiku calls, "
-        f"{total_cache_hits} cache hits, "
         f"{total_in + total_out:,} tok, ${list_cost:.3f})  →  {out_path.name}"
     )
     return {
@@ -149,7 +148,6 @@ def reassess_list(
         "input_tokens": total_in,
         "output_tokens": total_out,
         "haiku_calls": total_calls,
-        "cache_hits": total_cache_hits,
         "cost_usd": list_cost,
         "elapsed_seconds": elapsed,
     }
@@ -163,23 +161,19 @@ def main() -> None:
                    help="re-verify every reading list in data/runs/")
     p.add_argument("--limit", type=int, default=None,
                    help="max unverified entries per list (sanity-check small batches)")
-    p.add_argument("--threshold", type=float, default=DEFAULT_PROMOTE_THRESHOLD,
-                   help=f"odds_real_to_confab threshold for promotion "
-                        f"(default {DEFAULT_PROMOTE_THRESHOLD})")
     args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    # Suppress noisy httpx INFO logs from per-tool calls
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     load_dotenv()
     if "ANTHROPIC_API_KEY" not in os.environ:
-        sys.exit("FAIL: ANTHROPIC_API_KEY not set (Haiku agent needs it)")
+        sys.exit("FAIL: ANTHROPIC_API_KEY not set")
     client = anthropic.Anthropic()
 
     lists = lists_to_process(args)
     summaries = []
     for rl_path in lists:
-        summaries.append(reassess_list(rl_path, client, args.limit, args.threshold))
+        summaries.append(reassess_list(rl_path, client, args.limit))
 
     print("\n=== summary ===")
     for s in summaries:
@@ -194,7 +188,6 @@ def main() -> None:
     total_in = sum(s["input_tokens"] for s in summaries)
     total_out = sum(s["output_tokens"] for s in summaries)
     total_calls = sum(s["haiku_calls"] for s in summaries)
-    total_cache = sum(s["cache_hits"] for s in summaries)
     total_cost = sum(s["cost_usd"] for s in summaries)
     total_time = sum(s["elapsed_seconds"] for s in summaries)
     n_processed = total_promoted + total_remaining
@@ -203,7 +196,7 @@ def main() -> None:
         f"({n_processed} citations)"
     )
     print(
-        f"  COST   {total_calls} haiku calls, {total_cache} cache hits, "
+        f"  COST   {total_calls} haiku calls, "
         f"{total_in:,} in + {total_out:,} out tok, "
         f"${total_cost:.3f} ({total_time:.1f}s)"
     )
