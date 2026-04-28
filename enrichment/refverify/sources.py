@@ -148,6 +148,77 @@ def crossref_search(raw: str) -> list[dict[str, Any]]:
     return out
 
 
+# ---------- Source: OpenAlex -------------------------------------------------
+
+def openalex_search(raw: str) -> list[dict[str, Any]]:
+    """OpenAlex (free, no auth) — major academic graph with very broad
+    coverage including pre-print servers, theses, and books with DOIs."""
+    parsed = parse_citation(raw)
+    q_parts = [parsed["author"] or "", parsed["title"][:160] if parsed["title"] else ""]
+    query = " ".join(p for p in q_parts if p).strip()
+    if not query:
+        return []
+    r = _retrying_get(
+        "https://api.openalex.org/works",
+        params={"search": query[:200], "per_page": TOP_N},
+        headers={"User-Agent": USER_AGENT, "mailto": "brewc@cbrew.com"},
+    )
+    if r is None or r.status_code != 200:
+        return []
+    out = []
+    for w in r.json().get("results", [])[:TOP_N]:
+        title = w.get("display_name") or ""
+        authors = [
+            (a.get("author") or {}).get("display_name", "")
+            for a in (w.get("authorships") or [])[:5]
+        ]
+        year = w.get("publication_year")
+        doi = w.get("doi") or None
+        url = doi if (doi and doi.startswith("http")) else (
+            f"https://doi.org/{doi.replace('https://doi.org/','')}"
+            if doi else (w.get("id") or "")
+        )
+        out.append({"title": title, "authors": authors, "year": year,
+                    "url": url, "doi": doi,
+                    "cited_by": w.get("cited_by_count") or 0,
+                    "source": "openalex"})
+    return out
+
+
+# ---------- Source: Wikipedia ------------------------------------------------
+
+def wikipedia_search(raw: str) -> list[dict[str, Any]]:
+    """English Wikipedia article search. Useful for Acts of Parliament,
+    famous historical works, well-known persons. Not for ordinary
+    academic articles."""
+    parsed = parse_citation(raw)
+    title_hint = parsed["title"] or raw
+    if not title_hint:
+        return []
+    r = _retrying_get(
+        "https://en.wikipedia.org/w/api.php",
+        params={
+            "action": "query", "list": "search",
+            "srsearch": title_hint[:200], "srlimit": TOP_N,
+            "format": "json",
+        },
+        headers={"User-Agent": USER_AGENT},
+    )
+    if r is None or r.status_code != 200:
+        return []
+    out = []
+    for item in r.json().get("query", {}).get("search", [])[:TOP_N]:
+        wp_title = item.get("title", "")
+        snippet_html = item.get("snippet", "")
+        snippet = re.sub(r"<[^>]+>", "", snippet_html)
+        slug = wp_title.replace(" ", "_")
+        out.append({"title": wp_title, "authors": [], "year": None,
+                    "url": f"https://en.wikipedia.org/wiki/{slug}",
+                    "doi": None, "snippet": snippet,
+                    "source": "wikipedia"})
+    return out
+
+
 # ---------- Source: Semantic Scholar -----------------------------------------
 
 def semantic_scholar_search(raw: str) -> list[dict[str, Any]]:
