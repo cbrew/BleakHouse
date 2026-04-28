@@ -13,6 +13,7 @@ class Episode:
     pipeline: str
     hostprep: bool
     generator: str
+    ref_tools: bool
     label: str
     created_at: float
 

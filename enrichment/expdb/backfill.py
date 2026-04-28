@@ -60,11 +60,15 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
     axes = rm["axes"]
     label = rm.get("run_id", run_dir.name)
     generator = axes.get("generator", "unknown")
+    # ref_tools is true iff the run has phase2_5_reading_list.json — that
+    # file is the artefact of the OpenAlex/Wikipedia reference search and
+    # is only produced when --reference-tools is on at hostprep time.
+    ref_tools = (run_dir / "phase2_5_reading_list.json").exists()
 
     episode_id = store.upsert_episode(
         novel=axes["novel"], panel=axes["panel"], pipeline=axes["pipeline"],
         hostprep=bool(axes.get("hostprep", False)), generator=generator,
-        label=label,
+        ref_tools=ref_tools, label=label,
     )
 
     # Idempotent hostprep_version: one per hostprep run dir.
