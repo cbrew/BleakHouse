@@ -59,6 +59,7 @@ def _annotate(entry: dict, e: ReadingListEntry) -> dict:
             "url": e.url,
             "source": e.source,
             "audience": e.audience,
+            "further_reading": e.further_reading,
         }
     return out
 

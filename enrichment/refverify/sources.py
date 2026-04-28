@@ -157,6 +157,35 @@ def openalex_search(query: str) -> list[dict[str, Any]]:
 
 # ---------- Wikipedia --------------------------------------------------------
 
+def wikipedia_full_extract(title: str) -> str:
+    """Fetch the full plain-text body of a Wikipedia article (not just the
+    intro). Used after a Wikipedia candidate is chosen, so we can compose
+    a richer description and surface further-reading items the article
+    itself cites."""
+    if not title.strip():
+        return ""
+    r = _retrying_get(
+        "https://en.wikipedia.org/w/api.php",
+        params={
+            "action": "query",
+            "titles": title,
+            "prop": "extracts",
+            "explaintext": "1",
+            "format": "json",
+            "redirects": "1",
+        },
+        headers={"User-Agent": USER_AGENT},
+    )
+    if r is None or r.status_code != 200:
+        return ""
+    pages = (r.json().get("query") or {}).get("pages") or {}
+    for p in pages.values():
+        ext = p.get("extract")
+        if ext:
+            return ext
+    return ""
+
+
 def wikipedia_search(query: str) -> list[dict[str, Any]]:
     """Search English Wikipedia. Uses generator=search to combine ranked
     matches with plain-text intro extracts in a single request."""

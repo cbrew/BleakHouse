@@ -20,7 +20,7 @@ import anthropic
 from anthropic.types import MessageParam
 
 from .match import audience
-from .sources import openalex_search, wikipedia_search
+from .sources import openalex_search, wikipedia_full_extract, wikipedia_search
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,10 @@ class ReadingListEntry:
     url: str | None = None
     source: str | None = None
     audience: Literal["general", "scholarly"] | None = None
+    # Further-reading items extracted from a Wikipedia article body, when
+    # the chosen candidate is a Wikipedia article. Each item is a dict
+    # with at least 'title' and optionally 'author', 'year', 'note'.
+    further_reading: list[dict[str, Any]] = field(default_factory=list)
     haiku_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
@@ -64,6 +68,32 @@ You receive a raw scholarly citation. Output ONE JSON object only:
   nonsense author + invented journal). When in doubt, true — the
   search step is the real filter.
 - query: how you'd type this into a search box.
+"""
+
+
+WIKI_ENRICH_PROMPT = """\
+You have an original citation and the FULL TEXT of the Wikipedia article
+that matches it. Use the article to:
+
+1. Write a richer 1-2 sentence description for a podcast listener —
+   accurate, specific, plain English. Lean on what the article actually
+   says, not generalities.
+2. Pull out up to 5 further-reading items the article itself cites.
+   These usually live in 'Further reading', 'Bibliography', or
+   'Selected works' sections, but useful items can also appear inline.
+   Skip generic web links and Wikipedia-internal cross-references.
+
+Output ONE JSON object only, no prose, no code fences:
+
+{
+  "description": "<1-2 sentences>",
+  "further_reading": [
+    {"title": "...", "author": "..." | null, "year": <int|null>, "note": "..." | null},
+    ...
+  ]
+}
+
+If there are no further-reading items in the article, return an empty list.
 """
 
 
@@ -176,6 +206,86 @@ def _parse_judge(text: str) -> tuple[int | None, str]:
     return idx, str(data.get("description") or "").strip()
 
 
+_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _parse_enrich(text: str) -> tuple[str, list[dict[str, Any]]]:
+    m = _OBJ_RE.search(text)
+    if not m:
+        return "", []
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return "", []
+    description = str(data.get("description") or "").strip()
+    raw_items = data.get("further_reading") or []
+    items: list[dict[str, Any]] = []
+    for it in raw_items:
+        if not isinstance(it, dict):
+            continue
+        title = str(it.get("title") or "").strip()
+        if not title:
+            continue
+        items.append({
+            "title": title,
+            "author": (str(it.get("author")).strip() if it.get("author") else None),
+            "year": it.get("year"),
+            "note": (str(it.get("note")).strip() if it.get("note") else None),
+        })
+    return description, items[:5]
+
+
+def _wikipedia_title_from_url(url: str | None) -> str:
+    if not url:
+        return ""
+    from urllib.parse import unquote, urlparse
+    parsed = urlparse(url)
+    if "wikipedia.org" not in parsed.netloc:
+        return ""
+    last = parsed.path.rstrip("/").split("/")[-1]
+    return unquote(last).replace("_", " ")
+
+
+# Section headers in plain-text Wikipedia extracts use double-equal markup.
+# We want sections that contain bibliographic citations.
+_BIB_SECTION_RE = re.compile(
+    r"^==\s*("
+    r"Further reading|Bibliography|Selected works|"
+    r"References|Sources|Works cited|Works|Selected publications"
+    r")\s*==\s*$",
+    re.MULTILINE | re.IGNORECASE,
+)
+_SECTION_HEADER_RE = re.compile(r"^==\s*[^=]+\s*==\s*$", re.MULTILINE)
+
+
+def _slice_wikipedia_for_haiku(full: str, intro_chars: int = 4000,
+                               bib_chars: int = 8000) -> str:
+    """Compose a Haiku-friendly slice: the intro / opening sections, plus
+    any bibliography-style sections concatenated at the end. Total cap
+    keeps prompt tokens bounded; long articles like William Blackstone's
+    are 35k+ chars and we need both ends."""
+    if len(full) <= intro_chars + bib_chars:
+        return full
+
+    intro = full[:intro_chars]
+
+    # Collect every bibliography-style section.
+    bib_sections: list[str] = []
+    matches = list(_BIB_SECTION_RE.finditer(full))
+    for m in matches:
+        start = m.start()
+        # End at the next section header.
+        next_hdr = _SECTION_HEADER_RE.search(full, m.end())
+        end = next_hdr.start() if next_hdr else len(full)
+        bib_sections.append(full[start:end])
+
+    bib = "\n\n".join(bib_sections)[:bib_chars]
+    if not bib:
+        return intro
+
+    return intro + "\n\n[…]\n\n" + bib
+
+
 def assess_citation(
     raw_text: str,
     *,
@@ -261,6 +371,37 @@ def assess_citation(
         )
 
     chosen = unique[matched_index]
+    haiku_calls = 2
+    further_reading: list[dict[str, Any]] = []
+
+    # If the chosen candidate is a Wikipedia article, fetch the full
+    # body and let Haiku compose a richer description AND mine the
+    # article's further-reading citations. Adds a third Haiku call —
+    # only when it's worth it.
+    if chosen.get("source") == "wikipedia":
+        wiki_title = _wikipedia_title_from_url(chosen.get("url"))
+        full_text = wikipedia_full_extract(wiki_title) if wiki_title else ""
+        if full_text:
+            body = _slice_wikipedia_for_haiku(full_text)
+            enrich_msg = client.messages.create(
+                model=AGENT_MODEL,
+                max_tokens=800,
+                system=WIKI_ENRICH_PROMPT,
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        f"Citation: {raw_text}\n\n"
+                        f"Wikipedia article '{wiki_title}':\n{body}"
+                    ),
+                }],
+            )
+            _accumulate(enrich_msg.usage)
+            haiku_calls += 1
+            rich_desc, items = _parse_enrich(_extract_text(enrich_msg.content))
+            if rich_desc:
+                description = rich_desc
+            further_reading = items
+
     return ReadingListEntry(
         raw_text=raw_text, verified=True,
         title=chosen.get("title"),
@@ -273,7 +414,8 @@ def assess_citation(
         url=chosen.get("url"),
         source=chosen.get("source"),
         audience=audience(chosen),
-        haiku_calls=2,
+        further_reading=further_reading,
+        haiku_calls=haiku_calls,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
     )
