@@ -1,8 +1,10 @@
--- The logical episode: a fully-specified experimental condition. Generator
--- (which LLM produced the script) is a treatment axis — running the same
--- (novel, panel, pipeline, hostprep) tuple through Anthropic Sonnet vs
--- Cerebras Qwen vs Z.AI GLM is three separate experiments, not three
--- realisations of one experiment.
+-- The logical episode: a fully-specified experimental condition. Treatment
+-- axes that materially change the output, beyond (novel, panel, pipeline,
+-- hostprep), are:
+--   generator   — which LLM produced the script (Sonnet vs Cerebras Qwen vs ...)
+--   ref_tools   — whether hostprep had OpenAlex/Wikipedia reference search
+--                 enabled, which injects scholarly citations into the host's
+--                 questions and produces phase2_5_reading_list.json
 CREATE TABLE episode (
     id           INTEGER PRIMARY KEY,
     novel        TEXT NOT NULL,
@@ -10,9 +12,10 @@ CREATE TABLE episode (
     pipeline     TEXT NOT NULL,
     hostprep     INTEGER NOT NULL,
     generator    TEXT NOT NULL,
+    ref_tools    INTEGER NOT NULL,
     label        TEXT NOT NULL,
     created_at   REAL NOT NULL,
-    UNIQUE(novel, panel, pipeline, hostprep, generator)
+    UNIQUE(novel, panel, pipeline, hostprep, generator, ref_tools)
 );
 
 -- Host preparation: per-(segment, expert) Haiku interviews +

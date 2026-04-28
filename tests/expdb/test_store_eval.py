@@ -13,7 +13,7 @@ def populated(tmp_db_path: Path) -> tuple[Store, int, int, int]:
     s.init_schema()
     eid = s.upsert_episode(novel="bh", panel="literary", pipeline="trn",
                             hostprep=False, generator="anthropic_sonnet_4_6",
-                            label="bh_trn_literary")
+                            ref_tools=False, label="bh_trn_literary")
     sid = s.create_script_version(episode_id=eid, path="x.json", dvc_hash="h",
                                     n_segments=1, n_turns=1, n_utterances=1)
     cfg = s.upsert_tts_config(engine="g", profile="p", voice_ref_ver=None, config={})

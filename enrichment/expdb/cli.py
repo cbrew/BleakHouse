@@ -31,7 +31,7 @@ def cmd_list_episodes(args: argparse.Namespace) -> int:
     store.init_schema()
     for ep in store.list_episodes(novel=args.novel):
         print(f"{ep.id:4d}  {ep.label:55s}  {ep.novel}/{ep.panel}/{ep.pipeline}"
-              f"  hp={ep.hostprep}  gen={ep.generator}")
+              f"  hp={ep.hostprep}  gen={ep.generator}  ref={ep.ref_tools}")
     return 0
 
 
@@ -44,7 +44,7 @@ def cmd_show(args: argparse.Namespace) -> int:
         return 1
     ep = eps[0]
     print(f"episode {ep.id}: {ep.label}  ({ep.novel}/{ep.panel}/{ep.pipeline}"
-          f", hostprep={ep.hostprep}, generator={ep.generator})")
+          f", hostprep={ep.hostprep}, generator={ep.generator}, ref_tools={ep.ref_tools})")
     for sv in store.list_scripts_for_episode(ep.id):
         print(f"  script {sv.id}  {sv.path}  segs={sv.n_segments} "
               f"turns={sv.n_turns} utts={sv.n_utterances}")

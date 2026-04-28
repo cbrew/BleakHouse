@@ -21,7 +21,7 @@ from .models import (
 # TTSConfig is imported for re-export — callers may want the row dataclass.
 _ = TTSConfig
 
-EXPECTED_USER_VERSION = 3
+EXPECTED_USER_VERSION = 4
 
 
 def _schema_sql() -> str:
@@ -58,19 +58,21 @@ class Store:
     # ---- Episode ----
 
     def upsert_episode(self, *, novel: str, panel: str, pipeline: str,
-                       hostprep: bool, generator: str, label: str) -> int:
+                       hostprep: bool, generator: str, ref_tools: bool,
+                       label: str) -> int:
         with self._conn() as c:
             row = c.execute(
                 "SELECT id FROM episode WHERE novel=? AND panel=? AND pipeline=? "
-                "AND hostprep=? AND generator=?",
-                (novel, panel, pipeline, int(hostprep), generator),
+                "AND hostprep=? AND generator=? AND ref_tools=?",
+                (novel, panel, pipeline, int(hostprep), generator, int(ref_tools)),
             ).fetchone()
             if row is not None:
                 return int(row["id"])
             cur = c.execute(
                 "INSERT INTO episode(novel, panel, pipeline, hostprep, generator, "
-                "label, created_at) VALUES(?,?,?,?,?,?,?)",
-                (novel, panel, pipeline, int(hostprep), generator, label, time.time()),
+                "ref_tools, label, created_at) VALUES(?,?,?,?,?,?,?,?)",
+                (novel, panel, pipeline, int(hostprep), generator,
+                 int(ref_tools), label, time.time()),
             )
             assert cur.lastrowid is not None
             return int(cur.lastrowid)
@@ -318,6 +320,7 @@ def _row_to_episode(row: sqlite3.Row) -> Episode:
         pipeline=row["pipeline"],
         hostprep=bool(row["hostprep"]),
         generator=row["generator"],
+        ref_tools=bool(row["ref_tools"]),
         label=row["label"],
         created_at=float(row["created_at"]),
     )
