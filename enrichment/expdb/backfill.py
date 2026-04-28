@@ -59,10 +59,12 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
 
     axes = rm["axes"]
     label = rm.get("run_id", run_dir.name)
+    generator = axes.get("generator", "unknown")
 
     episode_id = store.upsert_episode(
         novel=axes["novel"], panel=axes["panel"], pipeline=axes["pipeline"],
-        hostprep=bool(axes.get("hostprep", False)), label=label,
+        hostprep=bool(axes.get("hostprep", False)), generator=generator,
+        label=label,
     )
 
     # Idempotent script_version: keyed by (episode_id, path).
@@ -79,7 +81,6 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
         )
 
     # Idempotent generation_run: keyed by (script_version_id, generator, dvc_rev).
-    generator = axes.get("generator", "unknown")
     dvc_rev = rm.get("dvc_lock_sha")
     existing_runs = store.list_runs_for_script(sid)
     matching = [r for r in existing_runs if r.generator == generator and r.dvc_rev == dvc_rev]
