@@ -1,24 +1,11 @@
 """Citation verifier — OpenAlex + Wikipedia, two Haiku calls per citation.
 
-Flow:
-  1. SEARCH turn — Haiku reads the raw citation, formulates several
-     parallel queries (different angles) for search_openalex /
-     search_wikipedia. All run concurrently in one turn; pooled results
-     come back in one ToolResult batch.
-  2. JUDGE turn — Haiku sees the original raw + the candidate list with
-     full metadata, picks the best match (or null) and composes a
-     1-2 sentence listener-friendly description in one shot.
-     Output: {matched_index: int | null, description: str}.
-
-No `parse_citation`, no Jaccard / year-delta gate. The model handles the
-matching directly — it has the raw citation and each candidate's title,
-authors, year, type, publisher, abstract right in front of it. A
-deterministic gate using regex-extracted fields is brittle (the year-
-parse bug we just hit) and forfeits the LLM's pattern-matching strength
-for no precision gain on tasks where the inputs are right there.
-
-The "audience" flag (general vs scholarly) IS deterministic — it reads
-off the candidate's publisher and citation count.
+Per citation:
+  1. CLEAN — Haiku reads the raw citation, outputs a search query and a
+     hint about whether to lead with OpenAlex or Wikipedia.
+  2. APIs — search the chosen source(s) with that query (no LLM here).
+  3. JUDGE — Haiku sees raw + candidates, picks the matching one (or
+     null) and writes the listener-facing description.
 """
 from __future__ import annotations
 
@@ -30,11 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import anthropic
-from anthropic.types import (
-    MessageParam,
-    ToolUnionParam,
-    ToolUseBlock,
-)
+from anthropic.types import MessageParam
 
 from .match import audience
 from .sources import openalex_search, wikipedia_search
@@ -45,8 +28,6 @@ AGENT_MODEL = "claude-haiku-4-5-20251001"
 HAIKU_INPUT_PER_MTOK = 1.00
 HAIKU_OUTPUT_PER_MTOK = 5.00
 
-
-# ---------- Result type ------------------------------------------------------
 
 @dataclass(frozen=True)
 class ReadingListEntry:
@@ -74,96 +55,28 @@ class ReadingListEntry:
         )
 
 
-# ---------- Tool schemas (search turn) --------------------------------------
+CLEAN_PROMPT = """\
+You receive a raw scholarly citation. Output ONE JSON object only:
 
-TOOL_DEFS: list[ToolUnionParam] = [
-    {
-        "name": "search_openalex",
-        "description": (
-            "OpenAlex academic graph. Broad coverage — articles, books, "
-            "chapters, theses, conference papers — with title, authors, "
-            "year, type, publisher, abstract, citation count, DOI/URL. "
-            "Use for academic citations. Call multiple times in one turn "
-            "with different query phrasings (full citation; surname + "
-            "title-keywords; surname only) to maximise the chance of "
-            "catching the actual work."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Free-text search query."},
-            },
-            "required": ["query"],
-        },
-    },
-    {
-        "name": "search_wikipedia",
-        "description": (
-            "English Wikipedia article search with intro extracts. Use for "
-            "Acts of Parliament, canonical works, historical events, "
-            "well-known persons — items likely to have their own article. "
-            "Returns title, intro extract, URL."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-            },
-            "required": ["query"],
-        },
-    },
-]
+{"plausible": true|false, "kind": "academic"|"canonical", "query": "..."}
 
-
-def _tool_search_openalex(args: dict[str, Any]) -> list[dict[str, Any]]:
-    return openalex_search(args["query"])
-
-
-def _tool_search_wikipedia(args: dict[str, Any]) -> list[dict[str, Any]]:
-    return wikipedia_search(args["query"])
-
-
-TOOL_DISPATCH: dict[str, Any] = {
-    "search_openalex": _tool_search_openalex,
-    "search_wikipedia": _tool_search_wikipedia,
-}
-
-
-# ---------- Prompts ----------------------------------------------------------
-
-SEARCH_PROMPT = """\
-You have a citation to look up against OpenAlex (academic) and
-Wikipedia (canonical works, Acts, historical events). Fire several
-parallel searches in this single turn with different query angles —
-they run concurrently. Don't judge anything here; you'll see all
-candidates afterwards.
+- plausible: false only for obvious fabrications. When in doubt, true.
+- kind: "canonical" for Acts, named events, famous works, official
+  reports, persons. "academic" for everything else.
+- query: how you'd type this into a search box.
 """
 
+
 JUDGE_PROMPT = """\
-You have a citation and a list of CANDIDATES. Pick the candidate that
-is the work being cited, or null if none clearly is. Then write 1-2
-plain-English sentences from that candidate's abstract or extract that
-tell a podcast listener what the work is about.
+You have a citation and a list of CANDIDATES. Pick the one that is the
+cited work, or null if none clearly is. Write 1-2 plain-English
+sentences from that candidate's abstract or extract for a podcast
+listener.
 
-To pick a candidate, ALL of these must hold:
-- Its title clearly corresponds to the cited title — same subject, same
-  scope. Sharing a few keywords is NOT enough.
-- The citation's author surname appears in the candidate's authors OR
-  in the candidate's title. Wikipedia articles are exempt (they have
-  no authors).
-- The candidate's year is within roughly 5 years of the cited year, or
-  one side has no year.
-
-If any of these fail for every candidate, return matched_index = null.
-Spurious matches mislead listeners — null is the right answer when no
-candidate is clearly the cited work.
-
-Output ONE JSON object only — no prose, no code fences:
+Output ONE JSON object only:
 {"matched_index": <0-based index, or null>, "description": "<1-2 sentences, or empty>"}
 """
 
-
-# ---------- Helpers ----------------------------------------------------------
 
 def _extract_text(content_blocks: Any) -> str:
     return "".join(
@@ -173,21 +86,38 @@ def _extract_text(content_blocks: Any) -> str:
     )
 
 
-def _run_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
-    fn = TOOL_DISPATCH.get(name)
-    if fn is None:
-        return {"error": f"unknown tool: {name}"}
+_JSON_RE = re.compile(r"\{.*?\}", re.DOTALL)
+
+
+@dataclass(frozen=True)
+class _Cleaned:
+    plausible: bool
+    kind: str
+    query: str
+
+
+def _parse_clean(text: str) -> _Cleaned | None:
+    m = _JSON_RE.search(text)
+    if not m:
+        return None
     try:
-        candidates = fn(tool_input)
-    except Exception as exc:
-        logger.warning("tool %s raised: %s", name, exc)
-        return {"error": str(exc)}
-    return {"candidates": candidates[:5]}
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return None
+    query = str(data.get("query") or "").strip()
+    if not query:
+        return None
+    kind = data.get("kind") or "academic"
+    if kind not in ("academic", "canonical"):
+        kind = "academic"
+    return _Cleaned(
+        plausible=bool(data.get("plausible", True)),
+        kind=kind,
+        query=query,
+    )
 
 
 def _candidate_for_judge(c: dict[str, Any]) -> dict[str, Any]:
-    """Trim a candidate to fields useful for matching + composition.
-    Truncates the abstract to keep prompt tokens bounded."""
     abstract = c.get("abstract") or ""
     if len(abstract) > 700:
         abstract = abstract[:700] + "…"
@@ -205,23 +135,17 @@ def _candidate_for_judge(c: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-_JSON_RE = re.compile(r"\{[^{}]*\"matched_index\"[^{}]*\}", re.DOTALL)
-
-
 def _parse_judge(text: str) -> tuple[int | None, str]:
     m = _JSON_RE.search(text)
     if not m:
-        logger.warning("no judge JSON in: %r", text[:200])
         return None, ""
     try:
         data = json.loads(m.group(0))
-    except json.JSONDecodeError as exc:
-        logger.warning("judge JSON decode failed (%s): %r", exc, m.group(0)[:200])
+    except json.JSONDecodeError:
         return None, ""
     raw_idx = data.get("matched_index")
-    idx: int | None
     if raw_idx is None:
-        idx = None
+        idx: int | None = None
     else:
         try:
             idx = int(raw_idx)
@@ -230,102 +154,93 @@ def _parse_judge(text: str) -> tuple[int | None, str]:
     return idx, str(data.get("description") or "").strip()
 
 
-# ---------- Main entry point -------------------------------------------------
-
 def assess_citation(
     raw_text: str,
     *,
     client: anthropic.Anthropic | None = None,
 ) -> ReadingListEntry:
-    """Verify a single citation. Returns a ReadingListEntry — verified=True
-    with rich metadata if Haiku picked a candidate, verified=False otherwise.
-    Always uses exactly 2 Haiku calls (search + judge)."""
+    """Verify a single citation. Two Haiku calls (clean, then judge)."""
     if client is None:
         client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     input_tokens = 0
     output_tokens = 0
-    haiku_calls = 0
 
     def _accumulate(usage: Any) -> None:
-        nonlocal input_tokens, output_tokens, haiku_calls
-        haiku_calls += 1
+        nonlocal input_tokens, output_tokens
         input_tokens += getattr(usage, "input_tokens", 0) or 0
         output_tokens += getattr(usage, "output_tokens", 0) or 0
 
-    # ---- SEARCH TURN ----
-    search_messages: list[MessageParam] = [{
-        "role": "user",
-        "content": (
-            f"Citation:\n{raw_text}\n\n"
-            "Fire your parallel searches now."
-        ),
-    }]
-    search_msg = client.messages.create(
+    # ---- CLEAN ----
+    clean_messages: list[MessageParam] = [{"role": "user", "content": raw_text}]
+    clean_msg = client.messages.create(
         model=AGENT_MODEL,
-        max_tokens=1024,
-        system=SEARCH_PROMPT,
-        tools=TOOL_DEFS,
-        messages=search_messages,
+        max_tokens=200,
+        system=CLEAN_PROMPT,
+        messages=clean_messages,
     )
-    _accumulate(search_msg.usage)
+    _accumulate(clean_msg.usage)
+    cleaned = _parse_clean(_extract_text(clean_msg.content))
 
-    candidates: list[dict[str, Any]] = []
-    if search_msg.stop_reason == "tool_use":
-        for block in search_msg.content:
-            if not isinstance(block, ToolUseBlock):
-                continue
-            tool_input = block.input if isinstance(block.input, dict) else {}
-            result = _run_tool(block.name, tool_input)
-            for c in result.get("candidates", []):
-                candidates.append(c)
-
-    # Deduplicate by URL — different queries often return the same hit
-    seen_urls: set[str] = set()
-    unique_candidates: list[dict[str, Any]] = []
-    for c in candidates:
-        url = c.get("url") or ""
-        if url and url in seen_urls:
-            continue
-        if url:
-            seen_urls.add(url)
-        unique_candidates.append(c)
-
-    # No candidates at all → drop without spending the judge call
-    if not unique_candidates:
+    if cleaned is None or not cleaned.plausible:
         return ReadingListEntry(
             raw_text=raw_text, verified=False,
-            haiku_calls=haiku_calls,
+            haiku_calls=1,
             input_tokens=input_tokens, output_tokens=output_tokens,
         )
 
-    # ---- JUDGE TURN ----
+    # ---- APIs ----
+    if cleaned.kind == "canonical":
+        candidates = wikipedia_search(cleaned.query) or openalex_search(cleaned.query)
+    else:
+        oa = openalex_search(cleaned.query)
+        wp = wikipedia_search(cleaned.query)
+        candidates = oa + wp  # both available to the judge
+
+    seen: set[str] = set()
+    unique: list[dict[str, Any]] = []
+    for c in candidates:
+        url = c.get("url") or ""
+        if url and url in seen:
+            continue
+        if url:
+            seen.add(url)
+        unique.append(c)
+
+    if not unique:
+        return ReadingListEntry(
+            raw_text=raw_text, verified=False,
+            haiku_calls=1,
+            input_tokens=input_tokens, output_tokens=output_tokens,
+        )
+
+    # ---- JUDGE ----
     judge_input = "\n".join([
         f"Citation: {raw_text}",
         "",
         "Candidates:",
         json.dumps(
-            [_candidate_for_judge(c) for c in unique_candidates],
+            [_candidate_for_judge(c) for c in unique],
             indent=2, default=str,
         ),
     ])
     judge_msg = client.messages.create(
         model=AGENT_MODEL,
-        max_tokens=512,
+        max_tokens=400,
         system=JUDGE_PROMPT,
         messages=[{"role": "user", "content": judge_input}],
     )
     _accumulate(judge_msg.usage)
     matched_index, description = _parse_judge(_extract_text(judge_msg.content))
 
-    if matched_index is None or not (0 <= matched_index < len(unique_candidates)):
+    if matched_index is None or not (0 <= matched_index < len(unique)):
         return ReadingListEntry(
             raw_text=raw_text, verified=False,
-            haiku_calls=haiku_calls,
+            haiku_calls=2,
             input_tokens=input_tokens, output_tokens=output_tokens,
         )
 
-    chosen = unique_candidates[matched_index]
+    chosen = unique[matched_index]
     return ReadingListEntry(
         raw_text=raw_text, verified=True,
         title=chosen.get("title"),
@@ -338,7 +253,7 @@ def assess_citation(
         url=chosen.get("url"),
         source=chosen.get("source"),
         audience=audience(chosen),
-        haiku_calls=haiku_calls,
+        haiku_calls=2,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
     )
