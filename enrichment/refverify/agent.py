@@ -35,11 +35,11 @@ from .sources import (
     cinii_search,
     courtlistener_search,
     crossref_search,
-    fatcat_search,
     govinfo_search,
     legislation_gov_uk_search,
     semantic_scholar_search,
 )
+# NOTE: fatcat_search intentionally not imported — see TOOL_DEFS comment.
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +94,11 @@ TOOL_DEFS: list[ToolUnionParam] = [
     {
         "name": "search_crossref",
         "description": (
-            "Search CrossRef (DOI registry) for a scholarly work — articles, "
-            "books, chapters, conference papers. Returns up to 5 candidates "
-            "with title, authors, year, DOI."
+            "FAST (~1-2s). DOI registry. USE FOR: scholarly articles, books, "
+            "chapters, conference papers. The single best first call for any "
+            "academic citation. DO NOT USE FOR: Acts of Parliament (no DOI), "
+            "legal cases, government reports, Wikipedia-style references, or "
+            "items where the citation lacks a clear author + title."
         ),
         "input_schema": {
             "type": "object",
@@ -110,8 +112,11 @@ TOOL_DEFS: list[ToolUnionParam] = [
     {
         "name": "search_semantic_scholar",
         "description": (
-            "Search Semantic Scholar for academic papers. Good coverage of "
-            "humanities and CS. Returns up to 5 candidates."
+            "MEDIUM (~2-4s, 1.5s/req throttle). Academic paper search with "
+            "good humanities/CS coverage. USE FOR: academic articles where "
+            "CrossRef returned nothing useful. DO NOT USE FOR: pre-1900 "
+            "works (poor coverage), Acts, legal cases, government reports, "
+            "or non-scholarly material."
         ),
         "input_schema": {
             "type": "object",
@@ -121,26 +126,22 @@ TOOL_DEFS: list[ToolUnionParam] = [
             "required": ["query"],
         },
     },
-    {
-        "name": "search_fatcat",
-        "description": (
-            "Search Internet Archive's Fatcat / Scholar catalog. Useful for "
-            "older or harder-to-find works the major indexes miss."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-            },
-            "required": ["query"],
-        },
-    },
+    # NOTE: search_fatcat dropped — its elastic endpoint times out reliably
+    # on every query and adds ~30s of dead time per citation. Re-enable here
+    # and in TOOL_DISPATCH if it ever comes back to life.
+    # {
+    #     "name": "search_fatcat",
+    #     "description": "...",
+    #     "input_schema": {...},
+    # },
     {
         "name": "search_cinii",
         "description": (
-            "Search CiNii (Japan NII academic catalog). Use for Japanese-language "
-            "scholarship or romanized Japanese authors who may be missing from "
-            "Anglocentric databases."
+            "MEDIUM (~2-3s). Japan NII academic catalog. USE FOR: citations "
+            "with Japanese authors (kanji/hiragana/katakana OR romanized "
+            "Japanese surnames like Kondo, Yamada, Tanaka, Kobayashi) or "
+            "Japanese-language scholarship. DO NOT USE FOR: anglophone "
+            "citations — coverage is essentially zero outside Japan."
         ),
         "input_schema": {
             "type": "object",
@@ -153,9 +154,11 @@ TOOL_DEFS: list[ToolUnionParam] = [
     {
         "name": "lookup_uk_act",
         "description": (
-            "Verify a UK Act of Parliament by year + chapter on legislation.gov.uk. "
-            "Use only when the citation gives a regnal-year-style reference like "
-            "(33 & 34 Vict. c. 23). Year and chapter only — no title."
+            "FAST (~1s). Direct legislation.gov.uk URL probe. USE ONLY for "
+            "UK Acts of Parliament with a regnal-year citation that gives "
+            "BOTH year AND chapter, e.g. '(45 & 46 Vict. c. 75)'. DO NOT USE "
+            "for: Acts without a chapter number, US statutes, secondary "
+            "sources, or anything that isn't a UK public general act."
         ),
         "input_schema": {
             "type": "object",
@@ -169,8 +172,10 @@ TOOL_DEFS: list[ToolUnionParam] = [
     {
         "name": "search_courtlistener",
         "description": (
-            "Search CourtListener for US federal/state legal cases. Use for US "
-            "case-law citations like 'Smith v. Jones, 123 U.S. 456 (1899)'."
+            "MEDIUM (~2-4s, sometimes 5xx). USE ONLY for US legal opinions "
+            "with case-name + reporter, e.g. 'Smith v. Jones, 123 U.S. 456 "
+            "(1899)'. DO NOT USE FOR: UK cases (no coverage), academic "
+            "articles, Acts of Parliament, government publications."
         ),
         "input_schema": {
             "type": "object",
@@ -183,8 +188,11 @@ TOOL_DEFS: list[ToolUnionParam] = [
     {
         "name": "search_govinfo",
         "description": (
-            "Search GovInfo for US federal government publications — congressional "
-            "reports, hearings, Federal Register, GAO. Not for academic articles."
+            "MEDIUM (~2-3s). USE ONLY for US federal government "
+            "publications — congressional reports, hearings, bills, Federal "
+            "Register, GAO reports, agency documents. DO NOT USE FOR: "
+            "academic articles, books from commercial publishers, UK "
+            "government material, anything pre-1900, or non-US sources."
         ),
         "input_schema": {
             "type": "object",
@@ -197,10 +205,14 @@ TOOL_DEFS: list[ToolUnionParam] = [
     {
         "name": "search_faculty_pages",
         "description": (
-            "Web-search faculty / personal academic pages and bibliographic sites "
-            "(.edu, .ac.*, Project MUSE, Cambridge, JSTOR, archive.org) via Brave "
-            "Search. Returns hits where the title appears in the result snippet — "
-            "useful for niche real works that don't show up in CrossRef/S2."
+            "SLOW (~5-10s). Web search filtered to faculty/academic domains "
+            "(.edu, .ac.*, Project MUSE, Cambridge, JSTOR, archive.org). "
+            "USE FOR: niche real academic works missed by CrossRef/S2 — this "
+            "is the only tool that catches author CVs, department pages, "
+            "and small-press / older works. CALL IT IN PARALLEL with "
+            "search_semantic_scholar on turn 2 when search_crossref missed; "
+            "the 3-turn cap means you cannot afford to try it sequentially. "
+            "DO NOT USE FOR: Acts, legal cases, government documents."
         ),
         "input_schema": {
             "type": "object",
@@ -230,10 +242,6 @@ def _tool_search_semantic_scholar(args: dict[str, Any]) -> list[dict[str, Any]]:
     return semantic_scholar_search(args["query"])
 
 
-def _tool_search_fatcat(args: dict[str, Any]) -> list[dict[str, Any]]:
-    return fatcat_search(args["query"])
-
-
 def _tool_search_cinii(args: dict[str, Any]) -> list[dict[str, Any]]:
     return cinii_search(args["query"])
 
@@ -258,7 +266,7 @@ def _tool_search_faculty_pages(args: dict[str, Any]) -> list[dict[str, Any]]:
 TOOL_DISPATCH: dict[str, Any] = {
     "search_crossref": _tool_search_crossref,
     "search_semantic_scholar": _tool_search_semantic_scholar,
-    "search_fatcat": _tool_search_fatcat,
+    # "search_fatcat": _tool_search_fatcat,  # disabled — see TOOL_DEFS note
     "search_cinii": _tool_search_cinii,
     "lookup_uk_act": _tool_lookup_uk_act,
     "search_courtlistener": _tool_search_courtlistener,
@@ -277,28 +285,69 @@ produce a calibrated odds ratio of "real" vs "confabulated".
 PRINCIPLES
 - BE CONSERVATIVE. We'd rather miss a real citation than fake-verify a
   pastiche. When in doubt, lean toward confabulated.
-- Match tools to the citation TYPE. Don't search GovInfo for an academic
-  article. Don't search CrossRef for an Act of Parliament. Use
-  search_faculty_pages for niche real works that the major indexes miss.
-- A real citation usually shows: (a) the author surname appears in the
-  candidate authors (or the work is a legal case / Act where authors don't
-  apply); (b) the candidate title overlaps substantively with the citation
-  title (not just one word in common; subtitle differences are fine);
+- USE PARALLEL TOOL CALLS. Within a single turn you can emit multiple
+  tool_use blocks at once and they run concurrently. This is almost always
+  the right move on turn 2 when turn 1 missed — fire several alternates in
+  parallel rather than sequentially.
+
+CALL BUDGET (hard cap: 3 model turns per citation)
+- Turn 1: pick the highest-precedence tool for the citation type. For most
+  academic items that is search_crossref alone. For Acts, lookup_uk_act
+  alone. Cheapest if it works.
+- Turn 2: if turn 1 missed, fire fallbacks IN PARALLEL — typically
+  search_semantic_scholar AND search_faculty_pages together. Add
+  search_cinii in parallel if author looks Japanese. Don't be sequential
+  with the 3-turn cap.
+- Turn 3: forced finalise (no tools available). Output the JSON.
+
+TOOL SPEED TIERS (only relevant within a single turn — parallel calls in
+the same turn cost only as much wall-clock as the slowest one)
+- FAST   (~1-2s):  search_crossref, lookup_uk_act
+- MEDIUM (~2-4s):  search_semantic_scholar, search_cinii,
+                   search_courtlistener, search_govinfo
+- SLOW   (~5-10s): search_faculty_pages — but it is the only thing that
+                   catches niche real works missed by the structured APIs,
+                   so DO call it on turn 2 when turn 1 missed.
+
+ROUTING SUMMARY (read each tool's own description for full do/don't lists)
+- Academic article / book / chapter   -> search_crossref first; on miss,
+  parallel-call search_semantic_scholar + search_faculty_pages.
+- UK Act of Parliament with regnal-year (e.g. '45 & 46 Vict. c. 75')
+                                       -> lookup_uk_act ONLY.
+- US legal case ('Smith v. Jones, 123 U.S. 456') -> search_courtlistener.
+- US federal / government publication  -> search_govinfo.
+- Japanese-language / Japanese author  -> include search_cinii.
+
+DO NOTs (wasted calls — never do these)
+- DO NOT call search_govinfo for academic articles, UK material, or pre-
+  1900 sources.
+- DO NOT call search_courtlistener for UK cases, academic articles, or
+  non-legal items.
+- DO NOT call search_cinii for anglophone works without Japanese authors.
+- DO NOT call lookup_uk_act unless the citation gives BOTH year AND
+  chapter number.
+- DO NOT call search_crossref or search_semantic_scholar for Acts, legal
+  cases, or government reports — they have no DOIs.
+
+MATCH STANDARD
+A candidate confirms a citation when ALL hold:
+  (a) author surname appears (or the work is a legal case / Act where
+      authors don't apply);
+  (b) candidate title overlaps substantively with the citation title — not
+      just a single common word; subtitle differences are fine;
   (c) the year is within ±1, allowing for hardback/paperback gaps and
-  reprints.
-- Try multiple tools or query variants before giving up. If CrossRef misses,
-  try Semantic Scholar, Fatcat, or faculty_pages. Surnames-only or
-  title-fragment queries can find what full-citation queries miss.
+      reprints.
 
 OUTPUT FORMAT
-When you have enough evidence, stop calling tools and reply with ONE JSON
-object — nothing else, no prose, no code fences:
+On your final turn (no tools), reply with ONE JSON object only — no prose,
+no code fences:
 
-{"odds_real_to_confab": <float>, "evidence_summary": "<1-2 sentences>", "primary_url": "<best URL or null>", "matched_source": "<source name or null>"}
+{"odds_real_to_confab": <float>, "evidence_summary": "<1-2 sentences>", "primary_url": "<best URL or null>", "matched_source": "<tool name or null, e.g. search_crossref>"}
 
 ODDS GUIDANCE
 - 100.0  strong textual match (DOI agrees; author + title + year all check)
--  20.0  good evidence (multiple weaker sources agree on title/author)
+-  20.0  good evidence (multiple weaker sources agree on title/author,
+                        OR a faculty page lists the title verbatim)
 -   5.0  some evidence with caveats (year off, partial title match)
 -   1.0  even — could be real or confabulated
 -   0.2  searched but found nothing convincing
