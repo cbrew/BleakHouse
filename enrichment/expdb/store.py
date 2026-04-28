@@ -12,6 +12,7 @@ from .models import (
     Episode,
     Evaluation,
     GenerationRun,
+    HostprepVersion,
     RegenerationRequest,
     ScriptVersion,
     TTSConfig,
@@ -20,7 +21,7 @@ from .models import (
 # TTSConfig is imported for re-export — callers may want the row dataclass.
 _ = TTSConfig
 
-EXPECTED_USER_VERSION = 2
+EXPECTED_USER_VERSION = 3
 
 
 def _schema_sql() -> str:
@@ -90,17 +91,56 @@ class Store:
             rows = c.execute(sql, params).fetchall()
         return [_row_to_episode(r) for r in rows]
 
+    # ---- HostprepVersion ----
+
+    def create_hostprep_version(self, *, episode_id: int,
+                                  interviews_path: str,
+                                  interviews_dvc_hash: str | None,
+                                  briefs_path: str,
+                                  briefs_dvc_hash: str | None,
+                                  n_segments: int, n_interviews: int,
+                                  n_questions: int) -> int:
+        with self._conn() as c:
+            cur = c.execute(
+                "INSERT INTO hostprep_version"
+                "(episode_id, interviews_path, interviews_dvc_hash, briefs_path, "
+                " briefs_dvc_hash, n_segments, n_interviews, n_questions, created_at)"
+                " VALUES(?,?,?,?,?,?,?,?,?)",
+                (episode_id, interviews_path, interviews_dvc_hash,
+                 briefs_path, briefs_dvc_hash,
+                 n_segments, n_interviews, n_questions, time.time()),
+            )
+            assert cur.lastrowid is not None
+            return int(cur.lastrowid)
+
+    def get_hostprep_version(self, hpv_id: int) -> HostprepVersion | None:
+        with self._conn() as c:
+            row = c.execute("SELECT * FROM hostprep_version WHERE id=?",
+                            (hpv_id,)).fetchone()
+        return _row_to_hostprep(row) if row else None
+
+    def list_hostprep_for_episode(self, episode_id: int) -> list[HostprepVersion]:
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT * FROM hostprep_version WHERE episode_id=? ORDER BY id",
+                (episode_id,),
+            ).fetchall()
+        return [_row_to_hostprep(r) for r in rows]
+
     # ---- ScriptVersion ----
 
     def create_script_version(self, *, episode_id: int, path: str,
                               dvc_hash: str | None, n_segments: int,
-                              n_turns: int, n_utterances: int) -> int:
+                              n_turns: int, n_utterances: int,
+                              hostprep_version_id: int | None = None) -> int:
         with self._conn() as c:
             cur = c.execute(
                 "INSERT INTO script_version"
-                "(episode_id, path, dvc_hash, n_segments, n_turns, n_utterances, created_at)"
-                " VALUES(?,?,?,?,?,?,?)",
-                (episode_id, path, dvc_hash, n_segments, n_turns, n_utterances, time.time()),
+                "(episode_id, hostprep_version_id, path, dvc_hash, "
+                " n_segments, n_turns, n_utterances, created_at)"
+                " VALUES(?,?,?,?,?,?,?,?)",
+                (episode_id, hostprep_version_id, path, dvc_hash,
+                 n_segments, n_turns, n_utterances, time.time()),
             )
             assert cur.lastrowid is not None
             return int(cur.lastrowid)
@@ -204,18 +244,23 @@ class Store:
 
     # ---- Evaluation ----
 
-    def record_evaluation(self, *, script_version_id: int | None,
-                           audio_artifact_id: int | None,
+    def record_evaluation(self, *, script_version_id: int | None = None,
+                           audio_artifact_id: int | None = None,
+                           hostprep_version_id: int | None = None,
                            metric_kind: str, metric: dict) -> int:
-        if script_version_id is None and audio_artifact_id is None:
-            raise ValueError("evaluation must reference a script or an audio artefact")
+        if (script_version_id is None and audio_artifact_id is None
+                and hostprep_version_id is None):
+            raise ValueError(
+                "evaluation must reference a script, an audio artefact, or a hostprep version"
+            )
         with self._conn() as c:
             cur = c.execute(
                 "INSERT INTO evaluation"
-                "(script_version_id, audio_artifact_id, metric_kind, metric_json, created_at)"
-                " VALUES(?,?,?,?,?)",
-                (script_version_id, audio_artifact_id, metric_kind,
-                 json.dumps(metric), time.time()),
+                "(script_version_id, audio_artifact_id, hostprep_version_id, "
+                " metric_kind, metric_json, created_at)"
+                " VALUES(?,?,?,?,?,?)",
+                (script_version_id, audio_artifact_id, hostprep_version_id,
+                 metric_kind, json.dumps(metric), time.time()),
             )
             assert cur.lastrowid is not None
             return int(cur.lastrowid)
@@ -233,6 +278,14 @@ class Store:
             rows = c.execute(
                 "SELECT * FROM evaluation WHERE audio_artifact_id=? ORDER BY id",
                 (aid,),
+            ).fetchall()
+        return [_row_to_eval(r) for r in rows]
+
+    def list_evaluations_for_hostprep(self, hpv_id: int) -> list[Evaluation]:
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT * FROM evaluation WHERE hostprep_version_id=? ORDER BY id",
+                (hpv_id,),
             ).fetchall()
         return [_row_to_eval(r) for r in rows]
 
@@ -274,11 +327,28 @@ def _row_to_script(row: sqlite3.Row) -> ScriptVersion:
     return ScriptVersion(
         id=int(row["id"]),
         episode_id=int(row["episode_id"]),
+        hostprep_version_id=int(row["hostprep_version_id"])
+            if row["hostprep_version_id"] is not None else None,
         path=row["path"],
         dvc_hash=row["dvc_hash"],
         n_segments=int(row["n_segments"]),
         n_turns=int(row["n_turns"]),
         n_utterances=int(row["n_utterances"]),
+        created_at=float(row["created_at"]),
+    )
+
+
+def _row_to_hostprep(row: sqlite3.Row) -> HostprepVersion:
+    return HostprepVersion(
+        id=int(row["id"]),
+        episode_id=int(row["episode_id"]),
+        interviews_path=row["interviews_path"],
+        interviews_dvc_hash=row["interviews_dvc_hash"],
+        briefs_path=row["briefs_path"],
+        briefs_dvc_hash=row["briefs_dvc_hash"],
+        n_segments=int(row["n_segments"]),
+        n_interviews=int(row["n_interviews"]),
+        n_questions=int(row["n_questions"]),
         created_at=float(row["created_at"]),
     )
 
@@ -315,6 +385,7 @@ def _row_to_eval(row: sqlite3.Row) -> Evaluation:
         id=int(row["id"]),
         script_version_id=int(row["script_version_id"]) if row["script_version_id"] is not None else None,
         audio_artifact_id=int(row["audio_artifact_id"]) if row["audio_artifact_id"] is not None else None,
+        hostprep_version_id=int(row["hostprep_version_id"]) if row["hostprep_version_id"] is not None else None,
         metric_kind=row["metric_kind"],
         metric=json.loads(row["metric_json"]),
         created_at=float(row["created_at"]),

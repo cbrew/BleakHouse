@@ -18,9 +18,24 @@ class Episode:
 
 
 @dataclass(frozen=True)
+class HostprepVersion:
+    id: int
+    episode_id: int
+    interviews_path: str
+    interviews_dvc_hash: str | None
+    briefs_path: str
+    briefs_dvc_hash: str | None
+    n_segments: int
+    n_interviews: int
+    n_questions: int
+    created_at: float
+
+
+@dataclass(frozen=True)
 class ScriptVersion:
     id: int
     episode_id: int
+    hostprep_version_id: int | None
     path: str
     dvc_hash: str | None
     n_segments: int
@@ -69,6 +84,7 @@ class Evaluation:
     id: int
     script_version_id: int | None
     audio_artifact_id: int | None
+    hostprep_version_id: int | None
     metric_kind: str
     metric: dict[str, Any]
     created_at: float

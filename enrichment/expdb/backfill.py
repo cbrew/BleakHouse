@@ -67,9 +67,64 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
         label=label,
     )
 
+    # Idempotent hostprep_version: one per hostprep run dir.
+    hostprep_id: int | None = None
+    eval_ids: list[int] = []
+    if axes.get("hostprep", False):
+        interviews_path = run_dir / "phase2_5_interviews.json"
+        briefs_path = run_dir / "phase2_5_host_briefs.json"
+        if interviews_path.exists() and briefs_path.exists():
+            existing_hp = [
+                h for h in store.list_hostprep_for_episode(episode_id)
+                if h.interviews_path == str(interviews_path)
+            ]
+            if existing_hp:
+                hostprep_id = existing_hp[0].id
+            else:
+                interviews = json.loads(interviews_path.read_text())
+                briefs = json.loads(briefs_path.read_text())
+                # interviews is list-of-segments; each segment is list-of-experts.
+                n_segs_hp = len(briefs) if isinstance(briefs, list) else 0
+                n_interviews = sum(len(seg) for seg in interviews) if isinstance(interviews, list) else 0
+                n_questions = sum(
+                    len(b.get("questions", [])) for b in briefs
+                ) if isinstance(briefs, list) else 0
+                hostprep_id = store.create_hostprep_version(
+                    episode_id=episode_id,
+                    interviews_path=str(interviews_path),
+                    interviews_dvc_hash=None,
+                    briefs_path=str(briefs_path),
+                    briefs_dvc_hash=None,
+                    n_segments=n_segs_hp,
+                    n_interviews=n_interviews,
+                    n_questions=n_questions,
+                )
+            # Reading-list verification → evaluation against hostprep_version.
+            rl_path = run_dir / "phase2_5_reading_list.json"
+            if rl_path.exists():
+                existing_rl = [
+                    e for e in store.list_evaluations_for_hostprep(hostprep_id)
+                    if e.metric_kind == "reading_list_verification"
+                ]
+                if not existing_rl:
+                    try:
+                        rl = json.loads(rl_path.read_text())
+                    except (OSError, json.JSONDecodeError):
+                        rl = None
+                    if isinstance(rl, dict):
+                        eval_ids.append(store.record_evaluation(
+                            hostprep_version_id=hostprep_id,
+                            metric_kind="reading_list_verification",
+                            metric={
+                                "verification_rate": rl.get("verification_rate"),
+                                "total_proposed": rl.get("total_proposed"),
+                                "total_verified": rl.get("total_verified"),
+                            },
+                        ))
+
     # Idempotent script_version: keyed by (episode_id, path).
     n_seg, n_turns, n_utt = _count_script(phase3)
-    script_path = str(phase3_path)  # absolute path; repo-rel can be derived later
+    script_path = str(phase3_path)
     existing = [s for s in store.list_scripts_for_episode(episode_id) if s.path == script_path]
     if existing:
         sid = existing[0].id
@@ -78,6 +133,7 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
             episode_id=episode_id, path=script_path,
             dvc_hash=rm.get("stages", {}).get("phase3", {}).get("hash"),
             n_segments=n_seg, n_turns=n_turns, n_utterances=n_utt,
+            hostprep_version_id=hostprep_id,
         )
 
     # Idempotent generation_run: keyed by (script_version_id, generator, dvc_rev).
@@ -116,8 +172,7 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
         )
         audio_ids.append(aid)
 
-    # Evaluations: quote_verification, if present.
-    eval_ids: list[int] = []
+    # Evaluations: quote_verification against the script, if present.
     qv = rm.get("stages", {}).get("quote_verification")
     if qv and "verified" in qv:
         existing_evals = store.list_evaluations_for_script(sid)
