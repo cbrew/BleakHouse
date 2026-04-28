@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -25,3 +26,15 @@ class ScriptVersion:
     n_turns: int
     n_utterances: int
     created_at: float
+
+
+@dataclass(frozen=True)
+class GenerationRun:
+    id: int
+    script_version_id: int
+    generator: str
+    git_commit: str | None
+    dvc_rev: str | None
+    config: dict[str, Any]
+    started_at: float | None
+    finished_at: float
