@@ -135,3 +135,38 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
         "audio_artifact_ids": audio_ids,
         "evaluation_ids": eval_ids,
     }
+
+
+def scan_runs_dir(store: Store, runs_dir: Path) -> dict[str, Any]:
+    """Walk runs_dir/* and scan each subdir that has the required files."""
+    scanned = 0
+    skipped = 0
+    errors: list[dict[str, str]] = []
+    eps_before = len(store.list_episodes())
+    scripts_before = sum(
+        len(store.list_scripts_for_episode(e.id)) for e in store.list_episodes()
+    )
+
+    for entry in sorted(runs_dir.iterdir()):
+        if not entry.is_dir():
+            continue
+        if not (entry / "run_manifest.json").exists() or not (entry / "phase3_episode.json").exists():
+            skipped += 1
+            continue
+        try:
+            scan_run_dir(store, entry)
+            scanned += 1
+        except Exception as exc:
+            errors.append({"run_dir": str(entry), "error": str(exc)})
+
+    eps_after = len(store.list_episodes())
+    scripts_after = sum(
+        len(store.list_scripts_for_episode(e.id)) for e in store.list_episodes()
+    )
+    return {
+        "scanned": scanned,
+        "skipped": skipped,
+        "episodes_inserted": eps_after - eps_before,
+        "scripts_inserted": scripts_after - scripts_before,
+        "errors": errors,
+    }
