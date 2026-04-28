@@ -13,3 +13,15 @@ class Episode:
     hostprep: bool
     label: str
     created_at: float
+
+
+@dataclass(frozen=True)
+class ScriptVersion:
+    id: int
+    episode_id: int
+    path: str
+    dvc_hash: str | None
+    n_segments: int
+    n_turns: int
+    n_utterances: int
+    created_at: float
