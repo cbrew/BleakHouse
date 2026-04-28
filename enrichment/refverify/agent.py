@@ -29,6 +29,7 @@ from anthropic.types import (
     ToolUseBlock,
 )
 
+from . import cache as _cache
 from .faculty import faculty_search
 from .sources import (
     cinii_search,
@@ -56,6 +57,11 @@ DEFAULT_PROMOTE_THRESHOLD = 5.0  # odds_real_to_confab needed to count as verifi
 
 # ---------- Result type ------------------------------------------------------
 
+# Haiku 4.5 pricing as of 2026-04 ($/MTok). Update when pricing changes.
+HAIKU_INPUT_PER_MTOK = 1.00
+HAIKU_OUTPUT_PER_MTOK = 5.00
+
+
 @dataclass(frozen=True)
 class Assessment:
     """Haiku's final judgement of a citation."""
@@ -65,10 +71,21 @@ class Assessment:
     matched_source: str | None
     tools_used: list[str] = field(default_factory=list)
     raw_response: str | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    haiku_calls: int = 0
+    cache_hits: int = 0
 
     @property
     def verified(self) -> bool:
         return self.odds_real_to_confab >= DEFAULT_PROMOTE_THRESHOLD
+
+    @property
+    def cost_usd(self) -> float:
+        return (
+            self.input_tokens * HAIKU_INPUT_PER_MTOK / 1_000_000
+            + self.output_tokens * HAIKU_OUTPUT_PER_MTOK / 1_000_000
+        )
 
 
 # ---------- Tool schemas (sent to Haiku) -------------------------------------
@@ -307,12 +324,18 @@ def _run_tool(name: str, tool_input: dict[str, Any]) -> dict[str, Any]:
     fn = TOOL_DISPATCH.get(name)
     if fn is None:
         return {"error": f"unknown tool: {name}"}
+    cached = _cache.get(name, tool_input)
+    if cached is not None:
+        return {"candidates": cached, "cached": True}
     try:
         candidates = fn(tool_input)
     except Exception as exc:
         logger.warning("tool %s raised: %s", name, exc)
+        # Don't cache failures — transient errors should retry next call.
         return {"error": str(exc)}
-    return {"candidates": candidates[:5]}
+    top = candidates[:5]
+    _cache.put(name, tool_input, top)
+    return {"candidates": top}
 
 
 _JSON_OBJ_RE = re.compile(
@@ -320,14 +343,26 @@ _JSON_OBJ_RE = re.compile(
 )
 
 
-def _parse_assessment(text: str, tools_used: list[str]) -> Assessment:
+def _parse_assessment(
+    text: str,
+    tools_used: list[str],
+    *,
+    input_tokens: int,
+    output_tokens: int,
+    haiku_calls: int,
+    cache_hits: int,
+) -> Assessment:
+    metrics: dict[str, Any] = dict(
+        tools_used=tools_used, raw_response=text,
+        input_tokens=input_tokens, output_tokens=output_tokens,
+        haiku_calls=haiku_calls, cache_hits=cache_hits,
+    )
     m = _JSON_OBJ_RE.search(text)
     if m is None:
         logger.warning("no JSON assessment found in: %r", text[:200])
         return Assessment(
             odds_real_to_confab=1.0, evidence_summary="parse_failed",
-            primary_url=None, matched_source=None,
-            tools_used=tools_used, raw_response=text,
+            primary_url=None, matched_source=None, **metrics,
         )
     try:
         data = json.loads(m.group(0))
@@ -335,16 +370,14 @@ def _parse_assessment(text: str, tools_used: list[str]) -> Assessment:
         logger.warning("JSON decode failed (%s): %r", exc, m.group(0)[:200])
         return Assessment(
             odds_real_to_confab=1.0, evidence_summary="json_decode_failed",
-            primary_url=None, matched_source=None,
-            tools_used=tools_used, raw_response=text,
+            primary_url=None, matched_source=None, **metrics,
         )
     return Assessment(
         odds_real_to_confab=float(data.get("odds_real_to_confab", 1.0)),
         evidence_summary=str(data.get("evidence_summary") or ""),
         primary_url=data.get("primary_url") or None,
         matched_source=data.get("matched_source") or None,
-        tools_used=tools_used,
-        raw_response=text,
+        **metrics,
     )
 
 
@@ -373,6 +406,16 @@ def assess_citation(
     }]
     tools_used: list[str] = []
     final_text = ""
+    input_tokens = 0
+    output_tokens = 0
+    haiku_calls = 0
+    cache_hits = 0
+
+    def _accumulate(usage: Any) -> None:
+        nonlocal input_tokens, output_tokens, haiku_calls
+        haiku_calls += 1
+        input_tokens += getattr(usage, "input_tokens", 0) or 0
+        output_tokens += getattr(usage, "output_tokens", 0) or 0
 
     for call_idx in range(max_haiku_calls):
         is_last_call = call_idx == max_haiku_calls - 1
@@ -389,6 +432,7 @@ def assess_citation(
                 system=SYSTEM_PROMPT,
                 messages=messages,
             )
+            _accumulate(msg.usage)
             final_text = _extract_text(msg.content)
             break
 
@@ -399,6 +443,7 @@ def assess_citation(
             tools=TOOL_DEFS,
             messages=messages,
         )
+        _accumulate(msg.usage)
         if msg.stop_reason in ("end_turn", "stop_sequence"):
             final_text = _extract_text(msg.content)
             break
@@ -413,6 +458,8 @@ def assess_citation(
             tools_used.append(block.name)
             tool_input = block.input if isinstance(block.input, dict) else {}
             result = _run_tool(block.name, tool_input)
+            if result.get("cached"):
+                cache_hits += 1
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": block.id,
@@ -422,4 +469,10 @@ def assess_citation(
         messages.append({"role": "assistant", "content": msg.content})
         messages.append({"role": "user", "content": tool_results})
 
-    return _parse_assessment(final_text, tools_used)
+    return _parse_assessment(
+        final_text, tools_used,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        haiku_calls=haiku_calls,
+        cache_hits=cache_hits,
+    )
