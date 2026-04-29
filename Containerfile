@@ -28,8 +28,13 @@ COPY poster/screenshots/ poster/screenshots/
 # Copy staged demo data (192 runs from the matrix + interdisciplinary +
 # alt-generator + versioned). Now includes 31 dereferenced MP3s
 # (~3 GB) — stage_demo.sh follows symlinks into the DVC cache so the
-# build context has real files.
+# build context has real files. Also includes experiments.db, the
+# authoritative source for the matrix view.
 COPY demo_data/ data/
+
+# The bundled experiments.db is read-only; skip the dev-mode mtime check
+# in webapp/db.py (which would import enrichment.expdb — not shipped).
+ENV BLEAKHOUSE_DB_READONLY=1
 
 EXPOSE 8080
 

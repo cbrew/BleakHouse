@@ -90,6 +90,16 @@ done
 
 echo "Staged $count runs"
 
+# Bundle experiments.db so the in-container webapp can serve the matrix
+# without scanning the filesystem. The deploy script refreshes it before
+# calling stage_demo.sh; here we just copy the current state.
+if [ -f data/experiments.db ]; then
+    cp data/experiments.db "$DEST/experiments.db"
+    echo "Bundled experiments.db ($(du -h data/experiments.db | cut -f1))"
+else
+    echo "WARN: data/experiments.db not present; webapp will fail to start" >&2
+fi
+
 # Regenerate provenance badges
 echo "Generating provenance data..."
 uv run python scripts/generate_provenance.py > webapp/static/provenance.json
