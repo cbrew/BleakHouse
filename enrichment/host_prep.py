@@ -20,7 +20,9 @@ import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 import anthropic
 
@@ -29,6 +31,13 @@ from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     HostBrief,
     PreInterviewResponse,
 )
+from enrichment.reference_tools import (
+    ALL_TOOLS,
+    CitationRecord,
+    CitationRegistry,
+    dispatch_tool,
+)
+from enrichment.timing import Recorder, time_model
 
 logger = logging.getLogger(__name__)
 
@@ -150,15 +159,24 @@ def run_pre_interview(
 
 _INTERVIEW_TOOLS_ADDENDUM = """
 
-You have search tools available.  Use `search_openalex` to find scholarly works \
-(criticism, historical studies, theoretical texts) relevant to your analysis, and \
-`search_wikipedia` for factual background.  Your core reading list includes:
-{touchstone_works}
+You have three search tools.  Use `search_openalex` for scholarly works \
+(criticism, historical studies, theoretical texts) relevant to your analysis. \
+Use `search_wikipedia` for canonical works, Acts, named events, and well-known \
+people.  When a Wikipedia article looks central, call `read_wikipedia_article` \
+on its tag to access the works listed in that article's bibliography — those \
+items become citable as new tags too.
 
-Verify claims before citing.  Search 2–3 times, no more.  When you propose a \
-reference, give author, title, and year."""
+Search based on what the passages actually contain — the novel and \
+author at hand, the historical period, the specific topics in front of \
+you.  Don't anchor on works from other novels you might have studied.
 
-MAX_TOOL_CALLS = 4
+Each tool result prefixes candidates with stable [ref-N] tags.  In your \
+structured output, populate `proposed_references` with these tags ONLY \
+(e.g. ["ref-3", "ref-7"]).  Do not invent citation text.  If a citation \
+isn't tagged, you can't propose it — search again first.  Search 3–5 times \
+total."""
+
+MAX_TOOL_CALLS = 6
 
 
 def run_pre_interview_with_tools(
@@ -169,17 +187,16 @@ def run_pre_interview_with_tools(
     assignments: list[dict],
     novel_title: str,
     novel_author: str,
-    model: str = "claude-sonnet-4-6",
-) -> PreInterviewResponse:
-    """Run a pre-interview with scholarly search tools (stable API, manual loop)."""
-    from enrichment.reference_tools import (  # pyright: ignore[reportMissingImports]
-        SEARCH_OPENALEX_TOOL,
-        SEARCH_WIKIPEDIA_TOOL,
-        dispatch_tool,
-    )
+    model: str = "claude-haiku-4-5-20251001",
+) -> tuple[PreInterviewResponse, CitationRegistry, Recorder]:
+    """Run a pre-interview with scholarly search tools (stable API, manual loop).
 
-    tools = [SEARCH_OPENALEX_TOOL, SEARCH_WIKIPEDIA_TOOL]
-    touchstone_block = "\n".join(f"- {w}" for w in expert.touchstone_works) if expert.touchstone_works else "(none)"
+    Returns (response, registry, recorder) — the registry holds every
+    CitationRecord referenced by tag in response.proposed_references; the
+    recorder holds per-call timing events tagged with this expert/segment.
+    """
+    registry = CitationRegistry()
+    recorder = Recorder(expert=expert.name, segment=segment_name)
 
     system = _INTERVIEW_SYSTEM.format(
         novel_title=novel_title,
@@ -187,7 +204,7 @@ def run_pre_interview_with_tools(
         expert_name=expert.name,
         expert_description=expert.description,
         other_experts=", ".join(other_expert_names),
-    ) + _INTERVIEW_TOOLS_ADDENDUM.format(touchstone_works=touchstone_block)
+    ) + _INTERVIEW_TOOLS_ADDENDUM
 
     user = _INTERVIEW_USER.format(
         segment_name=segment_name,
@@ -200,12 +217,15 @@ def run_pre_interview_with_tools(
     all_text: list[str] = []
 
     for _iteration in range(MAX_TOOL_CALLS + 1):
-        response = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            system=system,
-            messages=messages,
-            tools=tools,
+        response = time_model(
+            recorder, "interview_loop_turn",
+            lambda: client.messages.create(
+                model=model,
+                max_tokens=4096,
+                system=system,
+                messages=messages,
+                tools=ALL_TOOLS,
+            ),
         )
 
         # Collect any text from this response
@@ -220,9 +240,12 @@ def run_pre_interview_with_tools(
         tool_results = []
         for block in response.content:
             if block.type == "tool_use":
-                result_text = dispatch_tool(block.name, block.input)
+                result_text = dispatch_tool(
+                    block.name, block.input, registry, client, recorder,
+                )
+                arg = block.input.get("query") or block.input.get("ref_tag") or ""
                 logger.info("    Tool %s(%s): %d chars",
-                            block.name, block.input.get("query", "")[:40], len(result_text))
+                            block.name, str(arg)[:40], len(result_text))
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -241,27 +264,44 @@ def run_pre_interview_with_tools(
             f"but produced no text response. Please generate a default response."
         )
 
-    # Parse into structured output with a follow-up call
-    parse_response = client.messages.parse(
-        model=model,
-        max_tokens=2048,
-        system=(
-            "Extract the pre-interview response from this expert's analysis. "
-            "Include any scholarly references they proposed in proposed_references."
+    # Parse into structured output with a follow-up call. Tell the parser
+    # explicitly that proposed_references must be the [ref-N] tags from
+    # the conversation, not free-text strings.
+    available_tags = [r.tag for r in registry.all()]
+    tag_hint = (
+        f"Available tags issued during this interview: {available_tags}. "
+        "proposed_references must be a subset of these tags."
+        if available_tags else
+        "No reference tags were issued; proposed_references must be empty."
+    )
+    parse_response = time_model(
+        recorder, "interview_parse",
+        lambda: client.messages.parse(
+            model=model,
+            max_tokens=2048,
+            system=(
+                "Extract the pre-interview response from this expert's analysis. "
+                "proposed_references must contain ONLY [ref-N] tags from the "
+                "tool conversation — never free-text citations. " + tag_hint
+            ),
+            messages=[{"role": "user", "content": final_text}],
+            output_format=PreInterviewResponse,
         ),
-        messages=[{"role": "user", "content": final_text}],
-        output_format=PreInterviewResponse,
     )
 
     assert parse_response.parsed_output is not None
     result = parse_response.parsed_output
     result.expert_name = expert.name
+    # Discipline: drop any "tags" the parser invented that aren't in the registry.
+    result.proposed_references = [
+        t for t in result.proposed_references if registry.get(t) is not None
+    ]
     logger.info(
         "  Pre-interview (tools) %s × %s: %d points, %d refs, %d tool calls",
         expert.name, segment_name,
         len(result.key_points), len(result.proposed_references), tool_count,
     )
-    return result
+    return result, registry, recorder
 
 
 def run_all_pre_interviews(
@@ -274,19 +314,35 @@ def run_all_pre_interviews(
     model: str = "claude-haiku-4-5-20251001",
     max_workers: int = 6,
     use_reference_tools: bool = False,
-) -> list[list[PreInterviewResponse]]:
+) -> tuple[
+    list[list[PreInterviewResponse]],
+    list[list[CitationRegistry]],
+    list[list[Recorder]],
+]:
     """Run pre-interviews for all expert×segment pairs in parallel.
 
-    Returns a list of lists: interviews[segment_idx] = [response_per_expert]
+    Returns (interviews, registries, recorders):
+      interviews[seg_idx] = [response_per_expert]
+      registries[seg_idx] = [registry_per_expert]    (empty in non-tools mode)
+      recorders[seg_idx]  = [recorder_per_expert]    (empty in non-tools mode)
     """
     all_interviews: list[list[PreInterviewResponse]] = [[] for _ in segments]
+    all_registries: list[list[CitationRegistry]] = [[] for _ in segments]
+    all_recorders: list[list[Recorder]] = [[] for _ in segments]
     expert_names = [p.name for p in personas]
 
-    # Tool-calling interviews use Sonnet (more capable), non-tool use the given model
-    interview_fn = run_pre_interview_with_tools if use_reference_tools else run_pre_interview
-    interview_model = "claude-sonnet-4-6" if use_reference_tools else model
-    # Fewer parallel workers for tool interviews (more API calls per interview)
-    workers = min(max_workers, 3) if use_reference_tools else max_workers
+    # Tools mode runs interviews on Haiku — the work is search-and-summarise,
+    # within Haiku's range, and ~3× cheaper than Sonnet.
+    interview_model = "claude-haiku-4-5-20251001" if use_reference_tools else model
+    workers = max_workers
+
+    def _no_tools_wrapper(*args, **kwargs):
+        return run_pre_interview(*args, **kwargs), CitationRegistry(), Recorder()
+
+    interview_fn = (
+        run_pre_interview_with_tools if use_reference_tools
+        else _no_tools_wrapper
+    )
 
     futures = {}
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -304,10 +360,12 @@ def run_all_pre_interviews(
 
         for fut in as_completed(futures):
             si = futures[fut]
-            result = fut.result()
-            all_interviews[si].append(result)
+            response, registry, recorder = fut.result()
+            all_interviews[si].append(response)
+            all_registries[si].append(registry)
+            all_recorders[si].append(recorder)
 
-    return all_interviews
+    return all_interviews, all_registries, all_recorders
 
 
 # ---------------------------------------------------------------------------
@@ -377,6 +435,7 @@ def plan_questions(
     novel_author: str,
     model: str = "claude-sonnet-4-6",
     verified_references: list[str] | None = None,
+    recorder: Recorder | None = None,
 ) -> HostBrief:
     """Plan questions for one segment based on pre-interviews."""
     system = _QUESTION_PLANNING_SYSTEM.format(
@@ -395,12 +454,15 @@ def plan_questions(
         for ref in verified_references:
             user += f"- {ref}\n"
 
-    response = client.messages.parse(
-        model=model,
-        max_tokens=4096,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-        output_format=HostBrief,
+    response = time_model(
+        recorder, "plan_questions",
+        lambda: client.messages.parse(
+            model=model,
+            max_tokens=4096,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+            output_format=HostBrief,
+        ),
     )
 
     assert response.parsed_output is not None
@@ -411,6 +473,18 @@ def plan_questions(
         segment_name, len(brief.questions), len(brief.cross_engagement_targets),
     )
     return brief
+
+
+def _format_record_for_host(record: CitationRecord) -> str:
+    """Render a CitationRecord as a one-line 'Author, Title (Year)' string
+    for inclusion in the question-planner prompt."""
+    author_str = ", ".join(record.authors[:3]) if record.authors else "—"
+    year = record.year or "?"
+    return f"{author_str}, \"{record.title}\" ({year})"
+
+
+def _segment_name(seg: dict, idx: int) -> str:
+    return seg.get("name", seg.get("template", {}).get("name", f"Segment {idx}"))
 
 
 def run_host_prep(
@@ -433,80 +507,159 @@ def run_host_prep(
     tools_label = " with reference tools" if use_reference_tools else ""
     logger.info("Phase 2.5a: pre-interviews%s (%d experts × %d segments)",
                 tools_label, len(personas), len(segments))
-    interviews = run_all_pre_interviews(
+    interviews, registries, recorders = run_all_pre_interviews(
         client, personas, segments, assignments_by_segment,
         novel_title, novel_author, interview_model,
         use_reference_tools=use_reference_tools,
     )
 
-    # Verify and winnow proposed references if tools were used
-    winnowed_recommendations: list[str] = []
-    refs_by_segment: dict[str, list[str]] = {}
+    # Aggregate per-interview recorders into a single timeline.
+    timing = Recorder()
+    for seg_recorders in recorders:
+        for r in seg_recorders:
+            timing.merge(r)
+
+    # Build a global registry from per-interview registries. Records are
+    # canonicalised by URL: the same OpenAlex/Wikipedia work registered in
+    # different interviews collapses to a single entry under one canonical
+    # tag. proposed_tags_by_segment maps segment_name -> [{expert, tags}],
+    # using the canonical tags.
+    canonical = CitationRegistry()
+    proposed_tags_by_segment: dict[str, list[dict[str, Any]]] = {}
+    refs_text_by_segment: dict[str, list[str]] = {}
+
     if use_reference_tools:
-        from enrichment.reference_tools import (  # pyright: ignore[reportMissingImports]
-            verify_references,
-            winnow_reading_list,
-        )
-
-        all_touchstones = []
-        for p in personas:
-            all_touchstones.extend(p.touchstone_works)
-
-        proposed = []
         for si, seg_interviews in enumerate(interviews):
-            seg_name = segments[si].get("name", segments[si].get("template", {}).get("name", f"Segment {si}"))
-            seg_refs = []
-            for iv in seg_interviews:
-                for ref_text in iv.proposed_references:
-                    proposed.append({
-                        "raw_text": ref_text,
+            seg_name = _segment_name(segments[si], si)
+            seg_proposed: list[dict[str, Any]] = []
+            seg_text_refs: list[str] = []
+            for iv, reg in zip(seg_interviews, registries[si]):
+                expert_tag_set: list[str] = []
+                seen_canonical: set[str] = set()
+                for tag in iv.proposed_references:
+                    rec = reg.get(tag)
+                    if rec is None:
+                        continue
+                    # Re-register into the canonical registry; the URL-based
+                    # dedup picks the canonical tag.
+                    canonical_tag = canonical.register(
+                        title=rec.title,
+                        authors=rec.authors,
+                        year=rec.year,
+                        type=rec.type,
+                        publisher=rec.publisher,
+                        description=rec.description,
+                        cited_by=rec.cited_by,
+                        url=rec.url,
+                        doi=rec.doi,
+                        source=rec.source,
+                        parent_tag=rec.parent_tag,
+                    )
+                    if canonical_tag in seen_canonical:
+                        continue
+                    seen_canonical.add(canonical_tag)
+                    expert_tag_set.append(canonical_tag)
+                    canonical_rec = canonical.get(canonical_tag)
+                    if canonical_rec is not None:
+                        seg_text_refs.append(_format_record_for_host(canonical_rec))
+                if expert_tag_set:
+                    seg_proposed.append({
                         "expert_name": iv.expert_name,
-                        "segment_name": seg_name,
+                        "tags": expert_tag_set,
                     })
-                    seg_refs.append(ref_text)
-            if seg_refs:
-                refs_by_segment[seg_name] = seg_refs
+            if seg_proposed:
+                proposed_tags_by_segment[seg_name] = seg_proposed
+            if seg_text_refs:
+                refs_text_by_segment[seg_name] = seg_text_refs
 
-        if proposed:
-            logger.info("Phase 2.5a+: verifying %d proposed references", len(proposed))
-            reading_list = verify_references(proposed, all_touchstones)
+        # Listener-facing recommendations: every unique entry the experts
+        # actually proposed during their interviews, in registry order.
+        # The experts already curated by choosing to cite — we don't
+        # apply a secondary audience filter on top. The `audience` field
+        # stays on each record as informational metadata for renderers
+        # that want it, but doesn't gate inclusion here.
+        all_proposed_tags = {
+            t for entries in proposed_tags_by_segment.values()
+            for entry in entries for t in entry["tags"]
+        }
+        recommended_tags = [
+            r.tag for r in canonical.all() if r.tag in all_proposed_tags
+        ]
+        # Resolve recommended tags to full CitationRecord dicts (for the
+        # listener-facing reading_list.json) and a parallel list of
+        # one-line strings (for HostBrief.recommended_reading, which is
+        # an internal working doc).
+        recommended_entries: list[dict[str, Any]] = []
+        recommended_text: list[str] = []
+        for t in recommended_tags:
+            rec = canonical.get(t)
+            if rec is None:
+                continue
+            recommended_entries.append(asdict(rec))
+            recommended_text.append(_format_record_for_host(rec))
+
+        if run_dir:
+            entries_payload = canonical.to_dicts()
+            stats: dict[str, Any] = {
+                "total_entries": len(entries_payload),
+                "by_source": {},
+                "total_proposed_tags": len(all_proposed_tags),
+            }
+            for r in canonical.all():
+                by_source = stats["by_source"]
+                by_source[r.source] = by_source.get(r.source, 0) + 1
+            payload = {
+                "schema_version": 2,
+                "novel_title": novel_title,
+                "novel_author": novel_author,
+                "models": {
+                    "interview": "claude-haiku-4-5",
+                    "enrich": "claude-haiku-4-5",
+                },
+                "entries": entries_payload,
+                "proposed_by_segment": proposed_tags_by_segment,
+                # Listener-facing recommendations as structured records.
+                # Each carries full metadata: title, authors, year, type,
+                # publisher, description, cited_by, url, doi, source,
+                # parent_tag, audience.
+                "recommended": recommended_entries,
+                "stats": stats,
+                "total_proposed": len(all_proposed_tags),
+                "total_verified": len(all_proposed_tags),
+                "verification_rate": 1.0,
+            }
+            with open(run_dir / "phase2_5_reading_list.json", "w") as f:
+                json.dump(payload, f, indent=2)
             logger.info(
-                "  Verification: %d/%d (%.0f%%) verified",
-                reading_list.total_verified, reading_list.total_proposed,
-                reading_list.verification_rate * 100,
+                "  Saved reading list: %d entries, %d proposed, %d recommended",
+                len(entries_payload), len(all_proposed_tags), len(recommended_tags),
             )
-
-            # Winnow to listener-friendly recommendations
-            logger.info("Phase 2.5a++: winnowing to listener-friendly recommendations")
-            winnowed = winnow_reading_list(
-                client, reading_list, novel_title, novel_author,
-            )
-            winnowed_recommendations = winnowed.recommended
-
-            if run_dir:
-                with open(run_dir / "phase2_5_reading_list.json", "w") as f:
-                    json.dump({
-                        **reading_list.model_dump(),
-                        "recommended": winnowed.recommended,
-                        "total_before_winnowing": winnowed.total_before_winnowing,
-                    }, f, indent=2)
-                logger.info("  Saved reading list (%d recommended) to %s",
-                            len(winnowed.recommended), run_dir / "phase2_5_reading_list.json")
+    else:
+        recommended_text = []
 
     logger.info("Phase 2.5b: question planning (%d segments)", len(segments))
-    briefs = []
+    briefs: list[HostBrief] = []
     for si, seg in enumerate(segments):
-        seg_name = seg.get("name", seg.get("template", {}).get("name", f"Segment {si}"))
-        seg_refs = refs_by_segment.get(seg_name)
+        seg_name = _segment_name(seg, si)
+        seg_refs = refs_text_by_segment.get(seg_name)
+        plan_recorder = Recorder(segment=seg_name)
         brief = plan_questions(
             client, seg_name, interviews[si],
             novel_title, novel_author, planning_model,
             verified_references=seg_refs,
+            recorder=plan_recorder,
         )
-        # Use winnowed recommendations (listener-friendly, deduplicated)
-        if winnowed_recommendations:
-            brief.recommended_reading = winnowed_recommendations
+        timing.merge(plan_recorder)
+        if recommended_text:
+            brief.recommended_reading = recommended_text
         briefs.append(brief)
+
+    if run_dir is not None:
+        timings_path = run_dir / "phase2_5_timings.json"
+        with open(timings_path, "w") as f:
+            json.dump(timing.to_dict(), f, indent=2)
+        logger.info("  Saved timings (%d events) to %s",
+                    len(timing.events), timings_path)
 
     return briefs, interviews
 

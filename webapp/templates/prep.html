@@ -174,15 +174,21 @@ function renderPrep(data) {
     // Reading list (recommended)
     if (data.reading_list && data.reading_list.recommended && data.reading_list.recommended.length > 0) {
         html += `<div class="reading-list"><h2>Recommended Reading</h2>`;
-        html += `<p style="color:#8888aa;font-size:0.9em;">Curated from ${data.reading_list.total_before_winnowing || data.reading_list.total_verified || '?'} verified references, these are the most relevant for a general listener.</p>`;
+        const totalRefs = data.reading_list.total_proposed || data.reading_list.total_verified || '?';
+        html += `<p style="color:#8888aa;font-size:0.9em;">${data.reading_list.recommended.length} of ${totalRefs} references the experts proposed during pre-interviews — most accessible to a general listener.</p>`;
         for (const rec of data.reading_list.recommended) {
-            if (typeof rec === 'string') {
-                html += `<div class="reading-rec"><span class="title">${esc(rec)}</span></div>`;
-            } else {
-                html += `<div class="reading-rec"><span class="title">${esc(rec.title || rec.raw_text || JSON.stringify(rec))}</span>`;
-                if (rec.reason) html += `<div class="reason">${esc(rec.reason)}</div>`;
-                html += `</div>`;
-            }
+            const authors = (rec.authors && rec.authors.length)
+                ? esc(rec.authors.slice(0, 3).join(', '))
+                : '';
+            const year = rec.year ? ` (${rec.year})` : '';
+            const titleText = esc(rec.title || '?');
+            const titleHTML = rec.url
+                ? `<a href="${esc(rec.url)}" target="_blank" rel="noopener">${titleText}</a>`
+                : titleText;
+            html += `<div class="reading-rec"><span class="title">${titleHTML}${year}</span>`;
+            if (authors) html += `<div class="authors">${authors}</div>`;
+            if (rec.description) html += `<div class="description">${esc(rec.description)}</div>`;
+            html += `</div>`;
         }
         html += `</div>`;
     }
