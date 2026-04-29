@@ -572,15 +572,18 @@ def run_host_prep(
             if seg_text_refs:
                 refs_text_by_segment[seg_name] = seg_text_refs
 
-        # Listener-facing recommendations: the unique general-audience entries
-        # actually proposed by experts, in registry order.
+        # Listener-facing recommendations: every unique entry the experts
+        # actually proposed during their interviews, in registry order.
+        # The experts already curated by choosing to cite — we don't
+        # apply a secondary audience filter on top. The `audience` field
+        # stays on each record as informational metadata for renderers
+        # that want it, but doesn't gate inclusion here.
         all_proposed_tags = {
             t for entries in proposed_tags_by_segment.values()
             for entry in entries for t in entry["tags"]
         }
         recommended_tags = [
-            r.tag for r in canonical.all()
-            if r.tag in all_proposed_tags and r.audience == "general"
+            r.tag for r in canonical.all() if r.tag in all_proposed_tags
         ]
         # Resolve recommended tags to full CitationRecord dicts (for the
         # listener-facing reading_list.json) and a parallel list of
