@@ -591,6 +591,20 @@ Examples:
 
     run_post_phase3(run_dir, args.name)
 
+    # ── Reading-list post-pass: shrink recommended[] to a listener-friendly
+    # subset. Runs AFTER script generation so the script content doesn't
+    # depend on this filter — purely a show-notes refinement.
+    if args.host_prep and args.reference_tools:
+        from enrichment.host_prep import filter_reading_list_recommended
+        from enrichment.novel_prompts import get_active_novel  # pyright: ignore[reportMissingImports]
+
+        post_pass_cfg = get_active_novel(args.novel)
+        filter_reading_list_recommended(
+            anthropic.Anthropic(),
+            run_dir / "phase2_5_reading_list.json",
+            post_pass_cfg.title, post_pass_cfg.author,
+        )
+
 
 if __name__ == "__main__":
     main()
