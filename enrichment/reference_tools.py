@@ -484,16 +484,6 @@ def _slice_wikipedia_for_haiku(
     return intro + "\n\n[…]\n\n" + bib[:bib_chars]
 
 
-def _slice_wikipedia_for_expert(full: str, max_chars: int = 50000) -> str:
-    """Return the full article body for the interviewing expert.
-    Bibliography sections are kept — they're often the most useful part
-    of an article for an expert deciding which works to cite. Cap is
-    generous (~12k tokens) so even long articles like 'William
-    Blackstone' come through whole; only truly enormous articles get
-    truncated."""
-    if len(full) <= max_chars:
-        return full
-    return full[:max_chars] + "\n\n[…article truncated; was longer than 50k chars…]"
 
 
 def _wikipedia_title_from_url(url: str) -> str:
@@ -628,14 +618,13 @@ def execute_read_wikipedia_article(
         )
         new_tags.append(tag)
 
-    # Compose the tool result. The expert (Sonnet) sees the article body
-    # itself — that's the primary value of read_wikipedia_article — plus
-    # the newly-tagged bibliography items as separate citable candidates.
-    body_for_expert = _slice_wikipedia_for_expert(full)
+    # Compose the tool result. The expert (Sonnet) sees the full article
+    # — that's the primary value of read_wikipedia_article — plus the
+    # newly-tagged bibliography items as separate citable candidates.
     lines = [
         f"=== Wikipedia article: {title} ({ref_tag}) ===",
         "",
-        body_for_expert,
+        full,
         "",
     ]
     if new_tags:
