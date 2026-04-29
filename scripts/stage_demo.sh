@@ -12,7 +12,7 @@ mkdir -p "$DEST/runs"
 
 # Generate the list of demo runs (180 tracker grid + 3 interdisciplinary + versioned)
 DEMO_RUNS=$(python3 -c "
-import re
+import re, sqlite3
 from pathlib import Path
 from enrichment.run_full_matrix import build_matrix
 grid = {r['name'] for r in build_matrix()}
@@ -27,6 +27,16 @@ for d in Path('data/runs').iterdir():
         (d / 'phase3_episode.json').exists() or (d / 'phase2_5_reading_list.json').exists()
     ):
         versioned.add(d.name)
+# Every run registered in experiments.db. The webapp resolves matrix
+# coordinates via the DB, so any episode label it surfaces must have
+# its run_dir in demo_data — otherwise the cell goes 'missing' even
+# though the DB shows it as done. This sweeps in retrofits and any
+# future labels the DB knows about.
+db_labels = set()
+db_path = Path('data/experiments.db')
+if db_path.exists():
+    conn = sqlite3.connect(str(db_path))
+    db_labels = {r[0] for r in conn.execute('SELECT label FROM episode')}
 # Legacy panel-script artefacts still referenced by paper/poster. Absent post-migration
 # (archived); the existence check in the loop skips them gracefully.
 panel_scripts = {
@@ -34,7 +44,7 @@ panel_scripts = {
     'hest_trn_v01_baseline_hostprep_refs',
     'hest_trn_v19_all_swapped_hostprep_refs',
 }
-for name in sorted(grid | inter | alt_gen | versioned | panel_scripts):
+for name in sorted(grid | inter | alt_gen | versioned | db_labels | panel_scripts):
     print(name)
 ")
 
