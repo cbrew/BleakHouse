@@ -1346,6 +1346,54 @@ def _build_tracker_matrix_from_db() -> dict:
     }
 
 
+def _build_run_lists_from_db() -> dict:
+    """Build the /api/novels and /api/all-runs response payloads from the
+    DB-enumerated run list. Per-run details (title, experts, audio state)
+    still come from each run_dir's manifest/episode JSON.
+
+    Returns {"novels": ..., "all_runs": ...} matching the shape that the
+    filesystem snapshot used.
+    """
+    from webapp.db_views import all_episode_rows  # pyright: ignore[reportMissingImports]
+
+    runs_dir = DATA_DIR / "runs"
+    novels: dict[str, list[dict]] = {}
+    all_runs: dict[str, list[dict]] = {}
+    for r in all_episode_rows():
+        run_id = r["run_id"]
+        rd = runs_dir / run_id
+        if not rd.exists():
+            continue
+        s = _summarize_run_dir(rd)
+        if not (s["title"] and s["has_audio"]):
+            continue
+        novels.setdefault(s["novel"], []).append({
+            "run_id": s["run_id"],
+            "base_name": s["base_name"],
+            "version": s["version"],
+            "title": s["title"],
+            "novel": s["novel"],
+            "condition": s["condition"],
+            "panel": s["panel"],
+            "hostprep": s["hostprep"],
+            "passage_source": s["passage_source"],
+            "experts": s["experts"],
+            "total_duration_ms": s["total_duration_ms"],
+            "has_audio": s["has_audio"],
+            "has_host_prep": s["has_host_prep"],
+        })
+        all_runs.setdefault(s["novel"], []).append({
+            "run_id": s["run_id"],
+            "title": s["title"],
+            "novel": s["novel"],
+            "condition": s["condition"],
+            "hostprep": s["hostprep"],
+            "audio_state": s["audio_state"],
+            "experts": s["experts"],
+        })
+    return {"novels": novels, "all_runs": all_runs}
+
+
 def _build_versions_data_from_db() -> dict:
     """Build the /tracker/versions response from data/experiments.db.
 
@@ -1636,8 +1684,9 @@ class RunIndexCache:
         self._schedule_lock = asyncio.Lock()
         self._refresh_task: asyncio.Task | None = None
         # Separate caches for the DB-backed surfaces (BleakHouse-17j, q4e).
-        # Filesystem-snapshot still powers /api/novels and /api/all-runs until
-        # BleakHouse-tx0 retires it entirely.
+        # All four tracker/list/prep surfaces are now DB-driven; the legacy
+        # _build_cached_snapshot() filesystem walk stays around only as a
+        # backstop and is retired in BleakHouse-tx0.
         self._matrix: dict | None = None
         self._matrix_last_refresh = 0.0
         self._matrix_lock = asyncio.Lock()
@@ -1646,6 +1695,10 @@ class RunIndexCache:
         self._versions_last_refresh = 0.0
         self._versions_lock = asyncio.Lock()
         self._versions_task: asyncio.Task | None = None
+        self._run_lists: dict | None = None
+        self._run_lists_last_refresh = 0.0
+        self._run_lists_lock = asyncio.Lock()
+        self._run_lists_task: asyncio.Task | None = None
 
     def _is_stale(self) -> bool:
         return (time.monotonic() - self._last_refresh) >= self.ttl_seconds
@@ -1704,6 +1757,25 @@ class RunIndexCache:
                 self._versions_task = asyncio.create_task(self._run_versions_refresh())
             return self._versions_task
 
+    def _run_lists_is_stale(self) -> bool:
+        return (time.monotonic() - self._run_lists_last_refresh) >= self.ttl_seconds
+
+    async def _run_run_lists_refresh(self) -> None:
+        try:
+            data = await asyncio.to_thread(_build_run_lists_from_db)
+            self._run_lists = data
+            self._run_lists_last_refresh = time.monotonic()
+        except Exception:
+            logger.exception("Run-lists refresh failed")
+        finally:
+            self._run_lists_task = None
+
+    async def _ensure_run_lists_refresh_started(self) -> asyncio.Task:
+        async with self._run_lists_lock:
+            if self._run_lists_task is None or self._run_lists_task.done():
+                self._run_lists_task = asyncio.create_task(self._run_run_lists_refresh())
+            return self._run_lists_task
+
     async def get_snapshot(self) -> dict:
         if self._snapshot is None:
             task = await self._ensure_refresh_started()
@@ -1729,15 +1801,23 @@ class RunIndexCache:
         }
 
     async def prime(self) -> None:
-        await self._ensure_refresh_started()
         await self._ensure_matrix_refresh_started()
         await self._ensure_versions_refresh_started()
+        await self._ensure_run_lists_refresh_started()
+
+    async def _get_run_lists(self) -> dict:
+        if self._run_lists is None:
+            task = await self._ensure_run_lists_refresh_started()
+            await task
+        elif self._run_lists_is_stale():
+            await self._ensure_run_lists_refresh_started()
+        return self._run_lists or {"novels": {}, "all_runs": {}}
 
     async def get_novels(self) -> dict[str, list[dict]]:
-        return (await self.get_snapshot())["novels"]
+        return (await self._get_run_lists())["novels"]
 
     async def get_all_runs(self) -> dict[str, list[dict]]:
-        return (await self.get_snapshot())["all_runs"]
+        return (await self._get_run_lists())["all_runs"]
 
     async def get_matrix(self) -> dict:
         if self._matrix is None:
