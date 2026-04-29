@@ -1035,6 +1035,9 @@ def _summarize_run_dir(run_dir: Path) -> dict:
 
     if reading_list_path.exists():
         rl = _load_json(reading_list_path) or {}
+        # `recommended` is a list of structured CitationRecord dicts in the
+        # new schema, or a list of strings in pre-correct-by-construction
+        # files. The webapp's matrix card renderer accepts either.
         summary["reading"] = {
             "verified": rl.get("total_verified", 0),
             "total": rl.get("total_proposed", 0),
@@ -2211,8 +2214,22 @@ function renderCard(r) {
         reading = '<div class="card-reading"><h4>Recommended (' +
             r.reading.verified + '/' + r.reading.total +
             ' verified, ' + Math.round(r.reading.rate * 100) + '%)</h4><ul>';
-        for (const ref of r.reading.recommended)
-            reading += '<li>' + escapeHTML(ref) + '</li>';
+        for (const ref of r.reading.recommended) {
+            // Each ref is either a structured record (new schema) or a
+            // formatted string (legacy schema before correct-by-construction).
+            if (typeof ref === 'object' && ref !== null) {
+                const authors = (ref.authors && ref.authors.length)
+                    ? escapeHTML(ref.authors.slice(0, 3).join(', '))
+                    : '—';
+                const year = ref.year ? ' (' + ref.year + ')' : '';
+                const title = ref.url
+                    ? '<a href="' + escapeHTML(ref.url) + '" target="_blank" rel="noopener">' + escapeHTML(ref.title) + '</a>'
+                    : escapeHTML(ref.title);
+                reading += '<li>' + authors + '. ' + title + year + '</li>';
+            } else {
+                reading += '<li>' + escapeHTML(ref) + '</li>';
+            }
+        }
         reading += '</ul></div>';
     } else if (r.reading && r.reading.verified > 0) {
         reading = '<div class="card-reading"><h4>' +
