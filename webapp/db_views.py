@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from webapp.db import db_conn
+from webapp.db import db_conn  # pyright: ignore[reportMissingImports]
 
 
 # Window-function CTEs pick the freshest row in each partition. SQLite
@@ -150,3 +150,114 @@ def all_episode_run_ids() -> list[str]:
             "SELECT label FROM episode ORDER BY created_at DESC, id DESC"
         ).fetchall()
     return [r["label"] for r in rows]
+
+
+# Same join shape as _MATRIX_ROWS_SQL but without the per-coordinate dedup
+# filter on episode. Returns one row per *distinct* episode, joined to its
+# freshest script/hostprep/audio. Powers /tracker/versions and the run-list
+# endpoints (one row per run, regardless of whether a fresher run shares the
+# same axes).
+_ALL_EPISODES_SQL = """
+WITH ranked_script AS (
+    SELECT *,
+        ROW_NUMBER() OVER (
+            PARTITION BY episode_id
+            ORDER BY created_at DESC, id DESC
+        ) AS rn
+    FROM script_version
+),
+ranked_hostprep AS (
+    SELECT *,
+        ROW_NUMBER() OVER (
+            PARTITION BY episode_id
+            ORDER BY created_at DESC, id DESC
+        ) AS rn
+    FROM hostprep_version
+),
+ranked_audio AS (
+    SELECT a.id, a.script_version_id, a.tts_config_id, a.name,
+           a.path, a.dvc_hash, a.duration_s, a.audio_manifest_path,
+           a.created_at, s.episode_id,
+        ROW_NUMBER() OVER (
+            PARTITION BY s.episode_id
+            ORDER BY a.created_at DESC, a.id DESC
+        ) AS rn
+    FROM audio_artifact a
+    JOIN script_version s ON a.script_version_id = s.id
+)
+SELECT
+    e.id            AS episode_id,
+    e.novel         AS novel,
+    e.panel         AS panel,
+    e.pipeline      AS pipeline,
+    e.hostprep      AS hostprep,
+    e.generator     AS generator,
+    e.ref_tools     AS ref_tools,
+    e.label         AS run_id,
+    e.created_at    AS episode_created_at,
+
+    sc.id           AS script_version_id,
+    sc.path         AS script_path,
+    sc.n_segments   AS script_n_segments,
+    sc.n_turns      AS script_n_turns,
+    sc.n_utterances AS script_n_utterances,
+    sc.created_at   AS script_created_at,
+
+    hp.id           AS hostprep_version_id,
+    hp.briefs_path  AS briefs_path,
+    hp.interviews_path AS interviews_path,
+    hp.n_segments   AS hostprep_n_segments,
+    hp.n_interviews AS hostprep_n_interviews,
+    hp.n_questions  AS hostprep_n_questions,
+    hp.created_at   AS hostprep_created_at,
+
+    au.id           AS audio_artifact_id,
+    au.name         AS audio_name,
+    au.path         AS audio_path,
+    au.duration_s   AS audio_duration_s,
+    au.audio_manifest_path AS audio_manifest_path,
+    au.created_at   AS audio_created_at,
+
+    CASE WHEN sc.id IS NOT NULL THEN 1 ELSE 0 END AS has_episode,
+    CASE WHEN hp.id IS NOT NULL THEN 1 ELSE 0 END AS has_host_prep,
+    CASE WHEN au.id IS NOT NULL THEN 1 ELSE 0 END AS has_audio
+FROM episode e
+LEFT JOIN ranked_script   sc ON sc.episode_id = e.id AND sc.rn = 1
+LEFT JOIN ranked_hostprep hp ON hp.episode_id = e.id AND hp.rn = 1
+LEFT JOIN ranked_audio    au ON au.episode_id = e.id AND au.rn = 1
+ORDER BY e.created_at DESC, e.id DESC
+"""
+
+
+def all_episode_rows() -> list[dict[str, Any]]:
+    """One row per distinct episode (no per-coordinate dedup), joined to its
+    freshest script/hostprep/audio. Use for run-list and version-grouping
+    surfaces; use matrix_rows() for the per-coord matrix view."""
+    with db_conn() as conn:
+        rows = [dict(r) for r in conn.execute(_ALL_EPISODES_SQL).fetchall()]
+    for r in rows:
+        r["status"] = _row_status(r)
+    return rows
+
+
+def hostprep_for_run(run_id: str) -> dict[str, Any] | None:
+    """Return the latest hostprep_version paths for an episode, looked up by
+    label. Used by /api/runs/<id>/prep so retrofit episodes serve their
+    refreshed interviews/briefs (which may live in a different dir than the
+    original episode label).
+
+    Returns None if the episode has no hostprep_version. Returned dict has
+    keys: interviews_path, briefs_path, n_segments, n_interviews, n_questions.
+    """
+    sql = """
+        SELECT hp.interviews_path, hp.briefs_path, hp.n_segments,
+               hp.n_interviews, hp.n_questions
+        FROM episode e
+        JOIN hostprep_version hp ON hp.episode_id = e.id
+        WHERE e.label = ?
+        ORDER BY hp.created_at DESC, hp.id DESC
+        LIMIT 1
+    """
+    with db_conn() as conn:
+        row = conn.execute(sql, (run_id,)).fetchone()
+    return dict(row) if row is not None else None
