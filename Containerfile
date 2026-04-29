@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends rsync \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir fastapi uvicorn[standard] pyyaml dvc
+    && pip install --no-cache-dir fastapi uvicorn[standard] jinja2 pyyaml dvc
 
 # Copy webapp code
 COPY webapp/ webapp/
