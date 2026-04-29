@@ -670,14 +670,32 @@ async def get_episode(run_id: str):
 
 @app.get("/api/runs/{run_id}/prep")
 async def get_prep(run_id: str):
-    """Serve combined host-preparation data: interviews, briefs, reading list."""
+    """Serve combined host-preparation data: interviews, briefs, reading list.
+
+    The DB resolves the canonical hostprep_version paths for this episode
+    label. For retrofit episodes (which keep the original label but write
+    refreshed artefacts to a new dir), this serves the latest interviews
+    and briefs even though the run_id-named dir holds older versions.
+
+    The reading-list and config still come from the run-id-named dir on
+    disk; they're not yet promoted to first-class DB rows.
+    """
+    from webapp.db_views import hostprep_for_run  # pyright: ignore[reportMissingImports]
+
     if ".." in run_id:
         raise HTTPException(400, "Invalid path")
     run_dir = DATA_DIR / "runs" / run_id
-    interviews_path = run_dir / "phase2_5_interviews.json"
-    briefs_path = run_dir / "phase2_5_host_briefs.json"
+
+    db_paths = hostprep_for_run(run_id)
+    if db_paths is not None:
+        interviews_path = Path(db_paths["interviews_path"])
+        briefs_path = Path(db_paths["briefs_path"])
+    else:
+        interviews_path = run_dir / "phase2_5_interviews.json"
+        briefs_path = run_dir / "phase2_5_host_briefs.json"
     reading_path = run_dir / "phase2_5_reading_list.json"
     config_path = run_dir / "config.json"
+
     if not interviews_path.exists():
         raise HTTPException(404, f"No host-prep data for run {run_id}")
     result: dict = {"run_id": run_id}
@@ -1328,6 +1346,58 @@ def _build_tracker_matrix_from_db() -> dict:
     }
 
 
+def _build_versions_data_from_db() -> dict:
+    """Build the /tracker/versions response from data/experiments.db.
+
+    Returns versioned runs (label matches _v1_\\d+$) grouped by version.
+    Per-run details come from each run_dir's JSON via _summarize_run_dir;
+    the DB just enumerates which episodes exist.
+    """
+    from webapp.db_views import all_episode_rows  # pyright: ignore[reportMissingImports]
+
+    runs_dir = DATA_DIR / "runs"
+    versions_map: dict[str, list[dict]] = {}
+    for r in all_episode_rows():
+        run_id = r["run_id"]
+        _base, version = _parse_version(run_id)
+        if version == "v1.0":
+            continue
+        rd = runs_dir / run_id
+        if not rd.exists():
+            continue
+        s = _summarize_run_dir(rd)
+        versions_map.setdefault(version, []).append({
+            "run_id": run_id,
+            "base_name": s["base_name"],
+            "version": version,
+            "novel": s["novel"],
+            "condition": s["condition"],
+            "panel": s["panel"],
+            "hostprep": s["hostprep"],
+            "has_episode": s["has_episode"],
+            "has_report": s["has_report"],
+            "has_reading_list": s["has_reading_list"],
+            "has_audio": s["has_audio"],
+            "metrics": s.get("metrics", {}),
+            "reading": s.get("reading", {}),
+        })
+    versions = dict(
+        sorted(
+            ((v, len(rs)) for v, rs in versions_map.items()),
+            key=lambda item: _version_sort_key(item[0]),
+        )
+    )
+    version_runs = [
+        run
+        for _v, rs in sorted(
+            versions_map.items(),
+            key=lambda item: _version_sort_key(item[0]),
+        )
+        for run in rs
+    ]
+    return {"versions": versions, "runs": version_runs}
+
+
 def _build_cached_snapshot() -> dict:
     runs_dir = DATA_DIR / "runs"
     novels: dict[str, list[dict]] = {}
@@ -1565,13 +1635,17 @@ class RunIndexCache:
         self._last_refresh = 0.0
         self._schedule_lock = asyncio.Lock()
         self._refresh_task: asyncio.Task | None = None
-        # Separate cache for the DB-backed tracker matrix (BleakHouse-17j).
-        # Filesystem-snapshot still powers /api/runs, /api/novels, and
-        # /tracker/versions until BleakHouse-q4e migrates them.
+        # Separate caches for the DB-backed surfaces (BleakHouse-17j, q4e).
+        # Filesystem-snapshot still powers /api/novels and /api/all-runs until
+        # BleakHouse-tx0 retires it entirely.
         self._matrix: dict | None = None
         self._matrix_last_refresh = 0.0
         self._matrix_lock = asyncio.Lock()
         self._matrix_task: asyncio.Task | None = None
+        self._versions: dict | None = None
+        self._versions_last_refresh = 0.0
+        self._versions_lock = asyncio.Lock()
+        self._versions_task: asyncio.Task | None = None
 
     def _is_stale(self) -> bool:
         return (time.monotonic() - self._last_refresh) >= self.ttl_seconds
@@ -1611,6 +1685,25 @@ class RunIndexCache:
                 self._matrix_task = asyncio.create_task(self._run_matrix_refresh())
             return self._matrix_task
 
+    def _versions_is_stale(self) -> bool:
+        return (time.monotonic() - self._versions_last_refresh) >= self.ttl_seconds
+
+    async def _run_versions_refresh(self) -> None:
+        try:
+            data = await asyncio.to_thread(_build_versions_data_from_db)
+            self._versions = data
+            self._versions_last_refresh = time.monotonic()
+        except Exception:
+            logger.exception("Versions refresh failed")
+        finally:
+            self._versions_task = None
+
+    async def _ensure_versions_refresh_started(self) -> asyncio.Task:
+        async with self._versions_lock:
+            if self._versions_task is None or self._versions_task.done():
+                self._versions_task = asyncio.create_task(self._run_versions_refresh())
+            return self._versions_task
+
     async def get_snapshot(self) -> dict:
         if self._snapshot is None:
             task = await self._ensure_refresh_started()
@@ -1638,6 +1731,7 @@ class RunIndexCache:
     async def prime(self) -> None:
         await self._ensure_refresh_started()
         await self._ensure_matrix_refresh_started()
+        await self._ensure_versions_refresh_started()
 
     async def get_novels(self) -> dict[str, list[dict]]:
         return (await self.get_snapshot())["novels"]
@@ -1662,7 +1756,12 @@ class RunIndexCache:
         }
 
     async def get_versions(self) -> dict:
-        return (await self.get_snapshot())["versions"]
+        if self._versions is None:
+            task = await self._ensure_versions_refresh_started()
+            await task
+        elif self._versions_is_stale():
+            await self._ensure_versions_refresh_started()
+        return self._versions or {"versions": {}, "runs": []}
 
 
 RUN_INDEX = RunIndexCache(ttl_seconds=30.0)
