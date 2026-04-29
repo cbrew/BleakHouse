@@ -187,7 +187,7 @@ def run_pre_interview_with_tools(
     assignments: list[dict],
     novel_title: str,
     novel_author: str,
-    model: str = "claude-sonnet-4-6",
+    model: str = "claude-haiku-4-5-20251001",
 ) -> tuple[PreInterviewResponse, CitationRegistry, Recorder]:
     """Run a pre-interview with scholarly search tools (stable API, manual loop).
 
@@ -331,8 +331,10 @@ def run_all_pre_interviews(
     all_recorders: list[list[Recorder]] = [[] for _ in segments]
     expert_names = [p.name for p in personas]
 
-    interview_model = "claude-sonnet-4-6" if use_reference_tools else model
-    workers = min(max_workers, 3) if use_reference_tools else max_workers
+    # Tools mode runs interviews on Haiku — the work is search-and-summarise,
+    # within Haiku's range, and ~3× cheaper than Sonnet.
+    interview_model = "claude-haiku-4-5-20251001" if use_reference_tools else model
+    workers = max_workers
 
     def _no_tools_wrapper(*args, **kwargs):
         return run_pre_interview(*args, **kwargs), CitationRegistry(), Recorder()
@@ -608,7 +610,7 @@ def run_host_prep(
                 "novel_title": novel_title,
                 "novel_author": novel_author,
                 "models": {
-                    "interview": "claude-sonnet-4-6",
+                    "interview": "claude-haiku-4-5",
                     "enrich": "claude-haiku-4-5",
                 },
                 "entries": entries_payload,
