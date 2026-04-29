@@ -454,23 +454,46 @@ _BIB_SECTION_RE = re.compile(
 _SECTION_HEADER_RE = re.compile(r"^==\s*[^=]+\s*==\s*$", re.MULTILINE)
 
 
+def _split_article_body_and_bib(full: str) -> tuple[str, str]:
+    """Return (body, bibliography) — body is everything BEFORE the first
+    bibliography-style section header, bibliography is the concatenation of
+    every such section. Either may be empty if not found."""
+    matches = list(_BIB_SECTION_RE.finditer(full))
+    if not matches:
+        return full, ""
+    body = full[:matches[0].start()]
+    bib_sections: list[str] = []
+    for m in matches:
+        next_hdr = _SECTION_HEADER_RE.search(full, m.end())
+        end = next_hdr.start() if next_hdr else len(full)
+        bib_sections.append(full[m.start():end])
+    return body, "\n\n".join(bib_sections)
+
+
 def _slice_wikipedia_for_haiku(
     full: str, intro_chars: int = 4000, bib_chars: int = 8000
 ) -> str:
-    """Return intro + bibliography sections, capped, for compact prompts."""
+    """Return intro + bibliography sections, capped, for compact Haiku
+    enrichment prompts (used to extract structured bibliography items)."""
     if len(full) <= intro_chars + bib_chars:
         return full
-    intro = full[:intro_chars]
-    bib_sections: list[str] = []
-    for m in _BIB_SECTION_RE.finditer(full):
-        start = m.start()
-        next_hdr = _SECTION_HEADER_RE.search(full, m.end())
-        end = next_hdr.start() if next_hdr else len(full)
-        bib_sections.append(full[start:end])
-    bib = "\n\n".join(bib_sections)[:bib_chars]
+    body, bib = _split_article_body_and_bib(full)
+    intro = body[:intro_chars]
     if not bib:
         return intro
-    return intro + "\n\n[…]\n\n" + bib
+    return intro + "\n\n[…]\n\n" + bib[:bib_chars]
+
+
+def _slice_wikipedia_for_expert(full: str, max_chars: int = 50000) -> str:
+    """Return the full article body for the interviewing expert.
+    Bibliography sections are kept — they're often the most useful part
+    of an article for an expert deciding which works to cite. Cap is
+    generous (~12k tokens) so even long articles like 'William
+    Blackstone' come through whole; only truly enormous articles get
+    truncated."""
+    if len(full) <= max_chars:
+        return full
+    return full[:max_chars] + "\n\n[…article truncated; was longer than 50k chars…]"
 
 
 def _wikipedia_title_from_url(url: str) -> str:
@@ -581,11 +604,6 @@ def execute_read_wikipedia_article(
         if getattr(b, "type", None) == "text"
     )
     items = _parse_enrich(text)
-    if not items:
-        return (
-            f"Article body fetched for {title!r}; no further-reading items "
-            "found in its bibliography sections."
-        )
 
     new_tags: list[str] = []
     for it in items:
@@ -594,12 +612,9 @@ def execute_read_wikipedia_article(
         synth_url = (
             f"wiki-fr:{record.url}#{it['title'].lower().replace(' ', '_')}"
         )
-        # Compose a description that names the source article.
         desc = f"Listed in the bibliography of the Wikipedia article on {title}."
         if it.get("publisher"):
             desc += f" Publisher: {it['publisher']}."
-        # type='book' is a guess; further-reading items in Wikipedia tend to
-        # be books, but it's not enforced. Keep the audience-flag conservative.
         tag = registry.register(
             title=it["title"],
             authors=[it["author"]] if it.get("author") else [],
@@ -613,11 +628,24 @@ def execute_read_wikipedia_article(
         )
         new_tags.append(tag)
 
-    lines = [f"Bibliography mined from {title!r}:"]
-    for tag, it in zip(new_tags, items):
-        author = it.get("author") or "—"
-        year = it.get("year") or "—"
-        lines.append(f"  [{tag}] {author}. {it['title']} ({year}).")
+    # Compose the tool result. The expert (Sonnet) sees the article body
+    # itself — that's the primary value of read_wikipedia_article — plus
+    # the newly-tagged bibliography items as separate citable candidates.
+    body_for_expert = _slice_wikipedia_for_expert(full)
+    lines = [
+        f"=== Wikipedia article: {title} ({ref_tag}) ===",
+        "",
+        body_for_expert,
+        "",
+    ]
+    if new_tags:
+        lines.append(f"=== Further-reading items mined from {title!r}'s bibliography ===")
+        for tag, it in zip(new_tags, items):
+            author = it.get("author") or "—"
+            year = it.get("year") or "—"
+            lines.append(f"  [{tag}] {author}. {it['title']} ({year}).")
+    else:
+        lines.append("(No structured bibliography items found in this article.)")
     return "\n".join(lines)
 
 
