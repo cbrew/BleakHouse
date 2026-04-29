@@ -146,61 +146,6 @@ def _load_json(path: Path) -> dict | list | None:
         return None
 
 
-def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]:
-    """Find runs grouped by novel title.
-
-    Discovers runs with audio (audio/manifest.json) by default.
-    If include_scriptonly=True, also includes runs with only a
-    manifest.json (no audio) — these get has_audio=False.
-    """
-    novels: dict[str, list[dict]] = {}
-    runs_dir = DATA_DIR / "runs"
-    if not runs_dir.exists():
-        return novels
-    for run_dir in sorted(runs_dir.iterdir()):
-        audio_manifest = run_dir / "audio" / "manifest.json"
-        run_manifest = run_dir / "manifest.json"
-
-        # Same audio-presence rule as _available_versions / has_audio.
-        has_audio = bool(_available_versions(run_dir.name))
-        if not has_audio and not include_scriptonly:
-            continue
-
-        # Prefer the per-render manifest under audio/, fall back to the
-        # run-level one (older Gemini renders' metadata lives there).
-        manifest_path = audio_manifest if audio_manifest.exists() else run_manifest
-        if not manifest_path.exists():
-            continue
-
-        with open(manifest_path) as f:
-            mf = json.load(f)
-        title = mf.get("title", run_dir.name)
-        novel = title.replace(": A Literary Discussion", "")
-
-        name = run_dir.name
-        base_name, version = _parse_version(name)
-        condition, panel, hostprep, generator = _classify_run(run_dir)
-
-        run_info = {
-            "run_id": name,
-            "base_name": base_name,
-            "version": version,
-            "title": title,
-            "novel": novel,
-            "condition": condition,
-            "panel": panel,
-            "hostprep": hostprep,
-            "generator": generator,
-            "passage_source": mf.get("passage_source", "unknown"),
-            "experts": mf.get("experts", []),
-            "total_duration_ms": mf.get("total_duration_ms", 0),
-            "has_audio": has_audio,
-            "has_host_prep": (run_dir / "phase2_5_host_briefs.json").exists(),
-        }
-        novels.setdefault(novel, []).append(run_info)
-    return novels
-
-
 PAGES_DIR = Path(__file__).resolve().parent / "pages"
 
 
