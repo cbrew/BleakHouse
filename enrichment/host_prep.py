@@ -37,6 +37,7 @@ from enrichment.reference_tools import (
     CitationRegistry,
     dispatch_tool,
 )
+from enrichment.timing import Recorder, time_model
 
 logger = logging.getLogger(__name__)
 
@@ -186,13 +187,15 @@ def run_pre_interview_with_tools(
     novel_title: str,
     novel_author: str,
     model: str = "claude-sonnet-4-6",
-) -> tuple[PreInterviewResponse, CitationRegistry]:
+) -> tuple[PreInterviewResponse, CitationRegistry, Recorder]:
     """Run a pre-interview with scholarly search tools (stable API, manual loop).
 
-    Returns (response, registry) — the registry holds every CitationRecord
-    referenced by tag in response.proposed_references, with full metadata.
+    Returns (response, registry, recorder) — the registry holds every
+    CitationRecord referenced by tag in response.proposed_references; the
+    recorder holds per-call timing events tagged with this expert/segment.
     """
     registry = CitationRegistry()
+    recorder = Recorder(expert=expert.name, segment=segment_name)
     touchstone_block = "\n".join(f"- {w}" for w in expert.touchstone_works) if expert.touchstone_works else "(none)"
 
     system = _INTERVIEW_SYSTEM.format(
@@ -214,12 +217,15 @@ def run_pre_interview_with_tools(
     all_text: list[str] = []
 
     for _iteration in range(MAX_TOOL_CALLS + 1):
-        response = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            system=system,
-            messages=messages,
-            tools=ALL_TOOLS,
+        response = time_model(
+            recorder, "interview_loop_turn",
+            lambda: client.messages.create(
+                model=model,
+                max_tokens=4096,
+                system=system,
+                messages=messages,
+                tools=ALL_TOOLS,
+            ),
         )
 
         # Collect any text from this response
@@ -235,7 +241,7 @@ def run_pre_interview_with_tools(
         for block in response.content:
             if block.type == "tool_use":
                 result_text = dispatch_tool(
-                    block.name, block.input, registry, client,
+                    block.name, block.input, registry, client, recorder,
                 )
                 arg = block.input.get("query") or block.input.get("ref_tag") or ""
                 logger.info("    Tool %s(%s): %d chars",
@@ -268,16 +274,19 @@ def run_pre_interview_with_tools(
         if available_tags else
         "No reference tags were issued; proposed_references must be empty."
     )
-    parse_response = client.messages.parse(
-        model=model,
-        max_tokens=2048,
-        system=(
-            "Extract the pre-interview response from this expert's analysis. "
-            "proposed_references must contain ONLY [ref-N] tags from the "
-            "tool conversation — never free-text citations. " + tag_hint
+    parse_response = time_model(
+        recorder, "interview_parse",
+        lambda: client.messages.parse(
+            model=model,
+            max_tokens=2048,
+            system=(
+                "Extract the pre-interview response from this expert's analysis. "
+                "proposed_references must contain ONLY [ref-N] tags from the "
+                "tool conversation — never free-text citations. " + tag_hint
+            ),
+            messages=[{"role": "user", "content": final_text}],
+            output_format=PreInterviewResponse,
         ),
-        messages=[{"role": "user", "content": final_text}],
-        output_format=PreInterviewResponse,
     )
 
     assert parse_response.parsed_output is not None
@@ -292,7 +301,7 @@ def run_pre_interview_with_tools(
         expert.name, segment_name,
         len(result.key_points), len(result.proposed_references), tool_count,
     )
-    return result, registry
+    return result, registry, recorder
 
 
 def run_all_pre_interviews(
@@ -305,25 +314,28 @@ def run_all_pre_interviews(
     model: str = "claude-haiku-4-5-20251001",
     max_workers: int = 6,
     use_reference_tools: bool = False,
-) -> tuple[list[list[PreInterviewResponse]], list[list[CitationRegistry]]]:
+) -> tuple[
+    list[list[PreInterviewResponse]],
+    list[list[CitationRegistry]],
+    list[list[Recorder]],
+]:
     """Run pre-interviews for all expert×segment pairs in parallel.
 
-    Returns (interviews, registries):
+    Returns (interviews, registries, recorders):
       interviews[seg_idx] = [response_per_expert]
-      registries[seg_idx] = [registry_per_expert]    (only populated in
-                                                     tools mode; empty
-                                                     CitationRegistry
-                                                     placeholders otherwise)
+      registries[seg_idx] = [registry_per_expert]    (empty in non-tools mode)
+      recorders[seg_idx]  = [recorder_per_expert]    (empty in non-tools mode)
     """
     all_interviews: list[list[PreInterviewResponse]] = [[] for _ in segments]
     all_registries: list[list[CitationRegistry]] = [[] for _ in segments]
+    all_recorders: list[list[Recorder]] = [[] for _ in segments]
     expert_names = [p.name for p in personas]
 
     interview_model = "claude-sonnet-4-6" if use_reference_tools else model
     workers = min(max_workers, 3) if use_reference_tools else max_workers
 
     def _no_tools_wrapper(*args, **kwargs):
-        return run_pre_interview(*args, **kwargs), CitationRegistry()
+        return run_pre_interview(*args, **kwargs), CitationRegistry(), Recorder()
 
     interview_fn = (
         run_pre_interview_with_tools if use_reference_tools
@@ -346,11 +358,12 @@ def run_all_pre_interviews(
 
         for fut in as_completed(futures):
             si = futures[fut]
-            response, registry = fut.result()
+            response, registry, recorder = fut.result()
             all_interviews[si].append(response)
             all_registries[si].append(registry)
+            all_recorders[si].append(recorder)
 
-    return all_interviews, all_registries
+    return all_interviews, all_registries, all_recorders
 
 
 # ---------------------------------------------------------------------------
@@ -420,6 +433,7 @@ def plan_questions(
     novel_author: str,
     model: str = "claude-sonnet-4-6",
     verified_references: list[str] | None = None,
+    recorder: Recorder | None = None,
 ) -> HostBrief:
     """Plan questions for one segment based on pre-interviews."""
     system = _QUESTION_PLANNING_SYSTEM.format(
@@ -438,12 +452,15 @@ def plan_questions(
         for ref in verified_references:
             user += f"- {ref}\n"
 
-    response = client.messages.parse(
-        model=model,
-        max_tokens=4096,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-        output_format=HostBrief,
+    response = time_model(
+        recorder, "plan_questions",
+        lambda: client.messages.parse(
+            model=model,
+            max_tokens=4096,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+            output_format=HostBrief,
+        ),
     )
 
     assert response.parsed_output is not None
@@ -488,11 +505,17 @@ def run_host_prep(
     tools_label = " with reference tools" if use_reference_tools else ""
     logger.info("Phase 2.5a: pre-interviews%s (%d experts × %d segments)",
                 tools_label, len(personas), len(segments))
-    interviews, registries = run_all_pre_interviews(
+    interviews, registries, recorders = run_all_pre_interviews(
         client, personas, segments, assignments_by_segment,
         novel_title, novel_author, interview_model,
         use_reference_tools=use_reference_tools,
     )
+
+    # Aggregate per-interview recorders into a single timeline.
+    timing = Recorder()
+    for seg_recorders in recorders:
+        for r in seg_recorders:
+            timing.merge(r)
 
     # Build a global registry from per-interview registries. Records are
     # canonicalised by URL: the same OpenAlex/Wikipedia work registered in
@@ -614,14 +637,24 @@ def run_host_prep(
     for si, seg in enumerate(segments):
         seg_name = _segment_name(seg, si)
         seg_refs = refs_text_by_segment.get(seg_name)
+        plan_recorder = Recorder(segment=seg_name)
         brief = plan_questions(
             client, seg_name, interviews[si],
             novel_title, novel_author, planning_model,
             verified_references=seg_refs,
+            recorder=plan_recorder,
         )
+        timing.merge(plan_recorder)
         if recommended_text:
             brief.recommended_reading = recommended_text
         briefs.append(brief)
+
+    if run_dir is not None:
+        timings_path = run_dir / "phase2_5_timings.json"
+        with open(timings_path, "w") as f:
+            json.dump(timing.to_dict(), f, indent=2)
+        logger.info("  Saved timings (%d events) to %s",
+                    len(timing.events), timings_path)
 
     return briefs, interviews
 
