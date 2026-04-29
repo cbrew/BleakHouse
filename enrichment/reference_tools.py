@@ -70,10 +70,17 @@ ALL_TOOLS = [SEARCH_OPENALEX_TOOL, SEARCH_WIKIPEDIA_TOOL]
 
 def execute_search_openalex(query: str, max_results: int = 3) -> str:
     """Search OpenAlex for scholarly works. Returns formatted text for the LLM."""
+    import os as _os
+    params: dict = {"search": query, "per_page": max_results}
+    api_key = _os.environ.get("OPENALEX_API_KEY")
+    if api_key:
+        params["api_key"] = api_key
+    else:
+        params["mailto"] = "brewc@cbrew.com"
     try:
         resp = requests.get(
             "https://api.openalex.org/works",
-            params={"search": query, "per_page": max_results},
+            params=params,
             headers={"User-Agent": _USER_AGENT},
             timeout=_TIMEOUT,
         )
@@ -237,10 +244,17 @@ def _title_similarity(a: str, b: str) -> float:
 
 def _verify_via_openalex(raw_text: str) -> VerifiedReference | None:
     """Try to verify a reference via OpenAlex search."""
+    import os as _os
+    params: dict = {"search": raw_text, "per_page": 3}
+    api_key = _os.environ.get("OPENALEX_API_KEY")
+    if api_key:
+        params["api_key"] = api_key
+    else:
+        params["mailto"] = "brewc@cbrew.com"
     try:
         resp = requests.get(
             "https://api.openalex.org/works",
-            params={"search": raw_text, "per_page": 3},
+            params=params,
             headers={"User-Agent": _USER_AGENT},
             timeout=_TIMEOUT,
         )
