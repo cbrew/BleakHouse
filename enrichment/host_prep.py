@@ -19,6 +19,7 @@ import argparse
 import json
 import logging
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from pathlib import Path
@@ -483,6 +484,118 @@ def _format_record_for_host(record: CitationRecord) -> str:
     return f"{author_str}, \"{record.title}\" ({year})"
 
 
+# Prompt for the listener-recommendation filter. The criterion — "would a
+# general listener actually pursue this?" — has too many soft edges to
+# encode as a rule (book-vs-article isn't enough; some scholarly books
+# are eminently readable, some trade-press books are dense, some review
+# articles are accessible essays). Haiku gets the candidate metadata and
+# decides; "Zero Framework Cognition" applies — let the model do the
+# squishy judgement we can't formalise.
+_LISTENER_PICK_SYSTEM = """\
+You are curating a short reading list for a podcast about
+**{novel_title}** by {novel_author}. The experts on the show proposed
+many references during their pre-interviews. Your job is to pick the
+3-8 a *general listener* — someone driving home who enjoyed the
+episode, not a Victorianist or specialist — would actually pursue.
+
+LEAN TOWARD:
+- Books a listener could find in a public library or order from a
+  bookshop.
+- Works readable without specialist training — popular history, trade
+  biographies, accessible criticism, primary literary works.
+- Items that genuinely illuminate the novel under discussion.
+- Variety: avoid three picks by the same author or on the same narrow
+  sub-topic.
+
+LEAN AWAY FROM:
+- Journal articles, conference proceedings, dissertations, archival
+  reports — listeners can't easily access these and they read like
+  homework.
+- Specialist academic monographs, unless the work is a famously
+  readable exception.
+- Items where the title looks like a paraphrase ("essay on X by Y")
+  rather than a real published title.
+- Multiple Wikipedia articles on the same subject (pick at most one).
+
+You're not applying a hard rule; use judgement. If a "scholarly"
+candidate is genuinely the best Cranford-criticism book a listener
+should know about, include it. If a "popular" book is shallow, skip it.
+
+Output ONE JSON object only — no prose, no code fences:
+
+{{"tags": ["ref-3", "ref-7", ...]}}
+
+Pick 3-8 tags. If fewer than 3 candidates qualify, return what you have.
+"""
+
+
+_LISTENER_PICK_TAGS_RE = re.compile(r"\{[^{}]*\"tags\"[^{}]*\}", re.DOTALL)
+
+
+def _select_listener_recommendations(
+    client: anthropic.Anthropic,
+    candidates: list[CitationRecord],
+    novel_title: str,
+    novel_author: str,
+    recorder: Recorder | None = None,
+) -> list[str]:
+    """Haiku-based filter that shrinks the proposed-references list to a
+    listener-friendly subset. Returns a list of tags (subset of the
+    input). On parse failure or empty input, falls back to the full
+    list — better to over-show than under-show.
+    """
+    if not candidates:
+        return []
+
+    lines = [f"Candidates ({len(candidates)}):"]
+    for c in candidates:
+        authors = ", ".join(c.authors[:2]) or "—"
+        year = c.year or "?"
+        type_ = c.type or "—"
+        pub = c.publisher or "—"
+        cited = f"cited_by={c.cited_by}" if c.cited_by else ""
+        lines.append(
+            f"  [{c.tag}] {authors}. \"{c.title}\" ({year}) "
+            f"[type={type_}, publisher={pub}] {cited}".rstrip()
+        )
+        if c.description:
+            lines.append(f"    {c.description[:240]}")
+
+    system = _LISTENER_PICK_SYSTEM.format(
+        novel_title=novel_title, novel_author=novel_author,
+    )
+    msg = time_model(
+        recorder, "listener_pick",
+        lambda: client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=512,
+            system=system,
+            messages=[{"role": "user", "content": "\n".join(lines)}],
+        ),
+    )
+    text = "".join(
+        getattr(b, "text", "")
+        for b in msg.content
+        if getattr(b, "type", None) == "text"
+    )
+    m = _LISTENER_PICK_TAGS_RE.search(text)
+    if m is None:
+        logger.warning("listener-pick: no JSON in response, falling back to all candidates")
+        return [c.tag for c in candidates]
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError as exc:
+        logger.warning("listener-pick: JSON decode failed (%s), falling back to all", exc)
+        return [c.tag for c in candidates]
+    raw = data.get("tags") or []
+    available = {c.tag for c in candidates}
+    picks = [t for t in raw if t in available]
+    logger.info(
+        "  listener-pick: kept %d of %d candidates", len(picks), len(candidates),
+    )
+    return picks or [c.tag for c in candidates]
+
+
 def _segment_name(seg: dict, idx: int) -> str:
     return seg.get("name", seg.get("template", {}).get("name", f"Segment {idx}"))
 
@@ -572,19 +685,24 @@ def run_host_prep(
             if seg_text_refs:
                 refs_text_by_segment[seg_name] = seg_text_refs
 
-        # Listener-facing recommendations: every unique entry the experts
-        # actually proposed during their interviews, in registry order.
-        # The experts already curated by choosing to cite — we don't
-        # apply a secondary audience filter on top. The `audience` field
-        # stays on each record as informational metadata for renderers
-        # that want it, but doesn't gate inclusion here.
+        # All unique entries the experts proposed during their interviews
+        # become `entries[]` in the output (full audit trail). The
+        # listener-facing `recommended[]` is a Haiku-curated short subset.
         all_proposed_tags = {
             t for entries in proposed_tags_by_segment.values()
             for entry in entries for t in entry["tags"]
         }
-        recommended_tags = [
-            r.tag for r in canonical.all() if r.tag in all_proposed_tags
+        proposed_records = [
+            r for r in canonical.all() if r.tag in all_proposed_tags
         ]
+        # Soft filter: which candidates would a general listener actually
+        # pursue? The criterion is too squishy for a deterministic rule
+        # (book-vs-article isn't enough), so Haiku reads each candidate's
+        # metadata and picks 3-8.
+        recommended_tags = _select_listener_recommendations(
+            client, proposed_records, novel_title, novel_author,
+            recorder=timing,
+        )
         # Resolve recommended tags to full CitationRecord dicts (for the
         # listener-facing reading_list.json) and a parallel list of
         # one-line strings (for HostBrief.recommended_reading, which is
