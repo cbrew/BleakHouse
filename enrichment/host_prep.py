@@ -166,8 +166,9 @@ people.  When a Wikipedia article looks central, call `read_wikipedia_article` \
 on its tag to access the works listed in that article's bibliography — those \
 items become citable as new tags too.
 
-Your core reading list includes:
-{touchstone_works}
+Search based on what the passages actually contain — the novel and \
+author at hand, the historical period, the specific topics in front of \
+you.  Don't anchor on works from other novels you might have studied.
 
 Each tool result prefixes candidates with stable [ref-N] tags.  In your \
 structured output, populate `proposed_references` with these tags ONLY \
@@ -196,7 +197,6 @@ def run_pre_interview_with_tools(
     """
     registry = CitationRegistry()
     recorder = Recorder(expert=expert.name, segment=segment_name)
-    touchstone_block = "\n".join(f"- {w}" for w in expert.touchstone_works) if expert.touchstone_works else "(none)"
 
     system = _INTERVIEW_SYSTEM.format(
         novel_title=novel_title,
@@ -204,7 +204,7 @@ def run_pre_interview_with_tools(
         expert_name=expert.name,
         expert_description=expert.description,
         other_experts=", ".join(other_expert_names),
-    ) + _INTERVIEW_TOOLS_ADDENDUM.format(touchstone_works=touchstone_block)
+    ) + _INTERVIEW_TOOLS_ADDENDUM
 
     user = _INTERVIEW_USER.format(
         segment_name=segment_name,
