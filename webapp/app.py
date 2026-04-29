@@ -814,13 +814,6 @@ TRACKER_CONDITIONS = [
 ]
 
 
-def _tracker_run_name(novel_key: str, pp: str, panel: str, hp: bool) -> str:
-    """Canonical dir name via axes.run_dir_name; novel_key may be the full id
-    ('bleak_house') or the short axes key ('bh')."""
-    nk = axes.NOVEL_BY_ID[novel_key].key if novel_key in axes.NOVEL_BY_ID else novel_key
-    return axes.run_dir_name(novel=nk, pipeline=pp, panel=panel, hostprep=hp)
-
-
 def _measure(path: Path) -> dict | None:
     if not path.exists():
         return None
@@ -1117,17 +1110,13 @@ def _dvc_stale_runs() -> dict[str, list[str]]:
 def _build_tracker_matrix_from_db() -> dict:
     """Build the /tracker/data response from data/experiments.db.
 
-    Replaces the filesystem-walk in _build_cached_snapshot for the
-    matrix surface. The DB resolves (novel, panel, pipeline, hostprep,
-    generator) to the freshest episode at that coordinate — so retrofit
-    runs surface naturally without per-feature dir-name regex.
+    The DB resolves (novel, panel, pipeline, hostprep, generator) to the
+    freshest episode at that coordinate — so retrofit runs surface
+    naturally without per-feature dir-name regex.
 
     Per-cell metrics (q/r/w/timings/quotes) still come from the run's
     phase3_episode.json on disk via _summarize_run_dir; the DB just
     decides which run_dir to read for each cell.
-
-    Response shape matches _build_cached_snapshot()['matrix'] exactly so
-    the existing tracker JS needs no changes.
     """
     from webapp.db_views import matrix_rows  # pyright: ignore[reportMissingImports]
 
@@ -1391,247 +1380,9 @@ def _build_versions_data_from_db() -> dict:
     return {"versions": versions, "runs": version_runs}
 
 
-def _build_cached_snapshot() -> dict:
-    runs_dir = DATA_DIR / "runs"
-    novels: dict[str, list[dict]] = {}
-    all_runs: dict[str, list[dict]] = {}
-    run_summaries: dict[str, dict] = {}
-    p25_times: list[float] = []
-    p3_times: list[float] = []
-    versions_map: dict[str, list[dict]] = {}
-    stale_by_run = _dvc_stale_runs()
-
-    if runs_dir.exists():
-        for run_dir in sorted(runs_dir.iterdir()):
-            if not run_dir.is_dir():
-                continue
-            summary = _summarize_run_dir(run_dir)
-            summary["dvc_stale_phases"] = stale_by_run.get(summary["run_id"], [])
-            run_summaries[summary["run_id"]] = summary
-
-            if summary["title"] and summary["has_audio"]:
-                novel_entry = {
-                    "run_id": summary["run_id"],
-                    "base_name": summary["base_name"],
-                    "version": summary["version"],
-                    "title": summary["title"],
-                    "novel": summary["novel"],
-                    "condition": summary["condition"],
-                    "panel": summary["panel"],
-                    "hostprep": summary["hostprep"],
-                    "passage_source": summary["passage_source"],
-                    "experts": summary["experts"],
-                    "total_duration_ms": summary["total_duration_ms"],
-                    "has_audio": summary["has_audio"],
-                    "has_host_prep": summary["has_host_prep"],
-                }
-                novels.setdefault(summary["novel"], []).append(novel_entry)
-                all_runs.setdefault(summary["novel"], []).append(
-                    {
-                        "run_id": summary["run_id"],
-                        "title": summary["title"],
-                        "novel": summary["novel"],
-                        "condition": summary["condition"],
-                        "hostprep": summary["hostprep"],
-                        "audio_state": summary["audio_state"],
-                        "experts": summary["experts"],
-                    }
-                )
-
-            if summary["version"] != "v1.0":
-                versions_map.setdefault(summary["version"], []).append(
-                    {
-                        "run_id": summary["run_id"],
-                        "base_name": summary["base_name"],
-                        "version": summary["version"],
-                        "novel": summary["novel"],
-                        "condition": summary["condition"],
-                        "panel": summary["panel"],
-                        "hostprep": summary["hostprep"],
-                        "has_episode": summary["has_episode"],
-                        "has_report": summary["has_report"],
-                        "has_reading_list": summary["has_reading_list"],
-                        "has_audio": summary["has_audio"],
-                        "metrics": summary["metrics"],
-                        "reading": summary["reading"],
-                    }
-                )
-
-            timings = summary.get("timings") or {}
-            if timings.get("p25_min") is not None:
-                p25_times.append(timings["p25_min"])
-            if timings.get("p3_min") is not None:
-                p3_times.append(timings["p3_min"])
-
-    # Per-generator matrix: each row holds cells_by_generator[gen_id] so the
-    # client can switch dimensions without a refetch. Default generator's
-    # cells are duplicated into `row.cells` for back-compat.
-    tracker_generators = sorted(axes.GENERATORS)
-    rows = []
-    totals_by_generator: dict[str, dict[str, int]] = {
-        g: {"total": 0, "done": 0, "running": 0} for g in tracker_generators
-    }
-    # Legacy scalar totals track the default generator.
-    total = 0
-    done = 0
-    running_count = 0
-    for novel_key, title, author, year in TRACKER_NOVELS:
-        cells_by_generator: dict[str, list[dict]] = {}
-        for gen in tracker_generators:
-            cells: list[dict] = []
-            nk_short = axes.NOVEL_BY_ID[novel_key].key if novel_key in axes.NOVEL_BY_ID else novel_key
-            for pp, panel, hp in TRACKER_CONDITIONS:
-                rn = axes.run_dir_name(novel=nk_short, pipeline=pp, panel=panel,
-                                       hostprep=hp, generator=gen)
-                detail = run_summaries.get(rn, {"name": rn, "status": "missing"})
-                totals_by_generator[gen]["total"] += 1
-                if detail["status"] == "done":
-                    totals_by_generator[gen]["done"] += 1
-                elif detail["status"] == "running":
-                    totals_by_generator[gen]["running"] += 1
-                cells.append(detail)
-            cells_by_generator[gen] = cells
-
-        default_cells = cells_by_generator[axes.DEFAULT_GENERATOR]
-        total += len(default_cells)
-        for c in default_cells:
-            if c["status"] == "done":
-                done += 1
-            elif c["status"] == "running":
-                running_count += 1
-        rows.append({
-            "key": novel_key, "title": title, "author": author, "year": year,
-            "cells": default_cells,
-            "cells_by_generator": cells_by_generator,
-        })
-
-    refreshed_at = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
-    versions = dict(
-        sorted(
-            ((v, len(runs)) for v, runs in versions_map.items()),
-            key=lambda item: _version_sort_key(item[0]),
-        )
-    )
-    version_runs = [
-        run
-        for _version, runs in sorted(
-            versions_map.items(),
-            key=lambda item: _version_sort_key(item[0]),
-        )
-        for run in runs
-    ]
-
-    # Interdisciplinary panel runs (not in the main 180-condition grid).
-    # Keep only the latest version per (novel, grounding_condition).
-    _inter_best: dict[tuple[str, str], dict] = {}
-    for rid, s in sorted(run_summaries.items()):
-        if "interdisciplinary" not in rid or not s.get("has_episode"):
-            continue
-        novel = s.get("novel", "")
-        cond = s.get("condition", "")
-        key = (novel, cond)
-        entry = {
-            "run_id": rid,
-            "novel": novel,
-            "condition": cond,
-            "panel": s.get("panel", ""),
-            "hostprep": s.get("hostprep", False),
-            "has_audio": s.get("has_audio", False),
-            "has_episode": s.get("has_episode", False),
-            "has_report": s.get("has_report", False),
-            "q": s.get("q", 0),
-            "r": s.get("r", 0),
-            "w": s.get("w", 0),
-        }
-        prev = _inter_best.get(key)
-        # Prefer runs with audio; among those, prefer latest version
-        prev_audio = prev.get("has_audio", False) if prev else False
-        has_audio = s.get("has_audio", False)
-        if prev is None or (has_audio and not prev_audio) or (
-            has_audio == prev_audio
-            and _version_sort_key(s.get("version", "v1.0")) > _version_sort_key(prev.get("_ver", "v1.0"))
-        ):
-            entry["_ver"] = s.get("version", "v1.0")
-            _inter_best[key] = entry
-    inter_runs = [v for v in _inter_best.values()]
-    for r in inter_runs:
-        r.pop("_ver", None)
-
-    # Panel-scripts matrix: 2 novels × 3 panels, all with reference-tools.
-    PANEL_SCRIPTS_RUNS = [
-        ("Bleak House", "literary", "arc_v01_baseline"),
-        ("Bleak House", "interdisciplinary", "interdisciplinary_trn_hostprep_refs"),
-        ("Bleak House", "alternative", "arc_v19_all_swapped"),
-        ("Hester", "literary", "hest_trn_v01_baseline_hostprep_refs"),
-        ("Hester", "interdisciplinary", "hest_interdisciplinary_trn_hostprep_refs"),
-        ("Hester", "alternative", "hest_trn_v19_all_swapped_hostprep_refs"),
-    ]
-    panel_scripts: list[dict] = []
-    for novel_label, panel_key, run_id in PANEL_SCRIPTS_RUNS:
-        s = run_summaries.get(run_id)
-        if s is None:
-            panel_scripts.append({
-                "novel": novel_label, "panel": panel_key, "run_id": run_id,
-                "status": "missing",
-            })
-            continue
-        panel_scripts.append({
-            "novel": novel_label,
-            "panel": panel_key,
-            "run_id": run_id,
-            "status": s.get("status", "missing"),
-            "phase": s.get("phase"),
-            "q": s.get("q", 0),
-            "r": s.get("r", 0),
-            "w": s.get("w", 0),
-            "has_audio": s.get("has_audio", False),
-            "has_episode": s.get("has_episode", False),
-            "has_report": s.get("has_report", False),
-            "has_reading_list": s.get("has_reading_list", False),
-            "reading": s.get("reading", {}),
-            "name": run_id,
-            "condition": s.get("condition", "transport"),
-            "hostprep": s.get("hostprep", False),
-        })
-
-    return {
-        "novels": novels,
-        "all_runs": all_runs,
-        "matrix": {
-            "rows": rows,
-            "total": total,
-            "done": done,
-            "running": running_count,
-            "stalled": 0,
-            "running_names": [c["name"] for row in rows for c in row["cells"] if c["status"] == "running"],
-            "process": None,
-            "histograms": {"p25": sorted(p25_times), "p3": sorted(p3_times)},
-            "refreshed_at": refreshed_at,
-            "interdisciplinary": inter_runs,
-            "panel_scripts": panel_scripts,
-            "generators": [
-                {"id": g, "display": axes.GENERATOR_BY_ID[g].display}
-                for g in tracker_generators
-            ],
-            "default_generator": axes.DEFAULT_GENERATOR,
-            "totals_by_generator": totals_by_generator,
-        },
-        "versions": {"versions": versions, "runs": version_runs},
-        "refreshed_at": refreshed_at,
-    }
-
-
 class RunIndexCache:
     def __init__(self, ttl_seconds: float = 30.0):
         self.ttl_seconds = ttl_seconds
-        self._snapshot: dict | None = None
-        self._last_refresh = 0.0
-        self._schedule_lock = asyncio.Lock()
-        self._refresh_task: asyncio.Task | None = None
-        # Separate caches for the DB-backed surfaces (BleakHouse-17j, q4e).
-        # All four tracker/list/prep surfaces are now DB-driven; the legacy
-        # _build_cached_snapshot() filesystem walk stays around only as a
-        # backstop and is retired in BleakHouse-tx0.
         self._matrix: dict | None = None
         self._matrix_last_refresh = 0.0
         self._matrix_lock = asyncio.Lock()
@@ -1645,27 +1396,8 @@ class RunIndexCache:
         self._run_lists_lock = asyncio.Lock()
         self._run_lists_task: asyncio.Task | None = None
 
-    def _is_stale(self) -> bool:
-        return (time.monotonic() - self._last_refresh) >= self.ttl_seconds
-
     def _matrix_is_stale(self) -> bool:
         return (time.monotonic() - self._matrix_last_refresh) >= self.ttl_seconds
-
-    async def _run_refresh(self) -> None:
-        try:
-            snapshot = await asyncio.to_thread(_build_cached_snapshot)
-            self._snapshot = snapshot
-            self._last_refresh = time.monotonic()
-        except Exception:
-            logger.exception("Run index refresh failed")
-        finally:
-            self._refresh_task = None
-
-    async def _ensure_refresh_started(self) -> asyncio.Task:
-        async with self._schedule_lock:
-            if self._refresh_task is None or self._refresh_task.done():
-                self._refresh_task = asyncio.create_task(self._run_refresh())
-            return self._refresh_task
 
     async def _run_matrix_refresh(self) -> None:
         try:
@@ -1720,30 +1452,6 @@ class RunIndexCache:
             if self._run_lists_task is None or self._run_lists_task.done():
                 self._run_lists_task = asyncio.create_task(self._run_run_lists_refresh())
             return self._run_lists_task
-
-    async def get_snapshot(self) -> dict:
-        if self._snapshot is None:
-            task = await self._ensure_refresh_started()
-            await task
-        elif self._is_stale():
-            await self._ensure_refresh_started()
-        return self._snapshot or {
-            "novels": {},
-            "all_runs": {},
-            "matrix": {
-                "rows": [],
-                "total": 0,
-                "done": 0,
-                "running": 0,
-                "stalled": 0,
-                "running_names": [],
-                "process": None,
-                "histograms": {"p25": [], "p3": []},
-                "refreshed_at": "",
-            },
-            "versions": {"versions": {}, "runs": []},
-            "refreshed_at": "",
-        }
 
     async def prime(self) -> None:
         await self._ensure_matrix_refresh_started()
