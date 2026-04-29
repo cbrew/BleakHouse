@@ -1,33 +1,188 @@
-"""Scholarly reference search tools and verification for Phase 2.5a.
+"""Scholarly reference search tools — correct-by-construction.
 
-Provides Anthropic tool definitions for OpenAlex and Wikipedia search,
-tool execution functions, and post-interview citation verification.
+Each search hit is registered in a per-interview `CitationRegistry` and
+exposed to the model with a stable tag (`ref-7`). The model's structured
+response cites tags only; post-interview is a dict lookup, not a fuzzy
+re-verification. There is no second pass: a citation is real because it
+came from a tool result.
+
+Three tools:
+  - search_openalex(query)              tagged academic candidates
+  - search_wikipedia(query)             tagged Wikipedia article candidates
+  - read_wikipedia_article(ref_tag)     drills into an article, extracts
+                                        its bibliography items via Haiku,
+                                        registers each as a tagged record
+
+The audience flag (general/scholarly) is deterministic from publisher
+and citation count.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import re
-from difflib import SequenceMatcher
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal
 
+import anthropic
 import requests
-from pydantic import BaseModel, Field
+from anthropic.types import ToolUnionParam
+from urllib.parse import unquote, urlparse
+
+from enrichment.timing import Recorder, time_model, time_tool
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT = 10
-_USER_AGENT = "BleakHouseResearch/1.0 (academic research; https://github.com/cbrew/BleakHouse)"
+_TIMEOUT = 15
+_USER_AGENT = (
+    "BleakHouseResearch/2.0 (academic research; "
+    "https://github.com/cbrew/BleakHouse)"
+)
+
+
+# ---------------------------------------------------------------------------
+# Citation record + registry
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CitationRecord:
+    """One reference candidate registered during an interview.
+
+    `tag` is a stable identifier the model uses to refer to this record.
+    All other fields are populated from the originating API response or
+    from a Wikipedia article's bibliography.
+    """
+
+    tag: str
+    title: str
+    authors: list[str] = field(default_factory=list)
+    year: int | None = None
+    type: str = ""                # OpenAlex type, or 'wikipedia_article', or 'wikipedia_further_reading'
+    publisher: str | None = None
+    description: str | None = None
+    cited_by: int | None = None
+    url: str = ""
+    doi: str | None = None
+    source: str = ""              # 'openalex' | 'wikipedia_article' | 'wikipedia_further_reading'
+    parent_tag: str | None = None # for further_reading items: the article they came from
+    audience: Literal["general", "scholarly"] = "scholarly"
+
+
+class CitationRegistry:
+    """Per-interview cache of citation records keyed by tag.
+
+    Tags are minted as `ref-N` in registration order. Records are
+    deduplicated by URL on registration: re-registering a record whose
+    URL matches an existing one returns the existing tag instead of
+    minting a new one.
+    """
+
+    def __init__(self) -> None:
+        self._by_tag: dict[str, CitationRecord] = {}
+        self._tag_by_url: dict[str, str] = {}
+        self._next = 1
+
+    def register(
+        self,
+        *,
+        title: str,
+        url: str,
+        source: str,
+        authors: list[str] | None = None,
+        year: int | None = None,
+        type: str = "",
+        publisher: str | None = None,
+        description: str | None = None,
+        cited_by: int | None = None,
+        doi: str | None = None,
+        parent_tag: str | None = None,
+    ) -> str:
+        """Register a record, return its tag. Dedups by URL."""
+        if url and url in self._tag_by_url:
+            return self._tag_by_url[url]
+        tag = f"ref-{self._next}"
+        self._next += 1
+        record = CitationRecord(
+            tag=tag,
+            title=title,
+            authors=authors or [],
+            year=year,
+            type=type,
+            publisher=publisher,
+            description=description,
+            cited_by=cited_by,
+            url=url,
+            doi=doi,
+            source=source,
+            parent_tag=parent_tag,
+            audience=audience(
+                {"type": type, "publisher": publisher, "cited_by": cited_by}
+            ),
+        )
+        self._by_tag[tag] = record
+        if url:
+            self._tag_by_url[url] = tag
+        return tag
+
+    def get(self, tag: str) -> CitationRecord | None:
+        return self._by_tag.get(tag)
+
+    def all(self) -> list[CitationRecord]:
+        return list(self._by_tag.values())
+
+    def to_dicts(self) -> list[dict[str, Any]]:
+        return [asdict(r) for r in self._by_tag.values()]
+
+
+# ---------------------------------------------------------------------------
+# Audience flag (deterministic; moved from refverify.match)
+# ---------------------------------------------------------------------------
+
+
+_SCHOLARLY_PUBLISHERS: frozenset[str] = frozenset({
+    "cambridge university press", "oxford university press",
+    "university of chicago press", "princeton university press",
+    "harvard university press", "yale university press",
+    "duke university press", "stanford university press",
+    "mit press", "cornell university press",
+    "johns hopkins university press", "columbia university press",
+    "university of california press", "university of pennsylvania press",
+    "university of minnesota press", "university of michigan press",
+    "routledge", "palgrave macmillan", "wiley", "wiley-blackwell",
+    "springer", "elsevier", "taylor & francis", "sage publications",
+    "brill", "edinburgh university press",
+})
+
+
+def audience(candidate: dict[str, Any]) -> Literal["general", "scholarly"]:
+    """type=book + non-academic publisher  -> general
+    cited_by >= 500                        -> general (something canonical)
+    otherwise                              -> scholarly"""
+    pub = (candidate.get("publisher") or "").lower().strip()
+    type_ = (candidate.get("type") or "").lower()
+    cited_by = candidate.get("cited_by") or 0
+    if type_ == "book" and pub and pub not in _SCHOLARLY_PUBLISHERS:
+        return "general"
+    if cited_by and cited_by >= 500:
+        return "general"
+    return "scholarly"
+
 
 # ---------------------------------------------------------------------------
 # Anthropic tool definitions
 # ---------------------------------------------------------------------------
 
-SEARCH_OPENALEX_TOOL = {
+
+SEARCH_OPENALEX_TOOL: ToolUnionParam = {
     "name": "search_openalex",
     "description": (
-        "Search OpenAlex for scholarly works (books, journal articles, chapters). "
-        "Returns title, authors, year, and citation count. Use this to find or "
-        "verify scholarly references relevant to the discussion."
+        "Search OpenAlex for scholarly works (books, journal articles, "
+        "chapters). Returns up to 3 candidates, each prefixed with a "
+        "stable [ref-N] tag. Cite a candidate later by its tag — do not "
+        "invent citation text."
     ),
     "input_schema": {
         "type": "object",
@@ -41,443 +196,479 @@ SEARCH_OPENALEX_TOOL = {
     },
 }
 
-SEARCH_WIKIPEDIA_TOOL = {
+SEARCH_WIKIPEDIA_TOOL: ToolUnionParam = {
     "name": "search_wikipedia",
     "description": (
-        "Search Wikipedia for background context on a topic, person, historical "
-        "event, or concept. Returns article titles and snippets. Use this to "
-        "verify facts or find context about people, events, or literary concepts."
+        "Search Wikipedia for articles. Returns up to 3 candidate articles, "
+        "each prefixed with a stable [ref-N] tag and a short snippet. "
+        "Cite an article later by its tag. To access works listed in the "
+        "article's bibliography, call read_wikipedia_article on its tag."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
-            "query": {
-                "type": "string",
-                "description": "Search query",
-            },
+            "query": {"type": "string", "description": "Search query"},
         },
         "required": ["query"],
     },
 }
 
-ALL_TOOLS = [SEARCH_OPENALEX_TOOL, SEARCH_WIKIPEDIA_TOOL]
+READ_WIKIPEDIA_ARTICLE_TOOL: ToolUnionParam = {
+    "name": "read_wikipedia_article",
+    "description": (
+        "Drill into a Wikipedia article that was previously surfaced by "
+        "search_wikipedia (you must give its [ref-N] tag). Returns a "
+        "longer extract of the article body and registers each item from "
+        "the article's Bibliography / Further reading / References "
+        "sections as a new tagged candidate citation. Use this when an "
+        "article looks central to the discussion and you want to cite "
+        "scholarly works it points to."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "ref_tag": {
+                "type": "string",
+                "description": "Tag of a Wikipedia article (e.g. 'ref-3')",
+            },
+        },
+        "required": ["ref_tag"],
+    },
+}
+
+ALL_TOOLS: list[ToolUnionParam] = [
+    SEARCH_OPENALEX_TOOL, SEARCH_WIKIPEDIA_TOOL, READ_WIKIPEDIA_ARTICLE_TOOL,
+]
 
 
 # ---------------------------------------------------------------------------
-# Tool execution
+# OpenAlex
 # ---------------------------------------------------------------------------
 
 
-def execute_search_openalex(query: str, max_results: int = 3) -> str:
-    """Search OpenAlex for scholarly works. Returns formatted text for the LLM."""
-    import os as _os
-    params: dict = {"search": query, "per_page": max_results}
-    api_key = _os.environ.get("OPENALEX_API_KEY")
+def _invert_abstract(inv: dict[str, list[int]] | None) -> str:
+    """Reconstruct an abstract from OpenAlex's inverted index."""
+    if not inv:
+        return ""
+    word_at: dict[int, str] = {}
+    for word, positions in inv.items():
+        for p in positions:
+            word_at[p] = word
+    return " ".join(word_at[i] for i in sorted(word_at) if i in word_at)
+
+
+def _openalex_get(
+    query: str, max_results: int, recorder: Recorder | None = None,
+) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {"search": query, "per_page": max_results}
+    api_key = os.environ.get("OPENALEX_API_KEY")
     if api_key:
         params["api_key"] = api_key
     else:
         params["mailto"] = "brewc@cbrew.com"
-    try:
-        resp = requests.get(
-            "https://api.openalex.org/works",
-            params=params,
-            headers={"User-Agent": _USER_AGENT},
-            timeout=_TIMEOUT,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        results = data.get("results", [])
-        if not results:
-            return f"No scholarly works found for '{query}'."
-
-        lines = []
-        for work in results:
-            title = work.get("display_name", "Unknown")
-            year = work.get("publication_year", "?")
-            cited = work.get("cited_by_count", 0)
-            authors = [
-                a.get("author", {}).get("display_name", "?")
-                for a in work.get("authorships", [])[:3]
-            ]
-            author_str = ", ".join(authors)
-            doi = work.get("doi") or ""
-            lines.append(
-                f"- {author_str}. \"{title}\" ({year}). "
-                f"Cited by {cited}.{f' DOI: {doi}' if doi else ''}"
+    with time_tool(recorder, "http_openalex_search", query):
+        try:
+            resp = requests.get(
+                "https://api.openalex.org/works",
+                params=params,
+                headers={"User-Agent": _USER_AGENT},
+                timeout=_TIMEOUT,
             )
-            # Reconstruct abstract from inverted index if available
-            abstract_ii = work.get("abstract_inverted_index")
-            if abstract_ii and isinstance(abstract_ii, dict):
-                word_positions: list[tuple[int, str]] = []
-                for word, positions in abstract_ii.items():
-                    for pos in positions:
-                        word_positions.append((pos, word))
-                word_positions.sort()
-                abstract = " ".join(w for _, w in word_positions[:200])
-                lines.append(f"  Abstract: {abstract}")
-        return "\n".join(lines)
-    except Exception as e:
-        logger.warning("OpenAlex search failed for '%s': %s", query, e)
-        return f"Search failed: {e}"
+            resp.raise_for_status()
+            return resp.json().get("results", [])
+        except Exception as exc:
+            logger.warning("OpenAlex search failed for %r: %s", query, exc)
+            return []
 
 
-def _fetch_wikipedia_extract(title: str, sentences: int = 8) -> str:
-    """Fetch the opening sentences of a Wikipedia article by exact title."""
-    try:
-        resp = requests.get(
-            "https://en.wikipedia.org/w/api.php",
-            params={
-                "action": "query",
-                "titles": title,
-                "prop": "extracts",
-                "exsentences": sentences,
-                "explaintext": "1",
-                "format": "json",
-            },
-            headers={"User-Agent": _USER_AGENT},
-            timeout=_TIMEOUT,
+def execute_search_openalex(
+    query: str,
+    registry: CitationRegistry,
+    max_results: int = 3,
+    recorder: Recorder | None = None,
+) -> str:
+    """Search OpenAlex, register every hit in the registry, return text
+    for the LLM that prefixes each line with the candidate's tag."""
+    results = _openalex_get(query, max_results, recorder)
+    if not results:
+        return f"No scholarly works found for {query!r}."
+
+    lines: list[str] = []
+    for w in results:
+        title = w.get("display_name") or "Unknown"
+        authors = [
+            (a.get("author") or {}).get("display_name", "")
+            for a in (w.get("authorships") or [])[:5]
+        ]
+        authors = [a for a in authors if a]
+        year = w.get("publication_year")
+        cited = w.get("cited_by_count") or 0
+        doi = w.get("doi") or None
+        # url is the DOI link if available, else the OpenAlex work id
+        if doi:
+            url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
+        else:
+            url = w.get("id") or ""
+        host_venue = w.get("host_venue") or {}
+        primary_loc = w.get("primary_location") or {}
+        venue_source = primary_loc.get("source") or {}
+        publisher = (
+            host_venue.get("publisher")
+            or venue_source.get("host_organization_name")
+            or venue_source.get("publisher")
+            or None
         )
-        resp.raise_for_status()
-        pages = resp.json().get("query", {}).get("pages", {})
-        for page in pages.values():
-            extract = page.get("extract", "")
-            if extract:
-                return extract[:800]
-    except Exception as e:
-        logger.debug("Wikipedia extract failed for '%s': %s", title, e)
+        abstract = _invert_abstract(w.get("abstract_inverted_index")) or None
+        type_ = w.get("type") or ""
+
+        tag = registry.register(
+            title=title,
+            authors=authors,
+            year=year,
+            type=type_,
+            publisher=publisher,
+            description=abstract,
+            cited_by=cited,
+            url=url,
+            doi=doi,
+            source="openalex",
+        )
+        author_str = ", ".join(authors[:3]) or "—"
+        lines.append(
+            f"[{tag}] {author_str}. \"{title}\" ({year or '?'}). "
+            f"Cited by {cited}."
+        )
+        if abstract:
+            lines.append(f"  Abstract: {abstract[:400]}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Wikipedia
+# ---------------------------------------------------------------------------
+
+
+def _wikipedia_search_pages(
+    query: str, max_results: int, recorder: Recorder | None = None,
+) -> list[dict[str, Any]]:
+    """Search Wikipedia and return article dicts (title, intro extract, url)."""
+    with time_tool(recorder, "http_wikipedia_search", query):
+        try:
+            resp = requests.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={
+                    "action": "query",
+                    "generator": "search",
+                    "gsrsearch": query[:300],
+                    "gsrlimit": max_results,
+                    "prop": "extracts|info",
+                    "exintro": "1",
+                    "explaintext": "1",
+                    "exchars": "800",
+                    "inprop": "url",
+                    "format": "json",
+                    "redirects": "1",
+                },
+                headers={"User-Agent": _USER_AGENT},
+                timeout=_TIMEOUT,
+            )
+            resp.raise_for_status()
+        except Exception as exc:
+            logger.warning("Wikipedia search failed for %r: %s", query, exc)
+            return []
+    pages = (resp.json().get("query") or {}).get("pages") or {}
+    items = sorted(pages.values(), key=lambda p: p.get("index", 999))
+    return items[:max_results]
+
+
+def execute_search_wikipedia(
+    query: str,
+    registry: CitationRegistry,
+    max_results: int = 3,
+    recorder: Recorder | None = None,
+) -> str:
+    pages = _wikipedia_search_pages(query, max_results, recorder)
+    if not pages:
+        return f"No Wikipedia articles found for {query!r}."
+
+    lines: list[str] = []
+    for p in pages:
+        title = p.get("title") or "Unknown"
+        extract = p.get("extract") or ""
+        url = p.get("fullurl") or (
+            f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}"
+        )
+        tag = registry.register(
+            title=title,
+            url=url,
+            type="wikipedia_article",
+            publisher="Wikipedia",
+            description=extract or None,
+            source="wikipedia_article",
+        )
+        lines.append(f"[{tag}] **{title}** — {url}")
+        if extract:
+            lines.append(f"  {extract[:500]}")
+    return "\n".join(lines)
+
+
+def wikipedia_full_extract(
+    title: str, recorder: Recorder | None = None,
+) -> str:
+    """Fetch the full plain-text body of a Wikipedia article (not just intro)."""
+    if not title.strip():
+        return ""
+    with time_tool(recorder, "http_wikipedia_full", title):
+        try:
+            resp = requests.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={
+                    "action": "query",
+                    "titles": title,
+                    "prop": "extracts",
+                    "explaintext": "1",
+                    "format": "json",
+                    "redirects": "1",
+                },
+                headers={"User-Agent": _USER_AGENT},
+                timeout=_TIMEOUT,
+            )
+            resp.raise_for_status()
+        except Exception as exc:
+            logger.warning("Wikipedia full extract failed for %r: %s", title, exc)
+            return ""
+    pages = (resp.json().get("query") or {}).get("pages") or {}
+    for p in pages.values():
+        if p.get("extract"):
+            return p["extract"]
     return ""
 
 
-def execute_search_wikipedia(query: str, max_results: int = 3) -> str:
-    """Search Wikipedia for articles. Returns formatted text for the LLM."""
+_BIB_SECTION_RE = re.compile(
+    r"^==\s*("
+    r"Further reading|Bibliography|Selected works|"
+    r"References|Sources|Works cited|Works|Selected publications"
+    r")\s*==\s*$",
+    re.MULTILINE | re.IGNORECASE,
+)
+_SECTION_HEADER_RE = re.compile(r"^==\s*[^=]+\s*==\s*$", re.MULTILINE)
+
+
+def _split_article_body_and_bib(full: str) -> tuple[str, str]:
+    """Return (body, bibliography) — body is everything BEFORE the first
+    bibliography-style section header, bibliography is the concatenation of
+    every such section. Either may be empty if not found."""
+    matches = list(_BIB_SECTION_RE.finditer(full))
+    if not matches:
+        return full, ""
+    body = full[:matches[0].start()]
+    bib_sections: list[str] = []
+    for m in matches:
+        next_hdr = _SECTION_HEADER_RE.search(full, m.end())
+        end = next_hdr.start() if next_hdr else len(full)
+        bib_sections.append(full[m.start():end])
+    return body, "\n\n".join(bib_sections)
+
+
+def _slice_wikipedia_for_haiku(
+    full: str, intro_chars: int = 4000, bib_chars: int = 8000
+) -> str:
+    """Return intro + bibliography sections, capped, for compact Haiku
+    enrichment prompts (used to extract structured bibliography items)."""
+    if len(full) <= intro_chars + bib_chars:
+        return full
+    body, bib = _split_article_body_and_bib(full)
+    intro = body[:intro_chars]
+    if not bib:
+        return intro
+    return intro + "\n\n[…]\n\n" + bib[:bib_chars]
+
+
+
+
+def _wikipedia_title_from_url(url: str) -> str:
+    parsed = urlparse(url)
+    if "wikipedia.org" not in parsed.netloc:
+        return ""
+    last = parsed.path.rstrip("/").split("/")[-1]
+    return unquote(last).replace("_", " ")
+
+
+_WIKI_ENRICH_PROMPT = """\
+You have a Wikipedia article body. Extract up to 5 further-reading items
+the article itself cites. These usually live in 'Further reading',
+'Bibliography', 'References', 'Selected works', or similar sections.
+Skip generic web links and Wikipedia-internal cross-references.
+
+Output ONE JSON object only, no prose, no code fences:
+
+{
+  "further_reading": [
+    {"title": "...", "author": "..." | null, "year": <int|null>, "publisher": "..." | null},
+    ...
+  ]
+}
+
+If there are no further-reading items, return an empty list.
+"""
+
+_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _parse_enrich(text: str) -> list[dict[str, Any]]:
+    """Parse Haiku's bibliography-extraction JSON. Returns list of items."""
+    m = _OBJ_RE.search(text)
+    if not m:
+        return []
     try:
-        resp = requests.get(
-            "https://en.wikipedia.org/w/api.php",
-            params={
-                "action": "query",
-                "list": "search",
-                "srsearch": query,
-                "srlimit": max_results,
-                "format": "json",
-            },
-            headers={"User-Agent": _USER_AGENT},
-            timeout=_TIMEOUT,
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return []
+    raw = data.get("further_reading") or []
+    items: list[dict[str, Any]] = []
+    for it in raw:
+        if not isinstance(it, dict):
+            continue
+        title = str(it.get("title") or "").strip()
+        if not title:
+            continue
+        items.append({
+            "title": title,
+            "author": (str(it["author"]).strip() if it.get("author") else None),
+            "year": it.get("year") if isinstance(it.get("year"), int) else None,
+            "publisher": (str(it["publisher"]).strip() if it.get("publisher") else None),
+        })
+    return items[:5]
+
+
+_ENRICH_MODEL = "claude-haiku-4-5-20251001"
+
+
+def execute_read_wikipedia_article(
+    ref_tag: str,
+    registry: CitationRegistry,
+    client: anthropic.Anthropic,
+    recorder: Recorder | None = None,
+) -> str:
+    """Fetch an article's full body, extract its bibliography via Haiku,
+    register each extracted item as a tagged record. Returns text for
+    the LLM listing the new tags and a short body summary."""
+    record = registry.get(ref_tag)
+    if record is None:
+        return f"No record for tag {ref_tag!r} — search Wikipedia first."
+    if record.source != "wikipedia_article":
+        return (
+            f"Tag {ref_tag!r} is not a Wikipedia article (source="
+            f"{record.source!r}). read_wikipedia_article is for Wikipedia hits only."
         )
-        resp.raise_for_status()
-        data = resp.json()
-        results = data.get("query", {}).get("search", [])
-        if not results:
-            return f"No Wikipedia articles found for '{query}'."
 
-        lines = []
-        for item in results:
-            title = item.get("title", "Unknown")
-            snippet = re.sub(r"<[^>]+>", "", item.get("snippet", ""))
-            lines.append(f"- **{title}**: {snippet}")
+    title = _wikipedia_title_from_url(record.url) or record.title
+    full = wikipedia_full_extract(title, recorder)
+    if not full:
+        return f"Could not fetch full body for {title!r}."
 
-            # Fetch the first ~500 words of the top result
-            extract = _fetch_wikipedia_extract(title)
-            if extract:
-                lines.append(f"  Content: {extract}")
-        return "\n".join(lines)
-    except Exception as e:
-        logger.warning("Wikipedia search failed for '%s': %s", query, e)
-        return f"Search failed: {e}"
-
-
-def dispatch_tool(tool_name: str, tool_input: dict) -> str:
-    """Execute a tool by name. Returns result text."""
-    if tool_name == "search_openalex":
-        return execute_search_openalex(tool_input.get("query", ""))
-    elif tool_name == "search_wikipedia":
-        return execute_search_wikipedia(tool_input.get("query", ""))
-    else:
-        return f"Unknown tool: {tool_name}"
-
-
-# ---------------------------------------------------------------------------
-# Verification models
-# ---------------------------------------------------------------------------
-
-
-class VerifiedReference(BaseModel):
-    """A reference after verification against external APIs."""
-
-    raw_text: str
-    expert_name: str = ""
-    segment_name: str = ""
-    verified: bool = False
-    verification_source: str = "unverified"  # touchstone/openalex/wikipedia/unverified
-    openalex_title: str = ""
-    openalex_authors: list[str] = Field(default_factory=list)
-    openalex_year: int | None = None
-    openalex_doi: str = ""
-    openalex_cited_by: int = 0
-
-
-class ReadingList(BaseModel):
-    """Aggregated reading list for an episode."""
-
-    verified: list[VerifiedReference] = Field(default_factory=list)
-    unverified: list[VerifiedReference] = Field(default_factory=list)
-    total_proposed: int = 0
-    total_verified: int = 0
-    verification_rate: float = 0.0
-
-
-# ---------------------------------------------------------------------------
-# Verification logic
-# ---------------------------------------------------------------------------
-
-
-def _normalize(text: str) -> str:
-    """Normalize a reference string for comparison."""
-    text = text.lower()
-    text = re.sub(r"[^a-z0-9\s]", "", text)
-    return " ".join(text.split())
-
-
-def _title_similarity(a: str, b: str) -> float:
-    """Fuzzy title match ratio (0.0 to 1.0)."""
-    return SequenceMatcher(None, _normalize(a), _normalize(b)).ratio()
-
-
-def _verify_via_openalex(raw_text: str) -> VerifiedReference | None:
-    """Try to verify a reference via OpenAlex search."""
-    import os as _os
-    params: dict = {"search": raw_text, "per_page": 3}
-    api_key = _os.environ.get("OPENALEX_API_KEY")
-    if api_key:
-        params["api_key"] = api_key
-    else:
-        params["mailto"] = "brewc@cbrew.com"
+    body_slice = _slice_wikipedia_for_haiku(full)
     try:
-        resp = requests.get(
-            "https://api.openalex.org/works",
-            params=params,
-            headers={"User-Agent": _USER_AGENT},
-            timeout=_TIMEOUT,
+        msg = time_model(
+            recorder, f"wiki_enrich:{title[:60]}",
+            lambda: client.messages.create(
+                model=_ENRICH_MODEL,
+                max_tokens=800,
+                system=_WIKI_ENRICH_PROMPT,
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        f"Wikipedia article '{title}':\n\n{body_slice}"
+                    ),
+                }],
+            ),
         )
-        resp.raise_for_status()
-        results = resp.json().get("results", [])
-    except Exception as e:
-        logger.warning("OpenAlex verification failed for '%s': %s", raw_text, e)
-        return None
+    except Exception as exc:
+        logger.warning("Wikipedia enrich Haiku call failed for %r: %s",
+                       title, exc)
+        return f"Body fetched for {title!r}, but bibliography extraction failed: {exc}"
 
-    for work in results:
-        title = work.get("display_name", "")
-        if _title_similarity(raw_text, title) > 0.5:
-            authors = [
-                a.get("author", {}).get("display_name", "")
-                for a in work.get("authorships", [])[:5]
-            ]
-            return VerifiedReference(
-                raw_text=raw_text,
-                verified=True,
-                verification_source="openalex",
-                openalex_title=title,
-                openalex_authors=authors,
-                openalex_year=work.get("publication_year"),
-                openalex_doi=work.get("doi") or "",
-                openalex_cited_by=work.get("cited_by_count") or 0,
-            )
-    return None
+    text = "".join(
+        getattr(b, "text", "")
+        for b in msg.content
+        if getattr(b, "type", None) == "text"
+    )
+    items = _parse_enrich(text)
 
-
-def _verify_via_wikipedia(raw_text: str) -> VerifiedReference | None:
-    """Try to verify a reference via Wikipedia search."""
-    try:
-        resp = requests.get(
-            "https://en.wikipedia.org/w/api.php",
-            params={
-                "action": "query",
-                "list": "search",
-                "srsearch": raw_text,
-                "srlimit": 3,
-                "format": "json",
-            },
-            headers={"User-Agent": _USER_AGENT},
-            timeout=_TIMEOUT,
+    new_tags: list[str] = []
+    for it in items:
+        # Synthesise a stable URL: either an author-and-title-keyed string,
+        # or fall back to the article URL (so dedup still works per-article).
+        synth_url = (
+            f"wiki-fr:{record.url}#{it['title'].lower().replace(' ', '_')}"
         )
-        resp.raise_for_status()
-        results = resp.json().get("query", {}).get("search", [])
-    except Exception as e:
-        logger.warning("Wikipedia verification failed for '%s': %s", raw_text, e)
-        return None
-
-    for item in results:
-        title = item.get("title", "")
-        if _title_similarity(raw_text, title) > 0.4:
-            return VerifiedReference(
-                raw_text=raw_text,
-                verified=True,
-                verification_source="wikipedia",
-            )
-    return None
-
-
-def verify_references(
-    proposed: list[dict],
-    touchstone_works: list[str],
-) -> ReadingList:
-    """Verify proposed references against OpenAlex and Wikipedia.
-
-    Args:
-        proposed: list of {"raw_text": str, "expert_name": str, "segment_name": str}
-        touchstone_works: list of canonical works that are auto-verified
-
-    Returns:
-        ReadingList with verified and unverified references.
-    """
-    touchstone_normalized = {_normalize(t) for t in touchstone_works}
-    seen: set[str] = set()
-    verified_list: list[VerifiedReference] = []
-    unverified_list: list[VerifiedReference] = []
-
-    for ref in proposed:
-        raw = ref["raw_text"]
-        key = _normalize(raw)
-        if key in seen or not key.strip():
-            continue
-        seen.add(key)
-
-        vr = VerifiedReference(
-            raw_text=raw,
-            expert_name=ref.get("expert_name", ""),
-            segment_name=ref.get("segment_name", ""),
+        desc = f"Listed in the bibliography of the Wikipedia article on {title}."
+        if it.get("publisher"):
+            desc += f" Publisher: {it['publisher']}."
+        tag = registry.register(
+            title=it["title"],
+            authors=[it["author"]] if it.get("author") else [],
+            year=it.get("year"),
+            type="wikipedia_further_reading",
+            publisher=it.get("publisher"),
+            description=desc,
+            url=synth_url,
+            source="wikipedia_further_reading",
+            parent_tag=ref_tag,
         )
+        new_tags.append(tag)
 
-        # 1. Touchstone match
-        if any(_title_similarity(key, t) > 0.7 for t in touchstone_normalized):
-            vr.verified = True
-            vr.verification_source = "touchstone"
-            verified_list.append(vr)
-            logger.info("  Verified (touchstone): %s", raw)
-            continue
-
-        # 2. OpenAlex
-        oa_result = _verify_via_openalex(raw)
-        if oa_result:
-            oa_result.expert_name = vr.expert_name
-            oa_result.segment_name = vr.segment_name
-            verified_list.append(oa_result)
-            logger.info("  Verified (openalex): %s → %s", raw, oa_result.openalex_title)
-            continue
-
-        # 3. Wikipedia
-        wp_result = _verify_via_wikipedia(raw)
-        if wp_result:
-            wp_result.expert_name = vr.expert_name
-            wp_result.segment_name = vr.segment_name
-            verified_list.append(wp_result)
-            logger.info("  Verified (wikipedia): %s", raw)
-            continue
-
-        # 4. Unverified
-        unverified_list.append(vr)
-        logger.info("  Unverified: %s", raw)
-
-    total = len(verified_list) + len(unverified_list)
-    return ReadingList(
-        verified=verified_list,
-        unverified=unverified_list,
-        total_proposed=total,
-        total_verified=len(verified_list),
-        verification_rate=len(verified_list) / total if total > 0 else 0.0,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Winnowing: select listener-friendly recommendations
-# ---------------------------------------------------------------------------
-
-class WinnowedReadingList(BaseModel):
-    """Reading list after winnowing to listener-friendly recommendations."""
-
-    recommended: list[str] = Field(
-        description="3-5 works a radio listener could realistically find and read"
-    )
-    full_verified: list[VerifiedReference] = Field(default_factory=list)
-    full_unverified: list[VerifiedReference] = Field(default_factory=list)
-    total_before_winnowing: int = 0
-
-
-_WINNOW_SYSTEM = """\
-You are a radio producer preparing the reading list for a literary \
-discussion podcast about **{novel_title}** by **{novel_author}**.
-
-Your experts proposed these references during pre-interviews.  Your job \
-is to select 3–5 that a normal listener — someone driving home who \
-enjoyed the discussion — would actually seek out.
-
-Criteria:
-- Available in a public library or bookshop (not journal articles, \
-  not Acts of Parliament, not archival documents, not dissertations)
-- Readable by a general audience (not specialist academic monographs \
-  unless they are famously readable)
-- Genuinely illuminating about the novel under discussion
-- Diverse: not all by the same author or on the same narrow topic
-
-Return ONLY the selected works, one per line, in "Author, Title (Year)" \
-format.  No commentary.  If fewer than 3 works qualify, return what you have."""
-
-
-def winnow_reading_list(
-    client: object,
-    reading_list: ReadingList,
-    novel_title: str,
-    novel_author: str,
-    model: str = "claude-haiku-4-5-20251001",
-) -> WinnowedReadingList:
-    """Winnow verified references to 3-5 listener-friendly recommendations."""
-    if not reading_list.verified:
-        return WinnowedReadingList(
-            recommended=[],
-            full_verified=reading_list.verified,
-            full_unverified=reading_list.unverified,
-            total_before_winnowing=reading_list.total_proposed,
-        )
-
-    # Deduplicate verified references by normalized title
-    seen: set[str] = set()
-    unique_refs: list[str] = []
-    for ref in reading_list.verified:
-        key = _normalize(ref.raw_text)
-        if key not in seen:
-            seen.add(key)
-            unique_refs.append(ref.raw_text)
-
-    system = _WINNOW_SYSTEM.format(
-        novel_title=novel_title,
-        novel_author=novel_author,
-    )
-    user = "References proposed by experts:\n\n" + "\n".join(
-        f"- {ref}" for ref in unique_refs
-    )
-
-    response = client.messages.create(
-        model=model,
-        max_tokens=512,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-
-    # Parse the response: one work per line
-    text = response.content[0].text if response.content else ""
-    recommended = [
-        line.lstrip("- ").strip()
-        for line in text.strip().split("\n")
-        if line.strip() and not line.startswith("#")
+    # Compose the tool result. The expert (Sonnet) sees the full article
+    # — that's the primary value of read_wikipedia_article — plus the
+    # newly-tagged bibliography items as separate citable candidates.
+    lines = [
+        f"=== Wikipedia article: {title} ({ref_tag}) ===",
+        "",
+        full,
+        "",
     ]
+    if new_tags:
+        lines.append(f"=== Further-reading items mined from {title!r}'s bibliography ===")
+        for tag, it in zip(new_tags, items):
+            author = it.get("author") or "—"
+            year = it.get("year") or "—"
+            lines.append(f"  [{tag}] {author}. {it['title']} ({year}).")
+    else:
+        lines.append("(No structured bibliography items found in this article.)")
+    return "\n".join(lines)
 
-    logger.info(
-        "  Winnowed %d unique → %d recommended",
-        len(unique_refs), len(recommended),
-    )
 
-    return WinnowedReadingList(
-        recommended=recommended,
-        full_verified=reading_list.verified,
-        full_unverified=reading_list.unverified,
-        total_before_winnowing=reading_list.total_proposed,
-    )
+# ---------------------------------------------------------------------------
+# Tool dispatch
+# ---------------------------------------------------------------------------
+
+
+def dispatch_tool(
+    tool_name: str,
+    tool_input: dict[str, Any],
+    registry: CitationRegistry,
+    client: anthropic.Anthropic,
+    recorder: Recorder | None = None,
+) -> str:
+    """Execute a tool by name. Returns result text for the LLM.
+
+    Timing is fine-grained at the HTTP/model layer (not at this
+    dispatch layer) so durations by `kind` sum without overlap:
+      - http_openalex_search / http_wikipedia_search / http_wikipedia_full
+        record the request latency
+      - the Haiku enrichment call inside read_wikipedia_article is its
+        own model event
+    """
+    if tool_name == "search_openalex":
+        return execute_search_openalex(
+            tool_input.get("query", ""), registry, recorder=recorder,
+        )
+    if tool_name == "search_wikipedia":
+        return execute_search_wikipedia(
+            tool_input.get("query", ""), registry, recorder=recorder,
+        )
+    if tool_name == "read_wikipedia_article":
+        return execute_read_wikipedia_article(
+            tool_input.get("ref_tag", ""), registry, client, recorder,
+        )
+    return f"Unknown tool: {tool_name}"
