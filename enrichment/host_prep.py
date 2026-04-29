@@ -596,6 +596,41 @@ def _select_listener_recommendations(
     return picks or [c.tag for c in candidates]
 
 
+def filter_reading_list_recommended(
+    client: anthropic.Anthropic,
+    reading_list_path: Path,
+    novel_title: str,
+    novel_author: str,
+    recorder: Recorder | None = None,
+) -> int:
+    """Post-pass that shrinks `recommended[]` in a phase2_5_reading_list.json
+    to a Haiku-curated, listener-friendly subset of the proposed entries.
+
+    Idempotent: reads the file, runs the soft filter, writes it back. The
+    full proposed set stays in `entries[]` (audit trail). Returns the
+    count of recommended entries written. No-op if the file is missing
+    or has no entries.
+    """
+    if not reading_list_path.exists():
+        return 0
+    payload = json.loads(reading_list_path.read_text())
+    entries_dicts: list[dict[str, Any]] = payload.get("entries") or []
+    if not entries_dicts:
+        return 0
+    candidates = [CitationRecord(**e) for e in entries_dicts]
+    picks = _select_listener_recommendations(
+        client, candidates, novel_title, novel_author, recorder=recorder,
+    )
+    pick_set = set(picks)
+    payload["recommended"] = [e for e in entries_dicts if e.get("tag") in pick_set]
+    reading_list_path.write_text(json.dumps(payload, indent=2))
+    logger.info(
+        "  Filtered reading list: %d → %d recommended (listener-friendly subset)",
+        len(entries_dicts), len(payload["recommended"]),
+    )
+    return len(payload["recommended"])
+
+
 def _segment_name(seg: dict, idx: int) -> str:
     return seg.get("name", seg.get("template", {}).get("name", f"Segment {idx}"))
 
@@ -686,8 +721,11 @@ def run_host_prep(
                 refs_text_by_segment[seg_name] = seg_text_refs
 
         # All unique entries the experts proposed during their interviews
-        # become `entries[]` in the output (full audit trail). The
-        # listener-facing `recommended[]` is a Haiku-curated short subset.
+        # become `entries[]` AND `recommended[]` in the output. The
+        # listener-friendly soft filter (filter_reading_list_recommended)
+        # runs as a post-processing step *after* phase 3 — the script
+        # generator no longer mentions specific works in the sign-off,
+        # so the reading list filter doesn't gate any script content.
         all_proposed_tags = {
             t for entries in proposed_tags_by_segment.values()
             for entry in entries for t in entry["tags"]
@@ -695,26 +733,9 @@ def run_host_prep(
         proposed_records = [
             r for r in canonical.all() if r.tag in all_proposed_tags
         ]
-        # Soft filter: which candidates would a general listener actually
-        # pursue? The criterion is too squishy for a deterministic rule
-        # (book-vs-article isn't enough), so Haiku reads each candidate's
-        # metadata and picks 3-8.
-        recommended_tags = _select_listener_recommendations(
-            client, proposed_records, novel_title, novel_author,
-            recorder=timing,
-        )
-        # Resolve recommended tags to full CitationRecord dicts (for the
-        # listener-facing reading_list.json) and a parallel list of
-        # one-line strings (for HostBrief.recommended_reading, which is
-        # an internal working doc).
-        recommended_entries: list[dict[str, Any]] = []
-        recommended_text: list[str] = []
-        for t in recommended_tags:
-            rec = canonical.get(t)
-            if rec is None:
-                continue
-            recommended_entries.append(asdict(rec))
-            recommended_text.append(_format_record_for_host(rec))
+        recommended_entries: list[dict[str, Any]] = [
+            asdict(r) for r in proposed_records
+        ]
 
         if run_dir:
             entries_payload = canonical.to_dicts()
@@ -749,11 +770,9 @@ def run_host_prep(
             with open(run_dir / "phase2_5_reading_list.json", "w") as f:
                 json.dump(payload, f, indent=2)
             logger.info(
-                "  Saved reading list: %d entries, %d proposed, %d recommended",
-                len(entries_payload), len(all_proposed_tags), len(recommended_tags),
+                "  Saved reading list: %d entries, %d proposed (all in recommended; filter is a post-pass)",
+                len(entries_payload), len(all_proposed_tags),
             )
-    else:
-        recommended_text = []
 
     logger.info("Phase 2.5b: question planning (%d segments)", len(segments))
     briefs: list[HostBrief] = []
@@ -768,8 +787,6 @@ def run_host_prep(
             recorder=plan_recorder,
         )
         timing.merge(plan_recorder)
-        if recommended_text:
-            brief.recommended_reading = recommended_text
         briefs.append(brief)
 
     if run_dir is not None:

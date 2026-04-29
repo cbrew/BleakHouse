@@ -358,18 +358,13 @@ once for context; findings and insights should dominate every turn.**
         closing = (
             "\n**This is the FINAL segment of the episode.**  End with a warm "
             "sign-off: the host thanks the experts by name, reflects briefly on "
-            "what was covered, and thanks the listeners.  No forward tease."
+            "what was covered, and thanks the listeners.  No forward tease.\n\n"
+            "Before signing off, the host should briefly mention that a "
+            "reading list of works the experts drew on accompanies the "
+            "episode — without naming any specific titles.  One sentence, "
+            "natural: 'There's a reading list with this episode if you "
+            "want to follow up.'  Don't read titles aloud."
         )
-        # Collect recommended reading across all briefs for the sign-off
-        if host_brief and host_brief.recommended_reading:
-            reading = host_brief.recommended_reading[:5]
-            closing += (
-                "\n\nBefore signing off, the host should mention one or two works "
-                "for listeners who want to explore further: "
-                + "; ".join(reading[:2])
-                + ".  Keep it brief and natural — 'If you want to read further, "
-                "our experts recommend...' — not a bibliography."
-            )
         user_parts.append(closing)
 
     if segment.assignments:
