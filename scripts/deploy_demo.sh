@@ -65,6 +65,9 @@ else
     fi
 fi
 
+echo "==> [0/7] Refreshing experiments.db (scan-if-stale)"
+uv run python -c "from enrichment.expdb.refresh import ensure_db_current; ensure_db_current()"
+
 echo "==> [1/7] Staging demo data"
 bash scripts/stage_demo.sh demo_data
 
