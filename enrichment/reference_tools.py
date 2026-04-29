@@ -31,6 +31,8 @@ import requests
 from anthropic.types import ToolUnionParam
 from urllib.parse import unquote, urlparse
 
+from enrichment.timing import Recorder, time_model, time_tool
+
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = 15
@@ -255,35 +257,39 @@ def _invert_abstract(inv: dict[str, list[int]] | None) -> str:
     return " ".join(word_at[i] for i in sorted(word_at) if i in word_at)
 
 
-def _openalex_get(query: str, max_results: int) -> list[dict[str, Any]]:
+def _openalex_get(
+    query: str, max_results: int, recorder: Recorder | None = None,
+) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"search": query, "per_page": max_results}
     api_key = os.environ.get("OPENALEX_API_KEY")
     if api_key:
         params["api_key"] = api_key
     else:
         params["mailto"] = "brewc@cbrew.com"
-    try:
-        resp = requests.get(
-            "https://api.openalex.org/works",
-            params=params,
-            headers={"User-Agent": _USER_AGENT},
-            timeout=_TIMEOUT,
-        )
-        resp.raise_for_status()
-        return resp.json().get("results", [])
-    except Exception as exc:
-        logger.warning("OpenAlex search failed for %r: %s", query, exc)
-        return []
+    with time_tool(recorder, "http_openalex_search", query):
+        try:
+            resp = requests.get(
+                "https://api.openalex.org/works",
+                params=params,
+                headers={"User-Agent": _USER_AGENT},
+                timeout=_TIMEOUT,
+            )
+            resp.raise_for_status()
+            return resp.json().get("results", [])
+        except Exception as exc:
+            logger.warning("OpenAlex search failed for %r: %s", query, exc)
+            return []
 
 
 def execute_search_openalex(
     query: str,
     registry: CitationRegistry,
     max_results: int = 3,
+    recorder: Recorder | None = None,
 ) -> str:
     """Search OpenAlex, register every hit in the registry, return text
     for the LLM that prefixes each line with the candidate's tag."""
-    results = _openalex_get(query, max_results)
+    results = _openalex_get(query, max_results, recorder)
     if not results:
         return f"No scholarly works found for {query!r}."
 
@@ -342,31 +348,34 @@ def execute_search_openalex(
 # ---------------------------------------------------------------------------
 
 
-def _wikipedia_search_pages(query: str, max_results: int) -> list[dict[str, Any]]:
+def _wikipedia_search_pages(
+    query: str, max_results: int, recorder: Recorder | None = None,
+) -> list[dict[str, Any]]:
     """Search Wikipedia and return article dicts (title, intro extract, url)."""
-    try:
-        resp = requests.get(
-            "https://en.wikipedia.org/w/api.php",
-            params={
-                "action": "query",
-                "generator": "search",
-                "gsrsearch": query[:300],
-                "gsrlimit": max_results,
-                "prop": "extracts|info",
-                "exintro": "1",
-                "explaintext": "1",
-                "exchars": "800",
-                "inprop": "url",
-                "format": "json",
-                "redirects": "1",
-            },
-            headers={"User-Agent": _USER_AGENT},
-            timeout=_TIMEOUT,
-        )
-        resp.raise_for_status()
-    except Exception as exc:
-        logger.warning("Wikipedia search failed for %r: %s", query, exc)
-        return []
+    with time_tool(recorder, "http_wikipedia_search", query):
+        try:
+            resp = requests.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={
+                    "action": "query",
+                    "generator": "search",
+                    "gsrsearch": query[:300],
+                    "gsrlimit": max_results,
+                    "prop": "extracts|info",
+                    "exintro": "1",
+                    "explaintext": "1",
+                    "exchars": "800",
+                    "inprop": "url",
+                    "format": "json",
+                    "redirects": "1",
+                },
+                headers={"User-Agent": _USER_AGENT},
+                timeout=_TIMEOUT,
+            )
+            resp.raise_for_status()
+        except Exception as exc:
+            logger.warning("Wikipedia search failed for %r: %s", query, exc)
+            return []
     pages = (resp.json().get("query") or {}).get("pages") or {}
     items = sorted(pages.values(), key=lambda p: p.get("index", 999))
     return items[:max_results]
@@ -376,8 +385,9 @@ def execute_search_wikipedia(
     query: str,
     registry: CitationRegistry,
     max_results: int = 3,
+    recorder: Recorder | None = None,
 ) -> str:
-    pages = _wikipedia_search_pages(query, max_results)
+    pages = _wikipedia_search_pages(query, max_results, recorder)
     if not pages:
         return f"No Wikipedia articles found for {query!r}."
 
@@ -402,28 +412,31 @@ def execute_search_wikipedia(
     return "\n".join(lines)
 
 
-def wikipedia_full_extract(title: str) -> str:
+def wikipedia_full_extract(
+    title: str, recorder: Recorder | None = None,
+) -> str:
     """Fetch the full plain-text body of a Wikipedia article (not just intro)."""
     if not title.strip():
         return ""
-    try:
-        resp = requests.get(
-            "https://en.wikipedia.org/w/api.php",
-            params={
-                "action": "query",
-                "titles": title,
-                "prop": "extracts",
-                "explaintext": "1",
-                "format": "json",
-                "redirects": "1",
-            },
-            headers={"User-Agent": _USER_AGENT},
-            timeout=_TIMEOUT,
-        )
-        resp.raise_for_status()
-    except Exception as exc:
-        logger.warning("Wikipedia full extract failed for %r: %s", title, exc)
-        return ""
+    with time_tool(recorder, "http_wikipedia_full", title):
+        try:
+            resp = requests.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={
+                    "action": "query",
+                    "titles": title,
+                    "prop": "extracts",
+                    "explaintext": "1",
+                    "format": "json",
+                    "redirects": "1",
+                },
+                headers={"User-Agent": _USER_AGENT},
+                timeout=_TIMEOUT,
+            )
+            resp.raise_for_status()
+        except Exception as exc:
+            logger.warning("Wikipedia full extract failed for %r: %s", title, exc)
+            return ""
     pages = (resp.json().get("query") or {}).get("pages") or {}
     for p in pages.values():
         if p.get("extract"):
@@ -522,6 +535,7 @@ def execute_read_wikipedia_article(
     ref_tag: str,
     registry: CitationRegistry,
     client: anthropic.Anthropic,
+    recorder: Recorder | None = None,
 ) -> str:
     """Fetch an article's full body, extract its bibliography via Haiku,
     register each extracted item as a tagged record. Returns text for
@@ -536,22 +550,25 @@ def execute_read_wikipedia_article(
         )
 
     title = _wikipedia_title_from_url(record.url) or record.title
-    full = wikipedia_full_extract(title)
+    full = wikipedia_full_extract(title, recorder)
     if not full:
         return f"Could not fetch full body for {title!r}."
 
     body_slice = _slice_wikipedia_for_haiku(full)
     try:
-        msg = client.messages.create(
-            model=_ENRICH_MODEL,
-            max_tokens=800,
-            system=_WIKI_ENRICH_PROMPT,
-            messages=[{
-                "role": "user",
-                "content": (
-                    f"Wikipedia article '{title}':\n\n{body_slice}"
-                ),
-            }],
+        msg = time_model(
+            recorder, f"wiki_enrich:{title[:60]}",
+            lambda: client.messages.create(
+                model=_ENRICH_MODEL,
+                max_tokens=800,
+                system=_WIKI_ENRICH_PROMPT,
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        f"Wikipedia article '{title}':\n\n{body_slice}"
+                    ),
+                }],
+            ),
         )
     except Exception as exc:
         logger.warning("Wikipedia enrich Haiku call failed for %r: %s",
@@ -614,14 +631,27 @@ def dispatch_tool(
     tool_input: dict[str, Any],
     registry: CitationRegistry,
     client: anthropic.Anthropic,
+    recorder: Recorder | None = None,
 ) -> str:
-    """Execute a tool by name. Returns result text for the LLM."""
+    """Execute a tool by name. Returns result text for the LLM.
+
+    Timing is fine-grained at the HTTP/model layer (not at this
+    dispatch layer) so durations by `kind` sum without overlap:
+      - http_openalex_search / http_wikipedia_search / http_wikipedia_full
+        record the request latency
+      - the Haiku enrichment call inside read_wikipedia_article is its
+        own model event
+    """
     if tool_name == "search_openalex":
-        return execute_search_openalex(tool_input.get("query", ""), registry)
+        return execute_search_openalex(
+            tool_input.get("query", ""), registry, recorder=recorder,
+        )
     if tool_name == "search_wikipedia":
-        return execute_search_wikipedia(tool_input.get("query", ""), registry)
+        return execute_search_wikipedia(
+            tool_input.get("query", ""), registry, recorder=recorder,
+        )
     if tool_name == "read_wikipedia_article":
         return execute_read_wikipedia_article(
-            tool_input.get("ref_tag", ""), registry, client
+            tool_input.get("ref_tag", ""), registry, client, recorder,
         )
     return f"Unknown tool: {tool_name}"
