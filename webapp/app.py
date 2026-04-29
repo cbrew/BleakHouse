@@ -146,61 +146,6 @@ def _load_json(path: Path) -> dict | list | None:
         return None
 
 
-def _discover_runs(*, include_scriptonly: bool = False) -> dict[str, list[dict]]:
-    """Find runs grouped by novel title.
-
-    Discovers runs with audio (audio/manifest.json) by default.
-    If include_scriptonly=True, also includes runs with only a
-    manifest.json (no audio) — these get has_audio=False.
-    """
-    novels: dict[str, list[dict]] = {}
-    runs_dir = DATA_DIR / "runs"
-    if not runs_dir.exists():
-        return novels
-    for run_dir in sorted(runs_dir.iterdir()):
-        audio_manifest = run_dir / "audio" / "manifest.json"
-        run_manifest = run_dir / "manifest.json"
-
-        # Same audio-presence rule as _available_versions / has_audio.
-        has_audio = bool(_available_versions(run_dir.name))
-        if not has_audio and not include_scriptonly:
-            continue
-
-        # Prefer the per-render manifest under audio/, fall back to the
-        # run-level one (older Gemini renders' metadata lives there).
-        manifest_path = audio_manifest if audio_manifest.exists() else run_manifest
-        if not manifest_path.exists():
-            continue
-
-        with open(manifest_path) as f:
-            mf = json.load(f)
-        title = mf.get("title", run_dir.name)
-        novel = title.replace(": A Literary Discussion", "")
-
-        name = run_dir.name
-        base_name, version = _parse_version(name)
-        condition, panel, hostprep, generator = _classify_run(run_dir)
-
-        run_info = {
-            "run_id": name,
-            "base_name": base_name,
-            "version": version,
-            "title": title,
-            "novel": novel,
-            "condition": condition,
-            "panel": panel,
-            "hostprep": hostprep,
-            "generator": generator,
-            "passage_source": mf.get("passage_source", "unknown"),
-            "experts": mf.get("experts", []),
-            "total_duration_ms": mf.get("total_duration_ms", 0),
-            "has_audio": has_audio,
-            "has_host_prep": (run_dir / "phase2_5_host_briefs.json").exists(),
-        }
-        novels.setdefault(novel, []).append(run_info)
-    return novels
-
-
 PAGES_DIR = Path(__file__).resolve().parent / "pages"
 
 
@@ -670,14 +615,32 @@ async def get_episode(run_id: str):
 
 @app.get("/api/runs/{run_id}/prep")
 async def get_prep(run_id: str):
-    """Serve combined host-preparation data: interviews, briefs, reading list."""
+    """Serve combined host-preparation data: interviews, briefs, reading list.
+
+    The DB resolves the canonical hostprep_version paths for this episode
+    label. For retrofit episodes (which keep the original label but write
+    refreshed artefacts to a new dir), this serves the latest interviews
+    and briefs even though the run_id-named dir holds older versions.
+
+    The reading-list and config still come from the run-id-named dir on
+    disk; they're not yet promoted to first-class DB rows.
+    """
+    from webapp.db_views import hostprep_for_run  # pyright: ignore[reportMissingImports]
+
     if ".." in run_id:
         raise HTTPException(400, "Invalid path")
     run_dir = DATA_DIR / "runs" / run_id
-    interviews_path = run_dir / "phase2_5_interviews.json"
-    briefs_path = run_dir / "phase2_5_host_briefs.json"
+
+    db_paths = hostprep_for_run(run_id)
+    if db_paths is not None:
+        interviews_path = Path(db_paths["interviews_path"])
+        briefs_path = Path(db_paths["briefs_path"])
+    else:
+        interviews_path = run_dir / "phase2_5_interviews.json"
+        briefs_path = run_dir / "phase2_5_host_briefs.json"
     reading_path = run_dir / "phase2_5_reading_list.json"
     config_path = run_dir / "config.json"
+
     if not interviews_path.exists():
         raise HTTPException(404, f"No host-prep data for run {run_id}")
     result: dict = {"run_id": run_id}
@@ -851,13 +814,6 @@ TRACKER_CONDITIONS = [
 ]
 
 
-def _tracker_run_name(novel_key: str, pp: str, panel: str, hp: bool) -> str:
-    """Canonical dir name via axes.run_dir_name; novel_key may be the full id
-    ('bleak_house') or the short axes key ('bh')."""
-    nk = axes.NOVEL_BY_ID[novel_key].key if novel_key in axes.NOVEL_BY_ID else novel_key
-    return axes.run_dir_name(novel=nk, pipeline=pp, panel=panel, hostprep=hp)
-
-
 def _measure(path: Path) -> dict | None:
     if not path.exists():
         return None
@@ -986,7 +942,6 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     name = run_dir.name
     audio_manifest_path = run_dir / "audio" / "manifest.json"
     run_manifest_path = run_dir / "manifest.json"
-    audio_mp3_path = run_dir / "audio" / "podcast.mp3"
     episode_path = run_dir / "phase3_episode.json"
     config_path = run_dir / "config.json"
     reading_list_path = run_dir / "phase2_5_reading_list.json"
@@ -1152,105 +1107,75 @@ def _dvc_stale_runs() -> dict[str, list[str]]:
     return stale
 
 
-def _build_cached_snapshot() -> dict:
+def _build_tracker_matrix_from_db() -> dict:
+    """Build the /tracker/data response from data/experiments.db.
+
+    The DB resolves (novel, panel, pipeline, hostprep, generator) to the
+    freshest episode at that coordinate — so retrofit runs surface
+    naturally without per-feature dir-name regex.
+
+    Per-cell metrics (q/r/w/timings/quotes) still come from the run's
+    phase3_episode.json on disk via _summarize_run_dir; the DB just
+    decides which run_dir to read for each cell.
+    """
+    from webapp.db_views import matrix_rows  # pyright: ignore[reportMissingImports]
+
     runs_dir = DATA_DIR / "runs"
-    novels: dict[str, list[dict]] = {}
-    all_runs: dict[str, list[dict]] = {}
-    run_summaries: dict[str, dict] = {}
-    p25_times: list[float] = []
-    p3_times: list[float] = []
-    versions_map: dict[str, list[dict]] = {}
     stale_by_run = _dvc_stale_runs()
+    db_rows = matrix_rows()
+    by_axes = {
+        (r["novel"], r["panel"], r["pipeline"], int(r["hostprep"]), r["generator"]): r
+        for r in db_rows
+    }
 
-    if runs_dir.exists():
-        for run_dir in sorted(runs_dir.iterdir()):
-            if not run_dir.is_dir():
-                continue
-            summary = _summarize_run_dir(run_dir)
-            summary["dvc_stale_phases"] = stale_by_run.get(summary["run_id"], [])
-            run_summaries[summary["run_id"]] = summary
+    cell_cache: dict[str, dict] = {}
 
-            if summary["title"] and summary["has_audio"]:
-                novel_entry = {
-                    "run_id": summary["run_id"],
-                    "base_name": summary["base_name"],
-                    "version": summary["version"],
-                    "title": summary["title"],
-                    "novel": summary["novel"],
-                    "condition": summary["condition"],
-                    "panel": summary["panel"],
-                    "hostprep": summary["hostprep"],
-                    "passage_source": summary["passage_source"],
-                    "experts": summary["experts"],
-                    "total_duration_ms": summary["total_duration_ms"],
-                    "has_audio": summary["has_audio"],
-                    "has_host_prep": summary["has_host_prep"],
-                }
-                novels.setdefault(summary["novel"], []).append(novel_entry)
-                all_runs.setdefault(summary["novel"], []).append(
-                    {
-                        "run_id": summary["run_id"],
-                        "title": summary["title"],
-                        "novel": summary["novel"],
-                        "condition": summary["condition"],
-                        "hostprep": summary["hostprep"],
-                        "audio_state": summary["audio_state"],
-                        "experts": summary["experts"],
-                    }
-                )
+    def _cell_for(run_id: str) -> dict:
+        cached = cell_cache.get(run_id)
+        if cached is not None:
+            return cached
+        rd = runs_dir / run_id
+        summary: dict = (
+            _summarize_run_dir(rd) if rd.exists()
+            else {"name": run_id, "run_id": run_id, "status": "missing"}
+        )
+        summary["dvc_stale_phases"] = stale_by_run.get(run_id, [])
+        cell_cache[run_id] = summary
+        return summary
 
-            if summary["version"] != "v1.0":
-                versions_map.setdefault(summary["version"], []).append(
-                    {
-                        "run_id": summary["run_id"],
-                        "base_name": summary["base_name"],
-                        "version": summary["version"],
-                        "novel": summary["novel"],
-                        "condition": summary["condition"],
-                        "panel": summary["panel"],
-                        "hostprep": summary["hostprep"],
-                        "has_episode": summary["has_episode"],
-                        "has_report": summary["has_report"],
-                        "has_reading_list": summary["has_reading_list"],
-                        "has_audio": summary["has_audio"],
-                        "metrics": summary["metrics"],
-                        "reading": summary["reading"],
-                    }
-                )
-
-            timings = summary.get("timings") or {}
-            if timings.get("p25_min") is not None:
-                p25_times.append(timings["p25_min"])
-            if timings.get("p3_min") is not None:
-                p3_times.append(timings["p3_min"])
-
-    # Per-generator matrix: each row holds cells_by_generator[gen_id] so the
-    # client can switch dimensions without a refetch. Default generator's
-    # cells are duplicated into `row.cells` for back-compat.
     tracker_generators = sorted(axes.GENERATORS)
-    rows = []
+    rows_out: list[dict] = []
     totals_by_generator: dict[str, dict[str, int]] = {
         g: {"total": 0, "done": 0, "running": 0} for g in tracker_generators
     }
-    # Legacy scalar totals track the default generator.
     total = 0
     done = 0
     running_count = 0
+    p25_times: list[float] = []
+    p3_times: list[float] = []
+
     for novel_key, title, author, year in TRACKER_NOVELS:
+        nk_short = axes.NOVEL_BY_ID[novel_key].key if novel_key in axes.NOVEL_BY_ID else novel_key
         cells_by_generator: dict[str, list[dict]] = {}
         for gen in tracker_generators:
             cells: list[dict] = []
-            nk_short = axes.NOVEL_BY_ID[novel_key].key if novel_key in axes.NOVEL_BY_ID else novel_key
             for pp, panel, hp in TRACKER_CONDITIONS:
-                rn = axes.run_dir_name(novel=nk_short, pipeline=pp, panel=panel,
-                                       hostprep=hp, generator=gen)
-                detail = run_summaries.get(rn, {"name": rn, "status": "missing"})
+                key = (nk_short, panel, pp, 1 if hp else 0, gen)
+                row = by_axes.get(key)
+                if row is None:
+                    name = axes.run_dir_name(
+                        novel=nk_short, pipeline=pp, panel=panel,
+                        hostprep=hp, generator=gen,
+                    )
+                    cell = {"name": name, "status": "missing"}
+                else:
+                    cell = _cell_for(row["run_id"])
                 totals_by_generator[gen]["total"] += 1
-                if detail["status"] == "done":
+                if cell["status"] == "done":
                     totals_by_generator[gen]["done"] += 1
-                elif detail["status"] == "running":
+                elif cell["status"] == "running":
                     totals_by_generator[gen]["running"] += 1
-                cells.append(detail)
+                cells.append(cell)
             cells_by_generator[gen] = cells
 
         default_cells = cells_by_generator[axes.DEFAULT_GENERATOR]
@@ -1260,66 +1185,42 @@ def _build_cached_snapshot() -> dict:
                 done += 1
             elif c["status"] == "running":
                 running_count += 1
-        rows.append({
+            timings = c.get("timings") or {}
+            if timings.get("p25_min") is not None:
+                p25_times.append(timings["p25_min"])
+            if timings.get("p3_min") is not None:
+                p3_times.append(timings["p3_min"])
+        rows_out.append({
             "key": novel_key, "title": title, "author": author, "year": year,
             "cells": default_cells,
             "cells_by_generator": cells_by_generator,
         })
 
-    refreshed_at = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
-    versions = dict(
-        sorted(
-            ((v, len(runs)) for v, runs in versions_map.items()),
-            key=lambda item: _version_sort_key(item[0]),
-        )
-    )
-    version_runs = [
-        run
-        for _version, runs in sorted(
-            versions_map.items(),
-            key=lambda item: _version_sort_key(item[0]),
-        )
-        for run in runs
-    ]
-
-    # Interdisciplinary panel runs (not in the main 180-condition grid).
-    # Keep only the latest version per (novel, grounding_condition).
-    _inter_best: dict[tuple[str, str], dict] = {}
-    for rid, s in sorted(run_summaries.items()):
-        if "interdisciplinary" not in rid or not s.get("has_episode"):
+    # Interdisciplinary panel runs — every DB row with panel='interdisciplinary'
+    # and a script. The view already keeps the freshest per coordinate, so no
+    # extra dedup needed.
+    inter_runs: list[dict] = []
+    for r in db_rows:
+        if r["panel"] != "interdisciplinary" or not r.get("has_episode"):
             continue
-        novel = s.get("novel", "")
-        cond = s.get("condition", "")
-        key = (novel, cond)
-        entry = {
-            "run_id": rid,
-            "novel": novel,
-            "condition": cond,
-            "panel": s.get("panel", ""),
-            "hostprep": s.get("hostprep", False),
-            "has_audio": s.get("has_audio", False),
-            "has_episode": s.get("has_episode", False),
-            "has_report": s.get("has_report", False),
-            "q": s.get("q", 0),
-            "r": s.get("r", 0),
-            "w": s.get("w", 0),
-        }
-        prev = _inter_best.get(key)
-        # Prefer runs with audio; among those, prefer latest version
-        prev_audio = prev.get("has_audio", False) if prev else False
-        has_audio = s.get("has_audio", False)
-        if prev is None or (has_audio and not prev_audio) or (
-            has_audio == prev_audio
-            and _version_sort_key(s.get("version", "v1.0")) > _version_sort_key(prev.get("_ver", "v1.0"))
-        ):
-            entry["_ver"] = s.get("version", "v1.0")
-            _inter_best[key] = entry
-    inter_runs = [v for v in _inter_best.values()]
-    for r in inter_runs:
-        r.pop("_ver", None)
+        cell = _cell_for(r["run_id"])
+        inter_runs.append({
+            "run_id": r["run_id"],
+            "novel": cell.get("novel", r["novel"]),
+            "condition": cell.get("condition", r["pipeline"]),
+            "panel": cell.get("panel", r["panel"]),
+            "hostprep": bool(r["hostprep"]),
+            "has_audio": cell.get("has_audio", False),
+            "has_episode": cell.get("has_episode", True),
+            "has_report": cell.get("has_report", False),
+            "q": cell.get("q", 0),
+            "r": cell.get("r", 0),
+            "w": cell.get("w", 0),
+        })
 
-    # Panel-scripts matrix: 2 novels × 3 panels, all with reference-tools.
-    PANEL_SCRIPTS_RUNS = [
+    # Panel-scripts matrix: 2 novels × 3 panels, hardcoded run_ids. Look each
+    # up by label; 'missing' if not in the runs dir.
+    panel_scripts_runs = [
         ("Bleak House", "literary", "arc_v01_baseline"),
         ("Bleak House", "interdisciplinary", "interdisciplinary_trn_hostprep_refs"),
         ("Bleak House", "alternative", "arc_v19_all_swapped"),
@@ -1328,9 +1229,9 @@ def _build_cached_snapshot() -> dict:
         ("Hester", "alternative", "hest_trn_v19_all_swapped_hostprep_refs"),
     ]
     panel_scripts: list[dict] = []
-    for novel_label, panel_key, run_id in PANEL_SCRIPTS_RUNS:
-        s = run_summaries.get(run_id)
-        if s is None:
+    for novel_label, panel_key, run_id in panel_scripts_runs:
+        cell = _cell_for(run_id)
+        if cell.get("status") == "missing":
             panel_scripts.append({
                 "novel": novel_label, "panel": panel_key, "run_id": run_id,
                 "status": "missing",
@@ -1340,113 +1241,260 @@ def _build_cached_snapshot() -> dict:
             "novel": novel_label,
             "panel": panel_key,
             "run_id": run_id,
-            "status": s.get("status", "missing"),
-            "phase": s.get("phase"),
-            "q": s.get("q", 0),
-            "r": s.get("r", 0),
-            "w": s.get("w", 0),
-            "has_audio": s.get("has_audio", False),
-            "has_episode": s.get("has_episode", False),
-            "has_report": s.get("has_report", False),
-            "has_reading_list": s.get("has_reading_list", False),
-            "reading": s.get("reading", {}),
+            "status": cell.get("status", "missing"),
+            "phase": cell.get("phase"),
+            "q": cell.get("q", 0),
+            "r": cell.get("r", 0),
+            "w": cell.get("w", 0),
+            "has_audio": cell.get("has_audio", False),
+            "has_episode": cell.get("has_episode", False),
+            "has_report": cell.get("has_report", False),
+            "has_reading_list": cell.get("has_reading_list", False),
+            "reading": cell.get("reading", {}),
             "name": run_id,
-            "condition": s.get("condition", "transport"),
-            "hostprep": s.get("hostprep", False),
+            "condition": cell.get("condition", "transport"),
+            "hostprep": cell.get("hostprep", False),
         })
 
+    refreshed_at = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+    running_names = [c["name"] for row in rows_out for c in row["cells"] if c["status"] == "running"]
+
     return {
-        "novels": novels,
-        "all_runs": all_runs,
-        "matrix": {
-            "rows": rows,
-            "total": total,
-            "done": done,
-            "running": running_count,
-            "stalled": 0,
-            "running_names": [c["name"] for row in rows for c in row["cells"] if c["status"] == "running"],
-            "process": None,
-            "histograms": {"p25": sorted(p25_times), "p3": sorted(p3_times)},
-            "refreshed_at": refreshed_at,
-            "interdisciplinary": inter_runs,
-            "panel_scripts": panel_scripts,
-            "generators": [
-                {"id": g, "display": axes.GENERATOR_BY_ID[g].display}
-                for g in tracker_generators
-            ],
-            "default_generator": axes.DEFAULT_GENERATOR,
-            "totals_by_generator": totals_by_generator,
-        },
-        "versions": {"versions": versions, "runs": version_runs},
+        "rows": rows_out,
+        "total": total,
+        "done": done,
+        "running": running_count,
+        "stalled": 0,
+        "running_names": running_names,
+        "process": None,
+        "histograms": {"p25": sorted(p25_times), "p3": sorted(p3_times)},
         "refreshed_at": refreshed_at,
+        "interdisciplinary": inter_runs,
+        "panel_scripts": panel_scripts,
+        "generators": [
+            {"id": g, "display": axes.GENERATOR_BY_ID[g].display}
+            for g in tracker_generators
+        ],
+        "default_generator": axes.DEFAULT_GENERATOR,
+        "totals_by_generator": totals_by_generator,
     }
+
+
+def _build_run_lists_from_db() -> dict:
+    """Build the /api/novels and /api/all-runs response payloads from the
+    DB-enumerated run list. Per-run details (title, experts, audio state)
+    still come from each run_dir's manifest/episode JSON.
+
+    Returns {"novels": ..., "all_runs": ...} matching the shape that the
+    filesystem snapshot used.
+    """
+    from webapp.db_views import all_episode_rows  # pyright: ignore[reportMissingImports]
+
+    runs_dir = DATA_DIR / "runs"
+    novels: dict[str, list[dict]] = {}
+    all_runs: dict[str, list[dict]] = {}
+    for r in all_episode_rows():
+        run_id = r["run_id"]
+        rd = runs_dir / run_id
+        if not rd.exists():
+            continue
+        s = _summarize_run_dir(rd)
+        if not (s["title"] and s["has_audio"]):
+            continue
+        novels.setdefault(s["novel"], []).append({
+            "run_id": s["run_id"],
+            "base_name": s["base_name"],
+            "version": s["version"],
+            "title": s["title"],
+            "novel": s["novel"],
+            "condition": s["condition"],
+            "panel": s["panel"],
+            "hostprep": s["hostprep"],
+            "passage_source": s["passage_source"],
+            "experts": s["experts"],
+            "total_duration_ms": s["total_duration_ms"],
+            "has_audio": s["has_audio"],
+            "has_host_prep": s["has_host_prep"],
+        })
+        all_runs.setdefault(s["novel"], []).append({
+            "run_id": s["run_id"],
+            "title": s["title"],
+            "novel": s["novel"],
+            "condition": s["condition"],
+            "hostprep": s["hostprep"],
+            "audio_state": s["audio_state"],
+            "experts": s["experts"],
+        })
+    return {"novels": novels, "all_runs": all_runs}
+
+
+def _build_versions_data_from_db() -> dict:
+    """Build the /tracker/versions response from data/experiments.db.
+
+    Returns versioned runs (label matches _v1_\\d+$) grouped by version.
+    Per-run details come from each run_dir's JSON via _summarize_run_dir;
+    the DB just enumerates which episodes exist.
+    """
+    from webapp.db_views import all_episode_rows  # pyright: ignore[reportMissingImports]
+
+    runs_dir = DATA_DIR / "runs"
+    versions_map: dict[str, list[dict]] = {}
+    for r in all_episode_rows():
+        run_id = r["run_id"]
+        _base, version = _parse_version(run_id)
+        if version == "v1.0":
+            continue
+        rd = runs_dir / run_id
+        if not rd.exists():
+            continue
+        s = _summarize_run_dir(rd)
+        versions_map.setdefault(version, []).append({
+            "run_id": run_id,
+            "base_name": s["base_name"],
+            "version": version,
+            "novel": s["novel"],
+            "condition": s["condition"],
+            "panel": s["panel"],
+            "hostprep": s["hostprep"],
+            "has_episode": s["has_episode"],
+            "has_report": s["has_report"],
+            "has_reading_list": s["has_reading_list"],
+            "has_audio": s["has_audio"],
+            "metrics": s.get("metrics", {}),
+            "reading": s.get("reading", {}),
+        })
+    versions = dict(
+        sorted(
+            ((v, len(rs)) for v, rs in versions_map.items()),
+            key=lambda item: _version_sort_key(item[0]),
+        )
+    )
+    version_runs = [
+        run
+        for _v, rs in sorted(
+            versions_map.items(),
+            key=lambda item: _version_sort_key(item[0]),
+        )
+        for run in rs
+    ]
+    return {"versions": versions, "runs": version_runs}
 
 
 class RunIndexCache:
     def __init__(self, ttl_seconds: float = 30.0):
         self.ttl_seconds = ttl_seconds
-        self._snapshot: dict | None = None
-        self._last_refresh = 0.0
-        self._schedule_lock = asyncio.Lock()
-        self._refresh_task: asyncio.Task | None = None
+        self._matrix: dict | None = None
+        self._matrix_last_refresh = 0.0
+        self._matrix_lock = asyncio.Lock()
+        self._matrix_task: asyncio.Task | None = None
+        self._versions: dict | None = None
+        self._versions_last_refresh = 0.0
+        self._versions_lock = asyncio.Lock()
+        self._versions_task: asyncio.Task | None = None
+        self._run_lists: dict | None = None
+        self._run_lists_last_refresh = 0.0
+        self._run_lists_lock = asyncio.Lock()
+        self._run_lists_task: asyncio.Task | None = None
 
-    def _is_stale(self) -> bool:
-        return (time.monotonic() - self._last_refresh) >= self.ttl_seconds
+    def _matrix_is_stale(self) -> bool:
+        return (time.monotonic() - self._matrix_last_refresh) >= self.ttl_seconds
 
-    async def _run_refresh(self) -> None:
+    async def _run_matrix_refresh(self) -> None:
         try:
-            snapshot = await asyncio.to_thread(_build_cached_snapshot)
-            self._snapshot = snapshot
-            self._last_refresh = time.monotonic()
+            matrix = await asyncio.to_thread(_build_tracker_matrix_from_db)
+            self._matrix = matrix
+            self._matrix_last_refresh = time.monotonic()
         except Exception:
-            logger.exception("Run index refresh failed")
+            logger.exception("Tracker matrix refresh failed")
         finally:
-            self._refresh_task = None
+            self._matrix_task = None
 
-    async def _ensure_refresh_started(self) -> asyncio.Task:
-        async with self._schedule_lock:
-            if self._refresh_task is None or self._refresh_task.done():
-                self._refresh_task = asyncio.create_task(self._run_refresh())
-            return self._refresh_task
+    async def _ensure_matrix_refresh_started(self) -> asyncio.Task:
+        async with self._matrix_lock:
+            if self._matrix_task is None or self._matrix_task.done():
+                self._matrix_task = asyncio.create_task(self._run_matrix_refresh())
+            return self._matrix_task
 
-    async def get_snapshot(self) -> dict:
-        if self._snapshot is None:
-            task = await self._ensure_refresh_started()
-            await task
-        elif self._is_stale():
-            await self._ensure_refresh_started()
-        return self._snapshot or {
-            "novels": {},
-            "all_runs": {},
-            "matrix": {
-                "rows": [],
-                "total": 0,
-                "done": 0,
-                "running": 0,
-                "stalled": 0,
-                "running_names": [],
-                "process": None,
-                "histograms": {"p25": [], "p3": []},
-                "refreshed_at": "",
-            },
-            "versions": {"versions": {}, "runs": []},
-            "refreshed_at": "",
-        }
+    def _versions_is_stale(self) -> bool:
+        return (time.monotonic() - self._versions_last_refresh) >= self.ttl_seconds
+
+    async def _run_versions_refresh(self) -> None:
+        try:
+            data = await asyncio.to_thread(_build_versions_data_from_db)
+            self._versions = data
+            self._versions_last_refresh = time.monotonic()
+        except Exception:
+            logger.exception("Versions refresh failed")
+        finally:
+            self._versions_task = None
+
+    async def _ensure_versions_refresh_started(self) -> asyncio.Task:
+        async with self._versions_lock:
+            if self._versions_task is None or self._versions_task.done():
+                self._versions_task = asyncio.create_task(self._run_versions_refresh())
+            return self._versions_task
+
+    def _run_lists_is_stale(self) -> bool:
+        return (time.monotonic() - self._run_lists_last_refresh) >= self.ttl_seconds
+
+    async def _run_run_lists_refresh(self) -> None:
+        try:
+            data = await asyncio.to_thread(_build_run_lists_from_db)
+            self._run_lists = data
+            self._run_lists_last_refresh = time.monotonic()
+        except Exception:
+            logger.exception("Run-lists refresh failed")
+        finally:
+            self._run_lists_task = None
+
+    async def _ensure_run_lists_refresh_started(self) -> asyncio.Task:
+        async with self._run_lists_lock:
+            if self._run_lists_task is None or self._run_lists_task.done():
+                self._run_lists_task = asyncio.create_task(self._run_run_lists_refresh())
+            return self._run_lists_task
 
     async def prime(self) -> None:
-        await self._ensure_refresh_started()
+        await self._ensure_matrix_refresh_started()
+        await self._ensure_versions_refresh_started()
+        await self._ensure_run_lists_refresh_started()
+
+    async def _get_run_lists(self) -> dict:
+        if self._run_lists is None:
+            task = await self._ensure_run_lists_refresh_started()
+            await task
+        elif self._run_lists_is_stale():
+            await self._ensure_run_lists_refresh_started()
+        return self._run_lists or {"novels": {}, "all_runs": {}}
 
     async def get_novels(self) -> dict[str, list[dict]]:
-        return (await self.get_snapshot())["novels"]
+        return (await self._get_run_lists())["novels"]
 
     async def get_all_runs(self) -> dict[str, list[dict]]:
-        return (await self.get_snapshot())["all_runs"]
+        return (await self._get_run_lists())["all_runs"]
 
     async def get_matrix(self) -> dict:
-        return (await self.get_snapshot())["matrix"]
+        if self._matrix is None:
+            task = await self._ensure_matrix_refresh_started()
+            await task
+        elif self._matrix_is_stale():
+            await self._ensure_matrix_refresh_started()
+        return self._matrix or {
+            "rows": [], "total": 0, "done": 0, "running": 0, "stalled": 0,
+            "running_names": [], "process": None,
+            "histograms": {"p25": [], "p3": []},
+            "refreshed_at": "",
+            "interdisciplinary": [], "panel_scripts": [],
+            "generators": [], "default_generator": axes.DEFAULT_GENERATOR,
+            "totals_by_generator": {},
+        }
 
     async def get_versions(self) -> dict:
-        return (await self.get_snapshot())["versions"]
+        if self._versions is None:
+            task = await self._ensure_versions_refresh_started()
+            await task
+        elif self._versions_is_stale():
+            await self._ensure_versions_refresh_started()
+        return self._versions or {"versions": {}, "runs": []}
 
 
 RUN_INDEX = RunIndexCache(ttl_seconds=30.0)
