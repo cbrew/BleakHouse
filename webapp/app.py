@@ -986,7 +986,6 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     name = run_dir.name
     audio_manifest_path = run_dir / "audio" / "manifest.json"
     run_manifest_path = run_dir / "manifest.json"
-    audio_mp3_path = run_dir / "audio" / "podcast.mp3"
     episode_path = run_dir / "phase3_episode.json"
     config_path = run_dir / "config.json"
     reading_list_path = run_dir / "phase2_5_reading_list.json"
@@ -1150,6 +1149,183 @@ def _dvc_stale_runs() -> dict[str, list[str]]:
         phase, run_id = stage_name.split("@", 1)
         stale.setdefault(run_id, []).append(phase)
     return stale
+
+
+def _build_tracker_matrix_from_db() -> dict:
+    """Build the /tracker/data response from data/experiments.db.
+
+    Replaces the filesystem-walk in _build_cached_snapshot for the
+    matrix surface. The DB resolves (novel, panel, pipeline, hostprep,
+    generator) to the freshest episode at that coordinate — so retrofit
+    runs surface naturally without per-feature dir-name regex.
+
+    Per-cell metrics (q/r/w/timings/quotes) still come from the run's
+    phase3_episode.json on disk via _summarize_run_dir; the DB just
+    decides which run_dir to read for each cell.
+
+    Response shape matches _build_cached_snapshot()['matrix'] exactly so
+    the existing tracker JS needs no changes.
+    """
+    from webapp.db_views import matrix_rows  # pyright: ignore[reportMissingImports]
+
+    runs_dir = DATA_DIR / "runs"
+    stale_by_run = _dvc_stale_runs()
+    db_rows = matrix_rows()
+    by_axes = {
+        (r["novel"], r["panel"], r["pipeline"], int(r["hostprep"]), r["generator"]): r
+        for r in db_rows
+    }
+
+    cell_cache: dict[str, dict] = {}
+
+    def _cell_for(run_id: str) -> dict:
+        cached = cell_cache.get(run_id)
+        if cached is not None:
+            return cached
+        rd = runs_dir / run_id
+        summary: dict = (
+            _summarize_run_dir(rd) if rd.exists()
+            else {"name": run_id, "run_id": run_id, "status": "missing"}
+        )
+        summary["dvc_stale_phases"] = stale_by_run.get(run_id, [])
+        cell_cache[run_id] = summary
+        return summary
+
+    tracker_generators = sorted(axes.GENERATORS)
+    rows_out: list[dict] = []
+    totals_by_generator: dict[str, dict[str, int]] = {
+        g: {"total": 0, "done": 0, "running": 0} for g in tracker_generators
+    }
+    total = 0
+    done = 0
+    running_count = 0
+    p25_times: list[float] = []
+    p3_times: list[float] = []
+
+    for novel_key, title, author, year in TRACKER_NOVELS:
+        nk_short = axes.NOVEL_BY_ID[novel_key].key if novel_key in axes.NOVEL_BY_ID else novel_key
+        cells_by_generator: dict[str, list[dict]] = {}
+        for gen in tracker_generators:
+            cells: list[dict] = []
+            for pp, panel, hp in TRACKER_CONDITIONS:
+                key = (nk_short, panel, pp, 1 if hp else 0, gen)
+                row = by_axes.get(key)
+                if row is None:
+                    name = axes.run_dir_name(
+                        novel=nk_short, pipeline=pp, panel=panel,
+                        hostprep=hp, generator=gen,
+                    )
+                    cell = {"name": name, "status": "missing"}
+                else:
+                    cell = _cell_for(row["run_id"])
+                totals_by_generator[gen]["total"] += 1
+                if cell["status"] == "done":
+                    totals_by_generator[gen]["done"] += 1
+                elif cell["status"] == "running":
+                    totals_by_generator[gen]["running"] += 1
+                cells.append(cell)
+            cells_by_generator[gen] = cells
+
+        default_cells = cells_by_generator[axes.DEFAULT_GENERATOR]
+        total += len(default_cells)
+        for c in default_cells:
+            if c["status"] == "done":
+                done += 1
+            elif c["status"] == "running":
+                running_count += 1
+            timings = c.get("timings") or {}
+            if timings.get("p25_min") is not None:
+                p25_times.append(timings["p25_min"])
+            if timings.get("p3_min") is not None:
+                p3_times.append(timings["p3_min"])
+        rows_out.append({
+            "key": novel_key, "title": title, "author": author, "year": year,
+            "cells": default_cells,
+            "cells_by_generator": cells_by_generator,
+        })
+
+    # Interdisciplinary panel runs — every DB row with panel='interdisciplinary'
+    # and a script. The view already keeps the freshest per coordinate, so no
+    # extra dedup needed.
+    inter_runs: list[dict] = []
+    for r in db_rows:
+        if r["panel"] != "interdisciplinary" or not r.get("has_episode"):
+            continue
+        cell = _cell_for(r["run_id"])
+        inter_runs.append({
+            "run_id": r["run_id"],
+            "novel": cell.get("novel", r["novel"]),
+            "condition": cell.get("condition", r["pipeline"]),
+            "panel": cell.get("panel", r["panel"]),
+            "hostprep": bool(r["hostprep"]),
+            "has_audio": cell.get("has_audio", False),
+            "has_episode": cell.get("has_episode", True),
+            "has_report": cell.get("has_report", False),
+            "q": cell.get("q", 0),
+            "r": cell.get("r", 0),
+            "w": cell.get("w", 0),
+        })
+
+    # Panel-scripts matrix: 2 novels × 3 panels, hardcoded run_ids. Look each
+    # up by label; 'missing' if not in the runs dir.
+    panel_scripts_runs = [
+        ("Bleak House", "literary", "arc_v01_baseline"),
+        ("Bleak House", "interdisciplinary", "interdisciplinary_trn_hostprep_refs"),
+        ("Bleak House", "alternative", "arc_v19_all_swapped"),
+        ("Hester", "literary", "hest_trn_v01_baseline_hostprep_refs"),
+        ("Hester", "interdisciplinary", "hest_interdisciplinary_trn_hostprep_refs"),
+        ("Hester", "alternative", "hest_trn_v19_all_swapped_hostprep_refs"),
+    ]
+    panel_scripts: list[dict] = []
+    for novel_label, panel_key, run_id in panel_scripts_runs:
+        cell = _cell_for(run_id)
+        if cell.get("status") == "missing":
+            panel_scripts.append({
+                "novel": novel_label, "panel": panel_key, "run_id": run_id,
+                "status": "missing",
+            })
+            continue
+        panel_scripts.append({
+            "novel": novel_label,
+            "panel": panel_key,
+            "run_id": run_id,
+            "status": cell.get("status", "missing"),
+            "phase": cell.get("phase"),
+            "q": cell.get("q", 0),
+            "r": cell.get("r", 0),
+            "w": cell.get("w", 0),
+            "has_audio": cell.get("has_audio", False),
+            "has_episode": cell.get("has_episode", False),
+            "has_report": cell.get("has_report", False),
+            "has_reading_list": cell.get("has_reading_list", False),
+            "reading": cell.get("reading", {}),
+            "name": run_id,
+            "condition": cell.get("condition", "transport"),
+            "hostprep": cell.get("hostprep", False),
+        })
+
+    refreshed_at = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+    running_names = [c["name"] for row in rows_out for c in row["cells"] if c["status"] == "running"]
+
+    return {
+        "rows": rows_out,
+        "total": total,
+        "done": done,
+        "running": running_count,
+        "stalled": 0,
+        "running_names": running_names,
+        "process": None,
+        "histograms": {"p25": sorted(p25_times), "p3": sorted(p3_times)},
+        "refreshed_at": refreshed_at,
+        "interdisciplinary": inter_runs,
+        "panel_scripts": panel_scripts,
+        "generators": [
+            {"id": g, "display": axes.GENERATOR_BY_ID[g].display}
+            for g in tracker_generators
+        ],
+        "default_generator": axes.DEFAULT_GENERATOR,
+        "totals_by_generator": totals_by_generator,
+    }
 
 
 def _build_cached_snapshot() -> dict:
@@ -1389,9 +1565,19 @@ class RunIndexCache:
         self._last_refresh = 0.0
         self._schedule_lock = asyncio.Lock()
         self._refresh_task: asyncio.Task | None = None
+        # Separate cache for the DB-backed tracker matrix (BleakHouse-17j).
+        # Filesystem-snapshot still powers /api/runs, /api/novels, and
+        # /tracker/versions until BleakHouse-q4e migrates them.
+        self._matrix: dict | None = None
+        self._matrix_last_refresh = 0.0
+        self._matrix_lock = asyncio.Lock()
+        self._matrix_task: asyncio.Task | None = None
 
     def _is_stale(self) -> bool:
         return (time.monotonic() - self._last_refresh) >= self.ttl_seconds
+
+    def _matrix_is_stale(self) -> bool:
+        return (time.monotonic() - self._matrix_last_refresh) >= self.ttl_seconds
 
     async def _run_refresh(self) -> None:
         try:
@@ -1408,6 +1594,22 @@ class RunIndexCache:
             if self._refresh_task is None or self._refresh_task.done():
                 self._refresh_task = asyncio.create_task(self._run_refresh())
             return self._refresh_task
+
+    async def _run_matrix_refresh(self) -> None:
+        try:
+            matrix = await asyncio.to_thread(_build_tracker_matrix_from_db)
+            self._matrix = matrix
+            self._matrix_last_refresh = time.monotonic()
+        except Exception:
+            logger.exception("Tracker matrix refresh failed")
+        finally:
+            self._matrix_task = None
+
+    async def _ensure_matrix_refresh_started(self) -> asyncio.Task:
+        async with self._matrix_lock:
+            if self._matrix_task is None or self._matrix_task.done():
+                self._matrix_task = asyncio.create_task(self._run_matrix_refresh())
+            return self._matrix_task
 
     async def get_snapshot(self) -> dict:
         if self._snapshot is None:
@@ -1435,6 +1637,7 @@ class RunIndexCache:
 
     async def prime(self) -> None:
         await self._ensure_refresh_started()
+        await self._ensure_matrix_refresh_started()
 
     async def get_novels(self) -> dict[str, list[dict]]:
         return (await self.get_snapshot())["novels"]
@@ -1443,7 +1646,20 @@ class RunIndexCache:
         return (await self.get_snapshot())["all_runs"]
 
     async def get_matrix(self) -> dict:
-        return (await self.get_snapshot())["matrix"]
+        if self._matrix is None:
+            task = await self._ensure_matrix_refresh_started()
+            await task
+        elif self._matrix_is_stale():
+            await self._ensure_matrix_refresh_started()
+        return self._matrix or {
+            "rows": [], "total": 0, "done": 0, "running": 0, "stalled": 0,
+            "running_names": [], "process": None,
+            "histograms": {"p25": [], "p3": []},
+            "refreshed_at": "",
+            "interdisciplinary": [], "panel_scripts": [],
+            "generators": [], "default_generator": axes.DEFAULT_GENERATOR,
+            "totals_by_generator": {},
+        }
 
     async def get_versions(self) -> dict:
         return (await self.get_snapshot())["versions"]
