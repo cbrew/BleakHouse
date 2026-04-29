@@ -5,12 +5,15 @@ to `data/experiments.db` for the duration of the request. Connections
 are cheap to open in SQLite, so we don't pool — one per request keeps
 the threading story simple.
 
-Before opening, we check whether the DB is stale relative to
-`data/runs/` (via `enrichment.expdb.refresh.ensure_db_current`) and
-re-scan if so. The mtime check is gated by the DB file's mtime against
-a process-local cache, so the actual scan only runs when something
-real has changed — typical request-path overhead is a single stat()
-call.
+In a development environment, every connection first checks whether the
+DB is stale relative to `data/runs/` (via
+`enrichment.expdb.refresh.ensure_db_current`) and re-scans if so. The
+mtime check is gated by the DB file's mtime against a process-local
+cache, so the actual scan only runs when something real has changed.
+
+In the deployed container, `BLEAKHOUSE_DB_READONLY=1` skips the refresh
+path entirely — the bundled DB is authoritative and `enrichment.expdb`
+is not shipped to keep the image small.
 
 Usage:
 
@@ -30,18 +33,18 @@ The connection is closed when the context manager exits. Writes raise
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from enrichment.expdb.refresh import ensure_db_current  # pyright: ignore[reportMissingImports]
-
 logger = logging.getLogger(__name__)
 
 _REPO = Path(__file__).resolve().parent.parent
 _DB_PATH = _REPO / "data" / "experiments.db"
+_READONLY = os.environ.get("BLEAKHOUSE_DB_READONLY") == "1"
 
 # Cache of "the DB mtime we last refreshed against" so we don't call
 # ensure_db_current() on every request — only when the DB file's mtime
@@ -60,15 +63,19 @@ def _current_mtime() -> float:
 def _maybe_refresh() -> None:
     """Run ensure_db_current() iff the DB has changed since the last
     time we verified it. Cheap fast-path: one stat() call when the DB
-    is steady. Thread-safe."""
+    is steady. Thread-safe. No-op when BLEAKHOUSE_DB_READONLY=1."""
+    if _READONLY:
+        return
     global _last_seen_mtime
     with _last_seen_lock:
         mtime = _current_mtime()
         if mtime == _last_seen_mtime and mtime > 0:
             return
-        # Either first call (mtime=0 cache vs nonzero file), or DB has
-        # been updated on disk by something else (a pipeline run, the
-        # deploy script's pre-stage scan, etc).
+        # Lazy-import so the deployed container — which sets
+        # BLEAKHOUSE_DB_READONLY=1 and doesn't ship enrichment.expdb —
+        # never tries to resolve this import.
+        from enrichment.expdb.refresh import ensure_db_current  # pyright: ignore[reportMissingImports]
+
         ensure_db_current()
         _last_seen_mtime = _current_mtime()
 
