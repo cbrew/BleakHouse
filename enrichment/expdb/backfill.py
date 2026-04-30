@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .store import Store
+from .store import Store, _to_repo_relative
 
 
 def _count_script(phase3: dict) -> tuple[int, int, int]:
@@ -78,9 +78,10 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
         interviews_path = run_dir / "phase2_5_interviews.json"
         briefs_path = run_dir / "phase2_5_host_briefs.json"
         if interviews_path.exists() and briefs_path.exists():
+            interviews_rel = _to_repo_relative(str(interviews_path))
             existing_hp = [
                 h for h in store.list_hostprep_for_episode(episode_id)
-                if h.interviews_path == str(interviews_path)
+                if h.interviews_path == interviews_rel
             ]
             if existing_hp:
                 hostprep_id = existing_hp[0].id
@@ -129,7 +130,8 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
     # Idempotent script_version: keyed by (episode_id, path).
     n_seg, n_turns, n_utt = _count_script(phase3)
     script_path = str(phase3_path)
-    existing = [s for s in store.list_scripts_for_episode(episode_id) if s.path == script_path]
+    script_path_rel = _to_repo_relative(script_path)
+    existing = [s for s in store.list_scripts_for_episode(episode_id) if s.path == script_path_rel]
     if existing:
         sid = existing[0].id
     else:

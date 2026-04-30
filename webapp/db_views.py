@@ -16,9 +16,47 @@ code.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from webapp.db import db_conn  # pyright: ignore[reportMissingImports]
+
+# Repo root: webapp/db_views.py → webapp → REPO
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Path columns that store repo-relative file paths. The DB is portable
+# across machines (Mac dev box, Linux server, Fly container) only because
+# stored paths are relative to _REPO_ROOT and resolved on read.
+_PATH_COLUMNS = (
+    "script_path", "briefs_path", "interviews_path",
+    "audio_path", "audio_manifest_path",
+)
+
+
+def _resolve_path(value: str | None) -> str | None:
+    """Resolve a stored path to absolute against the current repo root.
+
+    Stored paths are repo-relative ('data/runs/<run>/...'). On read, they
+    expand to wherever the repo lives now, so the DB works on a Mac at
+    /Users/brewc/... and on Fly at /app/... without rewriting rows.
+
+    Already-absolute values are passed through (legacy rows pre-migration;
+    a one-shot migration should rewrite them).
+    """
+    if value is None or value == "":
+        return value
+    p = Path(value)
+    if p.is_absolute():
+        return value
+    return str(_REPO_ROOT / p)
+
+
+def _resolve_row_paths(row: dict[str, Any]) -> dict[str, Any]:
+    """In-place expand every known path column on a row dict."""
+    for col in _PATH_COLUMNS:
+        if col in row:
+            row[col] = _resolve_path(row[col])
+    return row
 
 
 # Window-function CTEs pick the freshest row in each partition. SQLite
@@ -129,6 +167,7 @@ def matrix_rows() -> list[dict[str, Any]]:
     with db_conn() as conn:
         rows = [dict(r) for r in conn.execute(_MATRIX_ROWS_SQL).fetchall()]
     for r in rows:
+        _resolve_row_paths(r)
         r["status"] = _row_status(r)
     return rows
 
@@ -236,6 +275,7 @@ def all_episode_rows() -> list[dict[str, Any]]:
     with db_conn() as conn:
         rows = [dict(r) for r in conn.execute(_ALL_EPISODES_SQL).fetchall()]
     for r in rows:
+        _resolve_row_paths(r)
         r["status"] = _row_status(r)
     return rows
 
@@ -260,4 +300,6 @@ def hostprep_for_run(run_id: str) -> dict[str, Any] | None:
     """
     with db_conn() as conn:
         row = conn.execute(sql, (run_id,)).fetchone()
-    return dict(row) if row is not None else None
+    if row is None:
+        return None
+    return _resolve_row_paths(dict(row))

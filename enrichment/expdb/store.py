@@ -23,9 +23,32 @@ _ = TTSConfig
 
 EXPECTED_USER_VERSION = 4
 
+# Repo root: enrichment/expdb/store.py → enrichment/expdb → enrichment → REPO
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
 
 def _schema_sql() -> str:
     return (files("enrichment.expdb") / "schema.sql").read_text()
+
+
+def _to_repo_relative(path: str | None) -> str | None:
+    """Normalise a path to a repo-relative string for storage.
+
+    Absolute paths inside the repo become 'data/runs/<run>/...'; absolute
+    paths outside the repo and already-relative paths are passed through.
+    Storing repo-relative paths keeps the DB portable — the same database
+    works whether mounted at /Users/brewc/...BleakHouse or /app on Fly.
+    """
+    if path is None or path == "":
+        return path
+    p = Path(path)
+    if not p.is_absolute():
+        return path
+    try:
+        return str(p.resolve().relative_to(_REPO_ROOT))
+    except ValueError:
+        # Path is absolute but outside the repo — store as-is.
+        return path
 
 
 class Store:
@@ -108,8 +131,8 @@ class Store:
                 "(episode_id, interviews_path, interviews_dvc_hash, briefs_path, "
                 " briefs_dvc_hash, n_segments, n_interviews, n_questions, created_at)"
                 " VALUES(?,?,?,?,?,?,?,?,?)",
-                (episode_id, interviews_path, interviews_dvc_hash,
-                 briefs_path, briefs_dvc_hash,
+                (episode_id, _to_repo_relative(interviews_path), interviews_dvc_hash,
+                 _to_repo_relative(briefs_path), briefs_dvc_hash,
                  n_segments, n_interviews, n_questions, time.time()),
             )
             assert cur.lastrowid is not None
@@ -141,7 +164,7 @@ class Store:
                 "(episode_id, hostprep_version_id, path, dvc_hash, "
                 " n_segments, n_turns, n_utterances, created_at)"
                 " VALUES(?,?,?,?,?,?,?,?)",
-                (episode_id, hostprep_version_id, path, dvc_hash,
+                (episode_id, hostprep_version_id, _to_repo_relative(path), dvc_hash,
                  n_segments, n_turns, n_utterances, time.time()),
             )
             assert cur.lastrowid is not None
@@ -225,8 +248,9 @@ class Store:
                 "(script_version_id, tts_config_id, name, path, dvc_hash, "
                 " duration_s, audio_manifest_path, created_at)"
                 " VALUES(?,?,?,?,?,?,?,?)",
-                (script_version_id, tts_config_id, name, path, dvc_hash,
-                 duration_s, audio_manifest_path, time.time()),
+                (script_version_id, tts_config_id, name,
+                 _to_repo_relative(path), dvc_hash,
+                 duration_s, _to_repo_relative(audio_manifest_path), time.time()),
             )
             assert cur.lastrowid is not None
             return int(cur.lastrowid)
