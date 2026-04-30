@@ -929,11 +929,15 @@ def _summarize_run_dir(run_dir: Path) -> dict:
         # `recommended` is a list of structured CitationRecord dicts in the
         # new schema, or a list of strings in pre-correct-by-construction
         # files. The webapp's matrix card renderer accepts either.
+        # `winnower_note` is set when the listener filter declined to pick
+        # anything (see scripts/normalise_reading_lists.py for how it gets
+        # populated from legacy refusal-prose data).
         summary["reading"] = {
             "verified": rl.get("total_verified", 0),
             "total": rl.get("total_proposed", 0),
             "rate": rl.get("verification_rate", 0),
             "recommended": rl.get("recommended", []),
+            "winnower_note": rl.get("winnower_note"),
         }
 
     if episode_path.exists():
@@ -2121,41 +2125,33 @@ function renderCard(c) {
     } else if (dur) {
         metrics = dur;
     }
-    // The winnower sometimes outputs prose ('I cannot recommend any of these…')
-    // instead of an empty list when no references survive its judgment. Detect
-    // that — at least one entry should look like a citation (year marker, not
-    // overly long) — and otherwise render only the verified count.
-    function looksLikeCitation(ref) {
-        if (typeof ref === 'object' && ref && ref.title) return true;
-        if (typeof ref === 'string') return /\\b(1[5-9]|20)\\d{2}\\b/.test(ref) && ref.length <= 240;
-        return false;
-    }
+    // Recommended reading list. After scripts/normalise_reading_lists.py runs,
+    // every reading list has a uniform shape: `recommended` is a list of clean
+    // citations (string OR dict with title), and `winnower_note` is set when
+    // the filter declined to pick anything.
     let reading = '';
-    if (c.reading && c.reading.recommended && c.reading.recommended.length > 0) {
-        const usable = c.reading.recommended.filter(looksLikeCitation);
-        if (usable.length > 0) {
-            reading = `<div class="card-reading"><h4>Reading list (${c.reading.verified}/${c.reading.total} verified)</h4><ul>`;
-            for (const ref of usable.slice(0, 5)) {
-                if (typeof ref === 'string') {
-                    reading += `<li>${escapeHTML(ref)}</li>`;
-                } else {
-                    const titleText = escapeHTML(ref.title);
-                    const titleHtml = ref.url
-                        ? `<a href="${escapeHTML(ref.url)}" target="_blank" rel="noopener" style="color:#aaa">${titleText}</a>`
-                        : titleText;
-                    const authors = (ref.authors && ref.authors.length)
-                        ? escapeHTML(ref.authors.slice(0, 3).join(', ')) + '. '
-                        : '';
-                    const year = ref.year ? ` (${ref.year})` : '';
-                    reading += `<li>${authors}${titleHtml}${year}</li>`;
-                }
+    const r = c.reading || {};
+    if (r.winnower_note && (!r.recommended || r.recommended.length === 0)) {
+        reading = `<div class="card-reading"><h4>Reading list (${r.verified}/${r.total} verified)</h4>` +
+            `<div style="font-size:0.8em;color:#8888aa;font-style:italic">Winnower returned no listener-suitable picks for this episode.</div></div>`;
+    } else if (r.recommended && r.recommended.length > 0) {
+        reading = `<div class="card-reading"><h4>Reading list (${r.verified}/${r.total} verified)</h4><ul>`;
+        for (const ref of r.recommended.slice(0, 5)) {
+            if (typeof ref === 'string') {
+                reading += `<li>${escapeHTML(ref)}</li>`;
+            } else if (ref && ref.title) {
+                const titleText = escapeHTML(ref.title);
+                const titleHtml = ref.url
+                    ? `<a href="${escapeHTML(ref.url)}" target="_blank" rel="noopener" style="color:#aaa">${titleText}</a>`
+                    : titleText;
+                const authors = (ref.authors && ref.authors.length)
+                    ? escapeHTML(ref.authors.slice(0, 3).join(', ')) + '. '
+                    : '';
+                const year = ref.year ? ` (${ref.year})` : '';
+                reading += `<li>${authors}${titleHtml}${year}</li>`;
             }
-            reading += '</ul></div>';
-        } else if (c.reading.verified > 0) {
-            // Winnower returned prose refusal — surface only the verified count.
-            reading = `<div class="card-reading"><h4>Reading list (${c.reading.verified}/${c.reading.total} verified)</h4>` +
-                `<div style="font-size:0.8em;color:#8888aa;font-style:italic">Winnower returned no listener-suitable picks for this episode.</div></div>`;
         }
+        reading += '</ul></div>';
     }
     const rid = encodeURIComponent(c.run_id);
     let links = '<div class="card-links">';
