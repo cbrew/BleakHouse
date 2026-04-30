@@ -760,7 +760,34 @@ def _measure(path: Path) -> dict | None:
 
 
 def _phase_timings(rd: Path) -> dict:
-    """Extract phase durations from file modification times."""
+    """Return a phase-timings dict for this run.
+
+    Prefers a shipped phase_timings.json captured at pipeline time so the
+    numbers survive layered staging (Podman COPY resets file mtimes to
+    image-build time, breaking mtime-derived computation on Fly). Falls
+    back to mtime computation when the file is absent.
+
+    See scripts/build_phase_timings.py for the snapshotter.
+    """
+    snapshot = rd / "phase_timings.json"
+    if snapshot.exists():
+        try:
+            with open(snapshot) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    return _phase_timings_from_mtimes(rd)
+
+
+def _phase_timings_from_mtimes(rd: Path) -> dict:
+    """Extract phase durations from file modification times.
+
+    Plausibility-gated: durations >= 60 min or <= 0 are dropped, since
+    they typically indicate copied-from-elsewhere files rather than real
+    pipeline runtime. Use _phase_timings() in callers; this is the
+    backing computation behind both the snapshotter and the runtime
+    fallback.
+    """
     from datetime import datetime, timezone
 
     files = {
