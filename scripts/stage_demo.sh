@@ -37,6 +37,24 @@ db_path = Path('data/experiments.db')
 if db_path.exists():
     conn = sqlite3.connect(str(db_path))
     db_labels = {r[0] for r in conn.execute('SELECT label FROM episode')}
+    # Also stage every directory referenced by the DB's path columns
+    # (hostprep_version.interviews_path / briefs_path,
+    # script_version.path, audio_artifact.path / audio_manifest_path).
+    # Retrofit episodes keep their canonical label but write hostprep
+    # files into a separate timestamped dir; without staging that dir,
+    # /api/runs/<id>/prep returns 404 because the DB-resolved path is
+    # missing on the container filesystem.
+    for path_sql in (
+        'SELECT interviews_path FROM hostprep_version WHERE interviews_path IS NOT NULL',
+        'SELECT briefs_path FROM hostprep_version WHERE briefs_path IS NOT NULL',
+        'SELECT path FROM script_version WHERE path IS NOT NULL',
+        'SELECT path FROM audio_artifact WHERE path IS NOT NULL',
+        'SELECT audio_manifest_path FROM audio_artifact WHERE audio_manifest_path IS NOT NULL',
+    ):
+        for (p,) in conn.execute(path_sql):
+            parts = Path(p).parts
+            if len(parts) >= 3 and parts[0] == 'data' and parts[1] == 'runs':
+                db_labels.add(parts[2])
 # Legacy panel-script artefacts still referenced by paper/poster. Absent post-migration
 # (archived); the existence check in the loop skips them gracefully.
 panel_scripts = {
