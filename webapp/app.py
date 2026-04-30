@@ -2094,15 +2094,16 @@ function renderCard(c) {
             // CitationRecord dict (older runs).
             if (typeof ref === 'string') {
                 reading += `<li>${escapeHTML(ref)}</li>`;
-            } else {
+            } else if (ref && ref.title) {
+                const titleText = escapeHTML(ref.title);
+                const titleHtml = ref.url
+                    ? `<a href="${escapeHTML(ref.url)}" target="_blank" rel="noopener" style="color:#aaa">${titleText}</a>`
+                    : titleText;
                 const authors = (ref.authors && ref.authors.length)
-                    ? escapeHTML(ref.authors.slice(0, 3).join(', '))
-                    : '—';
+                    ? escapeHTML(ref.authors.slice(0, 3).join(', ')) + '. '
+                    : '';
                 const year = ref.year ? ` (${ref.year})` : '';
-                const title = ref.url
-                    ? `<a href="${escapeHTML(ref.url)}" target="_blank" rel="noopener" style="color:#aaa">${escapeHTML(ref.title)}</a>`
-                    : escapeHTML(ref.title);
-                reading += `<li>${authors}. ${title}${year}</li>`;
+                reading += `<li>${authors}${titleHtml}${year}</li>`;
             }
         }
         reading += '</ul></div>';
