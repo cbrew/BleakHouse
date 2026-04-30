@@ -1218,29 +1218,36 @@ def _build_tracker_matrix_from_db() -> dict:
             "w": cell.get("w", 0),
         })
 
-    # Panel-scripts matrix: 2 novels × 3 panels, hardcoded run_ids. Look each
-    # up by label; 'missing' if not in the runs dir.
-    panel_scripts_runs = [
-        ("Bleak House", "literary", "arc_v01_baseline"),
-        ("Bleak House", "interdisciplinary", "interdisciplinary_trn_hostprep_refs"),
-        ("Bleak House", "alternative", "arc_v19_all_swapped"),
-        ("Hester", "literary", "hest_trn_v01_baseline_hostprep_refs"),
-        ("Hester", "interdisciplinary", "hest_interdisciplinary_trn_hostprep_refs"),
-        ("Hester", "alternative", "hest_trn_v19_all_swapped_hostprep_refs"),
-    ]
+    # Panel-scripts matrix: {bh, hest} × 3 panels, picked from the DB matrix
+    # rows. We want the freshest transport-with-hostprep run that has reference
+    # tools enabled (ref_tools=1, where the reading list lives) for the default
+    # generator. matrix_rows() already keeps the freshest per coordinate, so we
+    # just filter and re-key.
+    PANEL_SCRIPT_NOVELS = ("bh", "hest")
+    PANEL_DB_TO_DISPLAY = {
+        "literary": "literary",
+        "interdisciplinary": "interdisciplinary",
+        "alternatives": "alternative",  # JS uses singular
+    }
     panel_scripts: list[dict] = []
-    for novel_label, panel_key, run_id in panel_scripts_runs:
-        cell = _cell_for(run_id)
-        if cell.get("status") == "missing":
-            panel_scripts.append({
-                "novel": novel_label, "panel": panel_key, "run_id": run_id,
-                "status": "missing",
-            })
+    for r in db_rows:
+        if r["novel"] not in PANEL_SCRIPT_NOVELS:
             continue
+        if r["pipeline"] != "trn" or not r["hostprep"]:
+            continue
+        if r["generator"] != axes.DEFAULT_GENERATOR:
+            continue
+        if not r.get("ref_tools"):
+            continue
+        panel_display = PANEL_DB_TO_DISPLAY.get(r["panel"])
+        if panel_display is None:
+            continue
+        novel_label = axes.NOVEL_BY_KEY[r["novel"]].title
+        cell = _cell_for(r["run_id"])
         panel_scripts.append({
             "novel": novel_label,
-            "panel": panel_key,
-            "run_id": run_id,
+            "panel": panel_display,
+            "run_id": r["run_id"],
             "status": cell.get("status", "missing"),
             "phase": cell.get("phase"),
             "q": cell.get("q", 0),
@@ -1251,7 +1258,7 @@ def _build_tracker_matrix_from_db() -> dict:
             "has_report": cell.get("has_report", False),
             "has_reading_list": cell.get("has_reading_list", False),
             "reading": cell.get("reading", {}),
-            "name": run_id,
+            "name": r["run_id"],
             "condition": cell.get("condition", "transport"),
             "hostprep": cell.get("hostprep", False),
         })
