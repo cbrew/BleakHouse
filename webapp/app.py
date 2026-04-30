@@ -479,22 +479,31 @@ async def get_manifest(run_id: str, version: str = "classic"):
         raise HTTPException(400, "Invalid version")
     filename = "manifest.json" if version == "classic" else f"manifest_{version}.json"
     audio_manifest = DATA_DIR / "runs" / run_id / "audio" / filename
-    # Only fall back to run-level manifest.json for the default classic version.
-    run_manifest = (
-        DATA_DIR / "runs" / run_id / "manifest.json"
-        if version == "classic"
-        else None
-    )
-    candidates = [audio_manifest]
-    if run_manifest is not None:
-        candidates.append(run_manifest)
-    for candidate in candidates:
-        if candidate.exists():
-            with open(candidate) as f:
+    run_manifest = DATA_DIR / "runs" / run_id / "manifest.json"
+
+    # Prefer the per-version manifest. If it exists but uses an audio-render
+    # schema (no 'experts' field) — as some Qwen renders do — overlay onto the
+    # script-shaped run-level manifest instead. The script never differs across
+    # render variants; only the audio engine and timings do, so the player
+    # only needs the version label switched.
+    if audio_manifest.exists():
+        with open(audio_manifest) as f:
+            data = json.load(f)
+        if "experts" not in data and run_manifest.exists():
+            with open(run_manifest) as f:
                 data = json.load(f)
-            data["version"] = version
-            data["available_versions"] = _available_versions(run_id)
-            return data
+        data["version"] = version
+        data["available_versions"] = _available_versions(run_id)
+        return data
+
+    # Classic falls back to run-level manifest.json when no audio manifest exists.
+    if version == "classic" and run_manifest.exists():
+        with open(run_manifest) as f:
+            data = json.load(f)
+        data["version"] = version
+        data["available_versions"] = _available_versions(run_id)
+        return data
+
     raise HTTPException(404, f"No manifest for run {run_id} version {version}")
 
 
