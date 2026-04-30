@@ -57,7 +57,8 @@ for run in $DEMO_RUNS; do
 
     # Copy only files the webapp needs
     for f in manifest.json report.html config.json quote_verification.json \
-             phase3_episode.json phase2_5_host_briefs.json phase2_5_interviews.json \
+             phase3_episode.json phase3_teaser.json \
+             phase2_5_host_briefs.json phase2_5_interviews.json \
              phase2_5_reading_list.json; do
         [ -f "$src/$f" ] && cp "$src/$f" "$dst/"
     done
