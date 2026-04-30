@@ -79,7 +79,7 @@ for run in $DEMO_RUNS; do
              phase3_episode.json phase3_teaser.json \
              phase2_5_host_briefs.json phase2_5_interviews.json \
              phase2_5_reading_list.json; do
-        [ -f "$src/$f" ] && cp "$src/$f" "$dst/"
+        [ -f "$src/$f" ] && cp -p "$src/$f" "$dst/"
     done
 
     # Copy the per-run audio manifest from the canonical local path.
@@ -88,10 +88,10 @@ for run in $DEMO_RUNS; do
     # is data/runs/<run>/audio/manifest.json.)
     if [ -f "$src/audio/manifest.json" ]; then
         mkdir -p "$dst/audio"
-        cp "$src/audio/manifest.json" "$dst/audio/"
+        cp -p "$src/audio/manifest.json" "$dst/audio/"
     fi
     for extra in "$src/audio"/manifest_*.json; do
-        [ -f "$extra" ] && mkdir -p "$dst/audio" && cp "$extra" "$dst/audio/"
+        [ -f "$extra" ] && mkdir -p "$dst/audio" && cp -p "$extra" "$dst/audio/"
     done
 
     # Audio-symlink rewrite for the container build context.
@@ -111,7 +111,7 @@ for run in $DEMO_RUNS; do
             container_target=${local_target/\/Volumes\/Crucial X9\/bleakhouse_audio/\/app\/audio_volume}
             ln -sfn "$container_target" "$dst/audio/$fname"
         elif [ -f "$src_mp3" ]; then
-            cp "$src_mp3" "$dst/audio/$fname"
+            cp -p "$src_mp3" "$dst/audio/$fname"
         fi
     done
 
