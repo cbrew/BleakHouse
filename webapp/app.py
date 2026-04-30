@@ -2094,27 +2094,41 @@ function renderCard(c) {
     } else if (dur) {
         metrics = dur;
     }
+    // The winnower sometimes outputs prose ('I cannot recommend any of these…')
+    // instead of an empty list when no references survive its judgment. Detect
+    // that — at least one entry should look like a citation (year marker, not
+    // overly long) — and otherwise render only the verified count.
+    function looksLikeCitation(ref) {
+        if (typeof ref === 'object' && ref && ref.title) return true;
+        if (typeof ref === 'string') return /\\b(1[5-9]|20)\\d{2}\\b/.test(ref) && ref.length <= 240;
+        return false;
+    }
     let reading = '';
     if (c.reading && c.reading.recommended && c.reading.recommended.length > 0) {
-        reading = `<div class="card-reading"><h4>Reading list (${c.reading.verified}/${c.reading.total} verified)</h4><ul>`;
-        for (const ref of c.reading.recommended.slice(0, 5)) {
-            // ref is either a plain string (new winnowed-citations schema) or a
-            // CitationRecord dict (older runs).
-            if (typeof ref === 'string') {
-                reading += `<li>${escapeHTML(ref)}</li>`;
-            } else if (ref && ref.title) {
-                const titleText = escapeHTML(ref.title);
-                const titleHtml = ref.url
-                    ? `<a href="${escapeHTML(ref.url)}" target="_blank" rel="noopener" style="color:#aaa">${titleText}</a>`
-                    : titleText;
-                const authors = (ref.authors && ref.authors.length)
-                    ? escapeHTML(ref.authors.slice(0, 3).join(', ')) + '. '
-                    : '';
-                const year = ref.year ? ` (${ref.year})` : '';
-                reading += `<li>${authors}${titleHtml}${year}</li>`;
+        const usable = c.reading.recommended.filter(looksLikeCitation);
+        if (usable.length > 0) {
+            reading = `<div class="card-reading"><h4>Reading list (${c.reading.verified}/${c.reading.total} verified)</h4><ul>`;
+            for (const ref of usable.slice(0, 5)) {
+                if (typeof ref === 'string') {
+                    reading += `<li>${escapeHTML(ref)}</li>`;
+                } else {
+                    const titleText = escapeHTML(ref.title);
+                    const titleHtml = ref.url
+                        ? `<a href="${escapeHTML(ref.url)}" target="_blank" rel="noopener" style="color:#aaa">${titleText}</a>`
+                        : titleText;
+                    const authors = (ref.authors && ref.authors.length)
+                        ? escapeHTML(ref.authors.slice(0, 3).join(', ')) + '. '
+                        : '';
+                    const year = ref.year ? ` (${ref.year})` : '';
+                    reading += `<li>${authors}${titleHtml}${year}</li>`;
+                }
             }
+            reading += '</ul></div>';
+        } else if (c.reading.verified > 0) {
+            // Winnower returned prose refusal — surface only the verified count.
+            reading = `<div class="card-reading"><h4>Reading list (${c.reading.verified}/${c.reading.total} verified)</h4>` +
+                `<div style="font-size:0.8em;color:#8888aa;font-style:italic">Winnower returned no listener-suitable picks for this episode.</div></div>`;
         }
-        reading += '</ul></div>';
     }
     const rid = encodeURIComponent(c.run_id);
     let links = '<div class="card-links">';
