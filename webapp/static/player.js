@@ -441,39 +441,7 @@ function renderTranscript() {
         header.className = "segment-header";
         header.id = `seg-${si}`;
         header.textContent = seg.title;
-
-        // For ungrounded runs, add a segment-level suggested passages handle
-        const suggestedRefs = seg.suggested_passages || [];
-        if (suggestedRefs.length > 0 && manifest.passages) {
-            const validRefs = suggestedRefs.filter(r => manifest.passages[r]);
-            if (validRefs.length > 0) {
-                const segHandleId = `seg-handle-${si}`;
-                const handle = document.createElement("span");
-                handle.className = "passage-handle suggested";
-                handle.id = segHandleId;
-                handle.innerHTML = `&#9736; ${validRefs.length} related passage${validRefs.length > 1 ? "s" : ""}`;
-                handle.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    togglePassage(segHandleId, validRefs, e);
-                });
-                header.appendChild(document.createTextNode(" "));
-                header.appendChild(handle);
-
-            }
-        }
-
         transcript.appendChild(header);
-
-        // Reveal container for segment-level suggested passages (after header in DOM)
-        if (suggestedRefs.length > 0 && manifest.passages) {
-            const validRefs = suggestedRefs.filter(r => manifest.passages[r]);
-            if (validRefs.length > 0) {
-                const revealEl = document.createElement("div");
-                revealEl.className = "passage-reveal";
-                revealEl.id = `passage-seg-handle-${si}`;
-                transcript.appendChild(revealEl);
-            }
-        }
 
         for (let ti = 0; ti < seg.turns.length; ti++) {
             const turn = seg.turns[ti];
