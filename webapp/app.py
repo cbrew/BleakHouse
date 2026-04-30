@@ -90,11 +90,6 @@ def _parse_version(run_name: str) -> tuple[str, str]:
     return run_name, "v1.0"
 
 
-def _version_sort_key(version: str) -> tuple[int, ...]:
-    nums = [int(part) for part in re.findall(r"\d+", version)]
-    return tuple(nums or [0])
-
-
 # Human-readable labels for the display layer.
 _PIPELINE_LABELS: dict[str, str] = {
     "trn": "transport",
@@ -1252,55 +1247,67 @@ def _build_run_lists_from_db() -> dict:
 
 
 def _build_versions_data_from_db() -> dict:
-    """Build the /tracker/versions response from data/experiments.db.
+    """Build the /tracker/versions response (the curated 'recommended' view).
 
-    Returns versioned runs (label matches _v1_\\d+$) grouped by version.
-    Per-run details come from each run_dir's JSON via _summarize_run_dir;
-    the DB just enumerates which episodes exist.
+    Picks one episode per (novel, panel) coordinate using opinionated defaults:
+    pipeline=transport, hostprep=on, ref_tools=on, generator=default. The
+    matrix view at /tracker is for engineering exploration; this view is for
+    listeners who want the best version of each novel × panel combination.
+
+    Per-cell details still come from each run_dir's JSON via _summarize_run_dir.
     """
-    from webapp.db_views import all_episode_rows  # pyright: ignore[reportMissingImports]
+    from webapp.db_views import matrix_rows  # pyright: ignore[reportMissingImports]
+
+    PANEL_DISPLAY = {
+        "literary": "Literary",
+        "alternatives": "Alternative",
+        "interdisciplinary": "Interdisciplinary",
+    }
+    PANEL_ORDER = {"literary": 0, "alternatives": 1, "interdisciplinary": 2}
 
     runs_dir = DATA_DIR / "runs"
-    versions_map: dict[str, list[dict]] = {}
-    for r in all_episode_rows():
-        run_id = r["run_id"]
-        _base, version = _parse_version(run_id)
-        if version == "v1.0":
+    cards: list[dict] = []
+    for r in matrix_rows():
+        if r["pipeline"] != "trn" or not r["hostprep"]:
             continue
-        rd = runs_dir / run_id
+        if not r.get("ref_tools"):
+            continue
+        if r["generator"] != axes.DEFAULT_GENERATOR:
+            continue
+        # has_audio not required — audio rendering lags ref_tools backfills.
+        # Cards without audio still surface script + report + host-prep links;
+        # the Listen button is hidden client-side until the render lands.
+        rd = runs_dir / r["run_id"]
         if not rd.exists():
             continue
         s = _summarize_run_dir(rd)
-        versions_map.setdefault(version, []).append({
-            "run_id": run_id,
-            "base_name": s["base_name"],
-            "version": version,
-            "novel": s["novel"],
-            "condition": s["condition"],
-            "panel": s["panel"],
-            "hostprep": s["hostprep"],
+        novel_meta = axes.NOVEL_BY_KEY.get(r["novel"])
+        cards.append({
+            "run_id": r["run_id"],
+            "novel_key": r["novel"],
+            "novel_title": novel_meta.title if novel_meta else s["novel"],
+            "novel_year": novel_meta.year if novel_meta else 0,
+            "author": novel_meta.author if novel_meta else "",
+            "panel_id": r["panel"],
+            "panel_label": PANEL_DISPLAY.get(r["panel"], r["panel"]),
+            "experts": s.get("experts", []),
+            "metrics": s.get("metrics", {}),
+            "reading": s.get("reading", {}),
+            "total_duration_ms": s.get("total_duration_ms", 0),
+            "has_audio": s["has_audio"],
             "has_episode": s["has_episode"],
             "has_report": s["has_report"],
             "has_reading_list": s["has_reading_list"],
-            "has_audio": s["has_audio"],
-            "metrics": s.get("metrics", {}),
-            "reading": s.get("reading", {}),
+            "has_host_prep": s["has_host_prep"],
         })
-    versions = dict(
-        sorted(
-            ((v, len(rs)) for v, rs in versions_map.items()),
-            key=lambda item: _version_sort_key(item[0]),
-        )
-    )
-    version_runs = [
-        run
-        for _v, rs in sorted(
-            versions_map.items(),
-            key=lambda item: _version_sort_key(item[0]),
-        )
-        for run in rs
-    ]
-    return {"versions": versions, "runs": version_runs}
+
+    # Group by novel; novels appear in axes order (BH first, then by canon).
+    novel_order = {n.key: i for i, n in enumerate(axes.NOVELS)}
+    cards.sort(key=lambda c: (
+        novel_order.get(c["novel_key"], 999),
+        PANEL_ORDER.get(c["panel_id"], 999),
+    ))
+    return {"cards": cards, "total": len(cards)}
 
 
 class RunIndexCache:
@@ -1505,7 +1512,7 @@ td.lo { background:#f8d7da; }
 <h1>BleakHouse Experiment Matrix</h1>
 <div class="sub">15 novels &times; 3 pipelines &times; 3 panels &times; 2 host-prep = 270 cells per generator
  &mdash; <span id="status">connecting...</span></div>
-<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.6em">Click any cell to see details and links. Columns: Lit/Alt/Int = literary, alternatives, interdisciplinary panels; HP = with host preparation. <a href="/help" style="color:#6fa8dc">More help</a> &middot; <a href="/script-versions" style="color:#e94560">Version comparison (v1.1+) &rarr;</a></div>
+<div style="color:#8888aa;font-size:0.85em;margin-bottom:0.6em">Click any cell to see details and links. Columns: Lit/Alt/Int = literary, alternatives, interdisciplinary panels; HP = with host preparation. <a href="/help" style="color:#6fa8dc">More help</a> &middot; <a href="/script-versions" style="color:#e94560">Recommended episodes &rarr;</a></div>
 <div id="gen-select-container" style="margin-bottom:0.8em;font-size:0.9em;">
   <label for="gen-select" style="margin-right:6px;">Generator:</label>
   <select id="gen-select" style="font-size:1em;padding:2px 6px;"></select>
@@ -1953,7 +1960,7 @@ VERSIONS_HTML = """\
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Version Comparison — Not In Our Time</title>
+<title>Recommended Episodes — Not In Our Time</title>
 <script src="/static/nav.js?v={{ v }}" defer></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1964,37 +1971,25 @@ body {
 h1 { font-size: 1.4em; margin-bottom: 0.3em; color: #e94560; }
 .sub { color: #8888aa; font-size: 0.9em; margin-bottom: 1.5em; }
 .sub a { color: #6fa8dc; }
-.version-tabs { display: flex; gap: 0.5em; margin-bottom: 1.5em; flex-wrap: wrap; }
-.vtab {
-    padding: 0.4em 1em; border-radius: 16px; cursor: pointer;
-    background: #1a2744; border: 1px solid #0f3460; color: #8888aa;
-    font-size: 0.85em; font-family: inherit;
-}
-.vtab.active { background: #e94560; border-color: #e94560; color: white; }
-.vtab:hover:not(.active) { border-color: #e94560; color: #e8e8e8; }
-.vtab .count { font-size: 0.8em; opacity: 0.7; }
+.intro { max-width: 800px; margin: 0 auto 2em; line-height: 1.6; font-size: 0.92em; color: #bbb; }
+.intro p { margin-bottom: 0.7em; }
+.intro strong { color: #d4c5a0; }
 .novel-group { margin-bottom: 2em; }
 .novel-group h2 { font-size: 1.1em; color: #d4c5a0; margin-bottom: 0.8em;
     border-bottom: 1px solid #1a2744; padding-bottom: 0.3em; }
+.novel-group h2 .meta { color: #8888aa; font-weight: normal; font-size: 0.8em;
+    margin-left: 0.5em; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1em; }
 .card {
     background: #16213e; border: 1px solid #0f3460; border-radius: 8px;
     padding: 1em; font-size: 0.85em; transition: border-color 0.15s;
 }
 .card:hover { border-color: #e94560; }
-.card-header { display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 0.6em; }
-.card-panel { color: #e94560; font-weight: 600; font-size: 0.95em; }
-.card-condition { color: #8888aa; font-size: 0.85em; }
-.card-badges { display: flex; gap: 0.3em; flex-wrap: wrap; margin-bottom: 0.6em; }
-.badge {
-    display: inline-block; padding: 0.15em 0.5em; border-radius: 10px;
-    font-size: 0.75em; font-weight: 500;
-}
-.badge-script { background: #1b4332; color: #95d5b2; }
-.badge-refs { background: #3d2b1f; color: #e8a87c; }
-.badge-report { background: #1a2744; color: #6fa8dc; }
-.badge-audio { background: #2d1b2e; color: #d4a5d4; }
+.card-panel { color: #e94560; font-weight: 600; font-size: 1em;
+    margin-bottom: 0.4em; }
+.card-experts { color: #8888aa; font-size: 0.85em; margin-bottom: 0.6em; }
+.card-experts span { display: inline-block; padding: 0.1em 0.5em; margin: 0.1em 0.2em 0.1em 0;
+    border: 1px solid #0f3460; border-radius: 10px; }
 .card-metrics { color: #8888aa; font-size: 0.8em; margin-bottom: 0.5em; }
 .card-reading { margin-top: 0.5em; }
 .card-reading h4 { color: #d4c5a0; font-size: 0.85em; margin-bottom: 0.3em; }
@@ -2002,82 +1997,35 @@ h1 { font-size: 1.4em; margin-bottom: 0.3em; color: #e94560; }
 .card-reading li { color: #aaa; font-size: 0.8em; padding: 0.15em 0;
     border-bottom: 1px solid #0f3460; }
 .card-reading li:last-child { border-bottom: none; }
-.card-links { margin-top: 0.6em; display: flex; gap: 0.5em; }
+.card-links { margin-top: 0.8em; display: flex; gap: 0.5em; flex-wrap: wrap; }
 .card-links a {
     color: #6fa8dc; text-decoration: none; font-size: 0.8em;
-    padding: 0.2em 0.6em; border: 1px solid #0f3460; border-radius: 4px;
+    padding: 0.3em 0.7em; border: 1px solid #0f3460; border-radius: 4px;
 }
-.card-links a:hover { border-color: #6fa8dc; }
+.card-links a:hover { border-color: #6fa8dc; color: #e94560; }
+.card-links a.primary { background: #0f3460; color: #e8e8e8; }
+.card-links a.primary:hover { background: #e94560; border-color: #e94560; color: white; }
 .empty { color: #555; font-style: italic; text-align: center; padding: 3em; }
 </style>
 </head>
 <body>
-<h1>Version Comparison</h1>
-<div class="sub"><a href="/tracker">Back to v1.0 matrix</a></div>
+<h1>Recommended Episodes</h1>
+<div class="sub">One episode per (novel × panel), curated. Browse the full
+<a href="/tracker">experiment matrix</a> for variants.</div>
 
-<div style="max-width:800px;margin:0 auto 2em;line-height:1.7;font-size:0.92em;color:#bbb;">
-<p>Each podcast episode is generated by a pipeline: passages are selected from the novel,
-expert personas shape the discussion, and a host steers the conversation using
-pre-interview research. These versions explore what happens when we change
-how the experts are described, how they prepare, and what resources they can access.</p>
-
-<p>All versions use the <strong>same passages</strong> (Phases 0&ndash;2 are identical).
-What changes is Phases 2.5 and 3 &mdash; how the experts prepare and how the script
-is generated.</p>
-
-<details style="margin:1em 0;cursor:pointer;">
-<summary style="color:#e94560;font-weight:600;">What changed in each version</summary>
-<table style="width:100%;border-collapse:collapse;margin:0.8em 0;font-size:0.88em;">
-<tr style="border-bottom:1px solid #1a2744;">
-<td style="padding:0.5em;color:#e94560;font-weight:600;white-space:nowrap;vertical-align:top;">v1.0</td>
-<td style="padding:0.5em;"><strong>Baseline.</strong> 180 runs across 15 novels.
-Expert personas describe perspective and voice. The <a href="/tracker" style="color:#6fa8dc;">experiment matrix</a>
-shows these results.</td></tr>
-<tr style="border-bottom:1px solid #1a2744;">
-<td style="padding:0.5em;color:#e94560;font-weight:600;vertical-align:top;">v1.1</td>
-<td style="padding:0.5em;"><strong>Methods-aware personas.</strong> Each expert&rsquo;s description
-was rewritten to include their actual disciplinary methods &mdash; what a
-computational linguist, historian, or musicologist really does, not just
-what they care about.</td></tr>
-<tr style="border-bottom:1px solid #1a2744;">
-<td style="padding:0.5em;color:#e94560;font-weight:600;vertical-align:top;">v1.2</td>
-<td style="padding:0.5em;"><strong>Method decoupling.</strong> v1.1 backfired: experts
-performed their methods repetitively (Chen said &ldquo;grammatical&rdquo; 22 times
-per episode). Fix: experts keep the full method descriptions for
-pre-interview research, but the script generation phase sees a shorter
-description focused on perspective, not toolkit. Method markers dropped
-60&ndash;88%.</td></tr>
-<tr style="border-bottom:1px solid #1a2744;">
-<td style="padding:0.5em;color:#e94560;font-weight:600;vertical-align:top;">v1.3</td>
-<td style="padding:0.5em;"><strong>Reference tools.</strong> During pre-interviews, experts
-can search <a href="https://openalex.org" style="color:#6fa8dc;">OpenAlex</a>
-(scholarly works) and <a href="https://en.wikipedia.org" style="color:#6fa8dc;">Wikipedia</a>
-(background context). Proposed citations are verified against these APIs.
-Each episode gets a reading list with verification rates.</td></tr>
-<tr>
-<td style="padding:0.5em;color:#e94560;font-weight:600;vertical-align:top;">v1.5</td>
-<td style="padding:0.5em;"><strong>Full pipeline.</strong> Search tools now return
-actual content (abstracts, article extracts) so experts engage with real
-scholarly arguments. Verified references flow into the host&rsquo;s question
-planning. A winnowing step selects 3&ndash;5 works a listener could actually
-find in a library. The host recommends these in the sign-off.</td></tr>
-</table>
-</details>
-
-<p>Each card below shows one run. <strong>Badges</strong> indicate what&rsquo;s available:
-<span style="color:#95d5b2;">script</span> (generated text),
-<span style="color:#e8a87c;">refs</span> (verified reading list),
-<span style="color:#6fa8dc;">report</span> (full inspectable report),
-<span style="color:#d4a5d4;">audio</span> (Gemini TTS).
-Click &ldquo;Report&rdquo; to read the transcript with passage reveals and host preparation details.</p>
+<div class="intro">
+<p>The <a href="/tracker">tracker</a> exposes every cell in the experimental design — 270
+combinations of pipeline, panel, and host preparation per generator. That's the right view if
+you're comparing generation strategies. It's the wrong view if you just want to listen.</p>
+<p>This page picks one episode per (novel, panel) using opinionated defaults: <strong>transport</strong>
+selection, <strong>host preparation</strong> on, <strong>scholarly references</strong> on,
+default generator. Most novels have only the alternative panel rendered so far; Bleak House,
+Hester, and A Passage to India are complete.</p>
 </div>
 
-<div class="version-tabs" id="vtabs"></div>
 <div id="content"></div>
-<script>
-let allData = null;
-let activeVersion = null;
 
+<script>
 function escapeHTML(str) {
     return String(str)
         .replace(/&/g, '&amp;')
@@ -2087,132 +2035,88 @@ function escapeHTML(str) {
         .replace(/'/g, '&#39;');
 }
 
-function versionSortKey(version) {
-    const nums = String(version).match(/[0-9]+/g);
-    return (nums || ['0']).map(n => parseInt(n, 10));
-}
-
-function compareVersions(a, b) {
-    const ak = versionSortKey(a);
-    const bk = versionSortKey(b);
-    const len = Math.max(ak.length, bk.length);
-    for (let i = 0; i < len; i++) {
-        const av = ak[i] || 0;
-        const bv = bk[i] || 0;
-        if (av !== bv) return av - bv;
-    }
-    return 0;
+function formatDuration(ms) {
+    if (!ms) return '';
+    const totalMin = Math.round(ms / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 async function init() {
-    const resp = await fetch('/tracker/versions');
-    allData = await resp.json();
-
-    const versions = Object.entries(allData.versions).sort((a, b) => compareVersions(a[0], b[0]));
-    if (versions.length === 0) {
+    const data = await fetch('/tracker/versions').then(r => r.json());
+    const cards = data.cards || [];
+    if (cards.length === 0) {
         document.getElementById('content').innerHTML =
-            '<div class="empty">No versioned runs found.</div>';
+            '<div class="empty">No recommended episodes available yet.</div>';
         return;
     }
-
-    const tabs = document.getElementById('vtabs');
-    const allTab = document.createElement('button');
-    allTab.className = 'vtab active';
-    allTab.innerHTML = 'All <span class="count">(' + allData.runs.length + ')</span>';
-    allTab.onclick = () => selectVersion(null);
-    tabs.appendChild(allTab);
-
-    for (const [ver, count] of versions) {
-        const btn = document.createElement('button');
-        btn.className = 'vtab';
-        btn.innerHTML = ver + ' <span class="count">(' + count + ')</span>';
-        btn.onclick = () => selectVersion(ver);
-        tabs.appendChild(btn);
+    // Group by novel preserving server-side order
+    const groups = [];
+    const seen = new Map();
+    for (const c of cards) {
+        if (!seen.has(c.novel_key)) {
+            const g = { novel_title: c.novel_title, year: c.novel_year, author: c.author, cards: [] };
+            seen.set(c.novel_key, g);
+            groups.push(g);
+        }
+        seen.get(c.novel_key).cards.push(c);
     }
-    selectVersion(null);
-}
-
-function selectVersion(ver) {
-    activeVersion = ver;
-    document.querySelectorAll('.vtab').forEach((t, i) => {
-        t.classList.toggle('active', ver === null ? i === 0 : t.textContent.startsWith(ver));
-    });
-    renderCards();
-}
-
-function renderCards() {
-    const runs = activeVersion
-        ? allData.runs.filter(r => r.version === activeVersion)
-        : allData.runs;
-
-    if (runs.length === 0) {
-        document.getElementById('content').innerHTML =
-            '<div class="empty">No runs for this version.</div>';
-        return;
-    }
-
-    const byNovel = {};
-    for (const r of runs) {
-        if (!byNovel[r.novel]) byNovel[r.novel] = [];
-        byNovel[r.novel].push(r);
-    }
-
     let html = '';
-    for (const [novel, novelRuns] of Object.entries(byNovel).sort((a, b) => a[0].localeCompare(b[0]))) {
-        html += '<div class="novel-group"><h2>' + escapeHTML(novel) + '</h2><div class="cards">';
-        for (const r of novelRuns) { html += renderCard(r); }
+    for (const g of groups) {
+        const meta = g.author ? ` <span class="meta">${escapeHTML(g.author)}, ${g.year}</span>` : '';
+        html += `<div class="novel-group"><h2>${escapeHTML(g.novel_title)}${meta}</h2><div class="cards">`;
+        for (const c of g.cards) html += renderCard(c);
         html += '</div></div>';
     }
     document.getElementById('content').innerHTML = html;
 }
 
-function renderCard(r) {
-    let badges = '';
-    if (r.has_episode) badges += '<span class="badge badge-script">script</span>';
-    if (r.has_reading_list) badges += '<span class="badge badge-refs">refs</span>';
-    if (r.has_report) badges += '<span class="badge badge-report">report</span>';
-    if (r.has_audio) badges += '<span class="badge badge-audio">audio</span>';
-    if (!r.has_episode && !r.has_reading_list)
-        badges += '<span class="badge" style="background:#2a1a1a;color:#e88">in progress</span>';
-
+function renderCard(c) {
+    const experts = (c.experts || [])
+        .map(e => `<span>${escapeHTML(e.name)}</span>`)
+        .join('');
     let metrics = '';
-    if (r.metrics && r.metrics.words)
-        metrics = r.metrics.segments + ' seg, ' + r.metrics.turns + ' turns, ' +
-            Math.round(r.metrics.words / 1000) + 'k words';
-
+    const m = c.metrics || {};
+    const dur = formatDuration(c.total_duration_ms);
+    if (m.segments) {
+        metrics = `${m.segments} segments &middot; ${m.turns} turns`;
+        if (m.words) metrics += ` &middot; ${Math.round(m.words / 1000)}k words`;
+        if (dur) metrics += ` &middot; ${dur}`;
+    } else if (dur) {
+        metrics = dur;
+    }
     let reading = '';
-    if (r.reading && r.reading.recommended && r.reading.recommended.length > 0) {
-        reading = '<div class="card-reading"><h4>Recommended (' +
-            r.reading.verified + ' refs)</h4><ul>';
-        for (const ref of r.reading.recommended) {
-            const authors = (ref.authors && ref.authors.length)
-                ? escapeHTML(ref.authors.slice(0, 3).join(', '))
-                : '—';
-            const year = ref.year ? ' (' + ref.year + ')' : '';
-            const title = ref.url
-                ? '<a href="' + escapeHTML(ref.url) + '" target="_blank" rel="noopener">' + escapeHTML(ref.title) + '</a>'
-                : escapeHTML(ref.title);
-            reading += '<li>' + authors + '. ' + title + year + '</li>';
+    if (c.reading && c.reading.recommended && c.reading.recommended.length > 0) {
+        reading = `<div class="card-reading"><h4>Reading list (${c.reading.verified}/${c.reading.total} verified)</h4><ul>`;
+        for (const ref of c.reading.recommended.slice(0, 5)) {
+            // ref is either a plain string (new winnowed-citations schema) or a
+            // CitationRecord dict (older runs).
+            if (typeof ref === 'string') {
+                reading += `<li>${escapeHTML(ref)}</li>`;
+            } else {
+                const authors = (ref.authors && ref.authors.length)
+                    ? escapeHTML(ref.authors.slice(0, 3).join(', '))
+                    : '—';
+                const year = ref.year ? ` (${ref.year})` : '';
+                const title = ref.url
+                    ? `<a href="${escapeHTML(ref.url)}" target="_blank" rel="noopener" style="color:#aaa">${escapeHTML(ref.title)}</a>`
+                    : escapeHTML(ref.title);
+                reading += `<li>${authors}. ${title}${year}</li>`;
+            }
         }
         reading += '</ul></div>';
-    } else if (r.reading && r.reading.verified > 0) {
-        reading = '<div class="card-reading"><h4>' +
-            r.reading.verified + ' refs</h4></div>';
     }
-
+    const rid = encodeURIComponent(c.run_id);
     let links = '<div class="card-links">';
-    if (r.has_report) links += '<a href="/report/' + encodeURIComponent(r.run_id) + '">Report</a>';
-    if (r.has_audio) links += '<a href="/player?run=' + encodeURIComponent(r.run_id) + '">Listen</a>';
+    if (c.has_audio) links += `<a class="primary" href="/player?run=${rid}">♫ Listen</a>`;
+    if (c.has_report) links += `<a href="/report/${rid}">Report</a>`;
+    if (c.has_host_prep) links += `<a href="/prep?run=${rid}">Host prep</a>`;
     links += '</div>';
-
     return '<div class="card">' +
-        '<div class="card-header">' +
-            '<span class="card-panel">' + escapeHTML(r.panel) + '</span>' +
-            '<span class="card-condition">' + escapeHTML(r.version) + ' &middot; ' +
-                escapeHTML(r.condition + (r.hostprep ? ' +hp' : '')) + '</span>' +
-        '</div>' +
-        '<div class="card-badges">' + badges + '</div>' +
-        (metrics ? '<div class="card-metrics">' + metrics + '</div>' : '') +
+        `<div class="card-panel">${escapeHTML(c.panel_label)} panel</div>` +
+        (experts ? `<div class="card-experts">${experts}</div>` : '') +
+        (metrics ? `<div class="card-metrics">${metrics}</div>` : '') +
         reading + links +
     '</div>';
 }

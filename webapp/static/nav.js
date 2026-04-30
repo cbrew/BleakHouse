@@ -3,7 +3,7 @@
     const currentPath = window.location.pathname;
     const links = [
         { href: '/tracker', label: 'Matrix', icon: '&#9638;' },
-        { href: '/script-versions', label: 'Script Versions', icon: '&#916;' },
+        { href: '/script-versions', label: 'Recommended', icon: '&#9733;' },
         { href: '/player', label: 'Player', icon: '&#9835;' },
         { href: '/about', label: 'How It Works', icon: '&#9881;' },
         { href: '/prep', label: 'Prep', icon: '&#128196;' },
