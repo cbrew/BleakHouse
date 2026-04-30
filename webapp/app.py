@@ -354,99 +354,6 @@ async def poster_raw():
 app.mount("/poster/", StaticFiles(directory=str(POSTER_DIR)), name="poster-static")
 
 
-_tts_progress: dict[str, dict] = {}  # run_id/seg_idx -> {done, total, status}
-
-
-@app.get("/api/tts/{run_id}/{segment_idx}/status")
-async def tts_status(run_id: str, segment_idx: int):
-    """Check rendering progress for a segment."""
-    key = f"{run_id}/{segment_idx}"
-    cache_dir = AUDIO_VOLUME / "kokoro_cache" if AUDIO_VOLUME.exists() else Path("/tmp/kokoro_cache")
-    cache_path = cache_dir / run_id / f"segment_{segment_idx}.wav"
-    if cache_path.exists():
-        return {"status": "ready"}
-    return _tts_progress.get(key, {"status": "pending", "done": 0, "total": 0})
-
-
-@app.get("/api/tts/{run_id}/{segment_idx}")
-async def tts_segment(run_id: str, segment_idx: int):
-    """Render one segment via Kokoro TTS. Runs in a thread so status polls work."""
-    import asyncio
-    if ".." in run_id:
-        raise HTTPException(400, "Invalid path")
-
-    # Cache on volume (fly) or /tmp (local dev)
-    cache_dir = AUDIO_VOLUME / "kokoro_cache" if AUDIO_VOLUME.exists() else Path("/tmp/kokoro_cache")
-    cache_path = cache_dir / run_id / f"segment_{segment_idx}.wav"
-    if cache_path.exists():
-        return FileResponse(str(cache_path), media_type="audio/wav")
-
-    # Load episode
-    ep_path = DATA_DIR / "runs" / run_id / "phase3_episode.json"
-    if not ep_path.exists():
-        raise HTTPException(404, f"No episode for {run_id}")
-    with open(ep_path) as f:
-        episode = json.load(f)
-
-    segments = episode.get("segments", [])
-    if segment_idx < 0 or segment_idx >= len(segments):
-        raise HTTPException(404, f"Segment {segment_idx} not found (have {len(segments)})")
-
-    seg = segments[segment_idx]
-    turns = seg.get("turns", [])
-    total_turns = len(turns)
-    progress_key = f"{run_id}/{segment_idx}"
-    _tts_progress[progress_key] = {"status": "rendering", "done": 0, "total": total_turns}
-
-    def _render():
-        import numpy as np
-        from webapp.kokoro_voices import get_kokoro_voice
-        from webapp.kokoro_tts import synthesize_turn
-
-        sample_rate = 24000
-        all_samples = []
-
-        for turn_i, turn in enumerate(turns):
-            speaker = turn.get("speaker", "Host")
-            voice, _lang = get_kokoro_voice(speaker)
-            text = " ".join(u.get("text", "") for u in turn.get("utterances", []))
-            if not text.strip():
-                continue
-            rate = 1.0
-            if turn.get("utterances"):
-                rate = turn["utterances"][0].get("rate", 1.0)
-            try:
-                samples, sr = synthesize_turn(text, voice, speed=rate)
-                if sr != sample_rate:
-                    samples = np.interp(
-                        np.linspace(0, len(samples), int(len(samples) * sample_rate / sr)),
-                        np.arange(len(samples)), samples
-                    ).astype(np.float32)
-                all_samples.append(samples)
-            except Exception as e:
-                logger.warning("TTS failed for %s turn by %s: %s", run_id, speaker, e)
-                continue
-            all_samples.append(np.zeros(int(sample_rate * 0.2), dtype=np.float32))
-            _tts_progress[progress_key] = {"status": "rendering", "done": turn_i + 1, "total": total_turns}
-
-        if not all_samples:
-            return None
-        combined = np.concatenate(all_samples)
-        import soundfile as sf
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
-        sf.write(str(cache_path), combined, sample_rate)
-        logger.info("Kokoro: rendered %s segment %d (%.1fs audio)", run_id, segment_idx, len(combined) / sample_rate)
-        return cache_path
-
-    # Run in thread so status polls can be served concurrently
-    result = await asyncio.get_event_loop().run_in_executor(None, _render)
-    _tts_progress.pop(progress_key, None)
-
-    if result is None:
-        raise HTTPException(500, "No audio generated")
-    return FileResponse(str(result), media_type="audio/wav")
-
-
 @app.post("/api/pageview")
 async def log_pageview(request: Request):
     """Log a page view to JSONL on the persistent volume."""
@@ -681,7 +588,6 @@ async def script_viewer(request: Request, run_id: str):
 AUDIO_VOLUME = Path("/app/audio_volume")
 FEEDBACK_FILE = AUDIO_VOLUME / "feedback.jsonl"  # on the persistent volume
 PAGEVIEW_FILE = AUDIO_VOLUME / "pageviews.jsonl"
-KOKORO_CACHE = AUDIO_VOLUME / "kokoro_cache"
 
 @app.get("/audio/{run_id}/{filename}")
 async def serve_audio(run_id: str, filename: str):
@@ -980,7 +886,6 @@ def _summarize_run_dir(run_dir: Path) -> dict:
         "total_duration_ms": (manifest or {}).get("total_duration_ms", 0),
         "has_audio": has_audio,
         "has_host_prep": has_host_prep,
-        "audio_state": "gemini" if has_audio else "kokoro",
         "has_episode": episode_path.exists(),
         "has_report": report_path.exists(),
         "has_reading_list": reading_list_path.exists(),
@@ -1329,7 +1234,6 @@ def _build_run_lists_from_db() -> dict:
             "novel": s["novel"],
             "condition": s["condition"],
             "hostprep": s["hostprep"],
-            "audio_state": s["audio_state"],
             "experts": s["experts"],
         })
     return {"novels": novels, "all_runs": all_runs}
