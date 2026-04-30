@@ -1282,6 +1282,7 @@ def _build_versions_data_from_db() -> dict:
             continue
         s = _summarize_run_dir(rd)
         novel_meta = axes.NOVEL_BY_KEY.get(r["novel"])
+        teaser = _load_json(rd / "phase3_teaser.json") if (rd / "phase3_teaser.json").exists() else None
         cards.append({
             "run_id": r["run_id"],
             "novel_key": r["novel"],
@@ -1294,6 +1295,7 @@ def _build_versions_data_from_db() -> dict:
             "metrics": s.get("metrics", {}),
             "reading": s.get("reading", {}),
             "total_duration_ms": s.get("total_duration_ms", 0),
+            "teaser": teaser if isinstance(teaser, dict) else None,
             "has_audio": s["has_audio"],
             "has_episode": s["has_episode"],
             "has_report": s["has_report"],
@@ -1990,6 +1992,12 @@ h1 { font-size: 1.4em; margin-bottom: 0.3em; color: #e94560; }
 .card-experts { color: #8888aa; font-size: 0.85em; margin-bottom: 0.6em; }
 .card-experts span { display: inline-block; padding: 0.1em 0.5em; margin: 0.1em 0.2em 0.1em 0;
     border: 1px solid #0f3460; border-radius: 10px; }
+.card-teaser { font-style: italic; color: #d4c5a0; margin: 0.5em 0 0.7em;
+    border-left: 2px solid #e94560; padding: 0.2em 0 0.2em 0.7em;
+    line-height: 1.5; font-size: 0.95em; }
+.card-teaser .attr { display: block; margin-top: 0.3em; font-size: 0.8em;
+    color: #8888aa; font-style: normal; }
+.card-teaser .attr::before { content: "— "; }
 .card-metrics { color: #8888aa; font-size: 0.8em; margin-bottom: 0.5em; }
 .card-reading { margin-top: 0.5em; }
 .card-reading h4 { color: #d4c5a0; font-size: 0.85em; margin-bottom: 0.3em; }
@@ -2114,9 +2122,16 @@ function renderCard(c) {
     if (c.has_report) links += `<a href="/report/${rid}">Report</a>`;
     if (c.has_host_prep) links += `<a href="/prep?run=${rid}">Host prep</a>`;
     links += '</div>';
+    let teaser = '';
+    if (c.teaser && c.teaser.teaser) {
+        teaser = `<div class="card-teaser">${escapeHTML(c.teaser.teaser)}` +
+            `<span class="attr">${escapeHTML(c.teaser.speaker || '')}</span>` +
+            '</div>';
+    }
     return '<div class="card">' +
         `<div class="card-panel">${escapeHTML(c.panel_label)} panel</div>` +
         (experts ? `<div class="card-experts">${experts}</div>` : '') +
+        teaser +
         (metrics ? `<div class="card-metrics">${metrics}</div>` : '') +
         reading + links +
     '</div>';
