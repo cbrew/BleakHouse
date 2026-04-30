@@ -1101,12 +1101,15 @@ def _build_tracker_matrix_from_db() -> dict:
             "cells_by_generator": cells_by_generator,
         })
 
-    # Interdisciplinary panel runs — every DB row with panel='interdisciplinary'
-    # and a script. The view already keeps the freshest per coordinate, so no
-    # extra dedup needed.
+    # Interdisciplinary panel runs — DB rows for the default generator only.
+    # The JS renderer keys cells by (novel, pipeline) so unfiltered rows from
+    # multiple generators would overwrite each other and last-write-wins.
+    # Same shape as the panel-scripts filter below.
     inter_runs: list[dict] = []
     for r in db_rows:
         if r["panel"] != "interdisciplinary" or not r.get("has_episode"):
+            continue
+        if r["generator"] != axes.DEFAULT_GENERATOR:
             continue
         cell = _cell_for(r["run_id"])
         inter_runs.append({
