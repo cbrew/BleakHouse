@@ -362,7 +362,7 @@ app.mount("/poster/", StaticFiles(directory=str(POSTER_DIR)), name="poster-stati
 
 @app.post("/api/pageview")
 async def log_pageview(request: Request):
-    """Log a page view to JSONL on the persistent volume."""
+    """Log a page view to stdout. `fly logs` retains them ~30 days."""
     import time
     try:
         body = await request.json()
@@ -372,23 +372,17 @@ async def log_pageview(request: Request):
     ref = (body.get("ref") or "")[:500]
     if not page:
         return {"status": "ok"}
-    entry = {
+    logger.info("PAGEVIEW %s", json.dumps({
         "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "page": page,
         "ref": ref,
-    }
-    try:
-        PAGEVIEW_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(PAGEVIEW_FILE, "a") as f:
-            f.write(json.dumps(entry) + "\n")
-    except OSError:
-        pass  # volume not mounted locally
+    }))
     return {"status": "ok"}
 
 
 @app.post("/api/feedback")
 async def submit_feedback(request: Request):
-    """Append feedback to JSONL file on the persistent volume."""
+    """Log feedback to stdout. `fly logs` retains them ~30 days."""
     import time
     try:
         body = await request.json()
@@ -401,19 +395,12 @@ async def submit_feedback(request: Request):
         raise HTTPException(400, "rating must be 'up' or 'down'")
     if not rating and not text:
         raise HTTPException(400, "Provide rating and/or text")
-    entry = {
+    logger.info("FEEDBACK %s", json.dumps({
         "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "page": page,
         "rating": rating,
         "text": text,
-    }
-    try:
-        FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(FEEDBACK_FILE, "a") as f:
-            f.write(json.dumps(entry) + "\n")
-    except OSError:
-        # Volume might not be mounted locally
-        logger.warning("Could not write feedback: %s", entry)
+    }))
     return {"status": "ok"}
 
 
@@ -600,10 +587,6 @@ async def script_viewer(request: Request, run_id: str):
     return HTMLResponse(SCRIPT_VIEWER_HTML.replace("{{ v }}", GIT_SHA))
 
 
-AUDIO_VOLUME = Path("/app/audio_volume")
-FEEDBACK_FILE = AUDIO_VOLUME / "feedback.jsonl"  # on the persistent volume
-PAGEVIEW_FILE = AUDIO_VOLUME / "pageviews.jsonl"
-
 def _r2_url_for_hash(dvc_hash: str) -> str:
     """Compose the public R2 URL for a DVC blob hash.
 
@@ -665,67 +648,6 @@ async def serve_audio(run_id: str, filename: str):
             return FileResponse(str(run_mf), media_type="application/json")
 
     raise HTTPException(404, f"Audio/manifest file not found: {filename}")
-
-
-# ---------------------------------------------------------------------------
-# Admin: blob upload to the fly volume DVC cache.
-# Bypasses fly ssh entirely; uses the standard HTTPS edge.
-# ---------------------------------------------------------------------------
-
-import hashlib  # noqa: E402
-import os  # noqa: E402
-
-_ADMIN_TOKEN = os.environ.get("ADMIN_UPLOAD_TOKEN", "")
-_HASH_RE = re.compile(r"^[0-9a-f]{32}$")
-VOLUME_CACHE = Path("/app/audio_volume/dvc-cache/files/md5")
-
-
-def _check_admin(request: Request) -> None:
-    if not _ADMIN_TOKEN:
-        raise HTTPException(503, "admin endpoints disabled (no ADMIN_UPLOAD_TOKEN set)")
-    if request.headers.get("x-admin-token") != _ADMIN_TOKEN:
-        raise HTTPException(401, "invalid or missing X-Admin-Token")
-
-
-@app.get("/api/_admin/list-blobs")
-async def list_blobs(request: Request):
-    _check_admin(request)
-    if not VOLUME_CACHE.exists():
-        return {"hashes": [], "machine_id": os.environ.get("FLY_MACHINE_ID", "")}
-    hashes = []
-    for prefix in VOLUME_CACHE.iterdir():
-        if not prefix.is_dir() or len(prefix.name) != 2:
-            continue
-        for blob in prefix.iterdir():
-            if blob.is_file() and not blob.name.startswith("."):
-                hashes.append(prefix.name + blob.name)
-    return {"hashes": sorted(hashes), "machine_id": os.environ.get("FLY_MACHINE_ID", "")}
-
-
-@app.post("/api/_admin/upload-blob")
-async def upload_blob(request: Request, hash: str):
-    _check_admin(request)
-    if not _HASH_RE.match(hash):
-        raise HTTPException(400, "invalid hash format (expect 32 lowercase hex)")
-    data = await request.body()
-    actual = hashlib.md5(data, usedforsecurity=False).hexdigest()
-    if actual != hash:
-        raise HTTPException(
-            400, f"md5 mismatch: declared {hash}, computed {actual}, size {len(data)}"
-        )
-    target = VOLUME_CACHE / hash[:2] / hash[2:]
-    target.parent.mkdir(parents=True, exist_ok=True)
-    # Write atomically: tmp file + rename, so a partial write doesn't
-    # leave a corrupt-looking blob the next probe would mistake as done.
-    tmp = target.with_suffix(".tmp")
-    tmp.write_bytes(data)
-    tmp.rename(target)
-    return {
-        "ok": True,
-        "hash": hash,
-        "size": len(data),
-        "machine_id": os.environ.get("FLY_MACHINE_ID", ""),
-    }
 
 
 # ---------------------------------------------------------------------------
