@@ -172,24 +172,23 @@ function renderPrep(data) {
         html += `</div>`;
     }
 
-    // Reading list (recommended)
-    if (data.reading_list && data.reading_list.recommended && data.reading_list.recommended.length > 0) {
+    // Reading list (recommended). Render each entry as one citation line —
+    // string entries pass through, dicts get formatted as "Authors. Title
+    // (Year)" so both shapes look identical. URLs that aren't http(s) are
+    // dropped (some legacy dicts carry 'wiki-fr:https://...' tag-prefixes
+    // that won't navigate).
+    const rl = data.reading_list || {};
+    if (rl.winnower_note && (!rl.recommended || rl.recommended.length === 0)) {
         html += `<div class="reading-list"><h2>Recommended Reading</h2>`;
-        const totalRefs = data.reading_list.total_proposed || data.reading_list.total_verified || '?';
-        html += `<p style="color:#8888aa;font-size:0.9em;">${data.reading_list.recommended.length} of ${totalRefs} references the experts proposed during pre-interviews — most accessible to a general listener.</p>`;
-        for (const rec of data.reading_list.recommended) {
-            const authors = (rec.authors && rec.authors.length)
-                ? esc(rec.authors.slice(0, 3).join(', '))
-                : '';
-            const year = rec.year ? ` (${rec.year})` : '';
-            const titleText = esc(rec.title || '?');
-            const titleHTML = rec.url
-                ? `<a href="${esc(rec.url)}" target="_blank" rel="noopener">${titleText}</a>`
-                : titleText;
-            html += `<div class="reading-rec"><span class="title">${titleHTML}${year}</span>`;
-            if (authors) html += `<div class="authors">${authors}</div>`;
-            if (rec.description) html += `<div class="description">${esc(rec.description)}</div>`;
-            html += `</div>`;
+        html += `<p style="color:#8888aa;font-size:0.9em;font-style:italic">Winnower returned no listener-suitable picks for this episode (${rl.total_verified || 0} of ${rl.total_proposed || 0} verified).</p>`;
+        html += `</div>`;
+    } else if (rl.recommended && rl.recommended.length > 0) {
+        html += `<div class="reading-list"><h2>Recommended Reading</h2>`;
+        const totalRefs = rl.total_proposed || rl.total_verified || '?';
+        html += `<p style="color:#8888aa;font-size:0.9em;">${rl.recommended.length} of ${totalRefs} references the experts proposed during pre-interviews — most accessible to a general listener.</p>`;
+        for (const rec of rl.recommended) {
+            const formatted = formatCitation(rec);
+            if (formatted) html += `<div class="reading-rec"><span class="title">${formatted}</span></div>`;
         }
         html += `</div>`;
     }
@@ -313,6 +312,18 @@ function esc(s) {
     const d = document.createElement('div');
     d.textContent = String(s);
     return d.innerHTML;
+}
+
+// Render a recommended-reading entry. Every entry is now a dict with at
+// least a `display` field (verbatim citation as one line). If `url` is set
+// (http(s) only — legacy 'wiki-fr:' prefixes are stripped at normalise time),
+// the line is wrapped in an anchor.
+function formatCitation(rec) {
+    if (!rec) return '';
+    const display = rec.display || rec.title || '';
+    if (!display) return '';
+    const text = esc(display);
+    return rec.url ? `<a href="${esc(rec.url)}" target="_blank" rel="noopener">${text}</a>` : text;
 }
 </script>
 </body>

@@ -2137,19 +2137,13 @@ function renderCard(c) {
     } else if (r.recommended && r.recommended.length > 0) {
         reading = `<div class="card-reading"><h4>Reading list (${r.verified}/${r.total} verified)</h4><ul>`;
         for (const ref of r.recommended.slice(0, 5)) {
-            if (typeof ref === 'string') {
-                reading += `<li>${escapeHTML(ref)}</li>`;
-            } else if (ref && ref.title) {
-                const titleText = escapeHTML(ref.title);
-                const titleHtml = ref.url
-                    ? `<a href="${escapeHTML(ref.url)}" target="_blank" rel="noopener" style="color:#aaa">${titleText}</a>`
-                    : titleText;
-                const authors = (ref.authors && ref.authors.length)
-                    ? escapeHTML(ref.authors.slice(0, 3).join(', ')) + '. '
-                    : '';
-                const year = ref.year ? ` (${ref.year})` : '';
-                reading += `<li>${authors}${titleHtml}${year}</li>`;
-            }
+            if (!ref) continue;
+            const display = ref.display || ref.title || '';
+            if (!display) continue;
+            const text = escapeHTML(display);
+            reading += ref.url
+                ? `<li><a href="${escapeHTML(ref.url)}" target="_blank" rel="noopener" style="color:#aaa">${text}</a></li>`
+                : `<li>${text}</li>`;
         }
         reading += '</ul></div>';
     }

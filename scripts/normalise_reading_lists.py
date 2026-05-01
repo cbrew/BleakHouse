@@ -1,20 +1,28 @@
 """Normalise phase2_5_reading_list.json files to a uniform shape.
 
-Three states of legacy data observed (audit 2026-04-30):
+Canonical shape: every entry in `recommended` is a dict with at least
+{title, authors, year}. The webapp renders dicts only; no string-vs-dict
+branching at the view layer.
 
-  A. clean (string, n=3-8)
-     Already winnowed by enrichment.host_prep._select_listener_recommendations.
-     `recommended` is a list of preformatted citation strings.
+Four states of legacy data observed (audit 2026-04-30):
+
+  A. clean-string (string, n=3-8, has year markers)
+     Pre-schema-version-2 producer that emitted preformatted citation
+     strings ('Authors, Title (Year)').
+     ACTION: parse each string into a {title, authors, year} dict.
+
+  B. clean-dict (dict, n<=8)
+     Schema-v2 producer's output, possibly already filtered.
      ACTION: leave alone.
 
-  B. unwinnowed (dict, n=27-82)
+  C. unwinnowed (dict, n>8)
      Retrofit dirs that wrote `entries[]` and `recommended[]` containing
      the full unwinnowed candidate set. The listener-friendly Haiku
      filter never ran (or ran on an empty entries list and no-op'd).
      ACTION: run the winnower; replace `recommended` with the picked
-     subset (still dict-shape so the webapp's existing renderer handles it).
+     subset.
 
-  C. refusal-prose (string, looks like prose, no year markers)
+  D. refusal-prose (string, looks like prose, no year markers)
      The Haiku refused to pick any candidates and its prose response
      leaked into `recommended[]` as multiple sentences.
      ACTION: collapse the prose into a `winnower_note` field; set
@@ -68,6 +76,63 @@ def _detect_state(payload: dict[str, Any]) -> str:
     return "unknown"
 
 
+def lookup_in_verified(
+    raw_text: str, verified: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Convert a recommended-string into a citation dict by reaching back into
+    `verified[]`. Each verified entry carries the source raw_text plus optional
+    openalex metadata; we use the metadata where it exists, fall back to the
+    raw_text for display.
+    """
+    match = next((v for v in verified if v.get("raw_text") == raw_text), None)
+    if match is None:
+        return {"display": raw_text, "url": None}
+    title = match.get("openalex_title") or ""
+    authors = match.get("openalex_authors") or []
+    year = match.get("openalex_year")
+    doi = (match.get("openalex_doi") or "").strip()
+    url = f"https://doi.org/{doi}" if doi else None
+    return {
+        "display": raw_text,
+        "title": title or None,
+        "authors": authors,
+        "year": year,
+        "url": url,
+        "verification_source": match.get("verification_source"),
+    }
+
+
+def to_display_dict(rec: dict[str, Any]) -> dict[str, Any]:
+    """Reduce a CitationRecord-style dict to the uniform display shape.
+
+    Keeps title/authors/year/url; drops noise fields (description, type,
+    publisher, parent_tag, audience). URL is gated to http(s) only — some
+    legacy entries carried 'wiki-fr:https://...' tag-prefixes that aren't
+    navigable.
+    """
+    title = rec.get("title")
+    authors = rec.get("authors") or []
+    year = rec.get("year")
+    url = rec.get("url") or ""
+    if url and not (url.startswith("http://") or url.startswith("https://")):
+        url = ""
+    parts: list[str] = []
+    if authors:
+        parts.append(", ".join(authors[:3]))
+    if title:
+        parts.append(title)
+    head = ", ".join(parts) if parts else (title or "")
+    if year:
+        head = f"{head} ({year})"
+    return {
+        "display": head,
+        "title": title,
+        "authors": authors,
+        "year": year,
+        "url": url or None,
+    }
+
+
 def _config_for_run(run_dir: Path) -> tuple[str, str]:
     cfg_path = run_dir / "config.json"
     if not cfg_path.exists():
@@ -116,8 +181,32 @@ def normalise_run(
     payload = json.loads(rl_path.read_text())
     state = _detect_state(payload)
 
-    if state in ("empty", "string-clean", "dict-clean"):
-        return f"skip-{state}"
+    if state == "empty":
+        return "skip-empty"
+
+    if state == "dict-clean":
+        # Re-shape to the uniform display schema {display, title, authors, year, url}.
+        # Already-dict entries lose their description / type / publisher / etc.
+        # (noise) but keep their structured fields.
+        sample = payload["recommended"][0]
+        if "display" in sample:
+            return "skip-dict-clean"
+        payload["recommended"] = [to_display_dict(r) for r in payload["recommended"]]
+        if not dry_run:
+            rl_path.write_text(json.dumps(payload, indent=2))
+        return f"reshape-dict-{len(payload['recommended'])}"
+
+    if state == "string-clean":
+        # Look up each string in verified[] for openalex enrichment; fall
+        # back to raw_text only if no match. Either way the canonical
+        # display is the original citation string the expert wrote.
+        verified = payload.get("verified") or []
+        payload["recommended"] = [
+            lookup_in_verified(s, verified) for s in payload["recommended"]
+        ]
+        if not dry_run:
+            rl_path.write_text(json.dumps(payload, indent=2))
+        return f"upstream-lookup-{len(payload['recommended'])}"
 
     if state == "refusal-prose":
         prose = "\n".join(s for s in payload["recommended"] if isinstance(s, str))
