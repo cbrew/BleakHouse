@@ -2,9 +2,7 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends rsync \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir fastapi uvicorn[standard] jinja2 pyyaml dvc
+RUN pip install --no-cache-dir fastapi uvicorn[standard] jinja2 pyyaml
 
 # Copy webapp code
 COPY webapp/ webapp/
@@ -25,11 +23,10 @@ COPY poster/TheOhioStateUniversity-Scarlet-Vert-RGBHEX.jpg poster/
 COPY poster/lexisplusailogo.png poster/
 COPY poster/screenshots/ poster/screenshots/
 
-# Copy staged demo data (192 runs from the matrix + interdisciplinary +
-# alt-generator + versioned). Now includes 31 dereferenced MP3s
-# (~3 GB) — stage_demo.sh follows symlinks into the DVC cache so the
-# build context has real files. Also includes experiments.db, the
-# authoritative source for the matrix view.
+# Copy staged demo data — JSON + report HTML + experiments.db. No mp3s
+# in the image any more: audio mp3s live in Cloudflare R2 and the webapp
+# 302-redirects /audio/<id>/<file> to https://pub-<hash>.r2.dev/...
+# stage_demo.sh strips audio/ subdirs before this COPY runs.
 COPY demo_data/ data/
 
 # The bundled experiments.db is read-only; skip the dev-mode mtime check

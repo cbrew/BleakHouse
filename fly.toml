@@ -11,14 +11,9 @@ primary_region = 'iad'
   auto_start_machines = true
   min_machines_running = 0
 
-# PODCAST_AUDIO_DIR removed 2026-04-25: webapp now reads audio from
-# the canonical data/runs/<run>/audio/ path, served from the bundled
-# image (R1). The audio_data volume is retained for R3 (fly volume as
-# DVC remote).
-
-[mounts]
-  source = 'audio_data'
-  destination = '/app/audio_volume'
+# Audio mp3s live in Cloudflare R2 (bucket: not-in-our-time). The webapp
+# 302-redirects /audio/<id>/<file> to https://pub-<hash>.r2.dev/.../<dvc_hash>;
+# bytes never pass through Fly. Volumes were retired in BleakHouse-m6o3.
 
 [[vm]]
   memory = '1024mb'

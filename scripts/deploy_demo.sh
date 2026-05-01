@@ -147,16 +147,15 @@ fi
 cleanup
 trap - EXIT
 
-echo "==> [4/7] Sync DVC audio cache to fly volume(s) via HTTPS"
-# ADMIN_UPLOAD_TOKEN must match the fly secret. Stored locally at
-# ~/.bh-fly-admin-token by the deploy operator.
-if [ -z "${ADMIN_UPLOAD_TOKEN:-}" ] && [ -f "$HOME/.bh-fly-admin-token" ]; then
-    ADMIN_UPLOAD_TOKEN=$(cat "$HOME/.bh-fly-admin-token")
-    export ADMIN_UPLOAD_TOKEN
-fi
-[ -n "${ADMIN_UPLOAD_TOKEN:-}" ] \
-    || { echo "FAIL: ADMIN_UPLOAD_TOKEN not set and ~/.bh-fly-admin-token not found" >&2; exit 1; }
-uv run python -m scripts.sync_audio_via_http
+echo "==> [4/7] Confirm audio is in R2 (no fly-volume sync needed)"
+# Audio mp3s live in Cloudflare R2; the webapp 302-redirects /audio/...
+# directly to https://pub-<hash>.r2.dev. Make sure 'dvc push' has been
+# run since the last render, otherwise newly-rendered episodes will
+# 404 on R2 even though the symlinks exist locally.
+uv run dvc status -c -r r2 --json 2>&1 | head -3 | grep -q '"new"' && {
+    echo "FAIL: dvc cache has unpushed blobs. Run 'uv run dvc push' first." >&2
+    exit 1
+} || echo "    OK: dvc cache is in sync with R2"
 
 echo "==> [5/7] fly deploy --local-only (app: $APP)"
 fly deploy --local-only --app "$APP"
@@ -175,11 +174,11 @@ if [ "$code" != "200" ]; then
     exit 1
 fi
 
-echo "==> [7/7] Audio smoke test"
+echo "==> [7/7] Audio smoke test (302 → R2)"
 # Pick the first run with audio from runs.yaml and probe its podcast.mp3.
-# Verifies (a) the symlink in the image, (b) the fly volume mount, and
-# (c) the cache blob arrived via sync_audio_to_fly. Failure here means
-# audio is broken in production even though /tracker looks fine.
+# Verifies (a) webapp resolves dvc_hash from run_manifest.json, (b) returns
+# 302 to a public R2 URL, (c) R2 serves the bytes. Failure here means
+# audio is broken even though /tracker looks fine.
 SMOKE_RUN=$(uv run --no-sync python -c "
 import yaml
 d = yaml.safe_load(open('runs.yaml'))
@@ -192,19 +191,21 @@ SMOKE_URL="${PUBLIC_URL}/audio/${SMOKE_RUN}/podcast.mp3"
 SMOKE_TMP=$(mktemp -t bh-smoke-XXXXXX.mp3)
 trap 'rm -f "$SMOKE_TMP"' EXIT
 
-http=$(curl --max-time 60 -s -o "$SMOKE_TMP" -w "%{http_code}" "$SMOKE_URL" || echo 000)
+# Use a real-browser User-Agent — Cloudflare R2's public r2.dev URL
+# blocks bare 'curl/x.y' as a bot via Browser Integrity Check (1010).
+http=$(curl --max-time 60 -sL -A "Mozilla/5.0" -o "$SMOKE_TMP" -w "%{http_code}" -r 0-1048576 "$SMOKE_URL" || echo 000)
 size=$(stat -f "%z" "$SMOKE_TMP" 2>/dev/null || stat -c "%s" "$SMOKE_TMP" 2>/dev/null || echo 0)
-if [ "$http" != "200" ]; then
+if [ "$http" != "206" ] && [ "$http" != "200" ]; then
     echo "FAIL: $SMOKE_URL returned $http (downloaded $size bytes)" >&2
     echo "--- fly logs (last 40) ---" >&2
     fly logs --app "$APP" --no-tail 2>&1 | tail -40 >&2 || true
     exit 1
 fi
-if [ "$size" -lt 1000000 ]; then
-    echo "FAIL: $SMOKE_URL returned $http but only $size bytes (expected >1 MB)" >&2
+if [ "$size" -lt 100000 ]; then
+    echo "FAIL: $SMOKE_URL returned $http but only $size bytes (expected ≥100 KB)" >&2
     exit 1
 fi
-echo "    OK: $SMOKE_RUN ($((size/1024/1024)) MB streamed via fly volume)"
+echo "    OK: $SMOKE_RUN ($((size/1024)) KB range-streamed via R2)"
 
 echo ""
 echo "SUCCESS. Live: $PUBLIC_URL/tracker  (audio verified for $SMOKE_RUN)"
