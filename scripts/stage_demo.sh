@@ -82,37 +82,17 @@ for run in $DEMO_RUNS; do
         [ -f "$src/$f" ] && cp -p "$src/$f" "$dst/"
     done
 
-    # Copy the per-run audio manifest from the canonical local path.
-    # (Pre-2026-04-25 the script also looked at PODCAST_AUDIO_DIR; that
-    # layout no longer exists post audio-reorg — the canonical location
-    # is data/runs/<run>/audio/manifest.json.)
+    # Per-run audio manifests (manifest.json, manifest_qwen.json,
+    # manifest_trevelyan_v2.json) — the JSON files describing each
+    # render's per-segment audio. Small, ship in the image. The mp3
+    # bytes themselves live in Cloudflare R2; the webapp resolves them
+    # via dvc_hash from run_manifest.json and 302-redirects.
     if [ -f "$src/audio/manifest.json" ]; then
         mkdir -p "$dst/audio"
         cp -p "$src/audio/manifest.json" "$dst/audio/"
     fi
     for extra in "$src/audio"/manifest_*.json; do
         [ -f "$extra" ] && mkdir -p "$dst/audio" && cp -p "$extra" "$dst/audio/"
-    done
-
-    # Audio-symlink rewrite for the container build context.
-    # Locally, $src/audio/podcast*.mp3 is a symlink pointing into the
-    # DVC cache on the external volume. We can't ship that symlink
-    # verbatim (target doesn't exist in the container) and we don't
-    # want to dereference into the image. Instead, rewrite each
-    # symlink so it points at the in-container cache path:
-    #   /Volumes/Crucial X9/bleakhouse_audio  →  /app/audio_volume
-    # The fly mount makes that path valid at runtime.
-    for src_mp3 in "$src/audio"/podcast*.mp3; do
-        [ -e "$src_mp3" ] || [ -L "$src_mp3" ] || continue
-        fname=$(basename "$src_mp3")
-        mkdir -p "$dst/audio"
-        if [ -L "$src_mp3" ]; then
-            local_target=$(readlink "$src_mp3")
-            container_target=${local_target/\/Volumes\/Crucial X9\/bleakhouse_audio/\/app\/audio_volume}
-            ln -sfn "$container_target" "$dst/audio/$fname"
-        elif [ -f "$src_mp3" ]; then
-            cp -p "$src_mp3" "$dst/audio/$fname"
-        fi
     done
 
     count=$((count + 1))
