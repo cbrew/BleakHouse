@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -32,6 +32,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+
+# R2 public URL prefix. Audio mp3s live in Cloudflare R2 under the DVC
+# content-addressable layout (files/md5/<hash[:2]>/<hash[2:]>). The webapp
+# resolves audio requests by reading dvc_hash from run_manifest.json and
+# 302-redirecting; the bytes never pass through Fly. Override the host
+# via BLEAKHOUSE_R2_PUBLIC_URL when pointing at a different bucket.
+import os as _os  # noqa: E402  os is re-imported below for the admin endpoints
+R2_PUBLIC_URL = _os.environ.get(
+    "BLEAKHOUSE_R2_PUBLIC_URL",
+    "https://pub-0ac622dd336f40438799d8dbd211234a.r2.dev",
+).rstrip("/")
 
 
 def get_git_sha() -> str:
@@ -593,43 +604,67 @@ AUDIO_VOLUME = Path("/app/audio_volume")
 FEEDBACK_FILE = AUDIO_VOLUME / "feedback.jsonl"  # on the persistent volume
 PAGEVIEW_FILE = AUDIO_VOLUME / "pageviews.jsonl"
 
+def _r2_url_for_hash(dvc_hash: str) -> str:
+    """Compose the public R2 URL for a DVC blob hash.
+
+    DVC's content-addressable layout: files/md5/<first-2-chars>/<rest>.
+    The bucket is publicly accessible via the r2.dev development URL;
+    listeners hit Cloudflare's CDN edge directly, no proxying through Fly.
+    """
+    return f"{R2_PUBLIC_URL}/files/md5/{dvc_hash[:2]}/{dvc_hash[2:]}"
+
+
 @app.get("/audio/{run_id}/{filename}")
 async def serve_audio(run_id: str, filename: str):
+    """Serve audio + per-variant audio manifests.
+
+    Audio mp3s redirect (302) to Cloudflare R2; the browser/audio player
+    follows the redirect and re-issues the request with any Range headers
+    intact, so scrubbing works without proxying bytes through Fly.
+
+    Audio manifest JSON files (small, ≤500 KB) stay served from local
+    disk — they're staged into the container at deploy time and don't
+    benefit from R2.
+    """
     if ".." in run_id or ".." in filename:
         raise HTTPException(400, "Invalid path")
 
-    # Single source of truth: run_manifest.json
     manifest = _load_run_manifest(run_id)
     if manifest and "audio_variants" in manifest:
-        # Map requested filename to the path in the manifest
-        # (1) Exact match (e.g. manifest_qwen.json)
         for v in manifest["audio_variants"]:
-            if v["audio_file"] and Path(v["audio_file"]).name == filename:
-                return FileResponse(str(BASE_DIR / v["audio_file"]), media_type="audio/mpeg")
-            if v["audio_manifest"] and Path(v["audio_manifest"]).name == filename:
-                return FileResponse(str(BASE_DIR / v["audio_manifest"]), media_type="application/json")
+            af = v.get("audio_file") or ""
+            am = v.get("audio_manifest") or ""
+            # Direct mp3 match → redirect via dvc_hash to R2
+            if af and Path(af).name == filename:
+                hsh = v.get("hash") or ""
+                if hsh:
+                    return RedirectResponse(_r2_url_for_hash(hsh), status_code=302)
+            # Direct manifest_<variant>.json match → serve local
+            if am and Path(am).name == filename and (BASE_DIR / am).exists():
+                return FileResponse(str(BASE_DIR / am), media_type="application/json")
 
-        # (2) Alias match for "classic" (player.js asks for manifest.json and podcast.mp3)
+        # Aliases for "classic" — player.js asks for podcast.mp3 / manifest.json
         if filename in ("manifest.json", "podcast.mp3"):
             for v in manifest["audio_variants"]:
-                if v["name"] == "classic":
-                    if filename == "podcast.mp3" and v["audio_file"]:
-                        return FileResponse(str(BASE_DIR / v["audio_file"]), media_type="audio/mpeg")
-                    if filename == "manifest.json" and v["audio_manifest"]:
-                        return FileResponse(str(BASE_DIR / v["audio_manifest"]), media_type="application/json")
+                if v.get("name") != "classic":
+                    continue
+                if filename == "podcast.mp3":
+                    hsh = v.get("hash") or ""
+                    if hsh:
+                        return RedirectResponse(_r2_url_for_hash(hsh), status_code=302)
+                if filename == "manifest.json":
+                    am = v.get("audio_manifest") or ""
+                    if am and (BASE_DIR / am).exists():
+                        return FileResponse(str(BASE_DIR / am), media_type="application/json")
 
-    # Fallback to filesystem convention
-    audio_path = DATA_DIR / "runs" / run_id / "audio" / filename
-    if not audio_path.exists():
-        # Fallback for Gemini renders where manifest sits at run-level
-        if filename == "manifest.json":
-            run_mf = DATA_DIR / "runs" / run_id / "manifest.json"
-            if run_mf.exists():
-                return FileResponse(str(run_mf), media_type="application/json")
-        raise HTTPException(404, f"Audio/manifest file not found: {filename}")
+    # JSON manifest fallback for Gemini renders where the manifest sits
+    # at run-level (data/runs/<run>/manifest.json) rather than under audio/.
+    if filename == "manifest.json":
+        run_mf = DATA_DIR / "runs" / run_id / "manifest.json"
+        if run_mf.exists():
+            return FileResponse(str(run_mf), media_type="application/json")
 
-    media_type = "audio/mpeg" if filename.endswith(".mp3") else "application/json"
-    return FileResponse(str(audio_path), media_type=media_type)
+    raise HTTPException(404, f"Audio/manifest file not found: {filename}")
 
 
 # ---------------------------------------------------------------------------
