@@ -26,6 +26,14 @@ from starlette.responses import StreamingResponse
 
 from enrichment import axes
 
+# Telemetry endpoints (/api/pageview, /api/feedback) write to stdout via
+# logger.info; without basicConfig the root logger defaults to WARNING and
+# those lines never reach 'fly logs'. INFO is the right floor for demo
+# telemetry — uvicorn keeps its own access logs unaffected.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
