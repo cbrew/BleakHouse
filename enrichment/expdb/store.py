@@ -21,7 +21,37 @@ from .models import (
 # TTSConfig is imported for re-export — callers may want the row dataclass.
 _ = TTSConfig
 
-EXPECTED_USER_VERSION = 4
+EXPECTED_USER_VERSION = 5
+
+# v4→v5: introduce run_cost table for per-stage cost rollups
+# (BleakHouse-ybbn / Option B). Pure additive — no existing data
+# touched, so we apply this delta in place rather than asking the
+# user to delete + rescan.
+_V4_TO_V5_SQL = """
+CREATE TABLE IF NOT EXISTS run_cost (
+    id                 INTEGER PRIMARY KEY,
+    generation_run_id  INTEGER REFERENCES generation_run(id),
+    novel              TEXT,
+    run_label          TEXT NOT NULL,
+    stage              TEXT NOT NULL,
+    n_calls            INTEGER NOT NULL,
+    cpu_s              REAL NOT NULL,
+    wall_s             REAL NOT NULL,
+    in_tok             INTEGER NOT NULL,
+    cache_w_tok        INTEGER NOT NULL,
+    cache_r_tok        INTEGER NOT NULL,
+    out_tok            INTEGER NOT NULL,
+    in_chars           INTEGER NOT NULL,
+    audio_ms           INTEGER NOT NULL,
+    cost_usd           REAL NOT NULL,
+    created_at         REAL NOT NULL,
+    UNIQUE(run_label, stage)
+);
+
+CREATE INDEX IF NOT EXISTS idx_run_cost_label ON run_cost(run_label);
+CREATE INDEX IF NOT EXISTS idx_run_cost_stage ON run_cost(stage);
+CREATE INDEX IF NOT EXISTS idx_run_cost_genrun ON run_cost(generation_run_id);
+"""
 
 # Repo root: enrichment/expdb/store.py → enrichment/expdb → enrichment → REPO
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -70,6 +100,11 @@ class Store:
                 return
             if current == 0:
                 c.executescript(_schema_sql())
+                c.execute(f"PRAGMA user_version = {EXPECTED_USER_VERSION}")
+                return
+            if current == 4 and EXPECTED_USER_VERSION == 5:
+                # Pure additive delta — apply in place, no rescan needed.
+                c.executescript(_V4_TO_V5_SQL)
                 c.execute(f"PRAGMA user_version = {EXPECTED_USER_VERSION}")
                 return
             raise RuntimeError(
@@ -314,6 +349,62 @@ class Store:
                 (hpv_id,),
             ).fetchall()
         return [_row_to_eval(r) for r in rows]
+
+    # ---- RunCost (per-stage cost / token / timing rollup) ----
+
+    def upsert_run_cost(
+        self, *,
+        run_label: str,
+        stage: str,
+        n_calls: int,
+        cpu_s: float,
+        wall_s: float,
+        in_tok: int,
+        cache_w_tok: int,
+        cache_r_tok: int,
+        out_tok: int,
+        in_chars: int,
+        audio_ms: int,
+        cost_usd: float,
+        novel: str | None = None,
+        generation_run_id: int | None = None,
+    ) -> int:
+        """Upsert one (run_label, stage) row. Re-running is idempotent."""
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT id FROM run_cost WHERE run_label=? AND stage=?",
+                (run_label, stage),
+            ).fetchone()
+            if row is not None:
+                c.execute(
+                    "UPDATE run_cost SET generation_run_id=?, novel=?, "
+                    " n_calls=?, cpu_s=?, wall_s=?, in_tok=?, cache_w_tok=?,"
+                    " cache_r_tok=?, out_tok=?, in_chars=?, audio_ms=?,"
+                    " cost_usd=? WHERE id=?",
+                    (generation_run_id, novel, n_calls, cpu_s, wall_s,
+                     in_tok, cache_w_tok, cache_r_tok, out_tok, in_chars,
+                     audio_ms, cost_usd, int(row["id"])),
+                )
+                return int(row["id"])
+            cur = c.execute(
+                "INSERT INTO run_cost(generation_run_id, novel, run_label, "
+                " stage, n_calls, cpu_s, wall_s, in_tok, cache_w_tok,"
+                " cache_r_tok, out_tok, in_chars, audio_ms, cost_usd,"
+                " created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (generation_run_id, novel, run_label, stage, n_calls, cpu_s,
+                 wall_s, in_tok, cache_w_tok, cache_r_tok, out_tok, in_chars,
+                 audio_ms, cost_usd, time.time()),
+            )
+            assert cur.lastrowid is not None
+            return int(cur.lastrowid)
+
+    def list_run_costs(self, run_label: str) -> list[dict]:
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT * FROM run_cost WHERE run_label=? ORDER BY stage",
+                (run_label,),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     # ---- RegenerationRequest ----
 
