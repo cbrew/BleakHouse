@@ -73,8 +73,19 @@ def test_tool_event_costs_zero():
     assert event_cost(e) == 0.0
 
 
-def test_3_1_flash_marked_estimated():
-    """Public pricing for Gemini 3.1 Flash TTS isn't published as of this
-    commit. Cost reports must flag it; if the rate becomes verified the
-    flag should be removed in pricing.py and this assertion updated."""
-    assert "gemini-3.1-flash-tts-preview" in ESTIMATED_RATES
+def test_3_1_flash_tts_published_rate():
+    """Gemini 3.1 Flash TTS Preview pricing was published 2026-05-02 at
+    $1.00/$20.00 per MTok input/output (same as 2.5 Pro TTS). Cost
+    reports should NOT flag it as estimated."""
+    rate = tts_rate_for("gemini-3.1-flash-tts-preview")
+    assert rate is not None
+    assert rate.input_per_mtok == 1.00
+    assert rate.output_per_mtok == 20.00
+    assert "gemini-3.1-flash-tts-preview" not in ESTIMATED_RATES
+
+
+def test_estimated_rates_empty_today():
+    """When all models in TTS_RATES have verified prices, the estimated
+    set should be empty. Adding a new not-yet-verified TTS model means
+    listing it here AND in ESTIMATED_RATES."""
+    assert len(ESTIMATED_RATES) == 0
