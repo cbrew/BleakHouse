@@ -16,7 +16,9 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
+from enrichment.novel_prompts import NOVEL_CONFIGS
 from enrichment.schemas import ChapterEnrichmentResult, Passage
+from enrichment.timing import Recorder
 
 logger = logging.getLogger(__name__)
 
@@ -25,22 +27,8 @@ MANIFEST_PATH = DATA_DIR / "batch_manifest.json"
 PASSAGES_PATH = DATA_DIR / "passages_raw.json"
 OUTPUT_PATH = DATA_DIR / "passages_enriched.json"
 
-NOVEL_KEYS = [
-    "our_mutual_friend",
-    "mill_on_the_floss",
-    "north_and_south",
-    "passage_to_india",
-    "hard_times",
-    "middlemarch",
-    "daniel_deronda",
-    "david_copperfield",
-    "cranford",
-    "no_name",
-    "new_grub_street",
-    "odd_women",
-    "miss_marjoribanks",
-    "hester",
-]
+# Single source of truth for the novel-key whitelist (see submit_batch.py).
+NOVEL_KEYS = sorted(NOVEL_CONFIGS.keys())
 
 POLL_INTERVAL_SECONDS = 30
 POLL_TIMEOUT_SECONDS = 3600
@@ -97,6 +85,10 @@ def main() -> None:
     enriched: list[dict] = []
     failed_ids: list[str] = []
     succeeded = 0
+    # Record per-request usage as the batch is consumed. Each request
+    # carries the same .usage shape as a non-batch Anthropic call;
+    # batch=True flags the 50% Batch-API discount in event_cost.
+    recorder = Recorder()
 
     for entry in client.messages.batches.results(batch_id):
         custom_id = entry.custom_id
@@ -112,6 +104,23 @@ def main() -> None:
 
         # Extract text content from the message
         message = entry.result.message
+        usage = getattr(message, "usage", None)
+        if usage is not None:
+            recorder.record(
+                kind="model",
+                name=getattr(message, "model", "?") or "?",
+                label=f"passage_enrichment {custom_id}",
+                duration_s=0.0,  # batch — wall-time isn't per-request
+                input_tokens=int(getattr(usage, "input_tokens", 0) or 0),
+                output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
+                cache_creation_input_tokens=int(
+                    getattr(usage, "cache_creation_input_tokens", 0) or 0
+                ),
+                cache_read_input_tokens=int(
+                    getattr(usage, "cache_read_input_tokens", 0) or 0
+                ),
+                batch=True,
+            )
         content_text = ""
         for block in message.content:
             if block.type == "text":
@@ -160,6 +169,18 @@ def main() -> None:
     )
     if failed_ids:
         logger.warning("Failed request IDs: %s", failed_ids)
+
+    # Per-novel cost sidecar — sibling to passages_enriched.json. Same
+    # shape as data/novels/<novel>/passage_enrichment_timings.json
+    # written by the sync generate_contexts.py path; timings_summary.py
+    # picks it up under the 'enrichment' stage when called against any
+    # run of this novel.
+    timings_path = output_path.parent / "passage_enrichment_timings.json"
+    timings_path.write_text(json.dumps(recorder.to_dict(), indent=2))
+    logger.info(
+        "Recorded %d batch requests to %s",
+        len(recorder.events), timings_path,
+    )
 
     # Update manifest
     manifest["status"] = "collected"
