@@ -315,6 +315,7 @@ def run_all_pre_interviews(
     model: str = "claude-haiku-4-5-20251001",
     max_workers: int = 6,
     use_reference_tools: bool = False,
+    progress_path: Path | None = None,
 ) -> tuple[
     list[list[PreInterviewResponse]],
     list[list[CitationRegistry]],
@@ -359,12 +360,25 @@ def run_all_pre_interviews(
                 )
                 futures[fut] = si
 
+        completed = 0
+        total = len(futures)
         for fut in as_completed(futures):
             si = futures[fut]
             response, registry, recorder = fut.result()
             all_interviews[si].append(response)
             all_registries[si].append(registry)
             all_recorders[si].append(recorder)
+            completed += 1
+            logger.info("    interview %d/%d done (segment %d)",
+                        completed, total, si)
+            # Incremental flush — every captured event survives a crash,
+            # and a watcher tailing phase2_5_timings.json sees progress.
+            if progress_path is not None:
+                merged = Recorder()
+                for seg_recs in all_recorders:
+                    for r in seg_recs:
+                        merged.merge(r)
+                progress_path.write_text(json.dumps(merged.to_dict(), indent=2))
 
     return all_interviews, all_registries, all_recorders
 
@@ -655,10 +669,12 @@ def run_host_prep(
     tools_label = " with reference tools" if use_reference_tools else ""
     logger.info("Phase 2.5a: pre-interviews%s (%d experts × %d segments)",
                 tools_label, len(personas), len(segments))
+    progress_path = (run_dir / "phase2_5_timings.json") if run_dir else None
     interviews, registries, recorders = run_all_pre_interviews(
         client, personas, segments, assignments_by_segment,
         novel_title, novel_author, interview_model,
         use_reference_tools=use_reference_tools,
+        progress_path=progress_path,
     )
 
     # Aggregate per-interview recorders into a single timeline.
@@ -788,13 +804,14 @@ def run_host_prep(
         )
         timing.merge(plan_recorder)
         briefs.append(brief)
+        logger.info("    brief %d/%d done (%s)", si + 1, len(segments), seg_name)
+        if run_dir is not None:
+            timings_path = run_dir / "phase2_5_timings.json"
+            timings_path.write_text(json.dumps(timing.to_dict(), indent=2))
 
     if run_dir is not None:
-        timings_path = run_dir / "phase2_5_timings.json"
-        with open(timings_path, "w") as f:
-            json.dump(timing.to_dict(), f, indent=2)
         logger.info("  Saved timings (%d events) to %s",
-                    len(timing.events), timings_path)
+                    len(timing.events), run_dir / "phase2_5_timings.json")
 
     return briefs, interviews
 
