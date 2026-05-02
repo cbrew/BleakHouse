@@ -79,71 +79,106 @@ def main() -> None:
         sys.exit(f"FAIL: no phase*_timings.json files in {run_dir}")
     out = _write_run_timings(run_dir, events)
     print(f"{run_dir.name}: {len(events)} events across "
-          f"{len({e['phase'] for e in events})} phases  →  {out.name}\n")
+          f"{len({e['phase'] for e in events})} stages  →  {out.name}\n")
 
-    # ---- by phase ---------------------------------------------------------
-    by_phase: dict[str, dict] = defaultdict(
-        lambda: {"count": 0, "duration": 0.0, "cost": 0.0}
-    )
-    total_cost = 0.0
-    total_duration = 0.0
-    for e in events:
-        b = by_phase[e["phase"]]
-        b["count"] += 1
-        b["duration"] += e["duration_s"]
-        c = event_cost(e)
-        b["cost"] += c
-        total_cost += c
-        total_duration += e["duration_s"]
+    # ---- stage-by-stage rollup ------------------------------------------
+    # Phases sort lexically; "enrichment" first as the per-novel prep step.
+    def _phase_sort_key(p: str) -> tuple[int, list]:
+        if p == "enrichment":
+            return (0, [])
+        nums = [int(s) for s in p.split("_")]
+        return (1, nums)
 
-    print(f"{'phase':<10} {'n':>5} {'cpu_s':>9} {'cost':>10}")
-    print("-" * 40)
-    for phase in sorted(by_phase):
-        b = by_phase[phase]
-        print(f"phase{phase:<5} {b['count']:>5d} {b['duration']:>9.1f} ${b['cost']:>8.3f}")
-    print("-" * 40)
-    print(f"{'TOTAL':<10} {sum(b['count'] for b in by_phase.values()):>5d} "
-          f"{total_duration:>9.1f} ${total_cost:>8.3f}\n")
-
-    # ---- by kind / name ---------------------------------------------------
-    by_name: dict[tuple[str, str], dict] = defaultdict(
-        lambda: {"count": 0, "duration": 0.0,
-                 "in_tok": 0, "out_tok": 0,
-                 "in_chars": 0, "audio_ms": 0,
-                 "cost": 0.0}
+    by_stage: dict[str, dict] = defaultdict(
+        lambda: {"count": 0, "cpu_s": 0.0, "wall_s": 0.0,
+                 "in_tok": 0, "cache_w": 0, "cache_r": 0, "out_tok": 0,
+                 "in_chars": 0, "audio_ms": 0, "cost": 0.0,
+                 "_min_t0": float("inf"), "_max_t1": float("-inf"),
+                 "_models": set()}
     )
     for e in events:
-        key = (e["kind"], e["name"])
-        b = by_name[key]
+        b = by_stage[e["phase"]]
         b["count"] += 1
-        b["duration"] += e["duration_s"]
+        b["cpu_s"] += e.get("duration_s", 0)
         b["in_tok"] += e.get("input_tokens", 0)
+        b["cache_w"] += e.get("cache_creation_input_tokens", 0)
+        b["cache_r"] += e.get("cache_read_input_tokens", 0)
         b["out_tok"] += e.get("output_tokens", 0)
         b["in_chars"] += e.get("input_chars", 0)
         b["audio_ms"] += e.get("output_audio_ms", 0)
         b["cost"] += event_cost(e)
-
-    print(f"{'kind':<6} {'name':<35} {'n':>4} {'sum_s':>8} "
-          f"{'in_tok':>9} {'out_tok':>8} {'in_chars':>9} "
-          f"{'audio_s':>8} {'cost':>9}")
-    print("-" * 105)
-    has_estimated = False
-    for (kind, name), b in sorted(
-        by_name.items(), key=lambda kv: -kv[1]["cost"]
-    ):
-        flag = "*" if name in ESTIMATED_RATES else " "
-        if name in ESTIMATED_RATES:
-            has_estimated = True
-        print(
-            f"{kind:<6} {(name + flag)[:35]:<35} {b['count']:>4d} "
-            f"{b['duration']:>8.1f} "
-            f"{b['in_tok']:>9,} {b['out_tok']:>8,} "
-            f"{b['in_chars']:>9,} {b['audio_ms']/1000:>8.1f} "
-            f"${b['cost']:>7.3f}"
+        t0 = e.get("started_at", 0) or 0
+        if t0:
+            b["_min_t0"] = min(b["_min_t0"], t0)
+            b["_max_t1"] = max(b["_max_t1"], t0 + e.get("duration_s", 0))
+        b["_models"].add(e.get("name", "?"))
+    for b in by_stage.values():
+        b["wall_s"] = (
+            b["_max_t1"] - b["_min_t0"]
+            if b["_min_t0"] != float("inf") else 0
         )
+
+    has_estimated = any(
+        m in ESTIMATED_RATES
+        for b in by_stage.values() for m in b["_models"]
+    )
+
+    cols = ("stage", "n", "cpu_s", "wall_s", "in_tok",
+            "cache_w", "cache_r", "out_tok", "in_chars", "audio_s", "cost")
+    widths = (12, 4, 8, 8, 10, 10, 11, 9, 9, 8, 9)
+    header = "  ".join(f"{c:>{w}}" for c, w in zip(cols, widths))
+    print(header)
+    print("-" * len(header))
+
+    totals: dict[str, float] = defaultdict(float)
+    for stage in sorted(by_stage, key=_phase_sort_key):
+        b = by_stage[stage]
+        flag = "*" if any(m in ESTIMATED_RATES for m in b["_models"]) else ""
+        label = stage if stage == "enrichment" else f"phase{stage}"
+        row = (
+            f"{(label + flag):>{widths[0]}}",
+            f"{b['count']:>{widths[1]}d}",
+            f"{b['cpu_s']:>{widths[2]}.1f}",
+            f"{b['wall_s']:>{widths[3]}.1f}",
+            f"{b['in_tok']:>{widths[4]},d}",
+            f"{b['cache_w']:>{widths[5]},d}",
+            f"{b['cache_r']:>{widths[6]},d}",
+            f"{b['out_tok']:>{widths[7]},d}",
+            f"{b['in_chars']:>{widths[8]},d}",
+            f"{b['audio_ms']/1000:>{widths[9]}.1f}",
+            f"${b['cost']:>{widths[10]-1}.4f}",
+        )
+        print("  ".join(row))
+        for k in ("count", "cpu_s", "in_tok", "cache_w", "cache_r",
+                  "out_tok", "in_chars", "audio_ms", "cost"):
+            totals[k] += b[k]
+    print("-" * len(header))
+    print("  ".join((
+        f"{'TOTAL':>{widths[0]}}",
+        f"{int(totals['count']):>{widths[1]}d}",
+        f"{totals['cpu_s']:>{widths[2]}.1f}",
+        f"{'':>{widths[3]}}",
+        f"{int(totals['in_tok']):>{widths[4]},d}",
+        f"{int(totals['cache_w']):>{widths[5]},d}",
+        f"{int(totals['cache_r']):>{widths[6]},d}",
+        f"{int(totals['out_tok']):>{widths[7]},d}",
+        f"{int(totals['in_chars']):>{widths[8]},d}",
+        f"{totals['audio_ms']/1000:>{widths[9]}.1f}",
+        f"${totals['cost']:>{widths[10]-1}.4f}",
+    )))
+    print()
+    print("Columns: cpu_s = sum of per-call durations (parallel work "
+          "double-counts).")
+    print("         wall_s = max(end) - min(start) within the stage "
+          "(true elapsed).")
+    print("         cache_w = cache_creation_input_tokens (billed at "
+          "1.25x base rate).")
+    print("         cache_r = cache_read_input_tokens (billed at 0.10x "
+          "base rate).")
     if has_estimated:
-        print("\n* = pricing is an estimate (provider has not published "
-              "rates for this model yet); see enrichment/pricing.py.")
+        print()
+        print("* = stage uses a model whose pricing is an estimate; see "
+              "enrichment/pricing.py.")
 
 
 if __name__ == "__main__":
