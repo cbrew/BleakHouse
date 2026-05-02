@@ -291,12 +291,13 @@ async function loadRun(runId, version = null) {
     if (shardPrefetch) { shardPrefetch.src = ""; shardPrefetch = null; }
 
     // Probe for shard-format audio. 200 \u2192 shards engine; 404 \u2192 legacy mp3.
+    // shards.json is per-run (profile-keyed inside), so try it regardless
+    // of the version selector \u2014 the legacy engine only kicks in when no
+    // shards exist for this run at all.
     const v = manifest.version || "classic";
     let sm = null;
-    if (v === "classic") {
-        const r = await fetch(`/audio/${runId}/shards.json`);
-        if (r.ok) sm = await r.json();
-    }
+    const r = await fetch(`/audio/${runId}/shards.json`);
+    if (r.ok) sm = await r.json();
 
     if (sm) {
         setupShardsEngine(sm);

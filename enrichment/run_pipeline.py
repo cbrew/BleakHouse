@@ -21,6 +21,8 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
+from enrichment import axes
+from enrichment.axes import panel_for_experts
 from enrichment.design_segments import design_segments  # pyright: ignore[reportMissingImports]
 from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     ALTERNATIVE_PERSONAS,
@@ -486,6 +488,19 @@ Examples:
     run_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Run '%s' → %s", args.name, run_dir)
 
+    # Resolve axes from CLI flags so the experiments-DB scanner doesn't
+    # have to reverse-engineer them from the run dir name.
+    novel_short = axes.NOVEL_BY_KEY[args.novel].id if args.novel in axes.NOVEL_BY_KEY else args.novel
+    panel = panel_for_experts(e.name for e in experts) or "unknown"
+    generator = "anthropic_sonnet_4_6"  # TODO: derive from --model when alt generators land
+    config_axes = {
+        "novel": novel_short,
+        "pipeline": args.pipeline,
+        "panel": panel,
+        "hostprep": args.host_prep,
+        "generator": generator,
+    }
+
     # Save config
     config_data = {
         "name": args.name,
@@ -496,6 +511,8 @@ Examples:
         "model": args.model,
         "prompt_version": args.prompt_version,
         "host_prep": args.host_prep,
+        "axes": config_axes,
+        "generator": generator,
     }
     with open(run_dir / "config.json", "w") as f:
         json.dump(config_data, f, indent=2)
