@@ -36,6 +36,34 @@ def _collect_phase_timings(run_dir: Path) -> list[dict]:
     return out
 
 
+def _collect_novel_enrichment(run_dir: Path) -> list[dict]:
+    """Find the run's novel and pull its passage_enrichment_timings.json.
+
+    Returns empty list if the run isn't transport-mode, or if the novel's
+    enrichment sidecar doesn't exist yet. Events get phase='enrichment'.
+    """
+    config_path = run_dir / "config.json"
+    if not config_path.exists():
+        return []
+    try:
+        config = json.loads(config_path.read_text())
+    except json.JSONDecodeError:
+        return []
+    novel = config.get("novel")
+    if not novel:
+        return []
+    sidecar = run_dir.parent.parent / "novels" / novel / "passage_enrichment_timings.json"
+    if not sidecar.exists():
+        return []
+    events = json.loads(sidecar.read_text()).get("events", [])
+    out = []
+    for e in events:
+        e = dict(e)
+        e["phase"] = "enrichment"
+        out.append(e)
+    return out
+
+
 def _write_run_timings(run_dir: Path, events: list[dict]) -> Path:
     path = run_dir / "run_timings.json"
     path.write_text(json.dumps({"events": events}, indent=2))
@@ -46,7 +74,7 @@ def main() -> None:
     if len(sys.argv) != 2:
         sys.exit("usage: timings_summary.py <run_dir>")
     run_dir = Path(sys.argv[1])
-    events = _collect_phase_timings(run_dir)
+    events = _collect_phase_timings(run_dir) + _collect_novel_enrichment(run_dir)
     if not events:
         sys.exit(f"FAIL: no phase*_timings.json files in {run_dir}")
     out = _write_run_timings(run_dir, events)

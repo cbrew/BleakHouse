@@ -27,6 +27,7 @@ from dotenv import load_dotenv
 
 from enrichment.context_prompt import build_context_messages
 from enrichment.submit_batch import format_chapter_text
+from enrichment.timing import Recorder, time_model
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,7 @@ def main() -> None:
         passages_path = PASSAGES_PATH
         contexts_path = CONTEXTS_PATH
         output_path = OUTPUT_PATH
+        novel_dir = passages_path.parent
 
     load_dotenv()
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
@@ -126,6 +128,13 @@ def main() -> None:
         len(contexts),
     )
 
+    # Cost/time recorder for upstream passage enrichment. Sidecar lives
+    # next to the passages it produced (per-novel, not per-run) — every
+    # run that loads passages_enriched.json pays $0 for this step; the
+    # spend is amortised across all runs of the novel.
+    recorder = Recorder()
+    timings_path = novel_dir / "passage_enrichment_timings.json"
+
     for chapter_id in sorted(by_chapter, key=_chapter_sort_key):
         passages = by_chapter[chapter_id]
 
@@ -152,11 +161,15 @@ def main() -> None:
                 chapter_text, passage["text"]
             )
 
-            response = client.messages.create(
-                model=MODEL,
-                max_tokens=MAX_TOKENS,
-                system=system_blocks,
-                messages=[{"role": "user", "content": user_msg}],
+            response = time_model(
+                recorder,
+                f"context {pid}",
+                lambda: client.messages.create(
+                    model=MODEL,
+                    max_tokens=MAX_TOKENS,
+                    system=system_blocks,
+                    messages=[{"role": "user", "content": user_msg}],
+                ),
             )
 
             block = response.content[0]
@@ -184,7 +197,11 @@ def main() -> None:
 
         # Save after each chapter for resumability
         _save_ctx(contexts)
-        logger.info("  Saved %d total contexts", len(contexts))
+        timings_path.write_text(json.dumps(recorder.to_dict(), indent=2))
+        logger.info(
+            "  Saved %d total contexts; %d events to %s",
+            len(contexts), len(recorder.events), timings_path,
+        )
 
     # Merge contexts into passages and write output
     logger.info("Merging contexts into passages...")

@@ -35,6 +35,38 @@ def test_anthropic_event_cost():
     assert abs(event_cost(e) - 4.50) < 1e-6
 
 
+def test_anthropic_cache_billing():
+    # Haiku at 1.00/5.00. 100k fresh input + 1M cache_creation + 5M cache_read
+    # + 50k output:
+    #   fresh:    100,000 × 1.00 / 1M       = $0.10
+    #   write:  1,000,000 × 1.00 × 1.25 / 1M = $1.25
+    #   read:   5,000,000 × 1.00 × 0.10 / 1M = $0.50
+    #   output:    50,000 × 5.00 / 1M       = $0.25
+    #   total                                = $2.10
+    e = {
+        "kind": "model",
+        "name": "claude-haiku-4-5",
+        "input_tokens": 100_000,
+        "output_tokens": 50_000,
+        "cache_creation_input_tokens": 1_000_000,
+        "cache_read_input_tokens": 5_000_000,
+    }
+    assert abs(event_cost(e) - 2.10) < 1e-9
+
+
+def test_cache_fields_default_to_zero_for_legacy_events():
+    """Old phase2_5_timings.json files written before cache fields existed
+    must continue to cost correctly — missing cache fields default to 0."""
+    e = {
+        "kind": "model",
+        "name": "claude-sonnet-4-6",
+        "input_tokens": 1000,
+        "output_tokens": 500,
+        # no cache fields at all
+    }
+    assert abs(event_cost(e) - (1000 * 3 / 1e6 + 500 * 15 / 1e6)) < 1e-9
+
+
 def test_tts_event_cost_flash():
     # gemini-2.5-flash TTS: $0.50/MTok input, $10/MTok output (audio).
     # 1000 chars input → 250 input tokens (4 chars/tok) → cost $0.000125

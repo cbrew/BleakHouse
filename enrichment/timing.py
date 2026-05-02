@@ -36,9 +36,15 @@ class CallEvent:
     label: str                 # purpose / query / ref_tag
     duration_s: float
     started_at: float = 0.0
-    # Anthropic-style usage (kind="model" / "tool")
+    # Anthropic-style usage (kind="model" / "tool"). input_tokens covers
+    # only fresh (non-cached, non-write) input tokens; cache reads and
+    # writes are billed separately at 0.1x / 1.25x respectively, so they
+    # need their own counters for cost reporting to be accurate. Without
+    # these, generate_contexts.py-style cached calls would under-report.
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
     # TTS-style usage (kind="tts"). input_chars = prompt chars billed by
     # Gemini 2.5 flash/pro TTS; output_audio_ms = milliseconds of audio
     # produced (the second axis of TTS pricing).
@@ -67,6 +73,8 @@ class Recorder:
         started_at: float = 0.0,
         input_tokens: int = 0,
         output_tokens: int = 0,
+        cache_creation_input_tokens: int = 0,
+        cache_read_input_tokens: int = 0,
         input_chars: int = 0,
         output_audio_ms: int = 0,
     ) -> None:
@@ -75,6 +83,8 @@ class Recorder:
                 kind=kind, name=name, label=label,
                 duration_s=duration_s, started_at=started_at,
                 input_tokens=input_tokens, output_tokens=output_tokens,
+                cache_creation_input_tokens=cache_creation_input_tokens,
+                cache_read_input_tokens=cache_read_input_tokens,
                 input_chars=input_chars, output_audio_ms=output_audio_ms,
                 expert=self.expert, segment=self.segment,
             ))
@@ -127,6 +137,12 @@ def time_model(
         started_at=t0,
         input_tokens=int(getattr(usage, "input_tokens", 0) or 0),
         output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
+        cache_creation_input_tokens=int(
+            getattr(usage, "cache_creation_input_tokens", 0) or 0
+        ),
+        cache_read_input_tokens=int(
+            getattr(usage, "cache_read_input_tokens", 0) or 0
+        ),
     )
     return response
 
