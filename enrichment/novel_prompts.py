@@ -251,6 +251,34 @@ NOVEL_CONFIGS: dict[str, NovelPromptConfig] = {
             "'Harold Biffen' not 'Biffen'). Include characters referenced indirectly."
         ),
     ),
+    "room_with_a_view": NovelPromptConfig(
+        title="A Room with a View",
+        author="E. M. Forster",
+        year="1908",
+        narration_note=(
+            "*A Room with a View* uses third-person narration with a wry, "
+            "ironic register, free-indirect access to Lucy Honeychurch's "
+            "consciousness, and Forster's signature commentary voice. The "
+            "novel divides between an Italian first part (Pension Bertolini "
+            "in Florence) and an English second part (the Honeychurch home "
+            "in Surrey, then briefly Rome). The tone is comic but precise; "
+            "the satire targets Edwardian social codes."
+        ),
+        theme_examples=(
+            "'class', 'propriety', 'aestheticism', 'tourism', 'Italy', "
+            "'England', 'youth', 'self-deception', 'sincerity', 'art', "
+            "'religion', 'sex', 'marriage', 'liberation', 'view'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Lucy Honeychurch' not 'Lucy', "
+            "'George Emerson' not 'George', 'Mr Emerson' for the father, "
+            "'Charlotte Bartlett' not 'Charlotte' or 'Cousin', "
+            "'Cecil Vyse' not 'Cecil', 'Mr Beebe' not 'Beebe', "
+            "'Miss Lavish' not 'Eleanor', 'Mr Eager' not 'Eager', "
+            "'Mrs Honeychurch' not 'Marian', 'Freddy Honeychurch' not 'Freddy'). "
+            "Include characters referenced indirectly."
+        ),
+    ),
     "odd_women": NovelPromptConfig(
         title="The Odd Women",
         author="George Gissing",
@@ -446,6 +474,16 @@ def get_novel_arcs(novel_key: str | None = None) -> list[tuple[str, str, int, st
              "prov_plot_advancement", "not_none", 3),
             ("Catherine's power and loneliness", "Catherine Vernon", 4,
              "prov_thematic_depth", "not_none", 2),
+        ],
+        "room_with_a_view": [
+            ("Lucy's awakening from propriety", "Lucy Honeychurch", 6,
+             "prov_character_development", "not_none", 3),
+            ("George Emerson's philosophy of being yourself", "George Emerson", 5,
+             "prov_thematic_depth", "not_none", 3),
+            ("Charlotte Bartlett and Edwardian propriety", "Charlotte Bartlett", 4,
+             "prov_social_critique", "not_none", 2),
+            ("The Pension Bertolini as theatre of class", "Mr Eager", 4,
+             "prov_social_critique", "not_none", 2),
         ],
     }
     return arcs.get(novel_key, [])
