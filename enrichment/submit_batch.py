@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
 
+from enrichment.novel_prompts import NOVEL_CONFIGS  # noqa: I001 — single source of truth
 from enrichment.prompt import ENRICHMENT_SYSTEM_PROMPT
 from enrichment.schemas import ChapterEnrichmentResult
 
@@ -26,22 +27,10 @@ DATA_DIR = Path("data")
 PASSAGES_PATH = DATA_DIR / "passages_raw.json"
 MANIFEST_PATH = DATA_DIR / "batch_manifest.json"
 
-NOVEL_KEYS = [
-    "our_mutual_friend",
-    "mill_on_the_floss",
-    "north_and_south",
-    "passage_to_india",
-    "hard_times",
-    "middlemarch",
-    "daniel_deronda",
-    "david_copperfield",
-    "cranford",
-    "no_name",
-    "new_grub_street",
-    "odd_women",
-    "miss_marjoribanks",
-    "hester",
-]
+# Available novels — derived from novel_prompts.NOVEL_CONFIGS, the single
+# source of truth. Avoids the previous drift where adding a novel meant
+# editing three hardcoded lists.
+NOVEL_KEYS = sorted(NOVEL_CONFIGS.keys())
 
 MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 60000

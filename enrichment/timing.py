@@ -50,6 +50,10 @@ class CallEvent:
     # produced (the second axis of TTS pricing).
     input_chars: int = 0
     output_audio_ms: int = 0
+    # True when this call went through Anthropic's Batch API, which
+    # bills at 50% of real-time rates. pricing.event_cost halves cost
+    # accordingly. Default False for compatibility with existing events.
+    batch: bool = False
     expert: str = ""
     segment: str = ""
 
@@ -77,6 +81,7 @@ class Recorder:
         cache_read_input_tokens: int = 0,
         input_chars: int = 0,
         output_audio_ms: int = 0,
+        batch: bool = False,
     ) -> None:
         with self._lock:
             self.events.append(CallEvent(
@@ -86,6 +91,7 @@ class Recorder:
                 cache_creation_input_tokens=cache_creation_input_tokens,
                 cache_read_input_tokens=cache_read_input_tokens,
                 input_chars=input_chars, output_audio_ms=output_audio_ms,
+                batch=batch,
                 expert=self.expert, segment=self.segment,
             ))
 

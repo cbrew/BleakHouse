@@ -35,6 +35,20 @@ def test_anthropic_event_cost():
     assert abs(event_cost(e) - 4.50) < 1e-6
 
 
+def test_batch_api_halves_cost():
+    """Anthropic Batch API bills at 50% of real-time rates."""
+    rt = {
+        "kind": "model",
+        "name": "claude-haiku-4-5",
+        "input_tokens": 1000,
+        "output_tokens": 500,
+        "cache_creation_input_tokens": 200,
+        "cache_read_input_tokens": 800,
+    }
+    batch = {**rt, "batch": True}
+    assert abs(event_cost(batch) - 0.5 * event_cost(rt)) < 1e-9
+
+
 def test_anthropic_cache_billing():
     # Haiku at 1.00/5.00. 100k fresh input + 1M cache_creation + 5M cache_read
     # + 50k output:
