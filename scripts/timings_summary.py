@@ -1,8 +1,8 @@
-"""Summarise per-call timing for a host-prep run.
+"""Roll up per-call timing for an entire pipeline run.
 
-Reads `phase2_5_timings.json` (produced by host_prep when run_dir is
-set), groups events by kind/name and by (expert, segment), prints a
-breakdown of where time and tokens went.
+Reads every phase<N>_timings.json sidecar in <run_dir>, tags each event
+with its phase, writes a consolidated run_timings.json, and prints
+per-phase + per-model cost in dollars.
 
 Usage:
     uv run python scripts/timings_summary.py <run_dir>
@@ -10,51 +10,80 @@ Usage:
 from __future__ import annotations
 
 import json
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
 
-# Haiku 4.5 / Sonnet 4.6 pricing ($/MTok). Update as pricing changes.
-_PRICING = {
-    "haiku": (1.00, 5.00),
-    "sonnet": (3.00, 15.00),
-}
+from enrichment.pricing import ESTIMATED_RATES, event_cost  # pyright: ignore[reportMissingImports]
+
+_PHASE_FILE_RE = re.compile(r"phase(\d+(?:_\d+)?)_timings\.json")
 
 
-def _model_family(name: str) -> str:
-    n = name.lower()
-    if "haiku" in n:
-        return "haiku"
-    if "sonnet" in n:
-        return "sonnet"
-    return "?"
+def _collect_phase_timings(run_dir: Path) -> list[dict]:
+    """Tag every event in every phase<N>_timings.json with its phase id."""
+    out: list[dict] = []
+    for path in sorted(run_dir.glob("phase*_timings.json")):
+        m = _PHASE_FILE_RE.fullmatch(path.name)
+        if not m:
+            continue
+        phase = m.group(1)
+        events = json.loads(path.read_text()).get("events", [])
+        for e in events:
+            e = dict(e)
+            e["phase"] = phase
+            out.append(e)
+    return out
 
 
-def _cost(model: str, in_tok: int, out_tok: int) -> float:
-    fam = _model_family(model)
-    rates = _PRICING.get(fam)
-    if rates is None:
-        return 0.0
-    in_rate, out_rate = rates
-    return in_tok * in_rate / 1_000_000 + out_tok * out_rate / 1_000_000
+def _write_run_timings(run_dir: Path, events: list[dict]) -> Path:
+    path = run_dir / "run_timings.json"
+    path.write_text(json.dumps({"events": events}, indent=2))
+    return path
 
 
 def main() -> None:
     if len(sys.argv) != 2:
         sys.exit("usage: timings_summary.py <run_dir>")
     run_dir = Path(sys.argv[1])
-    p = run_dir / "phase2_5_timings.json"
-    if not p.exists():
-        sys.exit(f"FAIL: {p} not found")
-    events = json.loads(p.read_text())["events"]
-    print(f"{run_dir.name}: {len(events)} events\n")
+    events = _collect_phase_timings(run_dir)
+    if not events:
+        sys.exit(f"FAIL: no phase*_timings.json files in {run_dir}")
+    out = _write_run_timings(run_dir, events)
+    print(f"{run_dir.name}: {len(events)} events across "
+          f"{len({e['phase'] for e in events})} phases  →  {out.name}\n")
+
+    # ---- by phase ---------------------------------------------------------
+    by_phase: dict[str, dict] = defaultdict(
+        lambda: {"count": 0, "duration": 0.0, "cost": 0.0}
+    )
+    total_cost = 0.0
+    total_duration = 0.0
+    for e in events:
+        b = by_phase[e["phase"]]
+        b["count"] += 1
+        b["duration"] += e["duration_s"]
+        c = event_cost(e)
+        b["cost"] += c
+        total_cost += c
+        total_duration += e["duration_s"]
+
+    print(f"{'phase':<10} {'n':>5} {'cpu_s':>9} {'cost':>10}")
+    print("-" * 40)
+    for phase in sorted(by_phase):
+        b = by_phase[phase]
+        print(f"phase{phase:<5} {b['count']:>5d} {b['duration']:>9.1f} ${b['cost']:>8.3f}")
+    print("-" * 40)
+    print(f"{'TOTAL':<10} {sum(b['count'] for b in by_phase.values()):>5d} "
+          f"{total_duration:>9.1f} ${total_cost:>8.3f}\n")
 
     # ---- by kind / name ---------------------------------------------------
     by_name: dict[tuple[str, str], dict] = defaultdict(
-        lambda: {"count": 0, "duration": 0.0, "in_tok": 0, "out_tok": 0, "cost": 0.0}
+        lambda: {"count": 0, "duration": 0.0,
+                 "in_tok": 0, "out_tok": 0,
+                 "in_chars": 0, "audio_ms": 0,
+                 "cost": 0.0}
     )
-    total_duration = 0.0
-    total_cost = 0.0
     for e in events:
         key = (e["kind"], e["name"])
         b = by_name[key]
@@ -62,52 +91,31 @@ def main() -> None:
         b["duration"] += e["duration_s"]
         b["in_tok"] += e.get("input_tokens", 0)
         b["out_tok"] += e.get("output_tokens", 0)
-        if e["kind"] == "model":
-            cost = _cost(e["name"], e.get("input_tokens", 0), e.get("output_tokens", 0))
-            b["cost"] += cost
-            total_cost += cost
-        total_duration += e["duration_s"]
+        b["in_chars"] += e.get("input_chars", 0)
+        b["audio_ms"] += e.get("output_audio_ms", 0)
+        b["cost"] += event_cost(e)
 
-    print(f"{'kind':<6} {'name':<35} {'n':>4} {'sum_s':>8} {'avg_s':>7} "
-          f"{'in_tok':>9} {'out_tok':>8} {'cost':>8}")
-    print("-" * 95)
+    print(f"{'kind':<6} {'name':<35} {'n':>4} {'sum_s':>8} "
+          f"{'in_tok':>9} {'out_tok':>8} {'in_chars':>9} "
+          f"{'audio_s':>8} {'cost':>9}")
+    print("-" * 105)
+    has_estimated = False
     for (kind, name), b in sorted(
-        by_name.items(), key=lambda kv: -kv[1]["duration"]
+        by_name.items(), key=lambda kv: -kv[1]["cost"]
     ):
-        avg = b["duration"] / b["count"] if b["count"] else 0
+        flag = "*" if name in ESTIMATED_RATES else " "
+        if name in ESTIMATED_RATES:
+            has_estimated = True
         print(
-            f"{kind:<6} {name[:35]:<35} {b['count']:>4d} "
-            f"{b['duration']:>8.1f} {avg:>7.2f} "
+            f"{kind:<6} {(name + flag)[:35]:<35} {b['count']:>4d} "
+            f"{b['duration']:>8.1f} "
             f"{b['in_tok']:>9,} {b['out_tok']:>8,} "
+            f"{b['in_chars']:>9,} {b['audio_ms']/1000:>8.1f} "
             f"${b['cost']:>7.3f}"
         )
-    print("-" * 95)
-    print(f"{'TOTAL':<6} {'':<35} {sum(b['count'] for b in by_name.values()):>4} "
-          f"{total_duration:>8.1f}s (CPU)        "
-          f"{sum(b['in_tok'] for b in by_name.values()):>9,} "
-          f"{sum(b['out_tok'] for b in by_name.values()):>8,} "
-          f"${total_cost:>7.3f}")
-    print()
-
-    # ---- by interview (expert × segment) ---------------------------------
-    by_iv: dict[tuple[str, str], dict] = defaultdict(
-        lambda: {"events": 0, "duration": 0.0}
-    )
-    for e in events:
-        key = (e.get("expert", ""), e.get("segment", ""))
-        by_iv[key]["events"] += 1
-        by_iv[key]["duration"] += e["duration_s"]
-    print(f"{'expert':<25} {'segment':<40} {'n':>4} {'cpu_s':>8}")
-    print("-" * 85)
-    for (expert, segment), b in sorted(
-        by_iv.items(), key=lambda kv: -kv[1]["duration"]
-    )[:20]:
-        if not expert and not segment:
-            label = "(unattributed)"
-            print(f"{label:<25} {'':<40} {b['events']:>4d} {b['duration']:>8.1f}")
-        else:
-            print(f"{(expert or '—')[:25]:<25} {(segment or '—')[:40]:<40} "
-                  f"{b['events']:>4d} {b['duration']:>8.1f}")
+    if has_estimated:
+        print("\n* = pricing is an estimate (provider has not published "
+              "rates for this model yet); see enrichment/pricing.py.")
 
 
 if __name__ == "__main__":
