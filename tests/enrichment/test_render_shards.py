@@ -220,6 +220,31 @@ def test_break_shard_has_no_text_metadata(tmp_path: Path):
     assert "utterances" not in b or b["utterances"] is None
 
 
+def test_each_shard_carries_its_md5(tmp_path: Path):
+    """shards.json carries each shard's md5 so the webapp can resolve to R2."""
+    import hashlib
+
+    episode = _mk_episode()
+    profile = get_profile("classic", classic_model_id="gemini-2.5-flash-preview-tts")
+
+    with patch("enrichment.render_audio.render_turn", return_value=_short_audio(500)):
+        shards = render_episode_to_shards(
+            episode, client=None, profile=profile, concurrency=1  # type: ignore[arg-type]
+        )
+
+    audio_dir = tmp_path / "audio"
+    manifest = write_shards(
+        shards, episode, audio_dir=audio_dir, profile_name="classic", bitrate="64k"
+    )
+
+    shard_dir = audio_dir / "shards" / "classic"
+    for shard_meta in manifest["shards"]:
+        on_disk = (shard_dir / shard_meta["file"]).read_bytes()
+        expected_md5 = hashlib.md5(on_disk).hexdigest()
+        assert shard_meta["md5"] == expected_md5, \
+            f"shards.json md5 must match the actual mp3 bytes for {shard_meta['file']}"
+
+
 def test_no_timings_in_manifest(tmp_path: Path):
     """The whole point: NO start_ms/end_ms anywhere. Drift is impossible."""
     episode = _mk_episode()

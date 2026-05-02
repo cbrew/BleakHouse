@@ -318,9 +318,11 @@ def write_shards(
         filename = f"{idx:04d}.mp3"
         path = shard_dir / filename
         shard.audio.export(str(path), format="mp3", bitrate=bitrate)
+        md5 = hashlib.md5(path.read_bytes()).hexdigest()
 
         entry: dict = {
             "file": filename,
+            "md5": md5,
             "kind": shard.kind,
             "segment_index": shard.segment_index,
         }
