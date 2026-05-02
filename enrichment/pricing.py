@@ -96,8 +96,16 @@ def event_cost(event: dict) -> float:
         rate = anthropic_rate_for(name)
         if rate is None:
             return 0.0
+        # Anthropic prompt-cache rates per https://www.anthropic.com/pricing:
+        # cache writes (5-min) bill at 1.25x base input; cache reads at 0.1x.
+        # The 1-hour cache (2.0x) isn't yet used in this codebase; if it
+        # gets used, plumb a cache_creation_1h_input_tokens field through.
         return (
             event.get("input_tokens", 0) * rate.input_per_mtok / 1_000_000
             + event.get("output_tokens", 0) * rate.output_per_mtok / 1_000_000
+            + (event.get("cache_creation_input_tokens", 0)
+               * rate.input_per_mtok * 1.25 / 1_000_000)
+            + (event.get("cache_read_input_tokens", 0)
+               * rate.input_per_mtok * 0.10 / 1_000_000)
         )
     return 0.0
