@@ -8,10 +8,7 @@ module.
 Sources:
   Anthropic (Haiku 4.5 / Sonnet 4.6) — https://www.anthropic.com/pricing
   Gemini 2.5 Flash/Pro Preview TTS  — https://ai.google.dev/gemini-api/docs/pricing
-  Gemini 3.1 Flash TTS Preview      — pricing not yet published; copied
-                                       from 2.5 Flash as a working
-                                       estimate. Update when official
-                                       rates ship.
+  Gemini 3.1 Flash TTS Preview      — same page; rates verified 2026-05-02.
 """
 from __future__ import annotations
 
@@ -56,18 +53,14 @@ TTS_RATES: dict[str, TTSRate] = {
     "gemini-2.5-pro-preview-tts": TTSRate(
         input_per_mtok=1.00, output_per_mtok=20.00,
     ),
-    # 3.1 Flash TTS public pricing not yet posted; using 2.5 Flash as a
-    # working estimate. Mark as such on cost reports so readers know.
     "gemini-3.1-flash-tts-preview": TTSRate(
-        input_per_mtok=0.50, output_per_mtok=10.00,
+        input_per_mtok=1.00, output_per_mtok=20.00,
     ),
 }
 
 # Models whose pricing is an estimate rather than an officially published
 # rate. timings_summary.py flags these in the report.
-ESTIMATED_RATES: frozenset[str] = frozenset({
-    "gemini-3.1-flash-tts-preview",
-})
+ESTIMATED_RATES: frozenset[str] = frozenset()
 
 
 def anthropic_rate_for(model_id: str) -> AnthropicRate | None:
