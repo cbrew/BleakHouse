@@ -29,6 +29,7 @@ from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     SegmentTemplate,
     fix_turn_roles,
 )
+from enrichment.timing import Recorder, time_model
 from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]
     PassageAssignment,
     PlannedSegment,
@@ -435,6 +436,7 @@ def generate_segment_script(
     previous_segment_title: str | None = None,
     next_segment_title: str | None = None,
     host_brief: HostBrief | None = None,
+    recorder: Recorder | None = None,
 ) -> EpisodeSegment:
     """Generate a multi-voice script for one segment via structured output."""
     system_msg, user_msg = build_messages(
@@ -453,12 +455,16 @@ def generate_segment_script(
     max_attempts = 3
     for attempt in range(1, max_attempts + 1):
         try:
-            response = client.messages.parse(
-                model=model,
-                max_tokens=16384,
-                system=system_msg,
-                messages=[{"role": "user", "content": user_msg}],
-                output_format=EpisodeSegment,
+            response = time_model(
+                recorder,
+                f"phase3 segment '{segment.template.name}'",
+                lambda: client.messages.parse(
+                    model=model,
+                    max_tokens=16384,
+                    system=system_msg,
+                    messages=[{"role": "user", "content": user_msg}],
+                    output_format=EpisodeSegment,
+                ),
             )
 
             logger.info(
@@ -480,6 +486,7 @@ def generate_segment_script(
                 )
             else:
                 raise
+    raise RuntimeError("unreachable: loop must return or raise")
 
 
 # ---------------------------------------------------------------------------
@@ -527,12 +534,15 @@ def run_phase3(
     personas: list[ExpertPersona],
     prompt_version: int = 2,
     host_briefs: list[HostBrief] | None = None,
+    run_dir: Path | None = None,
 ) -> dict:
     """Phase 3: script generation. Shared by all pipeline types.
 
     Reconstructs the segment plan from Phase 1+2 outputs, generates a
     multi-voice script for each segment, assembles into an episode,
-    and normalises turn roles from the persona definitions.
+    and normalises turn roles from the persona definitions. When
+    run_dir is given, every Anthropic call is timed and the events
+    are written to <run_dir>/phase3_timings.json.
     """
     planned_segments = []
     pa_lookup = {a["passage_id"]: a for a in phase1_data.get("assignments", [])}
@@ -551,6 +561,7 @@ def run_phase3(
     )
 
     client = anthropic.Anthropic()
+    recorder = Recorder() if run_dir is not None else None
     episode_segments: list[EpisodeSegment] = []
     for i, seg in enumerate(plan.segments):
         prev_title = plan.segments[i - 1].template.name if i > 0 else None
@@ -563,12 +574,21 @@ def run_phase3(
             previous_segment_title=prev_title,
             next_segment_title=next_title,
             host_brief=brief,
+            recorder=recorder,
         )
         episode_segments.append(episode_seg)
         logger.info(
             "  Segment '%s': %d turns",
             episode_seg.title,
             len(episode_seg.turns),
+        )
+
+    if run_dir is not None and recorder is not None:
+        timings_path = run_dir / "phase3_timings.json"
+        timings_path.write_text(json.dumps(recorder.to_dict(), indent=2))
+        logger.info(
+            "Recorded %d phase 3 calls to %s",
+            len(recorder.events), timings_path,
         )
 
     episode = assemble_episode(episode_segments, plan)
