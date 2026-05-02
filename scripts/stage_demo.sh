@@ -98,6 +98,13 @@ for run in $DEMO_RUNS; do
     for extra in "$src/audio"/manifest_*.json; do
         [ -f "$extra" ] && mkdir -p "$dst/audio" && cp -p "$extra" "$dst/audio/"
     done
+    # shards.json — the new (BleakHouse-ec3n) per-run shards index. Tiny
+    # JSON pointing at md5-keyed mp3 shards in R2. Never ship the shard
+    # mp3 bytes themselves; they live in R2 like the legacy single mp3.
+    if [ -f "$src/audio/shards.json" ]; then
+        mkdir -p "$dst/audio"
+        cp -p "$src/audio/shards.json" "$dst/audio/"
+    fi
 
     count=$((count + 1))
 done
