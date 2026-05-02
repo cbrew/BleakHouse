@@ -19,10 +19,12 @@ shape. `merge` aggregates many recorders into one for the final dump.
 """
 from __future__ import annotations
 
+import json
 import threading
 import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any, Callable, TypeVar
 
 
@@ -61,11 +63,18 @@ class CallEvent:
 @dataclass
 class Recorder:
     """Accumulator for `CallEvent`s. Thread-safe; pass one Recorder per
-    parallel work unit (e.g. per interview) and merge when done."""
+    parallel work unit (e.g. per interview) and merge when done.
+
+    If `flush_path` is set, every `record()` call (and every `merge()`)
+    persists the full event list to disk atomically — so a crash mid-
+    phase still leaves a complete sidecar for everything that did
+    succeed, and a watcher tailing the file sees progress live.
+    """
 
     expert: str = ""
     segment: str = ""
     events: list[CallEvent] = field(default_factory=list)
+    flush_path: Path | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def record(
@@ -94,11 +103,23 @@ class Recorder:
                 batch=batch,
                 expert=self.expert, segment=self.segment,
             ))
+        self._maybe_flush()
+
+    def _maybe_flush(self) -> None:
+        """Persist current events to flush_path if set. Snapshot under
+        the lock, write outside it so concurrent record() calls don't
+        serialize on disk I/O."""
+        if self.flush_path is None:
+            return
+        with self._lock:
+            data = {"events": [asdict(e) for e in self.events]}
+        self.flush_path.write_text(json.dumps(data, indent=2))
 
     def merge(self, other: "Recorder") -> None:
         """Append another recorder's events into this one."""
         with self._lock:
             self.events.extend(other.events)
+        self._maybe_flush()
 
     def to_dict(self) -> dict[str, Any]:
         with self._lock:

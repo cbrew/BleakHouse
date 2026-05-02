@@ -462,7 +462,11 @@ def main() -> None:
     logger.info("Using profile: %s (model=%s)", profile.name, profile.model_id)
 
     client = genai.Client()
-    recorder = Recorder(expert="", segment="")
+    flush_path = (
+        DATA_DIR / "runs" / args.run / "phase4_timings.json"
+        if args.run else None
+    )
+    recorder = Recorder(flush_path=flush_path)
 
     shards = render_episode_to_shards(
         episode, client, profile,
@@ -490,12 +494,10 @@ def main() -> None:
     )
 
     if args.run:
-        timings_path = DATA_DIR / "runs" / args.run / "phase4_timings.json"
-        timings_path.write_text(json.dumps(recorder.to_dict(), indent=2))
         non_cached = sum(1 for e in recorder.events if e.kind == "tts")
         logger.info(
             "Recorded %d non-cached TTS calls to %s",
-            non_cached, timings_path,
+            non_cached, flush_path,
         )
 
 

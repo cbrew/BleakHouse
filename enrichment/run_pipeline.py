@@ -131,7 +131,7 @@ def run_phase0(
     else:
         from enrichment.timing import Recorder
         logger.info("Phase 0: designing segments")
-        recorder = Recorder()
+        recorder = Recorder(flush_path=run_dir / "phase0_timings.json")
         kwargs: dict = dict(
             prompt_version=prompt_version,
             personas=personas if prompt_version >= 3 else None,
@@ -140,10 +140,8 @@ def run_phase0(
         if segment_model is not None:
             kwargs["model"] = segment_model
         templates = design_segments(experts, arcs, **kwargs)
-        timings_path = run_dir / "phase0_timings.json"
-        timings_path.write_text(json.dumps(recorder.to_dict(), indent=2))
         logger.info("Recorded %d phase 0 calls to %s",
-                    len(recorder.events), timings_path)
+                    len(recorder.events), recorder.flush_path)
 
     with open(run_dir / "phase0_segments.json", "w") as f:
         json.dump([t.model_dump() for t in templates], f, indent=2)
@@ -265,15 +263,13 @@ def run_phases_1_2_embedding(
     enrichment_data = _load_enrichment_data()
     logger.info("Phases 1+2: embedding retrieval + LLM curation")
     from enrichment.timing import Recorder
-    recorder = Recorder()
+    recorder = Recorder(flush_path=run_dir / "phase1_2_timings.json")
     phase1, phase2, artifacts = run_embedding_phases(
         experts, arcs, templates, enrichment_data, retrieval_config,
         recorder=recorder,
     )
-    timings_path = run_dir / "phase1_2_timings.json"
-    timings_path.write_text(json.dumps(recorder.to_dict(), indent=2))
     logger.info("Recorded %d phase 1+2 calls to %s",
-                len(recorder.events), timings_path)
+                len(recorder.events), recorder.flush_path)
 
     with open(run_dir / "phase1_assignments.json", "w") as f:
         json.dump(phase1, f, indent=2)

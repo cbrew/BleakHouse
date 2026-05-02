@@ -669,16 +669,17 @@ def run_host_prep(
     tools_label = " with reference tools" if use_reference_tools else ""
     logger.info("Phase 2.5a: pre-interviews%s (%d experts × %d segments)",
                 tools_label, len(personas), len(segments))
-    progress_path = (run_dir / "phase2_5_timings.json") if run_dir else None
+    flush_path = (run_dir / "phase2_5_timings.json") if run_dir else None
+    # The aggregator owns the on-disk timing sidecar. As sub-recorders
+    # are merged in (one per interview, then per brief), the sidecar
+    # rewrites automatically — no separate plumbing per call site.
+    timing = Recorder(flush_path=flush_path)
     interviews, registries, recorders = run_all_pre_interviews(
         client, personas, segments, assignments_by_segment,
         novel_title, novel_author, interview_model,
         use_reference_tools=use_reference_tools,
-        progress_path=progress_path,
+        progress_path=flush_path,
     )
-
-    # Aggregate per-interview recorders into a single timeline.
-    timing = Recorder()
     for seg_recorders in recorders:
         for r in seg_recorders:
             timing.merge(r)
@@ -802,12 +803,9 @@ def run_host_prep(
             verified_references=seg_refs,
             recorder=plan_recorder,
         )
-        timing.merge(plan_recorder)
+        timing.merge(plan_recorder)  # auto-flushes via flush_path
         briefs.append(brief)
         logger.info("    brief %d/%d done (%s)", si + 1, len(segments), seg_name)
-        if run_dir is not None:
-            timings_path = run_dir / "phase2_5_timings.json"
-            timings_path.write_text(json.dumps(timing.to_dict(), indent=2))
 
     if run_dir is not None:
         logger.info("  Saved timings (%d events) to %s",
