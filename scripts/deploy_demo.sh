@@ -158,7 +158,12 @@ uv run dvc status -c -r r2 --json 2>&1 | head -3 | grep -q '"new"' && {
 } || echo "    OK: dvc cache is in sync with R2"
 
 echo "==> [5/7] fly deploy --local-only (app: $APP)"
-fly deploy --local-only --app "$APP"
+# --yes: bypass interactive confirmation. With volumes retired in
+# BleakHouse-m6o3, fly warns 'machine has a volume mounted but app
+# config does not specify a volume' on the first deploy after the
+# [mounts] block was removed; --yes accepts the drift. Volumes will
+# be destroyed manually in step 6 once the new image proves out.
+fly deploy --local-only --yes --app "$APP"
 
 echo "==> [6/7] Post-deploy smoke test: $PUBLIC_URL/tracker"
 # Machines may take a few seconds to accept traffic.
