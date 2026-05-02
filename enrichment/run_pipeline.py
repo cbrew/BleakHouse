@@ -389,8 +389,8 @@ Examples:
              "north_and_south, passage_to_india)",
     )
     parser.add_argument(
-        "--pipeline", required=True, choices=PIPELINES,
-        help="Passage selection strategy",
+        "--pipeline", default="transport", choices=PIPELINES,
+        help="Passage selection strategy (default: transport)",
     )
 
     # Phase control
@@ -439,11 +439,13 @@ Examples:
     parser.add_argument("--prompt-version", type=int, default=2)
     parser.add_argument("--model", default="claude-sonnet-4-6")
 
-    # Host preparation (Phase 2.5)
-    parser.add_argument("--host-prep", action="store_true")
+    # Host preparation (Phase 2.5). Defaults to ON since 2026-05-02 — the
+    # production episode shape is host-prepped + reference-tooled. Use
+    # --no-host-prep / --no-reference-tools to opt out for cheap runs.
+    parser.add_argument("--host-prep", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--interview-model", default="claude-haiku-4-5-20251001")
     parser.add_argument(
-        "--reference-tools", action="store_true",
+        "--reference-tools", action=argparse.BooleanOptionalAction, default=True,
         help="Enable scholarly reference search tools in pre-interviews (requires --host-prep)",
     )
     parser.add_argument(

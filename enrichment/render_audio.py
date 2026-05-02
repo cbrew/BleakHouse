@@ -389,8 +389,8 @@ def main() -> None:
     parser.add_argument(
         "--profile",
         choices=profile_names(),
-        default="classic",
-        help="TTS profile to use (default: classic)",
+        default="trevelyan_v2",
+        help="TTS profile to use (default: trevelyan_v2 — gemini-3.1-flash-tts-preview)",
     )
     parser.add_argument(
         "--model",
