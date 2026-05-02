@@ -31,13 +31,19 @@ T = TypeVar("T")
 
 @dataclass
 class CallEvent:
-    kind: str                  # "model" | "tool"
+    kind: str                  # "model" | "tool" | "tts"
     name: str                  # model id or tool name
     label: str                 # purpose / query / ref_tag
     duration_s: float
     started_at: float = 0.0
+    # Anthropic-style usage (kind="model" / "tool")
     input_tokens: int = 0
     output_tokens: int = 0
+    # TTS-style usage (kind="tts"). input_chars = prompt chars billed by
+    # Gemini 2.5 flash/pro TTS; output_audio_ms = milliseconds of audio
+    # produced (the second axis of TTS pricing).
+    input_chars: int = 0
+    output_audio_ms: int = 0
     expert: str = ""
     segment: str = ""
 
@@ -61,12 +67,15 @@ class Recorder:
         started_at: float = 0.0,
         input_tokens: int = 0,
         output_tokens: int = 0,
+        input_chars: int = 0,
+        output_audio_ms: int = 0,
     ) -> None:
         with self._lock:
             self.events.append(CallEvent(
                 kind=kind, name=name, label=label,
                 duration_s=duration_s, started_at=started_at,
                 input_tokens=input_tokens, output_tokens=output_tokens,
+                input_chars=input_chars, output_audio_ms=output_audio_ms,
                 expert=self.expert, segment=self.segment,
             ))
 
@@ -120,3 +129,49 @@ def time_model(
         output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
     )
     return response
+
+
+def time_tts(
+    rec: Recorder | None,
+    *,
+    model: str,
+    label: str,
+    input_chars: int,
+    fn: Callable[[], T],
+) -> tuple[T, float]:
+    """Time a Gemini TTS call.
+
+    Returns (response, duration_s). The caller knows the produced audio
+    duration (from the AudioSegment len) and passes it to record_tts_audio
+    once decoding has completed — so audio_ms isn't double-counted on
+    cache hits and isn't lost when the response object doesn't expose it.
+    """
+    t0 = time.monotonic()
+    response = fn()
+    duration_s = time.monotonic() - t0
+    if rec is not None:
+        rec.record(
+            kind="tts",
+            name=model,
+            label=label[:120],
+            duration_s=duration_s,
+            started_at=t0,
+            input_chars=input_chars,
+            output_audio_ms=0,  # filled in by record_tts_audio
+        )
+    return response, duration_s
+
+
+def record_tts_audio(rec: Recorder | None, output_audio_ms: int) -> None:
+    """Update the most recent TTS event with its produced audio duration.
+
+    Lets the caller compute audio_ms after pcm decoding without needing
+    to plumb it back through the timing wrapper.
+    """
+    if rec is None:
+        return
+    with rec._lock:
+        for ev in reversed(rec.events):
+            if ev.kind == "tts":
+                ev.output_audio_ms = output_audio_ms
+                return

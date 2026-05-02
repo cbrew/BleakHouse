@@ -34,6 +34,7 @@ from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     PodcastEpisode,
     Turn,
 )
+from enrichment.timing import Recorder, record_tts_audio, time_tts
 from enrichment.tts_profiles import (
     EpisodeContext,
     TTSProfile,
@@ -113,8 +114,14 @@ def render_turn(
     ctx: EpisodeContext,
     client: genai.Client,
     profile: TTSProfile,
+    recorder: Recorder | None = None,
 ) -> AudioSegment:
-    """Render a single turn to audio, with pause insertion."""
+    """Render a single turn to audio, with pause insertion.
+
+    When recorder is set, every non-cached API call records a CallEvent
+    (kind="tts") with input_chars (prompt length) and output_audio_ms
+    (decoded audio duration). Cache hits are not recorded — they cost $0.
+    """
     speaker = turn.speaker
     voice_name = profile.voice_name(speaker)
     prompt = profile.build_turn_prompt(turn, ctx)
@@ -134,19 +141,26 @@ def render_turn(
     )
 
     audio: AudioSegment | None = None
+    label = f"{speaker} seg{ctx.segment_index} turn{ctx.turn_index}"
     for attempt in range(4):
         try:
-            response = client.models.generate_content(
+            response, _ = time_tts(
+                recorder,
                 model=profile.model_id,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["AUDIO"],
-                    speech_config=types.SpeechConfig(
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                voice_name=voice_name,
+                label=label,
+                input_chars=len(prompt),
+                fn=lambda: client.models.generate_content(
+                    model=profile.model_id,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["AUDIO"],
+                        speech_config=types.SpeechConfig(
+                            voice_config=types.VoiceConfig(
+                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                    voice_name=voice_name,
+                                )
                             )
-                        )
+                        ),
                     ),
                 ),
             )
@@ -172,6 +186,7 @@ def render_turn(
                 continue
             return silence_ms(500)
         audio = pcm_to_segment(part.inline_data.data)
+        record_tts_audio(recorder, len(audio))
         break
 
     if audio is None:
@@ -206,6 +221,7 @@ def render_episode_to_shards(
     profile: TTSProfile,
     concurrency: int = 1,
     only_segment: int | None = None,
+    recorder: Recorder | None = None,
 ) -> list[ShardOutput]:
     """Render the episode as a sequence of independent audio shards.
 
@@ -245,11 +261,15 @@ def render_episode_to_shards(
         rendered: list[AudioSegment | None] = [None] * len(seg.turns)
         if concurrency <= 1:
             for turn_idx, turn in enumerate(seg.turns):
-                rendered[turn_idx] = render_turn(turn, _ctx(turn_idx), client, profile)
+                rendered[turn_idx] = render_turn(
+                    turn, _ctx(turn_idx), client, profile, recorder=recorder
+                )
         else:
 
             def _render_one(idx: int, turn: Turn) -> tuple[int, AudioSegment]:
-                return idx, render_turn(turn, _ctx(idx), client, profile)
+                return idx, render_turn(
+                    turn, _ctx(idx), client, profile, recorder=recorder
+                )
 
             with ThreadPoolExecutor(max_workers=concurrency) as pool:
                 futures = {
@@ -284,7 +304,13 @@ def render_episode_to_shards(
                 )
             )
 
-        if seg_idx < len(episode.segments) - 1:
+        # Inter-segment break shard, but only between rendered segments —
+        # don't append a trailing break when only_segment isolates the
+        # last rendered segment.
+        is_last_rendered = (
+            only_segment is not None or seg_idx == len(episode.segments) - 1
+        )
+        if not is_last_rendered:
             shards.append(
                 ShardOutput(
                     kind="break",
@@ -311,6 +337,11 @@ def write_shards(
     """
     shard_dir = audio_dir / "shards" / profile_name
     shard_dir.mkdir(parents=True, exist_ok=True)
+    # Clear stale shards from a previous render so the dir matches the
+    # new manifest exactly. Content-addressed serving means stale files
+    # wouldn't be played, but they bloat dvc tracking.
+    for stale in shard_dir.glob("*.mp3"):
+        stale.unlink()
 
     experts: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -431,11 +462,13 @@ def main() -> None:
     logger.info("Using profile: %s (model=%s)", profile.name, profile.model_id)
 
     client = genai.Client()
+    recorder = Recorder(expert="", segment="")
 
     shards = render_episode_to_shards(
         episode, client, profile,
         concurrency=args.concurrency,
         only_segment=args.segment,
+        recorder=recorder,
     )
 
     if args.run:
@@ -455,6 +488,15 @@ def main() -> None:
         total_ms / 60000,
         audio_dir / "shards" / profile.name,
     )
+
+    if args.run:
+        timings_path = DATA_DIR / "runs" / args.run / "phase4_timings.json"
+        timings_path.write_text(json.dumps(recorder.to_dict(), indent=2))
+        non_cached = sum(1 for e in recorder.events if e.kind == "tts")
+        logger.info(
+            "Recorded %d non-cached TTS calls to %s",
+            non_cached, timings_path,
+        )
 
 
 if __name__ == "__main__":
