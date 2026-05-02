@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 from enrichment.design_segments import (  # pyright: ignore[reportMissingImports]
     design_segments,
 )
+from enrichment.timing import Recorder
 from enrichment.embedding_podcast import (  # pyright: ignore[reportMissingImports]
     RetrievalConfig,
     build_phase_outputs,
@@ -84,6 +85,7 @@ def run_embedding_phases(
     templates: list[SegmentTemplate],
     enrichment_data: list[dict],
     retrieval_config: RetrievalConfig,
+    recorder: Recorder | None = None,
 ) -> tuple[dict, dict, dict]:
     """Run retrieval + curation (replaces transport Phases 1+2).
 
@@ -94,7 +96,10 @@ def run_embedding_phases(
     candidates = retrieve_candidate_pool(queries, enrichment_data, retrieval_config)
 
     # Step 2: LLM curation
-    curation = curate_passages(candidates, experts, arcs, templates, retrieval_config)
+    curation = curate_passages(
+        candidates, experts, arcs, templates, retrieval_config,
+        recorder=recorder,
+    )
 
     # Step 3: convert to Phase 3-compatible format
     phase1_data, phase2_data = build_phase_outputs(

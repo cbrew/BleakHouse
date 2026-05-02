@@ -20,6 +20,7 @@ import lancedb
 from pydantic import BaseModel, Field
 
 from enrichment.podcast_types import SegmentTemplate  # pyright: ignore[reportMissingImports]
+from enrichment.timing import Recorder, time_model
 from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
     ArcDemand,
     ExpertProfile,
@@ -507,6 +508,7 @@ def curate_passages(
     arcs: list[ArcDemand],
     templates: list[SegmentTemplate],
     config: RetrievalConfig,
+    recorder: Recorder | None = None,
 ) -> CurationResult:
     """Ask the LLM to select and assign passages from the candidate pool."""
     total_min = sum(t.min_passages for t in templates)
@@ -552,12 +554,16 @@ def curate_passages(
     )
 
     client = anthropic.Anthropic()
-    response = client.messages.parse(
-        model=config.curation_model,
-        max_tokens=8192,
-        system=system,
-        messages=[{"role": "user", "content": user_msg}],
-        output_format=CurationResult,
+    response = time_model(
+        recorder,
+        "phase1_2 embedding curation",
+        lambda: client.messages.parse(
+            model=config.curation_model,
+            max_tokens=8192,
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+            output_format=CurationResult,
+        ),
     )
 
     logger.info(

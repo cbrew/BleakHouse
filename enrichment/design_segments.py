@@ -22,6 +22,7 @@ import anthropic
 from pydantic import BaseModel, Field
 
 from enrichment.podcast_types import ExpertPersona, SegmentTemplate  # pyright: ignore[reportMissingImports]
+from enrichment.timing import Recorder, time_model
 from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
     ArcDemand,
     ExpertProfile,
@@ -242,6 +243,7 @@ def design_segments(
     model: str = MODEL,
     prompt_version: int = 2,
     personas: list[ExpertPersona] | None = None,
+    recorder: Recorder | None = None,
 ) -> list[SegmentTemplate]:
     """Design segment templates for this panel configuration.
 
@@ -280,12 +282,16 @@ def design_segments(
 
     logger.info("Designing segments (v%d) with %s ...", prompt_version, model)
 
-    response = client.messages.parse(
-        model=model,
-        max_tokens=2048,
-        system=system,
-        messages=[{"role": "user", "content": user_msg}],
-        output_format=SegmentDesignResult,
+    response = time_model(
+        recorder,
+        "phase0 segment design",
+        lambda: client.messages.parse(
+            model=model,
+            max_tokens=2048,
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+            output_format=SegmentDesignResult,
+        ),
     )
 
     logger.info(
