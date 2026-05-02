@@ -441,13 +441,28 @@ def _load_run_manifest(run_id: str) -> dict | None:
 def _available_versions(run_id: str) -> list[str]:
     """Return the render versions a user can actually play.
 
-    A variant is available iff its run_manifest entry has a non-empty
-    'hash' — that's the DVC blob hash used to compose the public R2 URL.
+    Two formats coexist during the BleakHouse-ec3n transition:
+    - shard-format: <run>/audio/shards.json lists per-turn mp3s by md5.
+      Drift-proof; turn boundaries are structural.
+    - single-mp3 format: run_manifest.json's audio_variants[*].hash
+      points at one big mp3 paired with an audio/manifest.json of ms
+      offsets (the legacy path being phased out via BleakHouse-a7nw).
+
+    Both surface as a variant name to the player; the player picks the
+    format per run based on whether shards.json fetches successfully.
     """
+    versions: set[str] = set()
+
+    if (DATA_DIR / "runs" / run_id / "audio" / "shards.json").exists():
+        versions.add("classic")
+
     manifest = _load_run_manifest(run_id)
-    if not manifest:
-        return []
-    return [v["name"] for v in manifest.get("audio_variants", []) if v.get("hash")]
+    if manifest:
+        for v in manifest.get("audio_variants", []):
+            if v.get("hash"):
+                versions.add(v["name"])
+
+    return sorted(versions)
 
 
 @app.get("/api/runs/{run_id}/manifest")
@@ -579,6 +594,30 @@ def _r2_url_for_hash(dvc_hash: str) -> str:
     listeners hit Cloudflare's CDN edge directly, no proxying through Fly.
     """
     return f"{R2_PUBLIC_URL}/files/md5/{dvc_hash[:2]}/{dvc_hash[2:]}"
+
+
+@app.get("/audio/{run_id}/shards.json")
+async def serve_shards_manifest(run_id: str):
+    """Return the shard-format audio manifest with R2 URLs resolved.
+
+    On disk, shards.json carries each shard's md5; here we augment it
+    with the public R2 URL so the player can fetch shards directly
+    from Cloudflare's CDN edge without any further server round-trip.
+    """
+    if ".." in run_id:
+        raise HTTPException(400, "Invalid path")
+    path = DATA_DIR / "runs" / run_id / "audio" / "shards.json"
+    if not path.exists():
+        raise HTTPException(404, f"No shards manifest for run {run_id}")
+    try:
+        manifest = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        raise HTTPException(500, "Malformed shards.json")  # noqa: B904
+    for shard in manifest.get("shards", []):
+        h = shard.get("md5") or ""
+        if h:
+            shard["url"] = _r2_url_for_hash(h)
+    return manifest
 
 
 @app.get("/audio/{run_id}/{filename}")
