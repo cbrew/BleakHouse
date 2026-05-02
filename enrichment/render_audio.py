@@ -1,11 +1,13 @@
-"""Render a structured podcast episode to audio via a selectable TTS profile.
+"""Render a structured podcast episode to audio shards.
 
-Reads podcast_episode.json, renders each turn through the chosen profile's
-prompt builder and voice, inserts silence scaled by the profile, and
-concatenates into a single MP3 file.
+Reads phase3_episode.json, renders each turn through the chosen TTS profile's
+prompt builder and voice, and writes one mp3 shard per turn (plus per-gap
+silence shards) under <run>/audio/shards/<profile>/. The shard sequence is
+recorded in <run>/audio/shards.json with no per-turn time offsets, so text-
+audio synchronisation cannot drift: the player advances on shard boundaries.
 
 Usage:
-    uv run python -m enrichment.render_audio [--profile classic] [--model flash] [--output podcast.mp3]
+    uv run python -m enrichment.render_audio --run ngs_trn_alternatives
     uv run python -m enrichment.render_audio --profile trevelyan_v2 --run ext_v19_all_swapped_hostprep
 """
 
@@ -19,7 +21,9 @@ import logging
 import time
 import wave
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from google import genai
@@ -177,19 +181,38 @@ def render_turn(
     return apply_turn_pauses(audio, turn, profile.pause_scale)
 
 
-def render_episode(
+@dataclass
+class ShardOutput:
+    """One audio shard in the rendered episode.
+
+    A shard is either a single turn (kind="turn") or an inter-segment
+    silence break (kind="break"). The player advances to the next shard
+    on <audio> 'ended' events, so turn boundaries are structural — there
+    is no ms-offset metadata for drift to creep into.
+    """
+
+    kind: Literal["turn", "break"]
+    audio: AudioSegment
+    segment_index: int
+    turn_index: int | None = None
+    speaker: str | None = None
+    role: str | None = None
+    utterances: list[dict] | None = None
+
+
+def render_episode_to_shards(
     episode: PodcastEpisode,
     client: genai.Client,
     profile: TTSProfile,
     concurrency: int = 1,
-) -> AudioSegment:
-    """Render all segments and turns into a single audio track.
+) -> list[ShardOutput]:
+    """Render the episode as a sequence of independent audio shards.
 
-    When concurrency > 1, turns within each segment are rendered in
-    parallel via a thread pool, then assembled in order.
+    Each turn becomes one shard; each gap between segments becomes a
+    "break" shard of scaled 2s silence. Returns shards in playback order.
     """
-    full_audio = AudioSegment.empty()
     inter_segment_ms = int(2000 * profile.pause_scale)
+    shards: list[ShardOutput] = []
 
     for seg_idx, seg in enumerate(episode.segments):
         logger.info(
@@ -211,23 +234,14 @@ def render_episode(
                 previous_turn=seg.turns[turn_idx - 1] if turn_idx > 0 else None,
             )
 
+        rendered: list[AudioSegment | None] = [None] * len(seg.turns)
         if concurrency <= 1:
             for turn_idx, turn in enumerate(seg.turns):
-                turn_audio = render_turn(turn, _ctx(turn_idx), client, profile)
-                full_audio += turn_audio
-                logger.info(
-                    "    Turn %d/%d [%s]: %.1fs",
-                    turn_idx + 1,
-                    len(seg.turns),
-                    turn.speaker,
-                    len(turn_audio) / 1000,
-                )
+                rendered[turn_idx] = render_turn(turn, _ctx(turn_idx), client, profile)
         else:
-            turn_audios: list[AudioSegment | None] = [None] * len(seg.turns)
 
             def _render_one(idx: int, turn: Turn) -> tuple[int, AudioSegment]:
-                audio = render_turn(turn, _ctx(idx), client, profile)
-                return idx, audio
+                return idx, render_turn(turn, _ctx(idx), client, profile)
 
             with ThreadPoolExecutor(max_workers=concurrency) as pool:
                 futures = {
@@ -236,23 +250,97 @@ def render_episode(
                 }
                 for future in as_completed(futures):
                     idx, audio = future.result()
-                    turn_audios[idx] = audio
-                    logger.info(
-                        "    Turn %d/%d [%s]: %.1fs",
-                        idx + 1,
-                        len(seg.turns),
-                        seg.turns[idx].speaker,
-                        len(audio) / 1000,
-                    )
+                    rendered[idx] = audio
 
-            for audio in turn_audios:
-                assert audio is not None
-                full_audio += audio
+        for turn_idx, turn in enumerate(seg.turns):
+            audio = rendered[turn_idx]
+            assert audio is not None
+            shards.append(
+                ShardOutput(
+                    kind="turn",
+                    audio=audio,
+                    segment_index=seg_idx,
+                    turn_index=turn_idx,
+                    speaker=turn.speaker,
+                    role=turn.role,
+                    utterances=[
+                        {
+                            "text": u.text,
+                            "sentence_type": u.sentence_type.value,
+                            "is_quote": u.is_quote,
+                            "quote_mode": u.quote_mode,
+                            "passage_ref": u.passage_ref,
+                        }
+                        for u in turn.utterances
+                    ],
+                )
+            )
 
         if seg_idx < len(episode.segments) - 1:
-            full_audio += silence_ms(inter_segment_ms)
+            shards.append(
+                ShardOutput(
+                    kind="break",
+                    audio=silence_ms(inter_segment_ms),
+                    segment_index=seg_idx,
+                )
+            )
 
-    return full_audio
+    return shards
+
+
+def write_shards(
+    shards: list[ShardOutput],
+    episode: PodcastEpisode,
+    audio_dir: Path,
+    profile_name: str,
+    bitrate: str = "192k",
+) -> dict:
+    """Write shards to <audio_dir>/shards/<profile>/<NNNN>.mp3 and shards.json.
+
+    Returns the manifest dict (which is also written to disk as shards.json).
+    The manifest carries shard order and per-turn text but NO time offsets —
+    that's the whole point of the shard architecture.
+    """
+    shard_dir = audio_dir / "shards" / profile_name
+    shard_dir.mkdir(parents=True, exist_ok=True)
+
+    experts: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for seg in episode.segments:
+        for turn in seg.turns:
+            if turn.speaker in ("Host", "Narrator") or turn.speaker in seen:
+                continue
+            seen.add(turn.speaker)
+            experts.append({"name": turn.speaker, "role": turn.role})
+
+    shard_meta: list[dict] = []
+    for idx, shard in enumerate(shards):
+        filename = f"{idx:04d}.mp3"
+        path = shard_dir / filename
+        shard.audio.export(str(path), format="mp3", bitrate=bitrate)
+
+        entry: dict = {
+            "file": filename,
+            "kind": shard.kind,
+            "segment_index": shard.segment_index,
+        }
+        if shard.kind == "turn":
+            entry["turn_index"] = shard.turn_index
+            entry["speaker"] = shard.speaker
+            entry["role"] = shard.role
+            entry["utterances"] = shard.utterances
+        shard_meta.append(entry)
+
+    manifest = {
+        "schema_version": 1,
+        "profile": profile_name,
+        "episode_title": episode.title,
+        "experts": experts,
+        "shards": shard_meta,
+    }
+
+    (audio_dir / "shards.json").write_text(json.dumps(manifest, indent=2))
+    return manifest
 
 
 def main() -> None:
@@ -339,28 +427,27 @@ def main() -> None:
 
     client = genai.Client()
 
-    audio = render_episode(episode, client, profile, concurrency=args.concurrency)
-
-    profile_suffix = f"_{profile.name}" if profile.name != "classic" else ""
-    if args.run and args.output == "podcast.mp3":
-        # Audio lands at the DVC-tracked path so `dvc status` can see it
-        # and the DVC cache (pointed at the external volume by config)
-        # manages the actual blob. No PODCAST_AUDIO_DIR redirection.
-        audio_dir = DATA_DIR / "runs" / args.run / "audio"
-        audio_dir.mkdir(parents=True, exist_ok=True)
-        seg_suffix = f"_segment_{args.segment}" if args.segment is not None else ""
-        output_path = audio_dir / f"podcast{profile_suffix}{seg_suffix}.mp3"
-    else:
-        stem = Path(args.output).stem
-        ext = Path(args.output).suffix or ".mp3"
-        output_path = BASE_DIR / f"{stem}{profile_suffix}{ext}"
-    logger.info(
-        "Exporting %.1f minutes of audio to %s",
-        len(audio) / 60000,
-        output_path,
+    shards = render_episode_to_shards(
+        episode, client, profile, concurrency=args.concurrency
     )
-    audio.export(str(output_path), format="mp3", bitrate=args.bitrate)
-    logger.info("Done: %s (%.1f MB)", output_path, output_path.stat().st_size / 1e6)
+
+    if args.run:
+        audio_dir = DATA_DIR / "runs" / args.run / "audio"
+    else:
+        audio_dir = BASE_DIR / Path(args.output).stem
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
+    manifest = write_shards(
+        shards, episode, audio_dir=audio_dir,
+        profile_name=profile.name, bitrate=args.bitrate,
+    )
+    total_ms = sum(len(s.audio) for s in shards)
+    logger.info(
+        "Wrote %d shards (%.1f minutes total) to %s",
+        len(manifest["shards"]),
+        total_ms / 60000,
+        audio_dir / "shards" / profile.name,
+    )
 
 
 if __name__ == "__main__":
