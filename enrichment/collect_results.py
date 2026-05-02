@@ -88,7 +88,10 @@ def main() -> None:
     # Record per-request usage as the batch is consumed. Each request
     # carries the same .usage shape as a non-batch Anthropic call;
     # batch=True flags the 50% Batch-API discount in event_cost.
-    recorder = Recorder()
+    # flush_path makes the sidecar update on every record() — observers
+    # tailing the file see batch results land one by one.
+    timings_path = output_path.parent / "passage_enrichment_timings.json"
+    recorder = Recorder(flush_path=timings_path)
 
     for entry in client.messages.batches.results(batch_id):
         custom_id = entry.custom_id

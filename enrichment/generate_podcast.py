@@ -561,7 +561,10 @@ def run_phase3(
     )
 
     client = anthropic.Anthropic()
-    recorder = Recorder() if run_dir is not None else None
+    recorder = (
+        Recorder(flush_path=run_dir / "phase3_timings.json")
+        if run_dir is not None else None
+    )
     episode_segments: list[EpisodeSegment] = []
     for i, seg in enumerate(plan.segments):
         prev_title = plan.segments[i - 1].template.name if i > 0 else None
@@ -581,14 +584,6 @@ def run_phase3(
             "  Segment '%s': %d turns",
             episode_seg.title,
             len(episode_seg.turns),
-        )
-
-    if run_dir is not None and recorder is not None:
-        timings_path = run_dir / "phase3_timings.json"
-        timings_path.write_text(json.dumps(recorder.to_dict(), indent=2))
-        logger.info(
-            "Recorded %d phase 3 calls to %s",
-            len(recorder.events), timings_path,
         )
 
     episode = assemble_episode(episode_segments, plan)
