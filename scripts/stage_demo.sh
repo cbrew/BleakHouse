@@ -74,7 +74,11 @@ for run in $DEMO_RUNS; do
     mkdir -p "$dst"
 
     # Copy only files the webapp needs
-    for f in manifest.json report.html config.json quote_verification.json \
+    # run_manifest.json is required for the R2 audio resolver: the webapp
+    # reads audio_variants[*].hash from it to compose the public R2 URL.
+    # Without it /audio/<id>/<file> returns 404 (BleakHouse-m6o3 step 5).
+    for f in manifest.json run_manifest.json report.html config.json \
+             quote_verification.json \
              phase0_segments.json phase1_assignments.json phase2_plan.json \
              phase3_episode.json phase3_teaser.json phase_timings.json \
              phase2_5_host_briefs.json phase2_5_interviews.json \
