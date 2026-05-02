@@ -1659,7 +1659,7 @@ function _renderWithGenerator(data, gen) {
                 html += `<td style="background:#cce5ff" title="${c.name} — ${ph} — running — ${elapsed} min">${inner}</td>`;
             } else {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
-                const cdata = encodeURIComponent(JSON.stringify(c));
+                const cdata = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
                 const audio = c.has_audio ? '<span style="font-size:0.7em;color:#27ae60" title="Audio available">&#9835;</span>' : '';
                 const stalePhases = c.dvc_stale_phases || [];
                 const stale = stalePhases.length > 0
@@ -1700,7 +1700,7 @@ function renderInterdisciplinary(runs) {
         if (!r) return '<td class="m">&mdash;</td>';
         const cls = r.q >= 5 ? 'hi' : r.q >= 2 ? 'mi' : 'lo';
         const audio = r.has_audio ? '<span style="font-size:0.7em;color:#27ae60" title="Audio available">&#9835;</span>' : '';
-        const cdata = encodeURIComponent(JSON.stringify(r));
+        const cdata = encodeURIComponent(JSON.stringify(r)).replace(/'/g, "%27");
         return `<td class="d ${cls}" onclick="showRunDetail(event, '${cdata}')">` +
             `<span class="q">${r.q}</span>${audio}<br>` +
             `<span class="r">${r.r}</span><br>` +
@@ -1735,7 +1735,7 @@ function renderPanelScripts(runs) {
         }
         const cls = r.q >= 5 ? 'hi' : r.q >= 2 ? 'mi' : 'lo';
         const refs = r.has_reading_list ? '<span style="font-size:0.7em;color:#8e44ad" title="Reading list available">&#128218;</span>' : '';
-        const cdata = encodeURIComponent(JSON.stringify(r));
+        const cdata = encodeURIComponent(JSON.stringify(r)).replace(/'/g, "%27");
         return `<td class="d ${cls}" onclick="showRunDetail(event, '${cdata}')">` +
             `<span class="q">${r.q}</span>${refs}<br>` +
             `<span class="r">${r.r}</span><br>` +
