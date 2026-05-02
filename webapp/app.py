@@ -441,37 +441,13 @@ def _load_run_manifest(run_id: str) -> dict | None:
 def _available_versions(run_id: str) -> list[str]:
     """Return the render versions a user can actually play.
 
-    Single source of truth is run_manifest.json if it exists.
-    Otherwise fall back to filesystem discovery.
+    A variant is available iff its run_manifest entry has a non-empty
+    'hash' — that's the DVC blob hash used to compose the public R2 URL.
     """
     manifest = _load_run_manifest(run_id)
-    if manifest and "audio_variants" in manifest:
-        # Check if the files actually exist before claiming they are available
-        available = []
-        for v in manifest["audio_variants"]:
-            audio_path = BASE_DIR / v["audio_file"]
-            if audio_path.exists():
-                available.append(v["name"])
-        return available
-
-    # Fallback to filesystem convention
-    local_dir = DATA_DIR / "runs" / run_id / "audio"
-    if not local_dir.exists():
+    if not manifest:
         return []
-    files = {p.name for p in local_dir.iterdir()}
-    found: set[str] = set()
-    if "podcast.mp3" in files:
-        found.add("classic")
-    for f in files:
-        if not (f.startswith("podcast_") and f.endswith(".mp3")):
-            continue
-        # ... rest of fallback logic ...
-        profile = f.removeprefix("podcast_").removesuffix(".mp3")
-        if profile.startswith("segment"):
-            continue  # segment_NN.mp3 shards, not a render variant
-        if f"manifest_{profile}.json" in files:
-            found.add(profile)
-    return sorted(found)
+    return [v["name"] for v in manifest.get("audio_variants", []) if v.get("hash")]
 
 
 @app.get("/api/runs/{run_id}/manifest")
