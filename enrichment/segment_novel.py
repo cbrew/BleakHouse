@@ -138,6 +138,13 @@ NOVELS: dict[str, NovelConfig] = {
         html_filename="hester_combined.html",
         gutenberg_id=48197,
     ),
+    "room_with_a_view": NovelConfig(
+        key="room_with_a_view",
+        title="A Room with a View",
+        author="E. M. Forster",
+        html_filename="pg2641-images.html",
+        gutenberg_id=2641,
+    ),
 }
 
 
