@@ -124,3 +124,39 @@ CREATE INDEX idx_audio_config ON audio_artifact(tts_config_id);
 CREATE INDEX idx_eval_script ON evaluation(script_version_id);
 CREATE INDEX idx_eval_audio ON evaluation(audio_artifact_id);
 CREATE INDEX idx_eval_hostprep ON evaluation(hostprep_version_id);
+
+-- Per-run, per-stage cost / token / timing rollup. One row per
+-- (run_label, stage). Populated by scripts/timings_summary.py from the
+-- per-phase phase<N>_timings.json sidecars in the run dir, so the DB
+-- can answer queries like "average phase3 cost per generator" in SQL
+-- without reading 200+ JSON files.
+--
+-- run_label is denormalised so analyses don't have to join through
+-- episode → script_version → generation_run for the common case of
+-- "find this run's costs by name". novel is denormalised similarly.
+-- generation_run_id is nullable because timings can be summarised
+-- before a generation_run row exists (e.g. just-rendered audio that
+-- the experiments scanner hasn't picked up yet).
+CREATE TABLE run_cost (
+    id                 INTEGER PRIMARY KEY,
+    generation_run_id  INTEGER REFERENCES generation_run(id),
+    novel              TEXT,
+    run_label          TEXT NOT NULL,
+    stage              TEXT NOT NULL,
+    n_calls            INTEGER NOT NULL,
+    cpu_s              REAL NOT NULL,
+    wall_s             REAL NOT NULL,
+    in_tok             INTEGER NOT NULL,
+    cache_w_tok        INTEGER NOT NULL,
+    cache_r_tok        INTEGER NOT NULL,
+    out_tok            INTEGER NOT NULL,
+    in_chars           INTEGER NOT NULL,
+    audio_ms           INTEGER NOT NULL,
+    cost_usd           REAL NOT NULL,
+    created_at         REAL NOT NULL,
+    UNIQUE(run_label, stage)
+);
+
+CREATE INDEX idx_run_cost_label ON run_cost(run_label);
+CREATE INDEX idx_run_cost_stage ON run_cost(stage);
+CREATE INDEX idx_run_cost_genrun ON run_cost(generation_run_id);

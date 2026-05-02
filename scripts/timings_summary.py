@@ -70,6 +70,51 @@ def _write_run_timings(run_dir: Path, events: list[dict]) -> Path:
     return path
 
 
+def _write_run_cost_db(
+    run_dir: Path,
+    by_stage: dict[str, dict],
+) -> int | None:
+    """Persist the per-stage rollup into experiments.db's run_cost table.
+
+    Returns the number of rows upserted, or None if the DB isn't present.
+    """
+    db_path = run_dir.parent.parent / "experiments.db"
+    if not db_path.exists():
+        return None
+    from enrichment.expdb.store import Store  # pyright: ignore[reportMissingImports]
+    store = Store(db_path)
+    store.init_schema()
+
+    novel: str | None = None
+    config_path = run_dir / "config.json"
+    if config_path.exists():
+        try:
+            novel = json.loads(config_path.read_text()).get("novel")
+        except json.JSONDecodeError:
+            pass
+
+    for stage, b in by_stage.items():
+        # Match the human-readable label the printer uses, so DB queries
+        # round-trip with what users see in the report.
+        stage_label = stage if stage == "enrichment" else f"phase{stage}"
+        store.upsert_run_cost(
+            run_label=run_dir.name,
+            stage=stage_label,
+            n_calls=b["count"],
+            cpu_s=b["cpu_s"],
+            wall_s=b["wall_s"],
+            in_tok=b["in_tok"],
+            cache_w_tok=b["cache_w"],
+            cache_r_tok=b["cache_r"],
+            out_tok=b["out_tok"],
+            in_chars=b["in_chars"],
+            audio_ms=b["audio_ms"],
+            cost_usd=b["cost"],
+            novel=novel,
+        )
+    return len(by_stage)
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         sys.exit("usage: timings_summary.py <run_dir>")
@@ -179,6 +224,10 @@ def main() -> None:
         print()
         print("* = stage uses a model whose pricing is an estimate; see "
               "enrichment/pricing.py.")
+
+    n_db_rows = _write_run_cost_db(run_dir, by_stage)
+    if n_db_rows is not None:
+        print(f"\nUpserted {n_db_rows} rows into experiments.db run_cost.")
 
 
 if __name__ == "__main__":
