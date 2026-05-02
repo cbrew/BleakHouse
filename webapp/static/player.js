@@ -22,6 +22,15 @@ let currentTurnIdx = -1;
 let speedIdx = 1;
 let openPassageTurnId = null;
 
+// Shards mode (BleakHouse-ec3n): when /audio/<run>/shards.json exists,
+// audio plays as a sequence of per-turn mp3 shards. Turn boundaries are
+// structural — the player advances on <audio> 'ended' events, no time
+// math, no per-turn ms offsets to drift away from the actual mp3 bytes.
+let shardsManifest = null;       // null = legacy single-mp3 mode
+let shardCursor = 0;             // index into shardsManifest.shards
+let shardToTurnIdx = [];         // shard idx -> flatTurns idx (-1 for breaks)
+let shardPrefetch = null;        // hidden Audio() warming the next shard
+
 function versionSortKey(version) {
     const nums = String(version).match(/\d+/g);
     return (nums || ["0"]).map(n => parseInt(n, 10));
@@ -270,35 +279,116 @@ async function loadRun(runId, version = null) {
     const hasAudio = runMeta ? runMeta.has_audio : true;
     const playerBar = document.getElementById("player-bar");
 
-    if (hasAudio) {
-        playerBar.style.display = "";
-        // Set up audio
-        if (audio) { audio.pause(); audio.src = ""; }
-        const v = manifest.version || "classic";
-        const audioFile = v === "classic" ? "podcast.mp3" : `podcast_${v}.mp3`;
-        audio = new Audio(`/audio/${runId}/${audioFile}`);
-        audio.preload = "auto";
-        audio.playbackRate = SPEEDS[speedIdx];
-
-        seekBar.value = 0;
-        timeDisplay.textContent = "0:00 / 0:00";
-        currentTurnIdx = -1;
-        playBtn.textContent = "\u25B6";
-
-        audio.addEventListener("loadedmetadata", () => {
-            seekBar.max = audio.duration;
-        });
-
-        audio.addEventListener("ended", () => {
-            playBtn.textContent = "\u25B6";
-        });
-
-        if (audio.readyState >= 1) {
-            seekBar.max = audio.duration;
-        }
-    } else {
+    if (!hasAudio) {
         playerBar.style.display = "none";
         if (audio) { audio.pause(); audio.src = ""; audio = null; }
+        shardsManifest = null;
+        return;
+    }
+
+    playerBar.style.display = "";
+    if (audio) { audio.pause(); audio.src = ""; }
+    if (shardPrefetch) { shardPrefetch.src = ""; shardPrefetch = null; }
+
+    // Probe for shard-format audio. 200 \u2192 shards engine; 404 \u2192 legacy mp3.
+    const v = manifest.version || "classic";
+    let sm = null;
+    if (v === "classic") {
+        const r = await fetch(`/audio/${runId}/shards.json`);
+        if (r.ok) sm = await r.json();
+    }
+
+    if (sm) {
+        setupShardsEngine(sm);
+    } else {
+        setupLegacyEngine(runId, v);
+    }
+}
+
+function setupLegacyEngine(runId, version) {
+    shardsManifest = null;
+    const audioFile = version === "classic" ? "podcast.mp3" : `podcast_${version}.mp3`;
+    audio = new Audio(`/audio/${runId}/${audioFile}`);
+    audio.preload = "auto";
+    audio.playbackRate = SPEEDS[speedIdx];
+
+    seekBar.value = 0;
+    timeDisplay.textContent = "0:00 / 0:00";
+    currentTurnIdx = -1;
+    playBtn.textContent = "\u25B6";
+
+    audio.addEventListener("loadedmetadata", () => {
+        seekBar.max = audio.duration;
+    });
+    audio.addEventListener("ended", () => {
+        playBtn.textContent = "\u25B6";
+    });
+    if (audio.readyState >= 1) {
+        seekBar.max = audio.duration;
+    }
+}
+
+function setupShardsEngine(sm) {
+    shardsManifest = sm;
+    shardCursor = 0;
+
+    // Pre-compute shard idx -> flatTurns idx so highlight updates are O(1).
+    shardToTurnIdx = sm.shards.map(s => {
+        if (s.kind !== "turn") return -1;
+        return flatTurns.findIndex(
+            t => t.segIdx === s.segment_index && t.turnIdx === s.turn_index
+        );
+    });
+
+    audio = new Audio(sm.shards[0].url);
+    audio.preload = "auto";
+    audio.playbackRate = SPEEDS[speedIdx];
+
+    if (sm.shards.length > 1) {
+        shardPrefetch = new Audio(sm.shards[1].url);
+        shardPrefetch.preload = "auto";
+    }
+
+    seekBar.value = 0;
+    timeDisplay.textContent = "0:00 / 0:00";
+    currentTurnIdx = -1;
+    playBtn.textContent = "\u25B6";
+
+    audio.addEventListener("ended", advanceShard);
+    audio.addEventListener("loadedmetadata", () => {
+        seekBar.max = audio.duration;
+    });
+
+    // Highlight first turn-shard immediately so user sees where playback starts.
+    const firstTurnIdx = shardToTurnIdx[0];
+    if (firstTurnIdx >= 0) {
+        updateHighlight(firstTurnIdx);
+        currentTurnIdx = firstTurnIdx;
+    }
+}
+
+function advanceShard() {
+    if (!shardsManifest) return;
+    shardCursor++;
+    if (shardCursor >= shardsManifest.shards.length) {
+        playBtn.textContent = "\u25B6";
+        return;
+    }
+    const next = shardsManifest.shards[shardCursor];
+    audio.src = next.url;
+    audio.play();
+    seekBar.value = 0;
+
+    const turnIdx = shardToTurnIdx[shardCursor];
+    if (turnIdx >= 0) {
+        updateHighlight(turnIdx);
+        currentTurnIdx = turnIdx;
+    }
+
+    // Prefetch the next-next shard so the swap after this one is gapless.
+    const lookahead = shardCursor + 1;
+    if (shardPrefetch && lookahead < shardsManifest.shards.length) {
+        shardPrefetch.src = shardsManifest.shards[lookahead].url;
     }
 }
 
@@ -539,8 +629,36 @@ speedBtn.addEventListener("click", () => {
     if (audio) audio.playbackRate = speed;
 });
 
+function jumpToShardForTurn(segIdx, turnIdx) {
+    // Find the shard whose (segment_index, turn_index) matches and jump to it.
+    if (!shardsManifest) return false;
+    const target = shardsManifest.shards.findIndex(
+        s => s.kind === "turn" && s.segment_index === segIdx && s.turn_index === turnIdx
+    );
+    if (target < 0) return false;
+    shardCursor = target;
+    audio.src = shardsManifest.shards[target].url;
+    audio.play();
+    seekBar.value = 0;
+    const tIdx = shardToTurnIdx[target];
+    if (tIdx >= 0) {
+        updateHighlight(tIdx);
+        currentTurnIdx = tIdx;
+    }
+    if (shardPrefetch && target + 1 < shardsManifest.shards.length) {
+        shardPrefetch.src = shardsManifest.shards[target + 1].url;
+    }
+    playBtn.textContent = "\u275A\u275A";
+    return true;
+}
+
 function seekToSegment(segIdx) {
     if (!audio || !manifest) return;
+    if (shardsManifest) {
+        // Jump to the first turn shard of that segment.
+        jumpToShardForTurn(segIdx, 0);
+        return;
+    }
     const seg = manifest.segments[segIdx];
     audio.currentTime = seg.start_ms / 1000;
     if (audio.paused) {
@@ -551,6 +669,10 @@ function seekToSegment(segIdx) {
 
 function seekToTurn(segIdx, turnIdx) {
     if (!audio || !manifest) return;
+    if (shardsManifest) {
+        jumpToShardForTurn(segIdx, turnIdx);
+        return;
+    }
     const turn = manifest.segments[segIdx].turns[turnIdx];
     audio.currentTime = turn.start_ms / 1000;
     if (audio.paused) {
@@ -562,35 +684,49 @@ function seekToTurn(segIdx, turnIdx) {
 // ── Sync loop ──
 function syncLoop() {
     if (audio && !audio.paused) {
-        const ms = audio.currentTime * 1000;
-        seekBar.value = audio.currentTime;
-        timeDisplay.textContent = formatTime(audio.currentTime) + " / " + formatTime(audio.duration || 0);
-
-        let newIdx = -1;
-        let lo = 0, hi = flatTurns.length - 1;
-        while (lo <= hi) {
-            const mid = (lo + hi) >> 1;
-            if (flatTurns[mid].start_ms <= ms) {
-                newIdx = mid;
-                lo = mid + 1;
-            } else {
-                hi = mid - 1;
+        if (shardsManifest) {
+            // Shards mode: highlight is set on shard advance, not by time math.
+            // Display is per-shard playback position; no global episode time.
+            seekBar.value = audio.currentTime;
+            timeDisplay.textContent = formatTime(audio.currentTime) + " / " + formatTime(audio.duration || 0);
+            const turnIdx = shardToTurnIdx[shardCursor];
+            if (turnIdx >= 0) {
+                const activeSegIdx = flatTurns[turnIdx].segIdx;
+                document.querySelectorAll(".seg-tab").forEach((tab, i) => {
+                    tab.classList.toggle("active", i === activeSegIdx);
+                });
             }
-        }
-        if (newIdx >= 0 && ms > flatTurns[newIdx].end_ms) {
-            newIdx = -1;
-        }
+        } else {
+            const ms = audio.currentTime * 1000;
+            seekBar.value = audio.currentTime;
+            timeDisplay.textContent = formatTime(audio.currentTime) + " / " + formatTime(audio.duration || 0);
 
-        if (newIdx !== currentTurnIdx) {
-            updateHighlight(newIdx);
-            currentTurnIdx = newIdx;
-        }
+            let newIdx = -1;
+            let lo = 0, hi = flatTurns.length - 1;
+            while (lo <= hi) {
+                const mid = (lo + hi) >> 1;
+                if (flatTurns[mid].start_ms <= ms) {
+                    newIdx = mid;
+                    lo = mid + 1;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            if (newIdx >= 0 && ms > flatTurns[newIdx].end_ms) {
+                newIdx = -1;
+            }
 
-        if (newIdx >= 0) {
-            const activeSegIdx = flatTurns[newIdx].segIdx;
-            document.querySelectorAll(".seg-tab").forEach((tab, i) => {
-                tab.classList.toggle("active", i === activeSegIdx);
-            });
+            if (newIdx !== currentTurnIdx) {
+                updateHighlight(newIdx);
+                currentTurnIdx = newIdx;
+            }
+
+            if (newIdx >= 0) {
+                const activeSegIdx = flatTurns[newIdx].segIdx;
+                document.querySelectorAll(".seg-tab").forEach((tab, i) => {
+                    tab.classList.toggle("active", i === activeSegIdx);
+                });
+            }
         }
     }
     requestAnimationFrame(syncLoop);

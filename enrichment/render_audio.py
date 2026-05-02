@@ -205,16 +205,24 @@ def render_episode_to_shards(
     client: genai.Client,
     profile: TTSProfile,
     concurrency: int = 1,
+    only_segment: int | None = None,
 ) -> list[ShardOutput]:
     """Render the episode as a sequence of independent audio shards.
 
     Each turn becomes one shard; each gap between segments becomes a
     "break" shard of scaled 2s silence. Returns shards in playback order.
+
+    If only_segment is set, only that segment is rendered, but its
+    segment_index in the resulting shards is preserved as the original
+    position in episode.segments — so a partial render still aligns with
+    the full episode's transcript indexing.
     """
     inter_segment_ms = int(2000 * profile.pause_scale)
     shards: list[ShardOutput] = []
 
     for seg_idx, seg in enumerate(episode.segments):
+        if only_segment is not None and seg_idx != only_segment:
+            continue
         logger.info(
             "Segment %d/%d: '%s' (%d turns, concurrency=%d, profile=%s)",
             seg_idx + 1,
@@ -416,11 +424,6 @@ def main() -> None:
 
     if args.segment is not None:
         seg = episode.segments[args.segment]
-        episode = PodcastEpisode(
-            title=episode.title,
-            segments=[seg],
-            metadata=episode.metadata,
-        )
         logger.info("Rendering only segment %d: '%s'", args.segment, seg.title)
 
     classic_model_id = CLASSIC_MODEL_IDS[args.model] if args.profile == "classic" else None
@@ -430,7 +433,9 @@ def main() -> None:
     client = genai.Client()
 
     shards = render_episode_to_shards(
-        episode, client, profile, concurrency=args.concurrency
+        episode, client, profile,
+        concurrency=args.concurrency,
+        only_segment=args.segment,
     )
 
     if args.run:
