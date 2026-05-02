@@ -61,14 +61,32 @@ def _resolve_row_paths(row: dict[str, Any]) -> dict[str, Any]:
 
 # Window-function CTEs pick the freshest row in each partition. SQLite
 # >= 3.25 supports window functions; verified in CPython 3.13.
+#
+# Episode ordering note: a retrofit creates a new episode at the same
+# (novel, panel, pipeline, hostprep, generator) coordinate with a new
+# script_version, but typically does NOT re-render audio. Strictly
+# picking the newest episode per coordinate would silently drop audio
+# the user can still play. So we rank audio-bearing episodes first
+# within each coordinate, falling back to creation time. Matrix cells
+# at coordinates with any audio always surface the audio-bearing run.
 _MATRIX_ROWS_SQL = """
-WITH ranked_episode AS (
+WITH episode_with_audio_flag AS (
+    SELECT e.*,
+        CASE WHEN EXISTS (
+            SELECT 1
+            FROM audio_artifact a
+            JOIN script_version s ON a.script_version_id = s.id
+            WHERE s.episode_id = e.id
+        ) THEN 1 ELSE 0 END AS coord_has_audio
+    FROM episode e
+),
+ranked_episode AS (
     SELECT *,
         ROW_NUMBER() OVER (
             PARTITION BY novel, panel, pipeline, hostprep, generator
-            ORDER BY created_at DESC, id DESC
+            ORDER BY coord_has_audio DESC, created_at DESC, id DESC
         ) AS rn
-    FROM episode
+    FROM episode_with_audio_flag
 ),
 ranked_script AS (
     SELECT *,
