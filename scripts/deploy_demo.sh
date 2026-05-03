@@ -31,7 +31,7 @@ PUBLIC_URL="${PUBLIC_URL:-https://${APP}.fly.dev}"
 LOCAL_PORT="${LOCAL_PORT:-18080}"
 IMAGE_TAG="${IMAGE_TAG:-bleakhouse-demo}"
 CONTAINER_NAME="${CONTAINER_NAME:-bh-deploy-verify}"
-LOCAL_CACHE_DIR="${LOCAL_CACHE_DIR:-/tmp/bh-deploy-cache}"
+LOCAL_CACHE_VOL="${LOCAL_CACHE_VOL:-bh-deploy-cache}"
 DRY_RUN=0
 
 for arg in "$@"; do
@@ -64,11 +64,11 @@ podman build -t "$IMAGE_TAG" -f Containerfile .
 
 echo "==> [3/6] podman run + probe"
 podman rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-mkdir -p "$LOCAL_CACHE_DIR"
+podman volume create "$LOCAL_CACHE_VOL" >/dev/null 2>&1 || true
 podman run -d --name "$CONTAINER_NAME" \
     -e DVC_REMOTE_R2_ACCESS_KEY="$R2_ACCESS" \
     -e DVC_REMOTE_R2_SECRET_ACCESS_KEY="$R2_SECRET" \
-    -v "$LOCAL_CACHE_DIR:/cache" \
+    -v "${LOCAL_CACHE_VOL}:/cache" \
     -p "${LOCAL_PORT}:8080" \
     "$IMAGE_TAG" >/dev/null
 
