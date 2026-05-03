@@ -105,16 +105,8 @@ stages:
         - enrichment/host_prep.py
         - enrichment/run_pipeline.py
       outs:
-        - data/runs/${key}/phase2_5_host_briefs.json:
-            cache: false
-        - data/runs/${key}/phase2_5_interviews.json:
-            cache: false
-        # phase2_5_timings.json: written by enrichment/timing.py via
-        # host_prep.py during this stage. 23/38 phase2_5 runs predate
-        # the timings sidecar; they show as missing-out in `dvc status`
-        # until re-run (BleakHouse-us0 plans the backfill).
-        - data/runs/${key}/phase2_5_timings.json:
-            cache: false
+        - data/runs/${key}/phase2_5_host_briefs.json
+        - data/runs/${key}/phase2_5_interviews.json
 
   # Hostprep runs that only have host_briefs.json (no interviews).
   # Same regenerator command as phase2_5; the difference is just that
@@ -133,8 +125,27 @@ stages:
         - enrichment/host_prep.py
         - enrichment/run_pipeline.py
       outs:
-        - data/runs/${key}/phase2_5_host_briefs.json:
-            cache: false
+        - data/runs/${key}/phase2_5_host_briefs.json
+
+  # phase2_5_timings.json is a sidecar of phase2_5 (written by
+  # enrichment/timing.py via host_prep.py). 23/38 phase2_5 runs predate
+  # the timings sidecar, so it can't be a hard out of phase2_5 itself
+  # (DVC would refuse to commit). Use a file-presence-filtered sibling
+  # stage instead — same regenerator command (re-running phase2_5 also
+  # produces timings for runs that go through the modern path).
+  phase2_5_timings:
+    foreach: ${run_ids_phase2_5_timings}
+    do:
+      cmd: uv run python scripts/dvc_regenerate.py phase2_5 --run ${item}
+      deps:
+        - data/runs/${item}/config.json
+        - data/runs/${item}/phase1_assignments.json
+        - data/runs/${item}/phase2_plan.json
+        - enrichment/host_prep.py
+        - enrichment/timing.py
+        - enrichment/run_pipeline.py
+      outs:
+        - data/runs/${item}/phase2_5_timings.json
 
   # Reading-list is only produced when --reference-tools was set.
   # Iterates only over runs that currently have the file on disk.
@@ -148,8 +159,7 @@ stages:
         - enrichment/host_prep.py
         - enrichment/reference_tools.py
       outs:
-        - data/runs/${key}/phase2_5_reading_list.json:
-            cache: false
+        - data/runs/${key}/phase2_5_reading_list.json
 
   phase3_episode:
     foreach: ${run_ids_phase3}
