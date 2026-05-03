@@ -43,7 +43,9 @@ Python modules (`enrichment/tts_profiles/classic.py`,
 Each stage expands via `foreach: ${run_ids_*}` over `runs.yaml`, giving
 194 × 3 ≈ 582 concrete stage instances.
 
-**`runs.yaml`** — machine-generated inventory from `data/runs/*/config.json`.
+**`runs.yaml`** — machine-generated inventory from `data/runs/*/config.json`
+(with a fallback to `run_manifest.json` for retrofit dirs whose
+`config.json` lacks an `axes` block — see Run categories below).
 Regenerate with:
 
 ```bash
@@ -53,10 +55,71 @@ uv run python -m scripts.generate_runs_yaml
 **`dvc.lock`** — committed. Holds the baseline content hash for every out.
 `dvc status` compares current deps/outs against this.
 
-**Not yet tracked** — earlier pipeline phases (phase0_segments,
-phase1_assignments, phase2_plan, phase2_5_*). Deliberate scope choice:
-they rarely go stale in practice for the existing corpus. Add them if
-you want by adding more stages to `dvc.yaml` and running `dvc commit`.
+## Run categories
+
+Not every directory under `data/runs/` is a canonical, regenerable run.
+Four distinct categories exist; understanding them matters because some
+are deliberately *frozen* and `dvc repro` must not touch them.
+
+### 1. Canonical runs (~194)
+
+The default. `config.json` carries an `axes` block (novel, pipeline,
+panel, hostprep, generator) and the run was produced end-to-end by the
+current pipeline. Fully regenerable: `dvc repro phase3_episode@<run_id>`
+re-runs Phase 3 against the run's inputs and overwrites the output. This
+is the intended behaviour — the run's value is "what the current
+pipeline produces from these inputs".
+
+### 2. Retrofit runs (23, suffix `_retrofit_<UTC-timestamp>`)
+
+Created by the post-hoc retrofit pipeline (see
+`docs/superpowers/plans/2026-04-28-hostprep-retrofit.md`). They preserve
+a *snapshot* of pipeline output at a specific date — a frozen record of
+"what the pipeline produced on 2026-04-29", including the LLM responses
+and segment shapes of that moment.
+
+Two structural differences from canonical runs:
+
+- **Axes live in `run_manifest.json`, not `config.json`.** The retrofit
+  pipeline doesn't write axes into config.json; instead it records them
+  in `run_manifest.json` alongside `retrofit_of` (the source canonical
+  run id) and `source_dvc_lock_sha` (the dvc.lock state at retrofit
+  time). `scripts/generate_runs_yaml.py` falls back to run_manifest.json
+  when config.json axes are missing, so retrofits join the canonical
+  foreach lists.
+- **`dvc repro` must not regenerate them.** Running today's pipeline
+  code against a retrofit's frozen `phase2_plan.json` would write a new
+  `phase3_episode.json` (different LLM responses, possibly different
+  segment shapes) and destroy the snapshot. Decision: retrofit stages
+  are declared with `frozen: true` (see `BleakHouse-g760`) so DVC
+  records their hash without ever invoking the regenerator.
+
+The migration uses `dvc commit` (records on-disk hashes; no regen) and
+is therefore safe regardless. The `frozen: true` declaration guards
+against future `dvc repro` invocations.
+
+### 3. Hostprep runs missing interviews (88, legacy)
+
+Hostprep runs created before `phase2_5` wrote `phase2_5_interviews.json`
+have only `phase2_5_host_briefs.json` on disk. Tracked by a dedicated
+`phase2_5_briefs_only` stage in `dvc.yaml` (separate foreach over
+`runs_by_id_phase2_5_briefs_only`). When their interviews are
+regenerated (tracked by `BleakHouse-us0`), they graduate to the full
+`phase2_5` stage on the next `runs.yaml` regeneration.
+
+### 4. `_archive/` and `_*`-prefixed entries
+
+`data/runs/_archive/` holds 387 older versioned experiments
+(`arc_v10_conservative`, `emb_v02_more_jo`, etc.) that predate the axes
+migration. They have no `config.json` axes, no `run_manifest.json`, and
+no DVC presence. The `_*` filter in `generate_runs_yaml.py` excludes
+them. `_audio_provenance.json`, `_inventory.json`,
+`_migration_overrides.json`, `_migration_plan.json` are sibling
+metadata files (not runs) and are excluded by the same filter.
+
+If an archived experiment ever needs to come back into scope, restore
+it from `_archive/`, write an `axes` block into its `config.json` (or
+add a `run_manifest.json`), and regenerate `runs.yaml`.
 
 ## Common commands
 
