@@ -190,8 +190,7 @@ stages:
         - webapp/build_manifest.py
         - webapp/build_report.py
       outs:
-        - data/runs/${item}/manifest.json:
-            cache: false
+        - data/runs/${item}/manifest.json
         # report.html is intentionally NOT a DVC out — it's a pure
         # rendering of manifest.json via webapp/build_report.py and is
         # cheap to regenerate on demand (stage_demo.sh does so before
@@ -234,8 +233,13 @@ stages:
   # Quote verification — checks that every "is_quote" utterance in
   # phase3_episode.json appears in the novel's source text via fuzzy
   # match. No LLM call; reads phase3 + the source text fixture.
+  # quote_verification iterates run_ids_quote_verification (file-presence
+  # filter) rather than run_ids_phase3 because 23 retrofit phase3 runs
+  # lack quote_verification.json — DVC would refuse to commit if the
+  # file weren't present. Backfill happens by re-running the
+  # precompute_quote_verification CLI for those runs.
   quote_verification:
-    foreach: ${run_ids_phase3}
+    foreach: ${run_ids_quote_verification}
     do:
       cmd: uv run python -m enrichment.precompute_quote_verification --run ${item} --force
       deps:
@@ -243,8 +247,7 @@ stages:
         - enrichment/precompute_quote_verification.py
         - enrichment/experiment_h5_grounding.py
       outs:
-        - data/runs/${item}/quote_verification.json:
-            cache: false
+        - data/runs/${item}/quote_verification.json
 
   # Gemini 3.1 Flash TTS render via the trevelyan_v2 profile.
   # Same shape as phase4_audio_qwen — code-only deps (the Gemini API
@@ -313,5 +316,4 @@ stages:
         - data/runs/${key}/config.json
         - scripts/generate_run_manifest.py
       outs:
-        - data/runs/${key}/run_manifest.json:
-            cache: false
+        - data/runs/${key}/run_manifest.json
