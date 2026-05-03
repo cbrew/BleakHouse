@@ -304,6 +304,26 @@ stages:
         # resolves to the external volume. Working-copy file is a symlink.
         - data/runs/${item}/audio/podcast.mp3
 
+  # experiments.db — derived from data/runs/**/run_manifest.json + config.json.
+  # Tracker reads it for matrix coordinates. Stage exists so the deploy
+  # rides the same `dvc pull` mechanism as everything else (no ad-hoc bundle
+  # step in stage_demo.sh / Containerfile).
+  #
+  # Coarse trigger: regenerates whenever runs.yaml changes (new run added)
+  # or the scanner code changes. Doesn't track per-run JSON deps because
+  # dvc.yaml foreach can't expand to wildcard-matched dep lists.
+  experiments_db:
+    cmd: uv run python -m enrichment.expdb scan
+    deps:
+      - enrichment/expdb/__init__.py
+      - enrichment/expdb/cli.py
+      - enrichment/expdb/backfill.py
+      - enrichment/expdb/store.py
+      - enrichment/expdb/schema.sql
+      - runs.yaml
+    outs:
+      - data/experiments.db
+
   # NOTE: the run_manifest DVC stage was removed 2026-05-03 (audit:
   # docs/superpowers/notes/2026-05-03-run-manifest-audit.md). Reasons:
   #
