@@ -84,6 +84,7 @@ def collect_runs() -> list[dict[str, object]]:
             "has_phase_timings": (run_dir / "phase_timings.json").exists(),
             "has_embedding_artifacts": (run_dir / "embedding_artifacts.json").exists(),
             "has_phase2_5_timings": (run_dir / "phase2_5_timings.json").exists(),
+            "has_quote_verification": (run_dir / "quote_verification.json").exists(),
         }
         out.append(entry)
     return out
@@ -134,6 +135,7 @@ def main() -> None:
         "run_ids_phase3_teaser": [r["run_id"] for r in runs if r["has_phase3_teaser"]],
         "run_ids_phase_timings": [r["run_id"] for r in runs if r["has_phase_timings"]],
         "run_ids_phase2_5_timings": [r["run_id"] for r in runs if r["has_phase2_5_timings"]],
+        "run_ids_quote_verification": [r["run_id"] for r in runs if r["has_quote_verification"]],
     }
     with open(OUT, "w") as f:
         yaml.safe_dump(doc, f, sort_keys=False, default_flow_style=False, width=200)
