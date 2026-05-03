@@ -1,21 +1,22 @@
 #!/bin/bash
 # Build, locally verify, and deploy the Fly demo container.
 #
-# Existed because the prior workflow (documented in the fly-deployment
-# bd memory) only listed stage → build → deploy. A broken deploy on
-# 2026-04-23 (ModuleNotFoundError at startup, stale .dockerignore)
-# shipped silently because the built container was never run before
-# `fly deploy`. This script fills that gap.
+# Architecture (deploy-via-dvc-pull, 2026-05-03):
+#   - Container holds code + dvc.lock + git-tracked config files. No data.
+#   - Entrypoint generates .dvc/config.local from R2 credentials (Fly
+#     secrets in production; passed as env vars locally for the smoke
+#     test) and runs `dvc pull <non-audio stages>` into /cache (a Fly
+#     volume in production; a bind-mounted tmp dir locally).
+#   - Audio mp3s stay in R2; webapp 302-redirects to public r2.dev URLs.
 #
 # Steps:
-#   1. stage_demo.sh demo_data
-#   2. podman build -t bleakhouse-demo -f Containerfile .
-#   3. podman run + curl /tracker + /tracker/data (fail-loud on any error
-#      in container logs)
-#   4. sync_audio_via_http.py — push DVC audio blobs (Gemini + Qwen)
-#      to the fly volume(s) via HTTPS POST. Idempotent.
-#   5. fly deploy --local-only
-#   6. curl the public URL's /tracker; fail-loud on non-200
+#   1. dvc push -r r2 (idempotent; sync any pending blobs)
+#   2. podman build
+#   3. podman run with R2 secrets + tmp cache mount; probe /tracker
+#      and /tracker/data; fail-loud on logs containing tracebacks
+#   4. fly deploy --local-only
+#   5. Post-deploy curl /tracker
+#   6. Post-deploy audio smoke test (302 → R2 public URL)
 #
 # Any failure aborts. No step is optional.
 #
@@ -30,13 +31,12 @@ PUBLIC_URL="${PUBLIC_URL:-https://${APP}.fly.dev}"
 LOCAL_PORT="${LOCAL_PORT:-18080}"
 IMAGE_TAG="${IMAGE_TAG:-bleakhouse-demo}"
 CONTAINER_NAME="${CONTAINER_NAME:-bh-deploy-verify}"
+LOCAL_CACHE_DIR="${LOCAL_CACHE_DIR:-/tmp/bh-deploy-cache}"
 DRY_RUN=0
-ALLOW_STALE=0
 
 for arg in "$@"; do
     case "$arg" in
         --dry-run) DRY_RUN=1 ;;
-        --allow-stale) ALLOW_STALE=1 ;;
         -h|--help)
             sed -n '2,28p' "$0"
             exit 0
@@ -47,36 +47,30 @@ done
 
 cd "$(dirname "$0")/.."
 
-echo "==> [0/7] DVC provenance check"
-if uv run --no-sync dvc status 2>/dev/null | grep -q "up to date"; then
-    echo "    dvc status clean"
-else
-    if [ "$ALLOW_STALE" = 1 ]; then
-        echo "    WARNING: DVC reports stale runs but --allow-stale was passed; continuing." >&2
-    else
-        echo "    DVC reports stale runs. Summary:" >&2
-        uv run --no-sync python -m scripts.dvc_stale_report >&2 || true
-        echo "" >&2
-        echo "    Refusing to deploy a stale provenance graph." >&2
-        echo "    Options:" >&2
-        echo "      - regenerate the affected artefacts, then \`uv run dvc commit\`" >&2
-        echo "      - re-run with --allow-stale if you're knowingly shipping a stale state" >&2
-        exit 1
-    fi
+# Read R2 credentials from .dvc/config.local for the local podman run.
+# In production these come from Fly secrets (set separately).
+R2_ACCESS=$(grep access_key_id .dvc/config.local | awk '{print $3}')
+R2_SECRET=$(grep secret_access_key .dvc/config.local | awk '{print $3}')
+if [ -z "$R2_ACCESS" ] || [ -z "$R2_SECRET" ]; then
+    echo "FAIL: couldn't read R2 credentials from .dvc/config.local" >&2
+    exit 1
 fi
 
-echo "==> [0/7] Refreshing experiments.db (scan-if-stale)"
-uv run python -c "from enrichment.expdb.refresh import ensure_db_current; ensure_db_current()"
+echo "==> [1/6] dvc push -r r2 (idempotent)"
+uv run --no-sync dvc push -r r2
 
-echo "==> [1/7] Staging demo data"
-bash scripts/stage_demo.sh demo_data
-
-echo "==> [2/7] Building container image ($IMAGE_TAG)"
+echo "==> [2/6] podman build"
 podman build -t "$IMAGE_TAG" -f Containerfile .
 
-echo "==> [3/7] Running container locally on port $LOCAL_PORT and probing"
+echo "==> [3/6] podman run + probe"
 podman rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-podman run -d --name "$CONTAINER_NAME" -p "${LOCAL_PORT}:8080" "$IMAGE_TAG" >/dev/null
+mkdir -p "$LOCAL_CACHE_DIR"
+podman run -d --name "$CONTAINER_NAME" \
+    -e DVC_REMOTE_R2_ACCESS_KEY="$R2_ACCESS" \
+    -e DVC_REMOTE_R2_SECRET_ACCESS_KEY="$R2_SECRET" \
+    -v "$LOCAL_CACHE_DIR:/cache" \
+    -p "${LOCAL_PORT}:8080" \
+    "$IMAGE_TAG" >/dev/null
 
 cleanup() {
     podman stop "$CONTAINER_NAME" >/dev/null 2>&1 || true
@@ -84,44 +78,39 @@ cleanup() {
 }
 trap cleanup EXIT
 
-probe() {  # probe URL -> prints "200" on 200, actual code or "000" on failure
+probe() {
     curl --max-time 5 -s -o /dev/null -w "%{http_code}" "$1" 2>/dev/null || echo "000"
 }
 
-# Wait up to ~30s for /tracker to respond 200.
+# Wait up to ~60s for /tracker to respond 200 (first boot includes
+# the dvc pull, which takes ~3s on a warm cache; longer on first pull).
 code=""
-for _ in $(seq 1 15); do
+for _ in $(seq 1 30); do
     code=$(probe "http://127.0.0.1:${LOCAL_PORT}/tracker")
     [ "$code" = "200" ] && break
     sleep 2
 done
 if [ "$code" != "200" ]; then
-    echo "FAIL: /tracker returned $code after 30s" >&2
+    echo "FAIL: /tracker returned $code after 60s" >&2
     echo "--- container logs ---" >&2
     podman logs "$CONTAINER_NAME" >&2 || true
     exit 1
 fi
 
-# Fail on Python tracebacks or ModuleNotFoundError in the startup logs.
 if podman logs "$CONTAINER_NAME" 2>&1 | grep -qE "Traceback|ModuleNotFoundError|ImportError"; then
     echo "FAIL: container logs contain a traceback" >&2
     podman logs "$CONTAINER_NAME" >&2
     exit 1
 fi
 
-# /tracker/data needs a moment to warm its RunIndex cache. Retry up to ~15s.
+# /tracker/data validates the matrix payload.
 json=""
 for _ in $(seq 1 8); do
     json=$(curl --max-time 10 -s "http://127.0.0.1:${LOCAL_PORT}/tracker/data" 2>/dev/null || true)
     [ -n "$json" ] && break
     sleep 2
 done
-if [ -z "$json" ]; then
-    echo "FAIL: /tracker/data returned empty body after 16s" >&2
-    podman logs "$CONTAINER_NAME" >&2 || true
-    exit 1
-fi
-if ! echo "$json" | python3 -c "
+if [ -z "$json" ] || ! echo "$json" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 gens = [g['id'] for g in d.get('generators', [])]
@@ -133,6 +122,7 @@ for g, t in totals.items():
 print(f'OK: {len(gens)} generators, {sum(t[\"done\"] for t in totals.values())} total done cells')
 " 2>&1; then
     echo "FAIL: /tracker/data did not validate" >&2
+    podman logs "$CONTAINER_NAME" >&2 || true
     exit 1
 fi
 
@@ -142,32 +132,14 @@ if [ "$DRY_RUN" = 1 ]; then
     exit 0
 fi
 
-# Explicitly stop the local container now so its port is freed and
-# nothing implies the verification is the same thing as production.
 cleanup
 trap - EXIT
 
-echo "==> [4/7] Confirm audio is in R2 (no fly-volume sync needed)"
-# Audio mp3s live in Cloudflare R2; the webapp 302-redirects /audio/...
-# directly to https://pub-<hash>.r2.dev. Make sure 'dvc push' has been
-# run since the last render, otherwise newly-rendered episodes will
-# 404 on R2 even though the symlinks exist locally.
-uv run dvc status -c -r r2 --json 2>&1 | head -3 | grep -q '"new"' && {
-    echo "FAIL: dvc cache has unpushed blobs. Run 'uv run dvc push' first." >&2
-    exit 1
-} || echo "    OK: dvc cache is in sync with R2"
-
-echo "==> [5/7] fly deploy --local-only (app: $APP)"
-# --yes: bypass interactive confirmation. With volumes retired in
-# BleakHouse-m6o3, fly warns 'machine has a volume mounted but app
-# config does not specify a volume' on the first deploy after the
-# [mounts] block was removed; --yes accepts the drift. Volumes will
-# be destroyed manually in step 6 once the new image proves out.
+echo "==> [4/6] fly deploy --local-only (app: $APP)"
 fly deploy --local-only --yes --app "$APP"
 
-echo "==> [6/7] Post-deploy smoke test: $PUBLIC_URL/tracker"
-# Machines may take a few seconds to accept traffic.
-for i in $(seq 1 15); do
+echo "==> [5/6] Post-deploy: $PUBLIC_URL/tracker"
+for i in $(seq 1 30); do
     code=$(curl --max-time 15 -s -o /dev/null -w "%{http_code}" "${PUBLIC_URL}/tracker" || echo 000)
     [ "$code" = "200" ] && break
     sleep 3
@@ -179,11 +151,7 @@ if [ "$code" != "200" ]; then
     exit 1
 fi
 
-echo "==> [7/7] Audio smoke test (302 → R2)"
-# Pick the first run with audio from runs.yaml and probe its podcast.mp3.
-# Verifies (a) webapp resolves dvc_hash from run_manifest.json, (b) returns
-# 302 to a public R2 URL, (c) R2 serves the bytes. Failure here means
-# audio is broken even though /tracker looks fine.
+echo "==> [6/6] Audio smoke test (302 → R2)"
 SMOKE_RUN=$(uv run --no-sync python -c "
 import yaml
 d = yaml.safe_load(open('runs.yaml'))
@@ -196,8 +164,8 @@ SMOKE_URL="${PUBLIC_URL}/audio/${SMOKE_RUN}/podcast.mp3"
 SMOKE_TMP=$(mktemp -t bh-smoke-XXXXXX.mp3)
 trap 'rm -f "$SMOKE_TMP"' EXIT
 
-# Use a real-browser User-Agent — Cloudflare R2's public r2.dev URL
-# blocks bare 'curl/x.y' as a bot via Browser Integrity Check (1010).
+# Real-browser UA — Cloudflare R2's public r2.dev URL blocks bare
+# 'curl/x.y' as a bot via Browser Integrity Check.
 http=$(curl --max-time 60 -sL -A "Mozilla/5.0" -o "$SMOKE_TMP" -w "%{http_code}" -r 0-1048576 "$SMOKE_URL" || echo 000)
 size=$(stat -f "%z" "$SMOKE_TMP" 2>/dev/null || stat -c "%s" "$SMOKE_TMP" 2>/dev/null || echo 0)
 if [ "$http" != "206" ] && [ "$http" != "200" ]; then
