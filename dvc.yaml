@@ -165,8 +165,11 @@ stages:
         - generators
         - default_generator
       outs:
-        - data/runs/${item}/phase3_episode.json:
-            cache: false
+        # Phase 1 of BleakHouse-1dnv: phase3_episode.json migrated from
+        # in-tree git storage to DVC cache + R2 remote. cache: true
+        # (default) means the canonical copy lives in .dvc/cache and the
+        # working-copy file is a symlink (per cache.type in .dvc/config.local).
+        - data/runs/${item}/phase3_episode.json
 
   phase4_post:
     foreach: ${run_ids_phase3}
