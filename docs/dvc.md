@@ -120,18 +120,27 @@ have only `phase2_5_host_briefs.json` on disk. Tracked by a dedicated
 regenerated (tracked by `BleakHouse-us0`), they graduate to the full
 `phase2_5` stage on the next `runs.yaml` regeneration.
 
-### 4. `_archive/` and `_*`-prefixed entries
+### 4. `_archive/` (removed 2026-05-03) and `_*`-prefixed metadata
 
-`data/runs/_archive/` holds 387 older versioned experiments
-(`arc_v10_conservative`, `emb_v02_more_jo`, etc.) that predate the axes
-migration. They have no `config.json` axes, no `run_manifest.json`, and
-no DVC presence. The `_*` filter in `generate_runs_yaml.py` excludes
-them. `_audio_provenance.json`, `_inventory.json`,
-`_migration_overrides.json`, `_migration_plan.json` are sibling
-metadata files (not runs) and are excluded by the same filter.
+`data/runs/_archive/` formerly held 387 older versioned experiments
+(`arc_v10_conservative`, `emb_v02_more_jo`, etc.) that predated the axes
+migration. They had no `config.json` axes, no `run_manifest.json`, and
+no DVC presence. Nothing in the live codebase, configs, or
+`experiments.db` referenced them; they were removed from the repo on
+2026-05-03 (saved 386 MB and 2,779 tracked files). Backup lives at
+`/Volumes/Crucial X9/bleakhouse_archive_backup_2026-05-03/_archive/`
+in case something downstream needs to revisit one. The
+`data/runs_archived_v1/`, `data/runs_archived_v2/`, and
+`data/runs_archived_ext_pre_discard_cost/` directories (already
+gitignored, on-disk only at the time) were backed up and removed in
+the same pass.
 
-If an archived experiment ever needs to come back into scope, restore
-it from `_archive/`, write an `axes` block into its `config.json` (or
+`_audio_provenance.json`, `_inventory.json`, `_migration_overrides.json`,
+`_migration_plan.json` are sibling metadata files (not runs) and remain
+excluded by the `_*` filter in `generate_runs_yaml.py`.
+
+To restore an archived experiment: copy the run dir back from the
+Crucial X9 backup, write an `axes` block into its `config.json` (or
 add a `run_manifest.json`), and regenerate `runs.yaml`.
 
 ## Common commands
