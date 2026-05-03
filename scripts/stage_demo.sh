@@ -10,6 +10,13 @@ echo "Staging demo data to $DEST/"
 rm -rf "$DEST"
 mkdir -p "$DEST/runs"
 
+# report.html is gitignored and not a DVC out (it's a pure rendering of
+# manifest.json). Regenerate from manifest.json into every source run dir
+# so the copy loop below picks up fresh report.html files. Fast: no LLM,
+# no network — just templating.
+echo "Regenerating report.html for all runs..."
+uv run python -m webapp.build_report --all
+
 # Generate the list of demo runs (180 tracker grid + 3 interdisciplinary + versioned)
 DEMO_RUNS=$(python3 -c "
 import re, sqlite3

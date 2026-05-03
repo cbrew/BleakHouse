@@ -152,8 +152,10 @@ stages:
       outs:
         - data/runs/${item}/manifest.json:
             cache: false
-        - data/runs/${item}/report.html:
-            cache: false
+        # report.html is intentionally NOT a DVC out — it's a pure
+        # rendering of manifest.json via webapp/build_report.py and is
+        # cheap to regenerate on demand (stage_demo.sh does so before
+        # staging the demo image).
 
   # Quote verification — checks that every "is_quote" utterance in
   # phase3_episode.json appears in the novel's source text via fuzzy
