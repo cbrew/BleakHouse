@@ -16,6 +16,7 @@ Uses uv with PEP 621 pyproject.toml. Python 3.12+.
 
 ```bash
 uv sync                    # install dependencies
+uv run dvc pull -r r2      # materialise data/runs/ from DVC remote (~165 MB)
 uv run python <script>     # run any script
 uv run pytest              # run tests
 uv run ruff check .        # lint
@@ -23,7 +24,25 @@ uv run pyright             # type check
 uv run mypy .              # type check (alternative)
 ```
 
-No tests exist yet. No CI/CD.
+After producing a new run locally:
+
+```bash
+uv run dvc commit <stage>@<run_id>   # records the on-disk hash
+uv run dvc push -r r2                # uploads to R2
+git add config.json runs.yaml dvc.lock
+git commit && git push
+```
+
+Deploy the Fly demo (replaces the live site):
+
+```bash
+bash scripts/deploy_demo.sh          # dvc push, podman build, fly deploy + restart
+```
+
+The container does `dvc pull <non-audio>` on startup; audio mp3s stay
+in R2 and are 302-redirected by the webapp.
+
+No CI/CD.
 
 ## Architecture
 
