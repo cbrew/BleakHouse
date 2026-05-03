@@ -11,20 +11,14 @@ primary_region = 'iad'
   auto_start_machines = true
   min_machines_running = 0
 
-# Architecture (deploy-via-dvc-pull, 2026-05-03):
-# - Container does `dvc pull <non-audio>` at startup → ~165 MB into /cache.
-# - Webapp serves JSON locally from data/runs/<run>/<file>.
-# - Audio mp3s stay in Cloudflare R2 (bucket: not-in-our-time); webapp
-#   302-redirects /audio/<run>/<file>.mp3 to a public r2.dev URL built
-#   from dvc.lock. Bytes for audio never pass through Fly.
-#
-# Single machine in iad. The volume below holds the .dvc/cache contents
-# across restarts so cold starts are <1s after the first boot.
-
-[[mounts]]
-  source = 'cache'
-  destination = '/cache'
-  initial_size = '8gb'
+# Architecture (bake-at-build, 2026-05-03):
+# - JSON pipeline outs are pre-pulled by `dvc pull` on the dev machine,
+#   tar-bundled (symlinks dereferenced), and COPYed into the image at
+#   build time. ~165 MB extra image size; instant cold starts.
+# - Audio mp3s stay in Cloudflare R2; webapp 302-redirects mp3 requests
+#   to public r2.dev URLs built from dvc.lock at app import time.
+# - Container has no DVC binary, no R2 secrets, no volume. The webapp
+#   reads files as-is and the only network egress is HTML/JSON to users.
 
 [[vm]]
   memory = '1024mb'
