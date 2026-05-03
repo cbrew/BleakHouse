@@ -25,6 +25,31 @@ RUNS_DIR = BASE_DIR / "data" / "runs"
 OUT = BASE_DIR / "runs.yaml"
 
 
+def _axes_for(run_dir: Path) -> dict | None:
+    """Return the run's axes dict, or None if not discoverable.
+
+    Canonical runs carry axes in config.json. Retrofit dirs (created
+    via the post-hoc retrofit pipeline) leave config.json axes-less
+    and write the axes into run_manifest.json instead. Fall back
+    accordingly so retrofits join the canonical foreach lists.
+    """
+    cfg_path = run_dir / "config.json"
+    if cfg_path.exists():
+        with open(cfg_path) as f:
+            cfg = json.load(f)
+        axes = cfg.get("axes") if isinstance(cfg, dict) else None
+        if isinstance(axes, dict):
+            return axes
+    rm_path = run_dir / "run_manifest.json"
+    if rm_path.exists():
+        with open(rm_path) as f:
+            rm = json.load(f)
+        axes = rm.get("axes") if isinstance(rm, dict) else None
+        if isinstance(axes, dict):
+            return axes
+    return None
+
+
 def collect_runs() -> list[dict[str, object]]:
     if not RUNS_DIR.exists():
         return []
@@ -32,14 +57,11 @@ def collect_runs() -> list[dict[str, object]]:
     for run_dir in sorted(RUNS_DIR.iterdir()):
         if not run_dir.is_dir() or run_dir.name.startswith("_"):
             continue
-        cfg_path = run_dir / "config.json"
-        if not cfg_path.exists():
+        if not (run_dir / "config.json").exists():
             continue
-        with open(cfg_path) as f:
-            cfg = json.load(f)
-        axes = cfg.get("axes") if isinstance(cfg, dict) else None
-        if not isinstance(axes, dict):
-            continue  # not a migrated canonical run
+        axes = _axes_for(run_dir)
+        if axes is None:
+            continue  # not a migrated canonical run and no fallback axes
         novel_key = axes.get("novel")
         novel = NOVEL_BY_KEY.get(novel_key) if isinstance(novel_key, str) else None
         entry: dict[str, object] = {
