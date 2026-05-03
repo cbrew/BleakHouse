@@ -88,6 +88,12 @@ stages:
             cache: false
         - data/runs/${key}/phase2_5_interviews.json:
             cache: false
+        # phase2_5_timings.json: written by enrichment/timing.py via
+        # host_prep.py during this stage. 23/38 phase2_5 runs predate
+        # the timings sidecar; they show as missing-out in `dvc status`
+        # until re-run (BleakHouse-us0 plans the backfill).
+        - data/runs/${key}/phase2_5_timings.json:
+            cache: false
 
   # Hostprep runs that only have host_briefs.json (no interviews).
   # Same regenerator command as phase2_5; the difference is just that
