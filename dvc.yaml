@@ -32,8 +32,7 @@ stages:
         - enrichment/transport_podcast.py
         - enrichment/run_pipeline.py
       outs:
-        - data/runs/${key}/phase0_segments.json:
-            cache: false
+        - data/runs/${key}/phase0_segments.json
 
   # -----------------------------------------------------------------
   # Phase 1+2: passage matching and ordering.
@@ -50,8 +49,7 @@ stages:
         - data/novels/${item.novel_id}/passages_enriched.json
         - enrichment/run_pipeline.py
       outs:
-        - data/runs/${key}/phase1_assignments.json:
-            cache: false
+        - data/runs/${key}/phase1_assignments.json
 
   phase2_plan:
     foreach: ${runs_by_id}
@@ -62,8 +60,7 @@ stages:
         - data/runs/${key}/phase1_assignments.json
         - enrichment/run_pipeline.py
       outs:
-        - data/runs/${key}/phase2_plan.json:
-            cache: false
+        - data/runs/${key}/phase2_plan.json
 
   # phase1_2_embedding — embedding_artifacts.json is a side-effect of
   # the embedding-pipeline branch of phase1 (enrichment/embedding_run.py).
