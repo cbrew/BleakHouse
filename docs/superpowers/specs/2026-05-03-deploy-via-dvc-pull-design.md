@@ -1,6 +1,10 @@
 # Deploy via `dvc pull`: simplifying the Fly demo
 
-**Status**: design approved 2026-05-03 (this session). Ready for implementation plan.
+**Status**: design approved 2026-05-03 (this session); revised same-day to a hybrid (audio stays in R2). Ready for revised implementation plan.
+
+**Revision notes (same-day)**: Initial design pulled all DVC outs into the container. Empirical measurement showed the cache is 4.1 GB total of which **3.8 GB is audio mp3s** and only 155 MB is JSON. Audio is the perfect R2 candidate (large, immutable, content-addressable, 302-redirected by browsers, edge-cached by Cloudflare for free). Pulling it through the container just to redirect-serve it is wasteful. Hybrid: pull JSON only (~165 MB total cache); audio stays in R2 and the webapp 302-redirects audio requests using R2 URLs constructed from `dvc.lock` (the canonical hash source — no run_manifest staleness window).
+
+**Sizing (revised)**: 1 Fly machine (down from 2), 1 GB RAM, 1 vCPU; 1 Fly volume of **8 GB** (down from 32 GB) for the ~165 MB cache + headroom; cold-start `dvc pull` ~3 s (down from ~80 s).
 **Author**: brainstormed with Claude Opus 4.7 in BleakHouse session 2026-05-03.
 **Supersedes parts of**: BleakHouse-1dnv (Phase 4 scope), BleakHouse-au0l, BleakHouse-g760, BleakHouse-x5a3 original scope.
 
@@ -38,9 +42,11 @@ fly deploy                        webapp serves files as static content
 
 **Container** = code + `dvc.lock` + `runs.yaml` + `dvc.yaml` + `.dvc/config` (no secrets) + git-tracked `config.json` and `run_manifest.json` files. **No data**.
 
-**Container start** = a small entrypoint script generates `.dvc/config.local` from Fly secrets, runs `dvc pull` to materialise `~600MB` into `.dvc/cache` on a mounted Fly volume (cache survives restarts), then execs the webapp.
+**Container start** = a small entrypoint script generates `.dvc/config.local` from Fly secrets, runs `dvc pull <non-audio stages>` to materialise ~165 MB of JSON into `.dvc/cache` on an 8 GB Fly volume (cache survives restarts), then execs the webapp.
 
-**Webapp** = serves `data/runs/<run>/<file>` as ordinary static files. Knows nothing about R2 or content hashes. The single new moving part is the entrypoint script (3-5 lines); everything else is removal.
+**Webapp** = serves JSON outs from `data/runs/<run>/<file>` as ordinary static files; **302-redirects audio mp3s to R2** using URLs constructed from `dvc.lock` at startup (one-time parse, ~20 lines). Bytes for audio (the bulk of the data, 3.8 GB) flow user ← Cloudflare R2 directly, never through Fly.
+
+The new moving parts are: the entrypoint script (~10 lines, generates config.local + selective dvc pull), and a small audio-redirect handler in the webapp (~30 lines, parses dvc.lock once at startup and 302-redirects mp3 requests to `<R2_PUBLIC>/files/md5/<h[:2]>/<h[2:]>`). All other complexity is removal.
 
 ## Component changes
 
@@ -48,7 +54,7 @@ fly deploy                        webapp serves files as static content
 
 - `scripts/stage_demo.sh` — the demo-subset selection + per-file copy logic. ~130 lines.
 - The proposed `scripts/build_audio_index.py` from BleakHouse-au0l — never written; cancel that ticket.
-- Webapp R2 URL construction: `_r2_url_for_hash`, the audio_variants iteration in `_load_run_manifest`, the multi-variant routing in `/audio` handlers.
+- ~~Webapp R2 URL construction~~ (revised): the OLD `audio_variants` iteration via `run_manifest.json` is deleted; a smaller, dvc.lock-sourced audio-redirect helper replaces it (see Section "Audio routing" below). The staleness bug dissolves because dvc.lock is the canonical hash source.
 - `experiments.db` bundling step in `stage_demo.sh` — DB itself stays useful for the tracker. It rides the same `dvc pull` mechanism: declare it as a DVC out (new dvc.yaml stage with cmd `python -m enrichment.expdb scan`, deps on `data/runs/**/run_manifest.json` + the scan script). Avoids a second deploy-time mechanism.
 
 ### Simplified
@@ -57,14 +63,14 @@ fly deploy                        webapp serves files as static content
 - `scripts/generate_run_manifest.py` + the `run_manifest` dvc stage — investigate whether it's vestigial after audio routing dies. Webapp's other uses of `run_manifest.json` may already be served by `config.json` (axes) or `dvc.lock` (stages). Outcomes:
   - **If vestigial**: delete the script, drop the dvc stage, remove the 217 git-tracked files, remove from `.gitignore`'s explicit non-ignore comment.
   - **If still needed**: strip only the `audio_variants[*].hash` block from the script's output; the staleness bug dissolves because nothing reads the audio block any more.
-- `webapp/app.py` audio handlers — collapse multi-variant routing to "serve the file at this path". The webapp stops being aware of variants as a concept; the URL space (e.g., `/audio/<run_id>/podcast.mp3` vs `/audio/<run_id>/podcast_qwen.mp3`) maps directly to filenames.
+- `webapp/app.py` audio handlers — JSON sidecars (manifest, shards.json) served as ordinary `FileResponse` from disk; mp3s 302-redirected to R2. Audio R2 URLs are computed from `dvc.lock` at startup (one parse builds a map keyed by `data/runs/<run>/audio/<file>`); ~30 lines in webapp, no run_manifest dependency, no staleness window.
 
 ### New
 
-- **`scripts/container-entrypoint.sh`** (or named more specifically): 3-5 lines. Generates `.dvc/config.local` from `DVC_REMOTE_R2_ACCESS_KEY` / `DVC_REMOTE_R2_SECRET_ACCESS_KEY` env vars, sets `cache.dir` to the Fly volume mount path, sets `cache.type` to `symlink,hardlink,copy`, runs `uv run dvc pull -r r2`, execs the webapp.
+- **`scripts/container-entrypoint.sh`**: ~10 lines. Generates `.dvc/config.local` from `DVC_REMOTE_R2_ACCESS_KEY` / `DVC_REMOTE_R2_SECRET_ACCESS_KEY` env vars, sets `cache.dir` to the Fly volume mount path, sets `cache.type` to `symlink,hardlink,copy`, runs `uv run dvc pull -r r2 <non-audio-stage-list>` (audio stays in R2; the stage list is enumerated explicitly), execs the webapp.
 - **`Containerfile`** changes: COPY `dvc.lock`, `dvc.yaml`, `runs.yaml`, `.dvc/config`, the git-tracked subset of `data/runs/<run>/{config,run_manifest}.json`. Set entrypoint. Omit any `data/runs/<run>/<other-files>`.
 - **Fly secrets**: `DVC_REMOTE_R2_ACCESS_KEY` and `DVC_REMOTE_R2_SECRET_ACCESS_KEY` (set once via `fly secrets set ...`).
-- **Fly volume mount**: cache lives on a mounted volume so it survives restarts. Likely repurpose or extend the existing audio volume; need to verify size is adequate (~1GB headroom).
+- **Fly volume mount**: 8 GB (down from 32 GB; cache is ~165 MB so 8 GB is 50× headroom). 1 machine (down from 2). Destroy the existing 2× 32 GB `audio_data` volumes (unattached, retired) and the second machine; create one fresh 8 GB volume for `/cache`.
 
 ### Unchanged
 
@@ -98,9 +104,11 @@ fly deploy                        webapp serves files as static content
 
 ### Cold-start cost on Fly
 
-- First boot ever (empty volume): `dvc pull` of ~600MB. At ~50MB/s from R2 = ~12 seconds.
+- First boot ever (empty volume): `dvc pull <non-audio>` of ~165 MB. At ~50 MB/s from R2 = ~3 s.
 - Subsequent boots (volume populated): `dvc pull` is a no-op except for changes since last pull.
-- Worst case (volume disk pressure → cache eviction): re-pull. Bounded.
+- Worst case (volume disk pressure → cache eviction): re-pull. Bounded by ~165 MB.
+
+Audio mp3s are NOT pulled. Browser fetches them directly from R2 via 302 redirect from the webapp; Cloudflare's edge caches them for free.
 
 ## Migration impact
 
@@ -128,6 +136,38 @@ To be filed during the implementation plan stage. The umbrella replaces the orig
 - Decide and act on `run_manifest.json` (delete vs simplify).
 - Update CLAUDE.md with new dev + deploy workflow.
 - End-to-end deploy verification.
+
+## Audio routing (revised)
+
+The webapp regains a small audio-redirect path, sourced from `dvc.lock` (canonical) rather than `run_manifest.json` (derived, prone to staleness):
+
+```python
+# At startup (once):
+_AUDIO_R2_URLS: dict[str, str] = {}  # path → R2 URL
+def _build_audio_r2_map() -> None:
+    lock = yaml.safe_load(open("dvc.lock"))
+    for stage_name, stage in lock["stages"].items():
+        if not stage_name.startswith(("phase4_audio@", "phase4_audio_qwen@", "phase4_audio_trevelyan_v2@")):
+            continue
+        for out in stage.get("outs", []):
+            path = out["path"]
+            if path.endswith(".mp3"):
+                h = out["md5"]
+                _AUDIO_R2_URLS[path] = f"{R2_PUBLIC}/files/md5/{h[:2]}/{h[2:]}"
+
+# At request time:
+@app.get("/audio/{run_id}/{filename}")
+async def serve_audio(run_id, filename):
+    if filename.endswith(".mp3"):
+        url = _AUDIO_R2_URLS.get(f"data/runs/{run_id}/audio/{filename}")
+        if url:
+            return RedirectResponse(url, status_code=302)
+        raise HTTPException(404, ...)
+    # JSON manifests, shards.json: serve locally as before
+    ...
+```
+
+`R2_PUBLIC` is the bucket's public r2.dev URL — set as a build arg or env var. No secrets required; the public URL is just the bucket prefix.
 
 ## Risks
 
