@@ -65,6 +65,28 @@ stages:
         - data/runs/${key}/phase2_plan.json:
             cache: false
 
+  # phase1_2_embedding — embedding_artifacts.json is a side-effect of
+  # the embedding-pipeline branch of phase1 (enrichment/embedding_run.py).
+  # Same regenerator as phase1_assignments (the phase1 dispatcher routes
+  # on axes.pipeline), so re-running this stage is equivalent to re-running
+  # phase1 for an embedding run.
+  # Foreach iterates only runs with embedding_artifacts.json on disk
+  # (currently 32 of 63 emb-pipeline runs). New artifacts graduate into
+  # the foreach on the next generate_runs_yaml run.
+  phase1_2_embedding:
+    foreach: ${runs_by_id_embedding_artifacts}
+    do:
+      cmd: uv run python scripts/dvc_regenerate.py phase1 --run ${key}
+      deps:
+        - data/runs/${key}/config.json
+        - data/runs/${key}/phase0_segments.json
+        - data/novels/${item.novel_id}/passages_enriched.json
+        - enrichment/embedding_run.py
+        - enrichment/run_pipeline.py
+      outs:
+        - data/runs/${key}/embedding_artifacts.json:
+            cache: false
+
   # -----------------------------------------------------------------
   # Phase 2.5: host preparation (hostprep runs only).
   # Claude Haiku runs pre-interviews; Claude Sonnet plans questions.

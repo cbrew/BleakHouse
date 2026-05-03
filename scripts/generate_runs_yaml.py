@@ -82,6 +82,7 @@ def collect_runs() -> list[dict[str, object]]:
             "has_interviews": (run_dir / "phase2_5_interviews.json").exists(),
             "has_phase3_teaser": (run_dir / "phase3_teaser.json").exists(),
             "has_phase_timings": (run_dir / "phase_timings.json").exists(),
+            "has_embedding_artifacts": (run_dir / "embedding_artifacts.json").exists(),
         }
         out.append(entry)
     return out
@@ -109,6 +110,9 @@ def main() -> None:
     runs_by_id_reading_list = {rid: r for rid, r in runs_by_id.items() if r["has_reading_list"]}
     runs_by_id_qwen = {rid: r for rid, r in runs_by_id.items() if r["has_qwen_audio"]}
     runs_by_id_trevelyan_v2 = {rid: r for rid, r in runs_by_id.items() if r["has_trevelyan_v2_audio"]}
+    runs_by_id_embedding_artifacts = {
+        rid: r for rid, r in runs_by_id.items() if r["has_embedding_artifacts"]
+    }
     doc = {
         "runs": runs,
         "runs_by_id": runs_by_id,
@@ -118,6 +122,7 @@ def main() -> None:
         "runs_by_id_reading_list": runs_by_id_reading_list,
         "runs_by_id_qwen": runs_by_id_qwen,
         "runs_by_id_trevelyan_v2": runs_by_id_trevelyan_v2,
+        "runs_by_id_embedding_artifacts": runs_by_id_embedding_artifacts,
         # Index by id for quick jinja/templating use.
         "run_ids": [r["run_id"] for r in runs],
         "run_ids_phase3": [r["run_id"] for r in runs if r["has_phase3"]],
