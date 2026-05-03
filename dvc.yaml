@@ -304,6 +304,12 @@ stages:
         # resolves to the external volume. Working-copy file is a symlink.
         - data/runs/${item}/audio/podcast.mp3
 
+  # run_manifest.json: STAYS in git (cache:false). It's the webapp
+  # tracker's small public index — reads it synchronously to map
+  # dvc_hash → R2 URL for audio resolution. If it lived in DVC cache,
+  # a fresh clone would need 'dvc pull' before the tracker could work,
+  # which is an avoidable chicken-and-egg. Files are tiny (~1-2 KB each).
+  # DVC still records the hash in dvc.lock for staleness detection.
   run_manifest:
     foreach: ${runs_by_id}
     do:
@@ -312,4 +318,5 @@ stages:
         - data/runs/${key}/config.json
         - scripts/generate_run_manifest.py
       outs:
-        - data/runs/${key}/run_manifest.json
+        - data/runs/${key}/run_manifest.json:
+            cache: false
