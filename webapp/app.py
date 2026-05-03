@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -41,6 +41,51 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("BLEAKHOUSE_DATA_DIR", str(BASE_DIR / "data")))
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+
+# R2 public bucket URL — audio mp3s are 302-redirected here so bytes
+# never pass through Fly. Override with BLEAKHOUSE_R2_PUBLIC_URL when
+# the bucket changes. The mp3-hash → URL map is built once at import
+# time from dvc.lock (the canonical hash source — no derived-cache
+# staleness window).
+R2_PUBLIC_URL = os.environ.get(
+    "BLEAKHOUSE_R2_PUBLIC_URL",
+    "https://pub-0ac622dd336f40438799d8dbd211234a.r2.dev",
+)
+_AUDIO_R2_URLS: dict[str, str] = {}
+
+
+def _build_audio_r2_map() -> None:
+    """Parse dvc.lock once and populate _AUDIO_R2_URLS for every audio mp3.
+
+    Audio stages in dvc.yaml are foreach-expanded as `phase4_audio@<run>`
+    (gemini classic), `phase4_audio_qwen@<run>`, and
+    `phase4_audio_trevelyan_v2@<run>`. Each lists an mp3 out with an md5
+    that is the R2 content-address. Map keys are the on-disk paths
+    (e.g. `data/runs/<run>/audio/podcast.mp3`) so the request handler
+    can look up directly by `data/runs/{run_id}/audio/{filename}`.
+    """
+    import yaml
+    lock_path = BASE_DIR / "dvc.lock"
+    if not lock_path.exists():
+        logger.warning("dvc.lock not found at %s; audio R2 redirects disabled", lock_path)
+        return
+    with open(lock_path) as f:
+        lock = yaml.safe_load(f) or {}
+    audio_prefixes = ("phase4_audio@", "phase4_audio_qwen@", "phase4_audio_trevelyan_v2@")
+    count = 0
+    for stage_name, stage in (lock.get("stages") or {}).items():
+        if not isinstance(stage, dict) or not stage_name.startswith(audio_prefixes):
+            continue
+        for out in stage.get("outs", []) or []:
+            path = out.get("path", "")
+            md5 = out.get("md5", "")
+            if path.endswith(".mp3") and md5:
+                _AUDIO_R2_URLS[path] = f"{R2_PUBLIC_URL}/files/md5/{md5[:2]}/{md5[2:]}"
+                count += 1
+    logger.info("Loaded %d audio R2 URLs from dvc.lock", count)
+
+
+_build_audio_r2_map()
 
 
 def get_git_sha() -> str:
@@ -572,18 +617,22 @@ async def serve_shards_manifest(run_id: str):
 
 @app.get("/audio/{run_id}/{filename}")
 async def serve_audio(run_id: str, filename: str):
-    """Serve audio + audio-manifest JSON files from data/runs/<run>/audio/.
-
-    Files are materialised by `dvc pull` (run at container startup; locally
-    by `dvc pull` after `git pull`). DVC symlinks resolve transparently.
+    """Serve audio: mp3s 302-redirect to R2 (CDN-edged, bytes bypass Fly);
+    audio-manifest JSON files (manifest.json, manifest_qwen.json, etc.)
+    are pulled into the local cache by `dvc pull` and served as static
+    files.
     """
     if ".." in run_id or ".." in filename:
         raise HTTPException(400, "Invalid path")
+    if filename.endswith(".mp3"):
+        url = _AUDIO_R2_URLS.get(f"data/runs/{run_id}/audio/{filename}")
+        if url is None:
+            raise HTTPException(404, f"No audio {filename} for run {run_id}")
+        return RedirectResponse(url, status_code=302)
     path = DATA_DIR / "runs" / run_id / "audio" / filename
     if not path.exists():
         raise HTTPException(404, f"No file {filename} for run {run_id}")
-    media_type = "audio/mpeg" if filename.endswith(".mp3") else "application/json"
-    return FileResponse(str(path), media_type=media_type)
+    return FileResponse(str(path), media_type="application/json")
 
 
 # ---------------------------------------------------------------------------
