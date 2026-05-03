@@ -180,6 +180,24 @@ stages:
         - data/runs/${item}/phase3_teaser.json:
             cache: false
 
+  # phase_timings — snapshot of per-phase mtime-derived durations. The
+  # webapp prefers the snapshot over runtime mtime computation because
+  # mtimes get reset to image-build time when files pass through Podman's
+  # COPY layer. scripts/build_phase_timings.py is the producer; idempotent.
+  # Foreach iterates runs that already have phase_timings.json on disk
+  # (currently 216 of 217); new snapshots graduate into the foreach on
+  # the next generate_runs_yaml run.
+  phase_timings:
+    foreach: ${run_ids_phase_timings}
+    do:
+      cmd: uv run python scripts/build_phase_timings.py --run ${item}
+      deps:
+        - data/runs/${item}/config.json
+        - scripts/build_phase_timings.py
+      outs:
+        - data/runs/${item}/phase_timings.json:
+            cache: false
+
   # Quote verification — checks that every "is_quote" utterance in
   # phase3_episode.json appears in the novel's source text via fuzzy
   # match. No LLM call; reads phase3 + the source text fixture.

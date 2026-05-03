@@ -81,6 +81,7 @@ def collect_runs() -> list[dict[str, object]]:
             "has_host_briefs": (run_dir / "phase2_5_host_briefs.json").exists(),
             "has_interviews": (run_dir / "phase2_5_interviews.json").exists(),
             "has_phase3_teaser": (run_dir / "phase3_teaser.json").exists(),
+            "has_phase_timings": (run_dir / "phase_timings.json").exists(),
         }
         out.append(entry)
     return out
@@ -125,6 +126,7 @@ def main() -> None:
         "run_ids_trevelyan_v2_audio": [r["run_id"] for r in runs if r["has_trevelyan_v2_audio"]],
         "run_ids_hostprep": [r["run_id"] for r in runs if r["hostprep"]],
         "run_ids_phase3_teaser": [r["run_id"] for r in runs if r["has_phase3_teaser"]],
+        "run_ids_phase_timings": [r["run_id"] for r in runs if r["has_phase_timings"]],
     }
     with open(OUT, "w") as f:
         yaml.safe_dump(doc, f, sort_keys=False, default_flow_style=False, width=200)
