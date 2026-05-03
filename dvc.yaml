@@ -163,6 +163,23 @@ stages:
         # cheap to regenerate on demand (stage_demo.sh does so before
         # staging the demo image).
 
+  # phase3_teaser — LLM-derived 1-2 sentence pull from each episode for
+  # the Recommended view (per-novel × panel cards at /script-versions).
+  # Standalone utility (webapp/build_teasers.py) keyed off phase3_episode.
+  # Foreach iterates only runs that already have phase3_teaser.json on
+  # disk (currently 22 of 217); new teasers graduate into the foreach
+  # on the next generate_runs_yaml run.
+  phase3_teaser:
+    foreach: ${run_ids_phase3_teaser}
+    do:
+      cmd: uv run python -m webapp.build_teasers --run ${item}
+      deps:
+        - data/runs/${item}/phase3_episode.json
+        - webapp/build_teasers.py
+      outs:
+        - data/runs/${item}/phase3_teaser.json:
+            cache: false
+
   # Quote verification — checks that every "is_quote" utterance in
   # phase3_episode.json appears in the novel's source text via fuzzy
   # match. No LLM call; reads phase3 + the source text fixture.
