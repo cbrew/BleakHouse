@@ -35,7 +35,7 @@ PHASE_ARTEFACTS: dict[str, list[str]] = {
     "phase2_5_briefs_only": ["phase2_5_host_briefs.json"],
     "phase2_5_reading_list": ["phase2_5_reading_list.json"],
     "phase3_episode": ["phase3_episode.json"],
-    "phase4_post": ["manifest.json", "report.html", "report.txt"],
+    "phase4_post": ["manifest.json", "report.html"],
     "phase4_audio": ["audio/podcast.mp3"],
     "quote_verification": ["quote_verification.json"],
 }

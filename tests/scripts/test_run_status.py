@@ -51,11 +51,11 @@ def test_format_text_missing_files() -> None:
         "stages": [
             {"phase": "phase4_post", "state": "PARTIAL",
              "files_present": ["manifest.json"],
-             "files_missing": ["report.html", "report.txt"],
-             "reasons": [{"missing_files": ["report.html", "report.txt"]}]},
+             "files_missing": ["report.html"],
+             "reasons": [{"missing_files": ["report.html"]}]},
         ],
     }
     text = _format_text(report)
     assert "PARTIAL" in text
-    assert "missing: report.html, report.txt" in text
+    assert "missing: report.html" in text
     assert "VERDICT: INCOMPLETE" in text

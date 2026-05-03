@@ -8,9 +8,9 @@ Writes into a fresh canonical run directory
   - phase3_generation_metrics.json (tokens/cost/latency per segment + totals)
 
 Then invokes enrichment.post_phase3.run_post_phase3 to produce
-manifest.json / report.html / report.txt. The webapp discovers the run
-automatically — no more sibling phase3_cerebras_native_<model>_episode.json
-dumps in the source dir.
+manifest.json / report.html. The webapp discovers the run automatically
+— no more sibling phase3_cerebras_native_<model>_episode.json dumps in
+the source dir.
 
 Usage:
     uv run python -m experiments.cerebras.full_episode \\
