@@ -12,13 +12,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import subprocess
 import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -37,20 +38,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path(os.environ.get("BLEAKHOUSE_DATA_DIR", str(BASE_DIR / "data")))
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
-
-# R2 public URL prefix. Audio mp3s live in Cloudflare R2 under the DVC
-# content-addressable layout (files/md5/<hash[:2]>/<hash[2:]>). The webapp
-# resolves audio requests by reading dvc_hash from run_manifest.json and
-# 302-redirecting; the bytes never pass through Fly. Override the host
-# via BLEAKHOUSE_R2_PUBLIC_URL when pointing at a different bucket.
-import os as _os  # noqa: E402  os is re-imported below for the admin endpoints
-R2_PUBLIC_URL = _os.environ.get(
-    "BLEAKHOUSE_R2_PUBLIC_URL",
-    "https://pub-0ac622dd336f40438799d8dbd211234a.r2.dev",
-).rstrip("/")
 
 
 def get_git_sha() -> str:
@@ -426,42 +416,23 @@ async def list_all_runs():
 _PROFILE_RE = re.compile(r"^[a-z0-9_]+$")
 
 
-def _load_run_manifest(run_id: str) -> dict | None:
-    """Load the run-level manifest if it exists."""
-    path = DATA_DIR / "runs" / run_id / "run_manifest.json"
-    if path.exists():
-        try:
-            with open(path) as f:
-                return json.load(f)
-        except Exception:
-            logger.error(f"Failed to load run_manifest for {run_id}")
-    return None
-
-
 def _available_versions(run_id: str) -> list[str]:
-    """Return the render versions a user can actually play.
+    """Return the render versions available on disk.
 
-    Two formats coexist during the BleakHouse-ec3n transition:
-    - shard-format: <run>/audio/shards.json lists per-turn mp3s by md5.
-      Drift-proof; turn boundaries are structural.
-    - single-mp3 format: run_manifest.json's audio_variants[*].hash
-      points at one big mp3 paired with an audio/manifest.json of ms
-      offsets (the legacy path being phased out via BleakHouse-a7nw).
-
-    Both surface as a variant name to the player; the player picks the
-    format per run based on whether shards.json fetches successfully.
+    Variants are inferred from filenames: `podcast.mp3` → "classic",
+    `podcast_<name>.mp3` → "<name>". Shard format (per-turn mp3s indexed
+    by audio/shards.json) surfaces as "classic" when present.
     """
     versions: set[str] = set()
-
-    if (DATA_DIR / "runs" / run_id / "audio" / "shards.json").exists():
+    audio_dir = DATA_DIR / "runs" / run_id / "audio"
+    if not audio_dir.exists():
+        return []
+    if (audio_dir / "shards.json").exists() or (audio_dir / "podcast.mp3").exists():
         versions.add("classic")
-
-    manifest = _load_run_manifest(run_id)
-    if manifest:
-        for v in manifest.get("audio_variants", []):
-            if v.get("hash"):
-                versions.add(v["name"])
-
+    for mp3 in audio_dir.glob("podcast_*.mp3"):
+        name = mp3.stem.removeprefix("podcast_")
+        if name:
+            versions.add(name)
     return sorted(versions)
 
 
@@ -586,91 +557,33 @@ async def script_viewer(request: Request, run_id: str):
     return HTMLResponse(SCRIPT_VIEWER_HTML.replace("{{ v }}", GIT_SHA))
 
 
-def _r2_url_for_hash(dvc_hash: str) -> str:
-    """Compose the public R2 URL for a DVC blob hash.
-
-    DVC's content-addressable layout: files/md5/<first-2-chars>/<rest>.
-    The bucket is publicly accessible via the r2.dev development URL;
-    listeners hit Cloudflare's CDN edge directly, no proxying through Fly.
-    """
-    return f"{R2_PUBLIC_URL}/files/md5/{dvc_hash[:2]}/{dvc_hash[2:]}"
-
-
 @app.get("/audio/{run_id}/shards.json")
 async def serve_shards_manifest(run_id: str):
-    """Return the shard-format audio manifest with R2 URLs resolved.
-
-    On disk, shards.json carries each shard's md5; here we augment it
-    with the public R2 URL so the player can fetch shards directly
-    from Cloudflare's CDN edge without any further server round-trip.
-    """
+    """Return the per-turn shards index. URLs in the manifest now point at
+    /audio/<run>/shards/<md5>.mp3 — webapp serves shard bytes locally too,
+    no R2 URL construction."""
     if ".." in run_id:
         raise HTTPException(400, "Invalid path")
     path = DATA_DIR / "runs" / run_id / "audio" / "shards.json"
     if not path.exists():
         raise HTTPException(404, f"No shards manifest for run {run_id}")
-    try:
-        manifest = json.loads(path.read_text())
-    except json.JSONDecodeError:
-        raise HTTPException(500, "Malformed shards.json")  # noqa: B904
-    for shard in manifest.get("shards", []):
-        h = shard.get("md5") or ""
-        if h:
-            shard["url"] = _r2_url_for_hash(h)
-    return manifest
+    return FileResponse(str(path), media_type="application/json")
 
 
 @app.get("/audio/{run_id}/{filename}")
 async def serve_audio(run_id: str, filename: str):
-    """Serve audio + per-variant audio manifests.
+    """Serve audio + audio-manifest JSON files from data/runs/<run>/audio/.
 
-    Audio mp3s redirect (302) to Cloudflare R2; the browser/audio player
-    follows the redirect and re-issues the request with any Range headers
-    intact, so scrubbing works without proxying bytes through Fly.
-
-    Audio manifest JSON files (small, ≤500 KB) stay served from local
-    disk — they're staged into the container at deploy time and don't
-    benefit from R2.
+    Files are materialised by `dvc pull` (run at container startup; locally
+    by `dvc pull` after `git pull`). DVC symlinks resolve transparently.
     """
     if ".." in run_id or ".." in filename:
         raise HTTPException(400, "Invalid path")
-
-    manifest = _load_run_manifest(run_id)
-    if manifest and "audio_variants" in manifest:
-        for v in manifest["audio_variants"]:
-            af = v.get("audio_file") or ""
-            am = v.get("audio_manifest") or ""
-            # Direct mp3 match → redirect via dvc_hash to R2
-            if af and Path(af).name == filename:
-                hsh = v.get("hash") or ""
-                if hsh:
-                    return RedirectResponse(_r2_url_for_hash(hsh), status_code=302)
-            # Direct manifest_<variant>.json match → serve local
-            if am and Path(am).name == filename and (BASE_DIR / am).exists():
-                return FileResponse(str(BASE_DIR / am), media_type="application/json")
-
-        # Aliases for "classic" — player.js asks for podcast.mp3 / manifest.json
-        if filename in ("manifest.json", "podcast.mp3"):
-            for v in manifest["audio_variants"]:
-                if v.get("name") != "classic":
-                    continue
-                if filename == "podcast.mp3":
-                    hsh = v.get("hash") or ""
-                    if hsh:
-                        return RedirectResponse(_r2_url_for_hash(hsh), status_code=302)
-                if filename == "manifest.json":
-                    am = v.get("audio_manifest") or ""
-                    if am and (BASE_DIR / am).exists():
-                        return FileResponse(str(BASE_DIR / am), media_type="application/json")
-
-    # JSON manifest fallback for Gemini renders where the manifest sits
-    # at run-level (data/runs/<run>/manifest.json) rather than under audio/.
-    if filename == "manifest.json":
-        run_mf = DATA_DIR / "runs" / run_id / "manifest.json"
-        if run_mf.exists():
-            return FileResponse(str(run_mf), media_type="application/json")
-
-    raise HTTPException(404, f"Audio/manifest file not found: {filename}")
+    path = DATA_DIR / "runs" / run_id / "audio" / filename
+    if not path.exists():
+        raise HTTPException(404, f"No file {filename} for run {run_id}")
+    media_type = "audio/mpeg" if filename.endswith(".mp3") else "application/json"
+    return FileResponse(str(path), media_type=media_type)
 
 
 # ---------------------------------------------------------------------------
