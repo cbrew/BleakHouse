@@ -13,9 +13,28 @@ cat > /app/.dvc/config.local <<CONFIG
     secret_access_key = ${DVC_REMOTE_R2_SECRET_ACCESS_KEY}
 CONFIG
 
-# Materialise data/runs/ from R2. First boot pulls ~600MB; subsequent
-# boots use the volume-mounted cache and finish in <1s.
-cd /app && uv run --no-sync dvc pull -r r2
+# Materialise non-audio data/runs/ from R2. Audio mp3s stay in R2 and
+# are 302-redirected by the webapp at request time (~165 MB pull, ~3 s
+# cold-start; subsequent boots are no-ops).
+#
+# Stage list is enumerated explicitly so adding/removing pipeline
+# stages doesn't silently change what the container pulls. Audio
+# stages (phase4_audio*) deliberately omitted.
+cd /app && uv run --no-sync dvc pull -r r2 \
+    phase0_segments \
+    phase1_assignments \
+    phase1_2_embedding \
+    phase2_plan \
+    phase2_5 \
+    phase2_5_briefs_only \
+    phase2_5_reading_list \
+    phase2_5_timings \
+    phase3_episode \
+    phase3_teaser \
+    phase4_post \
+    phase_timings \
+    quote_verification \
+    experiments_db
 
 # Hand off to the webapp.
 exec uv run --no-sync uvicorn webapp.app:app --host 0.0.0.0 --port 8080
