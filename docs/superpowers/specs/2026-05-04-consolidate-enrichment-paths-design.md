@@ -48,7 +48,14 @@ After reconciliation, run the equivalence heuristic (Phase 3 sub-step) on a sing
 
 ### Phase 3 — Measure (controlled experiment)
 
-**Test corpus**: an existing novel that already has a known-good `passages_contextual.json` (e.g., `bleak_house`). Pick 5-10 chapters as the slice; run both paths on the same input.
+**Test novel**: Virginia Woolf's *Mrs. Dalloway* (key: `mrs_dalloway`). ~64k words, modernist single-day London narrative — small enough that wall-clock is manageable for repeated runs, and not yet onboarded so the work doubles as a real new-novel measurement. Pick the whole novel rather than a slice, since *Mrs. Dalloway* is short by Victorian-comparison standards.
+
+**Outputs kept distinct.** Both paths run on the same input but write to separate filenames so neither overwrites the other and the comparison can be done after the fact:
+
+- C writes `data/novels/mrs_dalloway/passages_contextual.C.json`
+- D writes `data/novels/mrs_dalloway/passages_contextual.D.json`
+
+After measurement and decision, the winning path's file is renamed to the canonical `data/novels/mrs_dalloway/passages_contextual.json` (and the loser's deleted), so Phase 6 verification can continue against the already-produced canonical artefact.
 
 **Measurements** (per path, per run, twice):
 
@@ -56,9 +63,9 @@ After reconciliation, run the equivalence heuristic (Phase 3 sub-step) on a sing
 - Wall-clock seconds.
 - Cache hit rate (C only).
 - Batch processing time end-to-end (D only — submit to result-available).
-- Output equivalence vs the known-good baseline, via the three-check heuristic (below).
+- Output equivalence — the three-check heuristic (below) compares C's output directly against D's output (no separate baseline). Both should match the schema; their per-passage outputs should be similar in length and meaning.
 
-**Equivalence heuristic** — three checks. **Reported as data, not a verdict**; the user reads the numbers and decides whether to call it equivalent or dig into outliers:
+**Equivalence heuristic** — three checks comparing C's `passages_contextual.C.json` against D's `passages_contextual.D.json`. **Reported as data, not a verdict**; the user reads the numbers and decides whether to call it equivalent or dig into outliers:
 
 1. **Schema match** — same JSON shape, same fields populated, same types.
 2. **Length within ±20% per passage** — both responses for the same input passage have similar text length.
@@ -126,13 +133,13 @@ If any fail: drop into debugging mode; the failure is a real signal that the new
 
 **R1. Audit misses a difference between C and D.** The measurement comparison would be invalid (we'd attribute drift to fundamentals when it's actually a missed prompt diff). Mitigation: the post-reconcile equivalence sanity check (Phase 2 end) catches gross misses; outliers in the cosine-similarity numbers flag specific passages to investigate.
 
-**R2. The known-good baseline (existing `passages_contextual.json`) was itself produced by one of the paths**, so comparing both paths against it isn't fully neutral — we'd implicitly bias toward the producing path. Mitigation: record which path produced the baseline; if it's C, the cosine numbers will likely look better for C; we factor this into the read of the data, not the heuristic itself.
+**R2. *Mrs. Dalloway* is one novel; results may not generalise.** A 20th-century modernist novel may stress the prompt-cache differently than a Victorian doorstopper (chapter boundaries are different, passage density is different). Mitigation: capture the per-passage breakdown in the measurement output, not just totals, so we can sanity-check whether the picture is consistent across very different passages. If the user wants, repeat the measurement on a Victorian novel before declaring the decision; not strictly required.
 
 **R3. Model snapshot drift.** Anthropic occasionally updates models behind a stable id. A measurement done today may not generalise to a measurement done in a month. Mitigation: capture the exact model id and timestamp in the measurement output; document that the decision is calibrated to a specific snapshot.
 
 **R4. Collapse of `submit/collect` modules deferred.** If we later collapse into one module with subcommands, we'd have to rename again. Mitigation: explicitly note the deferral and the naming-only nature of the rename in this phase; the decision can be revisited freely without invalidating the consolidation.
 
-**R5. The "small novella" required for Phase 6 verification might not exist** in the repo's domain (Victorian novels tend toward door-stoppers). Mitigation: if no small novel is available, run on chapter-bounded slices of an existing one and document that.
+**R5. *Mrs. Dalloway* doubles as both measurement and verification corpus.** Phase 3 produces the contextual files; Phase 6 verifies the end-to-end shell script. If the rename-after-decision step (Phase 4) doesn't preserve the file the way the script expects, Phase 6's idempotency claim fails. Mitigation: Phase 4's rename is `mv passages_contextual.<winner>.json passages_contextual.json`; Phase 6's `add_novel.sh` should detect the canonical file already exists and skip re-running the contextual step. If the script doesn't yet handle this, add the skip-if-exists branch as part of Phase 6.
 
 ## Out of scope
 
