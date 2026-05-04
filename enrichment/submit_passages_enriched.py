@@ -1,8 +1,8 @@
 """Build and submit Anthropic batch requests for passage enrichment.
 
 Usage:
-  uv run python -m enrichment.submit_batch [--chapters c1,c2,c3]
-  uv run python -m enrichment.submit_batch --novel our_mutual_friend
+  uv run python -m enrichment.submit_passages_enriched [--chapters c1,c2,c3]
+  uv run python -m enrichment.submit_passages_enriched --novel our_mutual_friend
 """
 
 import argparse

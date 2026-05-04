@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 
 from enrichment.axes import NOVEL_IDS  # canonical source of novel directory ids
 from enrichment.context_prompt import build_context_messages
-from enrichment.submit_batch import format_chapter_text
+from enrichment.submit_passages_enriched import format_chapter_text
 
 logger = logging.getLogger(__name__)
 

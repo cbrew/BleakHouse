@@ -35,8 +35,8 @@ All call sites use `anthropic.Anthropic()` client and either `.messages.create`,
 
 | File:line | Call | Model | Role |
 |---|---|---|---|
-| `enrichment/submit_batch.py:144` | `.messages.batches.create` | `claude-haiku-4-5-20251001` | Phase 0: batch submit for chapter enrichment |
-| `enrichment/collect_results.py:75` | batch results retrieval | — | Phase 0: batch collect |
+| `enrichment/submit_passages_enriched.py:144` | `.messages.batches.create` | `claude-haiku-4-5-20251001` | Phase 0: batch submit for chapter enrichment |
+| `enrichment/collect_passages_enriched.py:75` | batch results retrieval | — | Phase 0: batch collect |
 | `enrichment/retry_failed.py:50` | `.messages.create` | `claude-haiku-4-5-20251001` | Phase 0: retry failed batch items |
 | `enrichment/design_segments.py:283` | `.messages.parse` | `claude-haiku-4-5-20251001` | Phase 1: LLM-driven segment structure |
 | `enrichment/generate_podcast.py:558, 725` | `.messages.parse` | `claude-sonnet-4-6` | Phase 3: multi-voice script generation |
@@ -98,4 +98,4 @@ Cerebras offers an OpenAI-compatible chat API. No embedding models as of this wr
 
 1. **Drop-in targets (OpenAI-compatible):** very few exist and none are on the main path. `ask_question.py` and `plain_rag_podcast.py` are the only live OpenAI-chat call sites, and `plain_rag_podcast.py` uses embeddings (which Cerebras doesn't offer), leaving only `ask_question.py` as a trivial chat swap — but that's the RAG tutorial, not the pipeline we care about benchmarking.
 2. **The interesting swap is Anthropic → Cerebras** in one of the Phase-0/Phase-3 call sites (`design_segments.py` or `generate_podcast.py`). That requires an adapter: Cerebras's API is chat-completions-shaped, but these modules use `.messages.parse(...)` with Pydantic schemas. Replacing it means JSON-mode + client-side validation, or using Cerebras's tool-calling as a structured-output proxy.
-3. **Batch API:** Cerebras does not have an Anthropic-style batch API. `submit_batch.py` / `collect_results.py` have no drop-in Cerebras equivalent; Cerebras calls would be synchronous.
+3. **Batch API:** Cerebras does not have an Anthropic-style batch API. `submit_passages_enriched.py` / `collect_passages_enriched.py` have no drop-in Cerebras equivalent; Cerebras calls would be synchronous.

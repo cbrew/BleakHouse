@@ -2,8 +2,8 @@
 """Poll a batch and collect enrichment results.
 
 Usage:
-  uv run python -m enrichment.collect_results
-  uv run python -m enrichment.collect_results --novel our_mutual_friend
+  uv run python -m enrichment.collect_passages_enriched
+  uv run python -m enrichment.collect_passages_enriched --novel our_mutual_friend
 """
 
 import argparse
@@ -27,7 +27,7 @@ MANIFEST_PATH = DATA_DIR / "batch_manifest.json"
 PASSAGES_PATH = DATA_DIR / "passages_raw.json"
 OUTPUT_PATH = DATA_DIR / "passages_enriched.json"
 
-# Single source of truth for the novel-key whitelist (see submit_batch.py).
+# Single source of truth for the novel-key whitelist (see submit_passages_enriched.py).
 NOVEL_KEYS = sorted(NOVEL_CONFIGS.keys())
 
 POLL_INTERVAL_SECONDS = 30

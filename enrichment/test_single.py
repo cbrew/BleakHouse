@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 from enrichment.prompt import ENRICHMENT_SYSTEM_PROMPT
 from enrichment.schemas import ChapterEnrichmentResult
-from enrichment.submit_batch import MODEL, format_chapter_text
+from enrichment.submit_passages_enriched import MODEL, format_chapter_text
 
 TOKENS_PER_PARAGRAPH = 350
 
