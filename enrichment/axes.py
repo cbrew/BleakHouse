@@ -53,6 +53,7 @@ NOVELS: tuple[Novel, ...] = (
 )
 
 NOVEL_KEYS: frozenset[str] = frozenset(n.key for n in NOVELS)
+NOVEL_IDS: frozenset[str] = frozenset(n.id for n in NOVELS)
 NOVEL_BY_KEY: dict[str, Novel] = {n.key: n for n in NOVELS}
 NOVEL_BY_ID: dict[str, Novel] = {n.id: n for n in NOVELS}
 

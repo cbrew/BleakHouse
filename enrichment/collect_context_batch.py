@@ -13,26 +13,11 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
+from enrichment.axes import NOVEL_IDS  # canonical source of novel directory ids
+
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path("data")
-
-NOVEL_KEYS = [
-    "our_mutual_friend",
-    "mill_on_the_floss",
-    "north_and_south",
-    "passage_to_india",
-    "hard_times",
-    "middlemarch",
-    "daniel_deronda",
-    "david_copperfield",
-    "cranford",
-    "no_name",
-    "new_grub_street",
-    "odd_women",
-    "miss_marjoribanks",
-    "hester",
-]
 
 
 def main() -> None:
@@ -42,7 +27,7 @@ def main() -> None:
         description="Collect context batch results"
     )
     parser.add_argument(
-        "--novel", required=True, choices=NOVEL_KEYS, help="Novel key"
+        "--novel", required=True, choices=sorted(NOVEL_IDS), help="Novel key"
     )
     args = parser.parse_args()
 

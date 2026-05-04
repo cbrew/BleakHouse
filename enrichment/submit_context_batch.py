@@ -21,6 +21,7 @@ from anthropic.types.message_create_params import MessageCreateParamsNonStreamin
 from anthropic.types.messages.batch_create_params import Request
 from dotenv import load_dotenv
 
+from enrichment.axes import NOVEL_IDS  # canonical source of novel directory ids
 from enrichment.context_prompt import build_context_messages
 from enrichment.submit_batch import format_chapter_text
 
@@ -29,23 +30,6 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path("data")
 MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 300
-
-NOVEL_KEYS = [
-    "our_mutual_friend",
-    "mill_on_the_floss",
-    "north_and_south",
-    "passage_to_india",
-    "hard_times",
-    "middlemarch",
-    "daniel_deronda",
-    "david_copperfield",
-    "cranford",
-    "no_name",
-    "new_grub_street",
-    "odd_women",
-    "miss_marjoribanks",
-    "hester",
-]
 
 
 def build_context_requests(
@@ -91,7 +75,7 @@ def main() -> None:
         description="Submit context generation as batch"
     )
     parser.add_argument(
-        "--novel", required=True, choices=NOVEL_KEYS, help="Novel key"
+        "--novel", required=True, choices=sorted(NOVEL_IDS), help="Novel key"
     )
     parser.add_argument(
         "--chapters", type=str, default=None,

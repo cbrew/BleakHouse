@@ -25,6 +25,7 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
+from enrichment.axes import NOVEL_IDS  # canonical source of novel directory ids
 from enrichment.context_prompt import build_context_messages
 from enrichment.submit_batch import format_chapter_text
 from enrichment.timing import Recorder, time_model
@@ -35,13 +36,6 @@ DATA_DIR = Path("data")
 PASSAGES_PATH = DATA_DIR / "passages_enriched.json"
 CONTEXTS_PATH = DATA_DIR / "contexts.json"
 OUTPUT_PATH = DATA_DIR / "passages_contextual.json"
-
-NOVEL_KEYS = [
-    "our_mutual_friend",
-    "mill_on_the_floss",
-    "north_and_south",
-    "passage_to_india",
-]
 
 MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 300
@@ -81,7 +75,7 @@ def main() -> None:
     parser.add_argument(
         "--novel",
         type=str,
-        choices=NOVEL_KEYS,
+        choices=sorted(NOVEL_IDS),
         default=None,
         help="Novel key (reads from data/novels/<key>/)",
     )
