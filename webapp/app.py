@@ -462,22 +462,28 @@ _PROFILE_RE = re.compile(r"^[a-z0-9_]+$")
 
 
 def _available_versions(run_id: str) -> list[str]:
-    """Return the render versions available on disk.
+    """Return the render versions a user can actually play.
 
-    Variants are inferred from filenames: `podcast.mp3` → "classic",
+    Audio mp3s live in R2 (the deploy ships only JSON in the image), so
+    "available" means "an R2 URL exists in _AUDIO_R2_URLS for one of the
+    canonical filenames under this run's audio/ dir." Variant naming is
+    inferred from the filename: `podcast.mp3` → "classic",
     `podcast_<name>.mp3` → "<name>". Shard format (per-turn mp3s indexed
-    by audio/shards.json) surfaces as "classic" when present.
+    by an on-disk audio/shards.json) surfaces as "classic" when present.
     """
     versions: set[str] = set()
+    audio_prefix = f"data/runs/{run_id}/audio/"
+    for path in _AUDIO_R2_URLS:
+        if not path.startswith(audio_prefix):
+            continue
+        filename = path[len(audio_prefix):]
+        if filename == "podcast.mp3":
+            versions.add("classic")
+        elif filename.startswith("podcast_") and filename.endswith(".mp3"):
+            versions.add(filename[len("podcast_"):-len(".mp3")])
     audio_dir = DATA_DIR / "runs" / run_id / "audio"
-    if not audio_dir.exists():
-        return []
-    if (audio_dir / "shards.json").exists() or (audio_dir / "podcast.mp3").exists():
+    if (audio_dir / "shards.json").exists():
         versions.add("classic")
-    for mp3 in audio_dir.glob("podcast_*.mp3"):
-        name = mp3.stem.removeprefix("podcast_")
-        if name:
-            versions.add(name)
     return sorted(versions)
 
 
