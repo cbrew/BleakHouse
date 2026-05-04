@@ -117,17 +117,19 @@ def _equivalence_heuristic(novel: str, sample_n: int) -> dict:
     if len(c) != len(d):
         return {"schema_match": False, "reason": f"length mismatch: C={len(c)} D={len(d)}"}
 
-    # Schema check: same passage_ids in the same order, both have non-empty `context` field.
-    # Skip passages where neither has a context (they were filtered out of the run by --chapters).
+    # Coverage: how many passages did each path produce a context for?
+    c_have = sum(1 for ci in c if ci.get("context"))
+    d_have = sum(1 for di in d if di.get("context"))
+    only_c = sum(1 for ci, di in zip(c, d, strict=True) if ci.get("context") and not di.get("context"))
+    only_d = sum(1 for ci, di in zip(c, d, strict=True) if di.get("context") and not ci.get("context"))
+
+    # Comparison set: passages where BOTH paths produced a context. Failures
+    # in either path are surfaced separately via only_c / only_d above.
     pairs = [
         (ci, di) for ci, di in zip(c, d, strict=True)
-        if ci.get("context") or di.get("context")
+        if ci.get("context") and di.get("context")
     ]
-    schema_ok = sum(
-        1 for ci, di in pairs
-        if ci.get("passage_id") == di.get("passage_id")
-        and ci.get("context") and di.get("context")
-    )
+    schema_ok = sum(1 for ci, di in pairs if ci.get("passage_id") == di.get("passage_id"))
     schema_match = schema_ok == len(pairs)
 
     # Length ratio per pair
@@ -145,7 +147,7 @@ def _equivalence_heuristic(novel: str, sample_n: int) -> dict:
     if n_actual == 0:
         return {
             "schema_match": False,
-            "reason": "no comparable passages (both contexts empty)",
+            "reason": "no comparable passages (no overlap with both contexts present)",
         }
     indices = np.linspace(0, len(pairs) - 1, n_actual, dtype=int)
     sample = [pairs[int(i)] for i in indices]
@@ -159,8 +161,13 @@ def _equivalence_heuristic(novel: str, sample_n: int) -> dict:
     cos_sims = [float(np.dot(c_emb[i], d_emb[i])) for i in range(n_actual)]
 
     return {
+        "total_passages": len(c),
+        "C_have_context": c_have,
+        "D_have_context": d_have,
+        "only_C_has_context": only_c,
+        "only_D_has_context": only_d,
+        "compared_pairs": len(pairs),
         "schema_match": schema_match,
-        "schema_pairs": f"{schema_ok}/{len(pairs)}",
         "length_within_20pct": f"{within_20pct}/{len(length_ratios)}",
         "length_median_ratio": round(median_length_ratio, 3),
         "cosine_median": round(float(np.median(cos_sims)), 3),

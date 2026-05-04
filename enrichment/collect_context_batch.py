@@ -63,7 +63,11 @@ def main() -> None:
     )
 
     if batch.processing_status != "ended":
-        logger.warning("Batch not yet complete — results may be partial")
+        logger.info(
+            "Batch still %s; nothing to collect yet. Re-run when "
+            "processing_status == 'ended'.", batch.processing_status,
+        )
+        return
 
     # Collect results using the id_map from the manifest.
     contexts: dict[str, str] = {}
