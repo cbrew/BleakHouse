@@ -610,15 +610,43 @@ async def script_viewer(request: Request, run_id: str):
 
 @app.get("/audio/{run_id}/shards.json")
 async def serve_shards_manifest(run_id: str):
-    """Return the per-turn shards index. URLs in the manifest now point at
-    /audio/<run>/shards/<md5>.mp3 — webapp serves shard bytes locally too,
-    no R2 URL construction."""
+    """Return the per-turn shards index. The player follows shard `file`
+    fields back into /audio/<run>/shards/<profile>/<file>.mp3 — those
+    requests 302-redirect to R2 (see serve_shard_audio below)."""
     if ".." in run_id:
         raise HTTPException(400, "Invalid path")
     path = DATA_DIR / "runs" / run_id / "audio" / "shards.json"
     if not path.exists():
         raise HTTPException(404, f"No shards manifest for run {run_id}")
     return FileResponse(str(path), media_type="application/json")
+
+
+@app.get("/audio/{run_id}/shards/{profile}/{filename}")
+async def serve_shard_audio(run_id: str, profile: str, filename: str):
+    """302-redirect a shard mp3 request to R2.
+
+    Each shard's md5 is recorded in audio/shards.json (one entry per
+    shard, keyed by `file` basename). Lookup is per-request — small JSON,
+    cheap to parse. The shard mp3 dir itself is DVC-tracked as a
+    .dvc-sidecar directory; bytes live at the standard R2 content-address.
+    """
+    if any(".." in p for p in (run_id, profile, filename)):
+        raise HTTPException(400, "Invalid path")
+    shards_path = DATA_DIR / "runs" / run_id / "audio" / "shards.json"
+    if not shards_path.exists():
+        raise HTTPException(404, f"No shards manifest for run {run_id}")
+    try:
+        shards = json.loads(shards_path.read_text()).get("shards", [])
+    except json.JSONDecodeError:
+        raise HTTPException(500, "Malformed shards.json")  # noqa: B904
+    for shard in shards:
+        if shard.get("file") == filename and shard.get("md5"):
+            md5 = shard["md5"]
+            return RedirectResponse(
+                f"{R2_PUBLIC_URL}/files/md5/{md5[:2]}/{md5[2:]}",
+                status_code=302,
+            )
+    raise HTTPException(404, f"No shard {profile}/{filename} for run {run_id}")
 
 
 @app.get("/audio/{run_id}/{filename}")

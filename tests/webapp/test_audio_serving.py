@@ -65,6 +65,32 @@ def test_shards_json_served_locally(client: TestClient) -> None:
     assert b"shards" in resp.content
 
 
+def test_shard_audio_redirects_to_r2(tmp_path, monkeypatch) -> None:
+    """Shard mp3 requests resolve via shards.json md5 → R2 URL."""
+    runs = tmp_path / "data" / "runs" / "shard_run" / "audio" / "shards" / "trevelyan_v2"
+    runs.mkdir(parents=True)
+    shards_path = tmp_path / "data" / "runs" / "shard_run" / "audio" / "shards.json"
+    shards_path.write_text(
+        '{"shards": ['
+        '{"file": "0000.mp3", "md5": "abcd1234ef567890"},'
+        '{"file": "0001.mp3", "md5": "9876543210fedcba"}'
+        ']}'
+    )
+
+    import webapp.app as appmod
+
+    monkeypatch.setattr(appmod, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(appmod, "R2_PUBLIC_URL", "https://r2.example.test")
+    c = TestClient(appmod.app)
+
+    r = c.get("/audio/shard_run/shards/trevelyan_v2/0000.mp3", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"] == "https://r2.example.test/files/md5/ab/cd1234ef567890"
+
+    r = c.get("/audio/shard_run/shards/trevelyan_v2/missing.mp3", follow_redirects=False)
+    assert r.status_code == 404
+
+
 def test_path_traversal_rejected(client: TestClient) -> None:
     # FastAPI normalises %2F-encoded slashes at the routing layer before the
     # handler runs; the request never reaches serve_audio. The handler also
