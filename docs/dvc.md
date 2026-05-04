@@ -174,6 +174,34 @@ What's intentionally NOT in the container:
 - R2 credentials (audio URLs are public)
 - Mounted volume (no persistent state)
 
+### Why ship `experiments.db` rather than scan `data/runs/` at boot?
+
+The webapp's `/tracker/data` endpoint (and four others) read from
+`data/experiments.db` via `webapp/db.py` + `webapp/db_views.py`
+(~422 lines combined). The DB is a precomputed, normalised view of
+`data/runs/` populated by `enrichment.expdb.backfill.scan_runs_dir`.
+
+The deploy bundles `experiments.db` (a few hundred KB) into the image
+alongside the run JSONs and sets `BLEAKHOUSE_DB_READONLY=1` so
+`webapp/db.py` skips its dev-mode "rescan if stale" path. The DB in
+the image is the deploy-time snapshot; subsequent rebuilds refresh it.
+
+We considered dropping the DB and having the webapp scan `data/runs/`
+into in-memory dicts at boot (~200 file reads, a few seconds added
+to cold start). Decision: **keep the DB.**
+
+- Replacing the SQL layer would mean rewriting 422 lines of tested
+  query code into ~300 lines of in-memory equivalents — a wash for
+  code volume, with new bug surface around cache invalidation.
+- The deploy gotcha that prompted this question (the bundled DB was
+  silently overwritten when the rescan path ran) is one ENV var, not
+  an architectural problem.
+- The DB does real work: SQL joins across episode + audio_artifact +
+  script_version + hostprep_version that would be tedious in Python.
+
+Revisit if/when the DB layer becomes a maintenance burden — for now,
+the env var fix keeps it stable in production.
+
 Fly resources: 1 machine in iad (1 vCPU shared, 1024 MB RAM); 0 volumes;
 1 secret (`ADMIN_UPLOAD_TOKEN`, unrelated to deploy).
 
