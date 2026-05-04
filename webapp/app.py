@@ -610,15 +610,27 @@ async def script_viewer(request: Request, run_id: str):
 
 @app.get("/audio/{run_id}/shards.json")
 async def serve_shards_manifest(run_id: str):
-    """Return the per-turn shards index. The player follows shard `file`
-    fields back into /audio/<run>/shards/<profile>/<file>.mp3 — those
-    requests 302-redirect to R2 (see serve_shard_audio below)."""
+    """Return the per-turn shards index with R2 URLs injected.
+
+    The player (webapp/static/player.js) reads `shard.url` per shard,
+    so we resolve each shard's md5 to its public R2 URL inline. The
+    /audio/<run>/shards/<profile>/<file> redirect handler below remains
+    a fallback for older callers that walk the file basename instead.
+    """
     if ".." in run_id:
         raise HTTPException(400, "Invalid path")
     path = DATA_DIR / "runs" / run_id / "audio" / "shards.json"
     if not path.exists():
         raise HTTPException(404, f"No shards manifest for run {run_id}")
-    return FileResponse(str(path), media_type="application/json")
+    try:
+        manifest = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        raise HTTPException(500, "Malformed shards.json")  # noqa: B904
+    for shard in manifest.get("shards", []):
+        h = shard.get("md5") or ""
+        if h:
+            shard["url"] = f"{R2_PUBLIC_URL}/files/md5/{h[:2]}/{h[2:]}"
+    return manifest
 
 
 @app.get("/audio/{run_id}/shards/{profile}/{filename}")
