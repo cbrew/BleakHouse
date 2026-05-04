@@ -117,15 +117,15 @@ Doc updates:
 
 ## Verification (acceptance gates)
 
+The verification corpus is *Mrs. Dalloway* — the same novel used for measurement in Phase 3. After Phase 4 promotes the winning path's output to the canonical filename, Phase 6 picks up where Phase 3 left off (passage-enriched + contextual already produced; downstream stages still need to run).
+
 Done when all four pass:
 
-1. Pick a fresh novel not yet in `data/novels/` — small one if available (~50k-word novella) to keep wall-clock manageable.
-2. Run `bash scripts/add_novel.sh <key>` from clean state.
+1. *Mrs. Dalloway* exists at `data/novels/mrs_dalloway/` with the canonical artefacts (`passages_enriched.json`, `passages_contextual.json`) — produced earlier in Phases 3-4.
+2. `bash scripts/add_novel.sh mrs_dalloway` runs cleanly and is idempotent for the already-produced steps (re-running skips passage-enrichment and contextualisation when their outputs exist).
 3. Confirm:
-   - `data/novels/<key>/passages_enriched.json` exists and has expected shape
-   - `data/novels/<key>/passages_contextual.json` exists and has expected shape
-   - `dvc commit` + `dvc push` succeeds (the produced files enter DVC cleanly)
-4. One downstream consumer works: pick a `bh_*` run config, point at the new novel, run `enrichment/run_pipeline.py` for Phase 0-2; confirm `phase2_plan.json` is generated.
+   - `dvc commit` + `dvc push` succeeds (the produced files enter DVC cleanly).
+4. One downstream consumer works: pick a `bh_*` run config, point at *Mrs. Dalloway* (`mdal_trn_literary` or similar new run id), run `enrichment/run_pipeline.py` for Phase 0-2; confirm `phase2_plan.json` is generated.
 
 If any fail: drop into debugging mode; the failure is a real signal that the new canonical path has a gap.
 
