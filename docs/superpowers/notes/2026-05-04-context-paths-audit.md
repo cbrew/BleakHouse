@@ -98,9 +98,19 @@ impossible by construction. Most drift is in operational details.
 
 (reserved for Task 6 — see Phase 5 of the spec)
 
-## Reconciled
+## Reconciled (Task 2)
 
-(reserved for Task 2 — populated as decisions are made)
+| # | Item | Decision | Commit |
+|---|------|----------|--------|
+| 1 | `NOVEL_KEYS` list (C had 4, D had 14) | Drop hardcoded lists from both; import the canonical `NOVEL_IDS` frozenset from `enrichment/axes.py` (16 entries today, derived from the `NOVELS` tuple — single source of truth for new novel keys). | `c87f74c5` |
+| 2 | `--resume` flag (C only) | Drop `--resume` from C entirely. Both paths now use the same idempotency model: skip if the terminal output already exists. Drop the `contexts.json` intermediate file from C (was only used to support resume) and from D-collect's partial-merge logic (overkill for the one-batch-per-novel use case). Crash recovery: delete the output file. | `31fd5e21` |
+| 3 | Chunking (sequential-by-chapter vs flat batch) | Architectural axis being measured in Phase 3. Not reconcilable by design. | — |
+| 4 | Custom-id format (passage_ids vs `ctx-s{seq}` + id_map) | Deferred to post-Phase-4. If D wins, simplify by using `custom_id=f"ctx-{passage_id}"` directly so Anthropic batch errors and the manifest are self-describing (no id_map indirection). If C wins, the question is moot. | — (deferred) |
+| 5 | Output sidecars (C: timings; D: batch manifest) | No reconcile needed; both survive on the winner. | — |
+| 6 | Instrumentation (C wired to `Recorder`; D none) | Will be addressed in Task 3/4 when building `scripts/compare_context_paths.py` — the harness needs equal cost-tracking on both paths (read D's per-request `usage` from the batch results during collection). | — (Task 3) |
+| 7 | Logging detail | Cosmetic, no reconcile. | — |
+
+**Outcome**: substantive drift fully reconciled; operational drift either reconciled (1, 2) or deliberately preserved (3, 5, 7) or deferred (4) until the winner is known. Phase 3 measurement can proceed with confidence that the comparison reflects the architectural axis (cache vs batch), not stale prompts or list mismatches.
 
 ## Phase 3 measurement
 
