@@ -36,11 +36,17 @@ git commit && git push
 Deploy the Fly demo (replaces the live site):
 
 ```bash
-bash scripts/deploy_demo.sh          # dvc push, podman build, fly deploy + restart
+bash scripts/deploy_demo.sh          # tar data/runs/, fly deploy --local-only
 ```
 
-The container does `dvc pull <non-audio>` on startup; audio mp3s stay
-in R2 and are 302-redirected by the webapp.
+The data tree (~165 MB, JSON only) is baked into the image at build
+time via a tarball with symlinks dereferenced. Audio mp3s stay in R2
+and are 302-redirected by the webapp using URLs parsed from `dvc.lock`
+at app startup. No DVC binary or R2 secrets in the container.
+
+Note: `dvc pull` is **not** run by `deploy_demo.sh` — it deletes
+git-tracked files from removed stages (run_manifest in particular).
+Run it manually after `git pull` to refresh your local cache.
 
 No CI/CD.
 
