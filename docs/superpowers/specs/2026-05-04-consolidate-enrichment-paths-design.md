@@ -44,7 +44,7 @@ For each category: what C does, what D does, whether they match, one-line note.
 
 For each substantive difference from Phase 1, surface to the user: "C says X, D says Y. Reconcile to which?" The user decides per-item — sometimes from knowledge, sometimes after digging deeper into a specific passage's behaviour. Once decided, port the chosen version into the other path so both are semantically equivalent.
 
-After reconciliation, run the equivalence heuristic (Phase 3 sub-step) on a single chapter as a sanity check. **Do not** treat the heuristic as a pass/fail gate; report results to the user and resolve outliers together.
+After reconciliation, run the equivalence heuristic (Phase 3 sub-step) on a single chapter as a sanity check — N (the sample size) scales to the number of passages in that chapter (likely 5-20 in practice; smaller than Phase 3's N=10 across the full novel only if the chapter is unusually short). **Do not** treat the heuristic as a pass/fail gate; report results to the user and resolve outliers together.
 
 ### Phase 3 — Measure (controlled experiment)
 
@@ -57,7 +57,7 @@ After reconciliation, run the equivalence heuristic (Phase 3 sub-step) on a sing
 
 After measurement and decision, the winning path's file is renamed to the canonical `data/novels/oliver_twist/passages_contextual.json` (and the loser's deleted). Phase 6 then onboards a *different* novel (*Mrs. Dalloway*) through the consolidated pipeline, so verification isn't biased toward the calibration corpus.
 
-**Measurements** (per path, per run, twice):
+**Measurements** (each path runs twice on the full novel; "per run, twice" lets us separate noise from real differences — e.g., batch wall-clock varies a lot with Anthropic queue depth):
 
 - Total cost (USD): input tokens × input rate + output tokens × output rate, with cache-hit accounting for C and batch discount for D.
 - Wall-clock seconds.
@@ -77,7 +77,7 @@ After measurement and decision, the winning path's file is renamed to the canoni
 
 **Decision rule** (in priority order):
 
-1. **Quality first**: if the equivalence heuristic shows one path's output is demonstrably better against the baseline, that wins.
+1. **Quality first**: if the equivalence heuristic surfaces real differences (e.g., one path's outputs are systematically shorter, or schema-violating, or low-cosine-similarity for a non-trivial subset of passages), the user reads the data and may declare one path the quality winner. With no baseline, "quality" here is a judgement on the comparison output, not a numeric pass/fail.
 2. **Wall-clock second**: faster onboarding for new novels matters because it gates throughput.
 3. **Cost as tiebreaker only**, weighted by amortisation-per-script, not raw per-novel. Enrichment runs once per novel and feeds N panels × M personas × K script versions of downstream output (typically dozens of episodes). A 2× cost difference at the enrichment layer becomes fractions of a cent per downstream episode. Quality and wall-clock matter more.
 
