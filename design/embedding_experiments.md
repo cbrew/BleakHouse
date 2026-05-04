@@ -197,7 +197,7 @@ actually help for this corpus?
 
 **Method:**
 1. Embed passages into two separate LanceDB tables: with and without context
-   (both versions exist from the generate_contexts pipeline step).
+   (both versions exist from the passage-contexts pipeline step).
 2. Run the probe query set from Experiment 3 against both.
 3. Measure: precision against enrichment fields, chapter diversity of results,
    and whether context-enhanced retrieval surfaces passages from non-obvious

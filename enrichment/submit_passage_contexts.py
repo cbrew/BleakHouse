@@ -10,8 +10,8 @@ present is a no-op (refuses to create a duplicate batch). To re-submit,
 delete the manifest first.
 
 Usage:
-    uv run python -m enrichment.submit_context_batch --novel hard_times
-    uv run python -m enrichment.submit_context_batch --novel middlemarch --chapters c1,c2,c3
+    uv run python -m enrichment.submit_passage_contexts --novel hard_times
+    uv run python -m enrichment.submit_passage_contexts --novel middlemarch --chapters c1,c2,c3
 """
 
 import argparse
@@ -95,7 +95,7 @@ def main() -> None:
 
     if manifest_path.exists():
         logger.info(
-            "%s already exists; nothing to do. Run collect_context_batch "
+            "%s already exists; nothing to do. Run collect_passage_contexts "
             "to retrieve results, or delete the manifest to resubmit.",
             manifest_path,
         )

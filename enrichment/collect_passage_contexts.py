@@ -5,7 +5,7 @@ on success. If that output already exists, the script is a no-op
 (refuses to overwrite). Delete the output file to re-collect.
 
 Usage:
-    uv run python -m enrichment.collect_context_batch --novel hard_times
+    uv run python -m enrichment.collect_passage_contexts --novel hard_times
 """
 
 import argparse
