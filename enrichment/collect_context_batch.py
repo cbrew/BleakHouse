@@ -1,5 +1,9 @@
 """Collect context generation batch results and merge into passages.
 
+Idempotency: writes data/novels/<novel>/passages_contextual.json once
+on success. If that output already exists, the script is a no-op
+(refuses to overwrite). Delete the output file to re-collect.
+
 Usage:
     uv run python -m enrichment.collect_context_batch --novel hard_times
 """
@@ -33,9 +37,15 @@ def main() -> None:
 
     novel_dir = DATA_DIR / "novels" / args.novel
     manifest_path = novel_dir / "context_batch_manifest.json"
-    contexts_path = novel_dir / "contexts.json"
     passages_path = novel_dir / "passages_enriched.json"
     output_path = novel_dir / "passages_contextual.json"
+
+    if output_path.exists():
+        logger.info(
+            "%s already exists; nothing to do. Delete it to re-collect.",
+            output_path,
+        )
+        return
 
     load_dotenv()
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
@@ -55,28 +65,19 @@ def main() -> None:
     if batch.processing_status != "ended":
         logger.warning("Batch not yet complete — results may be partial")
 
-    # Load existing contexts (for merging with partial results)
+    # Collect results using the id_map from the manifest.
     contexts: dict[str, str] = {}
-    if contexts_path.exists():
-        contexts = json.loads(contexts_path.read_text())
-
-    # Collect results using the id_map from the manifest
     id_map = manifest.get("id_map", {})
-    new_count = 0
     for result in client.messages.batches.results(batch_id):
         if result.result.type == "succeeded":
             pid = id_map.get(result.custom_id, result.custom_id)
             msg = result.result.message
             if msg.content and msg.content[0].type == "text":
                 contexts[pid] = msg.content[0].text
-                new_count += 1
 
-    logger.info("Collected %d new contexts (%d total)", new_count, len(contexts))
+    logger.info("Collected %d contexts", len(contexts))
 
-    # Save contexts
-    contexts_path.write_text(json.dumps(contexts, indent=2))
-
-    # Merge into passages
+    # Merge into passages and write output once.
     passages = json.loads(passages_path.read_text())
     merged = 0
     for p in passages:
@@ -91,9 +92,9 @@ def main() -> None:
         merged, len(passages), output_path,
     )
 
-    # Update manifest
+    # Update manifest with terminal status.
     manifest["status"] = "collected"
-    manifest["succeeded"] = new_count
+    manifest["succeeded"] = len(contexts)
     manifest_path.write_text(json.dumps(manifest, indent=2))
 
 

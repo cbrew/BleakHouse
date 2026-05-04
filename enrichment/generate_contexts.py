@@ -8,12 +8,13 @@ The Batch API does support prompt caching, but only on a best-effort basis —
 because batch requests can be processed concurrently and in any order, cache
 hits are not guaranteed. Sequential calls within a chapter guarantee the system
 block stays hot in cache, giving reliable ~90% savings on the repeated chapter
-text. The tradeoff is wall-clock time (~1-2 hours), but --resume makes that
-painless. A batch approach could work (prime the cache with one request per
-chapter, then submit the rest) but adds complexity for uncertain cache behavior.
+text. The tradeoff is wall-clock time (~1-2 hours).
+
+Idempotency: writes data/novels/<novel>/passages_contextual.json once at the
+end of the run. To re-run from scratch, delete the existing output file.
 
 Usage:
-    uv run python -m enrichment.generate_contexts [--chapters c1,c2] [--resume]
+    uv run python -m enrichment.generate_contexts --novel <novel> [--chapters c1,c2]
 """
 
 import argparse
@@ -34,22 +35,10 @@ logger = logging.getLogger(__name__)
 
 DATA_DIR = Path("data")
 PASSAGES_PATH = DATA_DIR / "passages_enriched.json"
-CONTEXTS_PATH = DATA_DIR / "contexts.json"
 OUTPUT_PATH = DATA_DIR / "passages_contextual.json"
 
 MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 300
-
-
-def load_existing_contexts() -> dict[str, str]:
-    """Load previously generated contexts for resumability."""
-    if CONTEXTS_PATH.exists():
-        return json.loads(CONTEXTS_PATH.read_text())
-    return {}
-
-
-def save_contexts(contexts: dict[str, str]) -> None:
-    CONTEXTS_PATH.write_text(json.dumps(contexts, indent=2))
 
 
 def main() -> None:
@@ -68,16 +57,11 @@ def main() -> None:
         help="Comma-separated chapter IDs (default: all)",
     )
     parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="Skip chapters already in contexts.json",
-    )
-    parser.add_argument(
         "--novel",
         type=str,
         choices=sorted(NOVEL_IDS),
         default=None,
-        help="Novel key (reads from data/novels/<key>/)",
+        help="Novel id (reads from data/novels/<id>/)",
     )
     args = parser.parse_args()
 
@@ -85,13 +69,18 @@ def main() -> None:
     if args.novel:
         novel_dir = DATA_DIR / "novels" / args.novel
         passages_path = novel_dir / "passages_enriched.json"
-        contexts_path = novel_dir / "contexts.json"
         output_path = novel_dir / "passages_contextual.json"
     else:
         passages_path = PASSAGES_PATH
-        contexts_path = CONTEXTS_PATH
         output_path = OUTPUT_PATH
         novel_dir = passages_path.parent
+
+    if output_path.exists():
+        logger.info(
+            "%s already exists; nothing to do. Delete it to re-run.",
+            output_path,
+        )
+        return
 
     load_dotenv()
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
@@ -107,20 +96,8 @@ def main() -> None:
         selected = set(args.chapters.split(","))
         by_chapter = {k: v for k, v in by_chapter.items() if k in selected}
 
-    def _load_ctx() -> dict[str, str]:
-        if contexts_path.exists():
-            return json.loads(contexts_path.read_text())
-        return {}
-
-    def _save_ctx(ctx: dict[str, str]) -> None:
-        contexts_path.write_text(json.dumps(ctx, indent=2))
-
-    contexts = _load_ctx() if args.resume else {}
-    logger.info(
-        "Processing %d chapters (%d existing contexts)",
-        len(by_chapter),
-        len(contexts),
-    )
+    contexts: dict[str, str] = {}
+    logger.info("Processing %d chapters", len(by_chapter))
 
     # Cost/time recorder for upstream passage enrichment. Sidecar lives
     # next to the passages it produced (per-novel, not per-run) — every
@@ -132,12 +109,6 @@ def main() -> None:
     for chapter_id in sorted(by_chapter, key=_chapter_sort_key):
         passages = by_chapter[chapter_id]
 
-        # Skip if all passages in this chapter already have contexts
-        passage_ids = [p["passage_id"] for p in passages]
-        if args.resume and all(pid in contexts for pid in passage_ids):
-            logger.info("Skipping %s (already complete)", chapter_id)
-            continue
-
         chapter_text = format_chapter_text(passages)
         logger.info(
             "Chapter %s: %d passages, ~%d chars",
@@ -148,8 +119,6 @@ def main() -> None:
 
         for i, passage in enumerate(passages):
             pid = passage["passage_id"]
-            if args.resume and pid in contexts:
-                continue
 
             system_blocks, user_msg = build_context_messages(
                 chapter_text, passage["text"]
@@ -170,7 +139,8 @@ def main() -> None:
             assert block.type == "text"
             contexts[pid] = block.text
 
-            # Log caching stats
+            # Log caching stats for the first two passages of each chapter
+            # (sanity-check that the cache is hot).
             usage = response.usage
             cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
             cache_create = getattr(usage, "cache_creation_input_tokens", 0) or 0
@@ -189,15 +159,15 @@ def main() -> None:
                     cache_read,
                 )
 
-        # Save after each chapter for resumability
-        _save_ctx(contexts)
+        # Persist timings sidecar after each chapter so a crash mid-run
+        # still yields useful cost/time data.
         timings_path.write_text(json.dumps(recorder.to_dict(), indent=2))
         logger.info(
-            "  Saved %d total contexts; %d events to %s",
-            len(contexts), len(recorder.events), timings_path,
+            "  Chapter %s done (%d total contexts; %d timing events)",
+            chapter_id, len(contexts), len(recorder.events),
         )
 
-    # Merge contexts into passages and write output
+    # Merge contexts into passages and write output once.
     logger.info("Merging contexts into passages...")
     for p in raw:
         pid = p["passage_id"]

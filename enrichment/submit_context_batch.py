@@ -4,6 +4,11 @@ Uses the Batch API instead of sequential calls. Prompt caching is
 best-effort in batches (not guaranteed), but the 50% batch discount
 on input tokens compensates. Much faster wall-clock time.
 
+Idempotency: writes data/novels/<novel>/context_batch_manifest.json
+when the batch is submitted. Re-running with the manifest already
+present is a no-op (refuses to create a duplicate batch). To re-submit,
+delete the manifest first.
+
 Usage:
     uv run python -m enrichment.submit_context_batch --novel hard_times
     uv run python -m enrichment.submit_context_batch --novel middlemarch --chapters c1,c2,c3
@@ -86,6 +91,14 @@ def main() -> None:
     novel_dir = DATA_DIR / "novels" / args.novel
     passages_path = novel_dir / "passages_enriched.json"
     manifest_path = novel_dir / "context_batch_manifest.json"
+
+    if manifest_path.exists():
+        logger.info(
+            "%s already exists; nothing to do. Run collect_context_batch "
+            "to retrieve results, or delete the manifest to resubmit.",
+            manifest_path,
+        )
+        return
 
     load_dotenv()
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
