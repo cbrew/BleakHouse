@@ -324,6 +324,28 @@ NOVEL_CONFIGS: dict[str, NovelPromptConfig] = {
             "indirectly."
         ),
     ),
+    "oliver_twist": NovelPromptConfig(
+        title="Oliver Twist",
+        author="Charles Dickens",
+        year="1838",
+        narration_note=(
+            "*Oliver Twist* uses third-person omniscient narration with Dickens' "
+            "characteristic shifts in register — sympathetic and intimate when "
+            "following Oliver, satirical and indignant when exposing institutional "
+            "cruelty (the workhouse, the parish system), comic and grotesque when "
+            "depicting the criminal underworld."
+        ),
+        theme_examples=(
+            "'poverty', 'workhouse', 'criminality', 'orphanhood', 'identity', "
+            "'charity', 'hypocrisy', 'class', 'urban poverty', 'virtue', "
+            "'sentimentality', 'inheritance', 'corruption', 'innocence'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Oliver Twist' not 'Oliver', 'Bill Sikes' "
+            "not 'Sikes', 'Mr. Bumble' not 'Bumble', 'the Artful Dodger' or "
+            "'Jack Dawkins' as appropriate). Include characters referenced indirectly."
+        ),
+    ),
     "hester": NovelPromptConfig(
         title="Hester",
         author="Mrs Oliphant",
@@ -484,6 +506,14 @@ def get_novel_arcs(novel_key: str | None = None) -> list[tuple[str, str, int, st
              "prov_social_critique", "not_none", 2),
             ("The Pension Bertolini as theatre of class", "Mr Eager", 4,
              "prov_social_critique", "not_none", 2),
+        ],
+        "oliver_twist": [
+            ("Oliver's escape from institutional cruelty", "Oliver Twist", 6,
+             "prov_character_development", "not_none", 3),
+            ("Fagin's grooming of street children", "Fagin", 5,
+             "prov_social_critique", "not_none", 3),
+            ("Nancy's divided loyalties", "Nancy", 4,
+             "prov_character_development", "not_none", 2),
         ],
     }
     return arcs.get(novel_key, [])

@@ -145,6 +145,13 @@ NOVELS: dict[str, NovelConfig] = {
         html_filename="pg2641-images.html",
         gutenberg_id=2641,
     ),
+    "oliver_twist": NovelConfig(
+        key="oliver_twist",
+        title="Oliver Twist",
+        author="Charles Dickens",
+        html_filename="pg730-images.html",
+        gutenberg_id=730,
+    ),
 }
 
 
