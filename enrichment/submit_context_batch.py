@@ -64,6 +64,7 @@ def build_context_requests(
                     params=MessageCreateParamsNonStreaming(
                         model=MODEL,
                         max_tokens=MAX_TOKENS,
+                        temperature=0,  # tightens cross-run consistency for the C/D comparison
                         system=system_blocks,
                         messages=[{"role": "user", "content": user_msg}],
                     ),

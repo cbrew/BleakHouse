@@ -70,6 +70,9 @@ def main() -> None:
         novel_dir = DATA_DIR / "novels" / args.novel
         passages_path = novel_dir / "passages_enriched.json"
         output_path = novel_dir / "passages_contextual.json"
+        # Tell enrichment.context_prompt → novel_prompts which novel is active
+        # (build_context_messages reads it via get_active_novel()).
+        os.environ["BLEAKHOUSE_NOVEL"] = args.novel
     else:
         passages_path = PASSAGES_PATH
         output_path = OUTPUT_PATH
@@ -130,6 +133,7 @@ def main() -> None:
                 lambda: client.messages.create(
                     model=MODEL,
                     max_tokens=MAX_TOKENS,
+                    temperature=0,  # tightens cross-run consistency for the C/D comparison
                     system=system_blocks,
                     messages=[{"role": "user", "content": user_msg}],
                 ),
