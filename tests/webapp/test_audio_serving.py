@@ -58,11 +58,27 @@ def test_audio_manifest_json_served_locally(client: TestClient) -> None:
     assert b"segments" in resp.content
 
 
-def test_shards_json_served_locally(client: TestClient) -> None:
-    """The shards index is small JSON, served from local cache."""
-    resp = client.get("/audio/test_run/shards.json", follow_redirects=False)
+def test_shards_json_injects_r2_urls(tmp_path, monkeypatch) -> None:
+    """The shards index served by the webapp injects per-shard R2 URLs."""
+    audio = tmp_path / "data" / "runs" / "shard_run" / "audio"
+    audio.mkdir(parents=True)
+    (audio / "shards.json").write_text(
+        '{"shards": ['
+        '{"file": "0000.mp3", "md5": "abcd1234ef567890"}'
+        ']}'
+    )
+
+    import webapp.app as appmod
+
+    monkeypatch.setattr(appmod, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(appmod, "R2_PUBLIC_URL", "https://r2.example.test")
+    c = TestClient(appmod.app)
+
+    resp = c.get("/audio/shard_run/shards.json", follow_redirects=False)
     assert resp.status_code == 200
-    assert b"shards" in resp.content
+    body = resp.json()
+    assert body["shards"][0]["url"] == \
+        "https://r2.example.test/files/md5/ab/cd1234ef567890"
 
 
 def test_shard_audio_redirects_to_r2(tmp_path, monkeypatch) -> None:
