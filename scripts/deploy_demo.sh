@@ -20,10 +20,13 @@ cd "$(dirname "$0")/.."
 
 # tar -h dereferences symlinks; without it the build context would carry
 # Mac-local /Volumes/Crucial X9/... paths which don't exist in the image.
+# Bundles data/runs/ + data/experiments.db (the tracker's matrix source).
 tar -chf data-runs.tar \
     --exclude='audio/podcast*.mp3' \
     --exclude='audio/shards/*.mp3' \
-    data/runs/
+    --exclude='data/runs/._runs' \
+    data/runs/ \
+    data/experiments.db
 
 trap 'rm -f data-runs.tar' EXIT
 fly deploy --local-only --yes -a "${FLY_APP:-bleakhouse-demo}"
