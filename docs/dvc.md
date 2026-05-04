@@ -145,29 +145,39 @@ add a `run_manifest.json`), and regenerate `runs.yaml`.
 
 ## Deploy mechanism
 
-The Fly demo container holds **code + DVC metadata only** (no run data
-in the image). At container startup, `scripts/container-entrypoint.sh`:
+The Fly demo container holds **code + the JSON pipeline outs baked in
+at build time** (~165 MB). Audio mp3s stay in Cloudflare R2 and the
+webapp 302-redirects mp3 requests to public R2 URLs.
 
-1. Generates `.dvc/config.local` from the Fly secrets `DVC_REMOTE_R2_ACCESS_KEY`
-   and `DVC_REMOTE_R2_SECRET_ACCESS_KEY`, with `cache.dir = /cache`
-   (the mounted Fly volume) and `cache.type = symlink,hardlink,copy`.
-2. Runs `uv run dvc pull -r r2 <non-audio stages>` — pulls JSON only
-   (~165 MB). Cold start ~3 s on first boot; <1 s on subsequent boots
-   (volume-cached). **Audio mp3s deliberately NOT pulled.**
-3. Execs `uv run uvicorn webapp.app:app`.
+Build flow (in `scripts/deploy_demo.sh`):
 
-The webapp serves JSON from `data/runs/<run>/<file>` as ordinary
-`FileResponse`. **Audio mp3 requests are 302-redirected to Cloudflare R2**
-public URLs (`https://pub-...r2.dev/files/md5/<h[:2]>/<h[2:]>`). The
-mp3-hash → URL map is built once at app import time by parsing
-`dvc.lock` (canonical hash source — no derived-cache staleness window).
+1. `tar -chf data-runs.tar --exclude='audio/podcast*.mp3' data/runs/`
+   — bundle the dvc-pulled tree with symlinks dereferenced into
+   regular files. Audio mp3s deliberately excluded.
+2. `fly deploy --local-only --yes -a bleakhouse-demo` — Fly builds the
+   image via local podman (Containerfile COPYs the tarball and runs
+   `tar -xf` to materialise it under `/app/data/`), pushes to Fly's
+   registry, and starts a new machine. Fly's healthcheck refuses to
+   mark the deploy successful if the new machine doesn't respond.
 
-Deploy: `bash scripts/deploy_demo.sh` does `dvc push`, `podman build`,
-local podman smoke test, `fly deploy --local-only`, post-deploy `/tracker`
-probe, audio smoke test (302 → R2). ~6 steps, no bespoke file-selection.
+The `data-runs.tar` is created and deleted in the same script run
+(via `trap` cleanup) so it never enters git or hangs around.
 
-Fly resources: 1 machine in iad (1 vCPU shared, 1024 MB RAM); 1 volume
-named `cache` (8 GB, in iad zone c980, mounted at `/cache`).
+The webapp parses `dvc.lock` at app startup to build a map of
+`(run_id, audio_file) → R2 URL`. Audio request handling looks up the
+URL and returns a 302 redirect; bytes flow user ← Cloudflare R2
+directly (Fly never sees them).
+
+What's intentionally NOT in the container:
+- DVC binary (no runtime dvc pull; data is already baked)
+- git binary (DVC needed it; we don't)
+- R2 credentials (audio URLs are public)
+- Mounted volume (no persistent state)
+
+Fly resources: 1 machine in iad (1 vCPU shared, 1024 MB RAM); 0 volumes;
+1 secret (`ADMIN_UPLOAD_TOKEN`, unrelated to deploy).
+
+Cold-start: ~2 s (uvicorn startup; no network round-trips at boot).
 
 ## Common commands
 
