@@ -15,6 +15,12 @@ RUN pip install --no-cache-dir \
 # without an editable install of the project.
 ENV PYTHONPATH=/app
 
+# webapp/db.py refreshes experiments.db on first read by re-scanning
+# data/runs/ — which destroys the bundled DB in this image. Skip the
+# refresh; the bundled DB is the deploy-time snapshot, authoritative
+# until the next image rebuild.
+ENV BLEAKHOUSE_DB_READONLY=1
+
 # Application code.
 COPY webapp/ webapp/
 COPY enrichment/__init__.py enrichment/__init__.py
