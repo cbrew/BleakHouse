@@ -48,14 +48,14 @@ After reconciliation, run the equivalence heuristic (Phase 3 sub-step) on a sing
 
 ### Phase 3 — Measure (controlled experiment)
 
-**Test novel**: Virginia Woolf's *Mrs. Dalloway* (key: `mrs_dalloway`). ~64k words, modernist single-day London narrative — small enough that wall-clock is manageable for repeated runs, and not yet onboarded so the work doubles as a real new-novel measurement. Pick the whole novel rather than a slice, since *Mrs. Dalloway* is short by Victorian-comparison standards.
+**Test novel**: Dickens' *Oliver Twist* (key: `oliver_twist`). ~155k words, mid-Victorian three-volume novel — same general shape as the existing Dickens corpus this repo is built on, so the measurement is calibrated against the kind of text the pipeline will see most. Not yet onboarded; the measurement work onboards it as a side effect.
 
 **Outputs kept distinct.** Both paths run on the same input but write to separate filenames so neither overwrites the other and the comparison can be done after the fact:
 
-- C writes `data/novels/mrs_dalloway/passages_contextual.C.json`
-- D writes `data/novels/mrs_dalloway/passages_contextual.D.json`
+- C writes `data/novels/oliver_twist/passages_contextual.C.json`
+- D writes `data/novels/oliver_twist/passages_contextual.D.json`
 
-After measurement and decision, the winning path's file is renamed to the canonical `data/novels/mrs_dalloway/passages_contextual.json` (and the loser's deleted), so Phase 6 verification can continue against the already-produced canonical artefact.
+After measurement and decision, the winning path's file is renamed to the canonical `data/novels/oliver_twist/passages_contextual.json` (and the loser's deleted). Phase 6 then onboards a *different* novel (*Mrs. Dalloway*) through the consolidated pipeline, so verification isn't biased toward the calibration corpus.
 
 **Measurements** (per path, per run, twice):
 
@@ -117,29 +117,30 @@ Doc updates:
 
 ## Verification (acceptance gates)
 
-The verification corpus is *Mrs. Dalloway* — the same novel used for measurement in Phase 3. After Phase 4 promotes the winning path's output to the canonical filename, Phase 6 picks up where Phase 3 left off (passage-enriched + contextual already produced; downstream stages still need to run).
+The verification corpus is Virginia Woolf's *Mrs. Dalloway* (key: `mrs_dalloway`) — a different novel from the calibration corpus (Phase 3 used *Oliver Twist*). Mrs. Dalloway is ~64k words, modernist, single-day narrative — different era and structure from *Oliver Twist*, so the verification genuinely exercises whether the consolidated pipeline generalises beyond the calibration novel.
 
 Done when all four pass:
 
-1. *Mrs. Dalloway* exists at `data/novels/mrs_dalloway/` with the canonical artefacts (`passages_enriched.json`, `passages_contextual.json`) — produced earlier in Phases 3-4.
-2. `bash scripts/add_novel.sh mrs_dalloway` runs cleanly and is idempotent for the already-produced steps (re-running skips passage-enrichment and contextualisation when their outputs exist).
-3. Confirm:
-   - `dvc commit` + `dvc push` succeeds (the produced files enter DVC cleanly).
+1. `bash scripts/add_novel.sh mrs_dalloway` runs from a clean state (no `data/novels/mrs_dalloway/` directory at start) and exits 0.
+2. Confirm the canonical artefacts now exist:
+   - `data/novels/mrs_dalloway/passages_enriched.json` with expected shape
+   - `data/novels/mrs_dalloway/passages_contextual.json` with expected shape
+3. `dvc commit` + `dvc push` succeeds (the produced files enter DVC cleanly).
 4. One downstream consumer works: pick a `bh_*` run config, point at *Mrs. Dalloway* (`mdal_trn_literary` or similar new run id), run `enrichment/run_pipeline.py` for Phase 0-2; confirm `phase2_plan.json` is generated.
 
-If any fail: drop into debugging mode; the failure is a real signal that the new canonical path has a gap.
+If any fail: drop into debugging mode; the failure is a real signal that either the consolidation has a gap or the calibration assumed something *Oliver Twist*-specific.
 
 ## Risks
 
 **R1. Audit misses a difference between C and D.** The measurement comparison would be invalid (we'd attribute drift to fundamentals when it's actually a missed prompt diff). Mitigation: the post-reconcile equivalence sanity check (Phase 2 end) catches gross misses; outliers in the cosine-similarity numbers flag specific passages to investigate.
 
-**R2. *Mrs. Dalloway* is one novel; results may not generalise.** A 20th-century modernist novel may stress the prompt-cache differently than a Victorian doorstopper (chapter boundaries are different, passage density is different). Mitigation: capture the per-passage breakdown in the measurement output, not just totals, so we can sanity-check whether the picture is consistent across very different passages. If the user wants, repeat the measurement on a Victorian novel before declaring the decision; not strictly required.
+**R2. Oliver Twist is one novel; calibration may not generalise.** Even though it's a typical Victorian three-volume novel that matches the existing corpus shape, a single calibration run might miss edge cases (e.g., very short chapters, unusually-long passages). Mitigation: Phase 6 verifies independently on *Mrs. Dalloway* — a different era, different chapter structure, different prose density. If the consolidated path works for both, the calibration probably generalised. If Phase 6 fails on *Mrs. Dalloway*, that's a real signal to re-examine the calibration assumptions.
 
 **R3. Model snapshot drift.** Anthropic occasionally updates models behind a stable id. A measurement done today may not generalise to a measurement done in a month. Mitigation: capture the exact model id and timestamp in the measurement output; document that the decision is calibrated to a specific snapshot.
 
 **R4. Collapse of `submit/collect` modules deferred.** If we later collapse into one module with subcommands, we'd have to rename again. Mitigation: explicitly note the deferral and the naming-only nature of the rename in this phase; the decision can be revisited freely without invalidating the consolidation.
 
-**R5. *Mrs. Dalloway* doubles as both measurement and verification corpus.** Phase 3 produces the contextual files; Phase 6 verifies the end-to-end shell script. If the rename-after-decision step (Phase 4) doesn't preserve the file the way the script expects, Phase 6's idempotency claim fails. Mitigation: Phase 4's rename is `mv passages_contextual.<winner>.json passages_contextual.json`; Phase 6's `add_novel.sh` should detect the canonical file already exists and skip re-running the contextual step. If the script doesn't yet handle this, add the skip-if-exists branch as part of Phase 6.
+**R5. Two-novel cost.** Both *Oliver Twist* and *Mrs. Dalloway* will be onboarded as part of this work, doubling the API spend over a single-corpus design. Mitigation: each novel is small enough that the absolute cost is bounded (under $20 expected); we treat the spend as the cost of an honest verification, not waste. The two novels also become real onboarded corpora the project can use afterward.
 
 ## Out of scope
 
