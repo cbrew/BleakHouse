@@ -36,17 +36,20 @@ _PATH_COLUMNS = (
 def _resolve_path(value: str | None) -> str | None:
     """Resolve a stored path to absolute against the current repo root.
 
-    Stored paths are repo-relative ('data/runs/<run>/...'). On read, they
-    expand to wherever the repo lives now, so the DB works on a Mac at
-    /Users/brewc/... and on Fly at /app/... without rewriting rows.
-
-    Already-absolute values are passed through (legacy rows pre-migration;
-    a one-shot migration should rewrite them).
+    Stored paths *should* be repo-relative ('data/runs/<run>/...') so the
+    DB ports between dev boxes and Fly. Some legacy rows still hold
+    absolute paths from the machine that wrote them (e.g.
+    '/Users/brewc/.../BleakHouse/data/runs/...'); rewrite those by
+    finding the 'data/runs/' segment and rebasing onto _REPO_ROOT.
     """
     if value is None or value == "":
         return value
     p = Path(value)
     if p.is_absolute():
+        parts = p.parts
+        if "data" in parts:
+            i = parts.index("data")
+            return str(_REPO_ROOT.joinpath(*parts[i:]))
         return value
     return str(_REPO_ROOT / p)
 

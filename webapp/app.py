@@ -571,12 +571,14 @@ async def get_prep(run_id: str):
     run_dir = DATA_DIR / "runs" / run_id
 
     db_paths = hostprep_for_run(run_id)
-    if db_paths is not None:
+    fallback_interviews = run_dir / "phase2_5_interviews.json"
+    fallback_briefs = run_dir / "phase2_5_host_briefs.json"
+    if db_paths is not None and Path(db_paths["interviews_path"]).exists():
         interviews_path = Path(db_paths["interviews_path"])
         briefs_path = Path(db_paths["briefs_path"])
     else:
-        interviews_path = run_dir / "phase2_5_interviews.json"
-        briefs_path = run_dir / "phase2_5_host_briefs.json"
+        interviews_path = fallback_interviews
+        briefs_path = fallback_briefs
     reading_path = run_dir / "phase2_5_reading_list.json"
     config_path = run_dir / "config.json"
 
@@ -599,6 +601,50 @@ async def get_prep(run_id: str):
                 "experts": cfg.get("experts", []),
             }
     return result
+
+
+@app.get("/api/prep/available")
+async def get_prep_available_runs():
+    """List runs whose host-prep data is on disk and serveable.
+
+    A run shows up here only if `phase2_5_interviews.json` exists for it
+    (either at the DB-pointed path or the run-id-named dir). The /prep
+    page dropdown filters against this so it never offers a run whose
+    /api/runs/<id>/prep would 404."""
+    from webapp.db_views import hostprep_for_run  # pyright: ignore[reportMissingImports]
+
+    runs_root = DATA_DIR / "runs"
+    if not runs_root.exists():
+        return {"runs": []}
+    available: list[dict] = []
+    for run_dir in sorted(runs_root.iterdir()):
+        if not run_dir.is_dir():
+            continue
+        run_id = run_dir.name
+        # DB-resolved path (handles retrofits) wins; otherwise check the run dir.
+        db_paths = hostprep_for_run(run_id)
+        if db_paths is not None and Path(db_paths["interviews_path"]).exists():
+            ok = True
+        else:
+            ok = (run_dir / "phase2_5_interviews.json").exists()
+        if not ok:
+            continue
+        # Pull novel + panel from config.json for a nice label.
+        cfg_path = run_dir / "config.json"
+        novel = panel = ""
+        if cfg_path.exists():
+            try:
+                with open(cfg_path) as f:
+                    cfg = json.load(f)
+                novel = cfg.get("novel", "")
+                experts = cfg.get("experts", [])
+                if experts and isinstance(experts, list):
+                    names = [e.get("name", "").split()[0] for e in experts if isinstance(e, dict)]
+                    panel = " / ".join(n for n in names if n)
+            except Exception:
+                pass
+        available.append({"run_id": run_id, "novel": novel, "panel": panel})
+    return {"runs": available}
 
 
 @app.get("/prep", response_class=HTMLResponse)

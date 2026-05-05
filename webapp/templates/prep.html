@@ -65,49 +65,31 @@
 const params = new URLSearchParams(window.location.search);
 let currentRun = params.get('run') || '';
 
-// Populate run selector from tracker data
-fetch('/tracker/data').then(r => r.json()).then(data => {
+// Populate run selector with runs that actually have prep data on disk.
+// /api/prep/available returns only runs whose /api/runs/<id>/prep would
+// succeed — no more advertising 404 runs in the dropdown.
+fetch('/api/prep/available').then(r => r.json()).then(data => {
     const sel = document.getElementById('run-select');
-    sel.innerHTML = '';
-    // Collect runs that have host prep
-    const runs = [];
-    // Panel scripts
-    if (data.panel_scripts) {
-        for (const r of data.panel_scripts) {
-            if (r.status === 'done') runs.push({ id: r.run_id, label: `${r.novel} — ${r.panel}`, group: 'Panel Scripts' });
-        }
-    }
-    // Interdisciplinary
-    if (data.interdisciplinary) {
-        for (const r of data.interdisciplinary) {
-            if (r.has_episode && r.hostprep) runs.push({ id: r.run_id, label: `${r.novel} — interdisciplinary (${r.condition})`, group: 'Interdisciplinary' });
-        }
-    }
-    // Main matrix runs with hostprep
-    if (data.rows) {
-        for (const row of data.rows) {
-            for (const c of row.cells) {
-                if (c.status === 'done' && c.hostprep) {
-                    runs.push({ id: c.run_id, label: `${row.title} — ${c.panel} (${c.condition})`, group: 'Matrix' });
-                }
-            }
-        }
-    }
-    // Group into optgroups
-    const groups = {};
-    for (const r of runs) {
-        if (!groups[r.group]) groups[r.group] = [];
-        groups[r.group].push(r);
-    }
+    const runs = (data.runs || []).slice().sort((a, b) => {
+        const an = (a.novel || a.run_id).toLowerCase();
+        const bn = (b.novel || b.run_id).toLowerCase();
+        return an.localeCompare(bn) || a.run_id.localeCompare(b.run_id);
+    });
     sel.innerHTML = '<option value="">Select a run...</option>';
-    for (const [gname, items] of Object.entries(groups)) {
+    let byNovel = {};
+    for (const r of runs) {
+        const k = r.novel || 'Other';
+        if (!byNovel[k]) byNovel[k] = [];
+        byNovel[k].push(r);
+    }
+    for (const novel of Object.keys(byNovel)) {
         const og = document.createElement('optgroup');
-        og.label = gname;
-        for (const item of items) {
+        og.label = novel.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        for (const r of byNovel[novel]) {
             const opt = document.createElement('option');
-            opt.value = item.id;
-            opt.textContent = item.label;
-            if (item.id === currentRun) opt.selected = true;
+            opt.value = r.run_id;
+            opt.textContent = r.panel ? `${r.panel} — ${r.run_id}` : r.run_id;
+            if (r.run_id === currentRun) opt.selected = true;
             og.appendChild(opt);
         }
         sel.appendChild(og);
