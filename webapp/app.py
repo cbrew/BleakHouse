@@ -212,6 +212,14 @@ async def landing(request: Request):
     return templates.TemplateResponse(request, "landing.html")
 
 
+@app.get("/lab", response_class=HTMLResponse)
+async def scholarly_landing(request: Request):
+    """Entry point for the scholarly site (the experiment matrix, blog,
+    prompts, prep, etc.). Linked from the consumer site's 'How was this
+    made' link. Same content as the scholarly landing."""
+    return templates.TemplateResponse(request, "landing.html")
+
+
 @app.get("/player", response_class=HTMLResponse)
 async def player(request: Request):
     return templates.TemplateResponse(request, "player.html")

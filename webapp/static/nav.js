@@ -20,7 +20,7 @@
     nav.id = 'site-nav';
     nav.innerHTML = `
         <div class="nav-inner">
-            <a class="nav-brand" href="/"><em>Not In Our Time</em></a>
+            <a class="nav-brand" href="/lab"><em>Not In Our Time</em></a>
             <div class="nav-links">
                 ${links.map(l => {
                     const active = currentPath === l.href ||
