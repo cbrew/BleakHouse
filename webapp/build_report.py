@@ -332,10 +332,19 @@ def build_report_html(manifest: dict) -> str:
         entries = reading_list.get("entries") or []
         recommended = reading_list.get("recommended") or []
         if entries or recommended:
-            # New schema. Show recommended first (the listener-friendly
-            # subset), then the long tail of all entries minus recommended.
+            # New schema. `entries` and `recommended` are lists of
+            # CitationRecord dicts in the post-correct-by-construction
+            # files; pre-CBC files keep them as plain title strings.
+            # Normalise to dicts before rendering.
+            def _as_dict(e: object) -> dict:
+                return e if isinstance(e, dict) else {"title": str(e)}
+
+            entries = [_as_dict(e) for e in entries]
+            recommended = [_as_dict(e) for e in recommended]
+            # Show recommended first (the listener-friendly subset),
+            # then the long tail of all entries minus recommended.
             rec_tags = {e.get("tag") for e in recommended if e.get("tag")}
-            tail = [e for e in entries if e.get("tag") not in rec_tags]
+            tail = [e for e in entries if e.get("tag") not in rec_tags] if rec_tags else entries
             total = len(entries)
             n_recommended = len(recommended)
             rate = reading_list.get("verification_rate", 1.0)
