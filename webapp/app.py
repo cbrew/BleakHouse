@@ -228,6 +228,34 @@ async def scholarly_landing(request: Request):
     return templates.TemplateResponse(request, "landing.html")
 
 
+@app.get("/listen/{novel_id}/{panel}", response_class=HTMLResponse)
+async def consumer_listen(request: Request, novel_id: str, panel: str):
+    """Consumer player: resolves the (novel, panel) pair to a run via
+    best_episodes_for_consumer() and serves the stripped player template
+    with the chosen run_id baked in. URL stays clean; the run_id is
+    passed to player.js via window.PRELOADED_RUN_ID."""
+    from webapp.consumer import best_episodes_for_consumer  # pyright: ignore[reportMissingImports]
+
+    episodes = best_episodes_for_consumer(data_dir=DATA_DIR)
+    match = next(
+        (e for e in episodes if e["novel_id"] == novel_id and e["panel"] == panel),
+        None,
+    )
+    if match is None:
+        raise HTTPException(404, f"No audio episode for {novel_id} / {panel}")
+    return templates.TemplateResponse(
+        request,
+        "consumer_player.html",
+        {
+            "run_id": match["run_id"],
+            "novel_title": match["novel_title"],
+            "author": match["author"],
+            "year": match["year"],
+            "panel": match["panel"],
+        },
+    )
+
+
 @app.get("/player", response_class=HTMLResponse)
 async def player(request: Request):
     return templates.TemplateResponse(request, "player.html")

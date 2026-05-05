@@ -1,0 +1,110 @@
+{% extends "consumer_base.html" %}
+{% block title %}{{ novel_title }} — Not In Our Time{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/style.css?v={{ v }}">
+<style>
+    /* Consumer light theme overrides for the dark-theme player chrome. */
+    :root {
+        --bg: #f7f4ee;
+        --surface: #ffffff;
+        --surface-alt: #ece6d8;
+        --text: #1a1f2e;
+        --text-dim: #6a6f7c;
+        --accent: #b22222;
+        --passage-warm: #8a6d2c;
+        --passage-bg: #f3eddf;
+    }
+    body { background: #f7f4ee; }
+    /* The consumer player has no selectors — all four are hidden but kept
+       in the DOM so player.js can address them without crashing. */
+    #novel-select, #panel-group, #grounding-group, #hostprep-group { display: none !important; }
+    /* Lighter player chrome to match the consumer theme. */
+    header.consumer-player-header {
+        background: var(--bg);
+        border-bottom: 1px solid var(--surface-alt);
+        padding: 1.5em clamp(1rem, 3vw, 2rem);
+        display: flex;
+        flex-direction: column;
+        gap: 0.4em;
+    }
+    header.consumer-player-header h1 {
+        font-size: clamp(1.5em, 1.2em + 1vw, 2em);
+        font-style: italic;
+        color: var(--text);
+        font-weight: normal;
+    }
+    .episode-meta {
+        color: var(--text-dim);
+        font-size: 0.95em;
+    }
+    .player-tip {
+        text-align: center;
+        padding: 0.5em 1em;
+        color: var(--text-dim);
+        font-size: 0.9em;
+        background: var(--surface);
+        border-bottom: 1px solid var(--surface-alt);
+    }
+    /* Footer link section */
+    .player-footer-links {
+        text-align: center;
+        padding: 2em 1em;
+        font-size: 0.9em;
+        color: var(--text-dim);
+    }
+    .player-footer-links a {
+        color: var(--text-dim);
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+    }
+    .player-footer-links a:hover {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+    }
+</style>
+{% endblock %}
+{% block body %}
+{# consumer_base.html renders the .consumer-nav and .consumer-footer
+   outside this block, so we don't repeat them here. #}
+<header class="consumer-player-header">
+    <h1 id="novel-title">{{ novel_title }}</h1>
+    <div class="episode-meta">{{ author }}, {{ year }} &middot; {{ panel | replace('_', ' ') | title }} panel</div>
+    <div id="expert-chips"></div>
+    <!-- Selectors kept hidden for player.js compatibility. -->
+    <select id="novel-select"></select>
+    <div id="panel-group"><select id="panel-select"></select></div>
+    <div id="grounding-group"><select id="grounding-select"></select></div>
+    <div id="hostprep-group"><select id="hostprep-select"></select></div>
+</header>
+
+<div id="player-bar">
+    <button id="play-btn">&#9654;</button>
+    <input type="range" id="seek-bar" min="0" max="100" value="0" step="0.1">
+    <span id="time-display">0:00 / 0:00</span>
+    <button id="speed-btn">1x</button>
+</div>
+<div id="no-audio-banner" style="display:none;text-align:center;padding:0.6em 1em;background:#f5e9c0;border-bottom:1px solid #d4c374;color:#6b5524;font-size:0.9em;">
+    Script only — no audio rendered yet. <a id="no-audio-report-link" href="#" style="color:#6b5524;text-decoration:underline;">Read the full report</a>.
+</div>
+<div id="version-switcher" style="display:none;text-align:center;padding:0.3em 0;background:var(--surface);border-bottom:1px solid var(--surface-alt);"></div>
+
+<div class="player-tip">Click any paragraph to hear that moment &middot; Click passage references to see source text</div>
+<div id="segment-nav"></div>
+
+<main class="player-layout" style="max-width: min(60rem, 100vw - 2rem); margin: 0 auto; padding: 1.5em clamp(1rem, 3vw, 2rem);">
+    <div class="player-main">
+        <div id="loading">Loading episode…</div>
+        <div id="transcript"></div>
+    </div>
+</main>
+
+<script>window.PRELOADED_RUN_ID = {{ run_id | tojson }};</script>
+<script src="/static/player.js?v={{ v }}"></script>
+{% endblock %}
+{% block footer %}
+<footer class="consumer-footer">
+    <a href="/">&larr; Back to all episodes</a>
+    &nbsp;&middot;&nbsp;
+    <a href="/lab">How was this made &rarr;</a>
+</footer>
+{% endblock %}

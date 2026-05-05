@@ -65,9 +65,11 @@ const loading      = document.getElementById("loading");
 
 // ── Init ──
 async function init() {
-    // Direct link: /?run=ext_v01_baseline skips selectors
+    // Direct link: /?run=ext_v01_baseline skips selectors. The consumer
+    // player at /listen/{novel}/{panel} sets window.PRELOADED_RUN_ID
+    // server-side so the URL bar stays clean.
     const params = new URLSearchParams(window.location.search);
-    const directRun = params.get("run");
+    const directRun = params.get("run") || window.PRELOADED_RUN_ID || null;
 
     novels = await fetch("/api/novels").then(r => r.json());
     const novelNames = Object.keys(novels);
