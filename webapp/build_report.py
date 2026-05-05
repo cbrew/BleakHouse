@@ -372,45 +372,91 @@ def build_report_html(manifest: dict) -> str:
                 '<h2 class="seg-title">Reading List '
                 f'<span class="seg-type">({summary})</span></h2>'
             )
-            for heading, refs in (
-                ("Recommended for listeners", recommended),
-                ("Full reading list", tail),
-            ):
-                if not refs:
-                    continue
+            def _format_new_schema_ref(ref: dict) -> str:
+                # Hybrid (legacy listener-pick) recommended dicts use
+                # `display` as the pre-formatted citation string and
+                # leave structured fields null. Fall back to it when
+                # `title` is missing.
+                title_t = escape(ref.get("title") or ref.get("display") or "")
+                authors_l = ref.get("authors") or []
+                authors = ", ".join(escape(a) for a in authors_l[:3])
+                if len(authors_l) > 3:
+                    authors += " et al."
+                year = ref.get("year")
+                cited = ref.get("cited_by") or 0
+                url = ref.get("url") or ref.get("doi") or ""
+                src = escape(ref.get("source") or ref.get("verification_source") or "")
+                label = f'<strong>{title_t}</strong>'
+                if authors:
+                    label += f' — {authors}'
+                if year:
+                    label += f' ({escape(str(year))})'
+                if url:
+                    label += (
+                        f' <a href="{escape(url)}" target="_blank" '
+                        f'rel="noopener">link</a>'
+                    )
+                if cited:
+                    label += f' <span class="seg-type">(cited {cited}×)</span>'
+                if src:
+                    label += f' <span class="match-badge">{src}</span>'
+                return f'<li>{label}</li>'
+
+            def _format_legacy_ref(ref: dict, *, is_verified: bool) -> str:
+                source = ref.get("verification_source", "")
+                expert = ref.get("expert_name", "")
+                raw = ref.get("raw_text", "")
+                oa_title = ref.get("openalex_title", "")
+                cited = ref.get("openalex_cited_by", 0)
+                label = f"{escape(raw)}"
+                if oa_title and oa_title != raw:
+                    label += f' <span class="seg-type">[{escape(oa_title)}]</span>'
+                if cited:
+                    label += f' <span class="seg-type">(cited {cited}×)</span>'
+                if expert:
+                    label += f' — <em>{escape(expert)}</em>'
+                if source and is_verified:
+                    label += f' <span class="match-badge">{escape(source)}</span>'
+                return f'<li>{label}</li>'
+
+            # Top-of-page block: SELECTED subset (primary view).
+            if recommended:
                 body_parts.append(
-                    f'<div class="reading-list"><h3>{escape(heading)}</h3><ul>'
+                    '<div class="reading-list">'
+                    '<h3>Recommended for listeners</h3><ul>'
                 )
-                for ref in refs:
-                    # Hybrid (legacy listener-pick) recommended dicts use
-                    # `display` as the pre-formatted citation string and
-                    # leave structured fields null. Fall back to it when
-                    # `title` is missing.
-                    title_t = escape(ref.get("title") or ref.get("display") or "")
-                    authors_l = ref.get("authors") or []
-                    authors = ", ".join(escape(a) for a in authors_l[:3])
-                    if len(authors_l) > 3:
-                        authors += " et al."
-                    year = ref.get("year")
-                    cited = ref.get("cited_by") or 0
-                    url = ref.get("url") or ref.get("doi") or ""
-                    src = escape(ref.get("source") or ref.get("verification_source") or "")
-                    label = f'<strong>{title_t}</strong>'
-                    if authors:
-                        label += f' — {authors}'
-                    if year:
-                        label += f' ({escape(str(year))})'
-                    if url:
-                        label += (
-                            f' <a href="{escape(url)}" target="_blank" '
-                            f'rel="noopener">link</a>'
-                        )
-                    if cited:
-                        label += f' <span class="seg-type">(cited {cited}×)</span>'
-                    if src:
-                        label += f' <span class="match-badge">{src}</span>'
-                    body_parts.append(f'<li>{label}</li>')
+                for ref in recommended:
+                    body_parts.append(_format_new_schema_ref(ref))
                 body_parts.append('</ul></div>')
+
+            # Long tail: collapsed-by-default <details>. Pulls in both
+            # the new-schema tail (entries minus recommended) and any
+            # legacy verified/unverified arrays a hybrid manifest carries.
+            legacy_verified_full = reading_list.get("verified") or []
+            legacy_unverified_full = reading_list.get("unverified") or []
+            n_tail = len(tail) + len(legacy_verified_full) + len(legacy_unverified_full)
+            if n_tail:
+                body_parts.append(
+                    '<details class="reading-list-full">'
+                    f'<summary>Show all {n_tail} references that informed this episode</summary>'
+                    '<div class="reading-list">'
+                )
+                if tail:
+                    body_parts.append('<h4>Full reading list</h4><ul>')
+                    for ref in tail:
+                        body_parts.append(_format_new_schema_ref(ref))
+                    body_parts.append('</ul>')
+                if legacy_verified_full:
+                    body_parts.append('<h4>Verified references</h4><ul>')
+                    for ref in legacy_verified_full:
+                        body_parts.append(_format_legacy_ref(ref, is_verified=True))
+                    body_parts.append('</ul>')
+                if legacy_unverified_full:
+                    body_parts.append('<h4>Unverified references</h4><ul>')
+                    for ref in legacy_unverified_full:
+                        body_parts.append(_format_legacy_ref(ref, is_verified=False))
+                    body_parts.append('</ul>')
+                body_parts.append('</div></details>')
         else:
             # Legacy schema fallback.
             verified = reading_list.get("verified", [])
@@ -602,6 +648,27 @@ details.hp-interview summary {{ cursor: pointer; color: var(--passage-warm); fon
 .hp-steering {{ margin-top: 0.5em; color: var(--text-dim); line-height: 1.5; }}
 .hp-cross {{ margin-top: 0.5em; }}
 .hp-cross li {{ color: var(--text-dim); margin: 0.3em 0; }}
+.reading-list-full {{
+    margin: 1em 0;
+    padding: 0.4em 0.8em;
+    background: var(--surface);
+    border: 1px solid var(--surface-alt);
+    border-radius: 4px;
+}}
+.reading-list-full > summary {{
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 0.9em;
+    padding: 0.2em 0;
+}}
+.reading-list-full > summary:hover {{ color: var(--accent); }}
+.reading-list-full[open] > summary {{ margin-bottom: 0.5em; }}
+.reading-list-full h4 {{
+    color: var(--text-dim);
+    font-size: 0.9em;
+    margin-top: 0.6em;
+    font-weight: 600;
+}}
 footer {{
     margin-top: 2em; padding-top: 1em; border-top: 1px solid var(--surface-alt);
     color: var(--text-dim); font-size: 0.8em;
