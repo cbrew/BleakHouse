@@ -4,9 +4,14 @@ Uses the Batch API instead of sequential calls. Prompt caching is
 best-effort in batches (not guaranteed), but the 50% batch discount
 on input tokens compensates. Much faster wall-clock time.
 
+Idempotency: writes data/novels/<novel>/context_batch_manifest.json
+when the batch is submitted. Re-running with the manifest already
+present is a no-op (refuses to create a duplicate batch). To re-submit,
+delete the manifest first.
+
 Usage:
-    uv run python -m enrichment.submit_context_batch --novel hard_times
-    uv run python -m enrichment.submit_context_batch --novel middlemarch --chapters c1,c2,c3
+    uv run python -m enrichment.submit_passage_contexts --novel hard_times
+    uv run python -m enrichment.submit_passage_contexts --novel middlemarch --chapters c1,c2,c3
 """
 
 import argparse
@@ -21,31 +26,15 @@ from anthropic.types.message_create_params import MessageCreateParamsNonStreamin
 from anthropic.types.messages.batch_create_params import Request
 from dotenv import load_dotenv
 
+from enrichment.axes import NOVEL_IDS  # canonical source of novel directory ids
 from enrichment.context_prompt import build_context_messages
-from enrichment.submit_batch import format_chapter_text
+from enrichment.submit_passages_enriched import format_chapter_text
 
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path("data")
 MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 300
-
-NOVEL_KEYS = [
-    "our_mutual_friend",
-    "mill_on_the_floss",
-    "north_and_south",
-    "passage_to_india",
-    "hard_times",
-    "middlemarch",
-    "daniel_deronda",
-    "david_copperfield",
-    "cranford",
-    "no_name",
-    "new_grub_street",
-    "odd_women",
-    "miss_marjoribanks",
-    "hester",
-]
 
 
 def build_context_requests(
@@ -75,6 +64,7 @@ def build_context_requests(
                     params=MessageCreateParamsNonStreaming(
                         model=MODEL,
                         max_tokens=MAX_TOKENS,
+                        temperature=0,  # tightens cross-run consistency for the C/D comparison
                         system=system_blocks,
                         messages=[{"role": "user", "content": user_msg}],
                     ),
@@ -91,7 +81,7 @@ def main() -> None:
         description="Submit context generation as batch"
     )
     parser.add_argument(
-        "--novel", required=True, choices=NOVEL_KEYS, help="Novel key"
+        "--novel", required=True, choices=sorted(NOVEL_IDS), help="Novel key"
     )
     parser.add_argument(
         "--chapters", type=str, default=None,
@@ -102,6 +92,14 @@ def main() -> None:
     novel_dir = DATA_DIR / "novels" / args.novel
     passages_path = novel_dir / "passages_enriched.json"
     manifest_path = novel_dir / "context_batch_manifest.json"
+
+    if manifest_path.exists():
+        logger.info(
+            "%s already exists; nothing to do. Run collect_passage_contexts "
+            "to retrieve results, or delete the manifest to resubmit.",
+            manifest_path,
+        )
+        return
 
     load_dotenv()
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])

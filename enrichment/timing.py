@@ -42,7 +42,7 @@ class CallEvent:
     # only fresh (non-cached, non-write) input tokens; cache reads and
     # writes are billed separately at 0.1x / 1.25x respectively, so they
     # need their own counters for cost reporting to be accurate. Without
-    # these, generate_contexts.py-style cached calls would under-report.
+    # these, prompt-cached calls would under-report.
     input_tokens: int = 0
     output_tokens: int = 0
     cache_creation_input_tokens: int = 0

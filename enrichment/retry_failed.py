@@ -12,7 +12,7 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
-from enrichment.submit_batch import build_requests
+from enrichment.submit_passages_enriched import build_requests
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ def main() -> None:
     }
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2))
     logger.info("Retry batch %s submitted (%d requests)", batch.id, len(requests))
-    logger.info("Run collect_results.py again after this batch completes.")
+    logger.info("Run collect_passages_enriched again after this batch completes.")
 
 
 if __name__ == "__main__":

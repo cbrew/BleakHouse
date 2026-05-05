@@ -2,8 +2,8 @@
 """Poll a batch and collect enrichment results.
 
 Usage:
-  uv run python -m enrichment.collect_results
-  uv run python -m enrichment.collect_results --novel our_mutual_friend
+  uv run python -m enrichment.collect_passages_enriched
+  uv run python -m enrichment.collect_passages_enriched --novel our_mutual_friend
 """
 
 import argparse
@@ -27,7 +27,7 @@ MANIFEST_PATH = DATA_DIR / "batch_manifest.json"
 PASSAGES_PATH = DATA_DIR / "passages_raw.json"
 OUTPUT_PATH = DATA_DIR / "passages_enriched.json"
 
-# Single source of truth for the novel-key whitelist (see submit_batch.py).
+# Single source of truth for the novel-key whitelist (see submit_passages_enriched.py).
 NOVEL_KEYS = sorted(NOVEL_CONFIGS.keys())
 
 POLL_INTERVAL_SECONDS = 30
@@ -174,10 +174,9 @@ def main() -> None:
         logger.warning("Failed request IDs: %s", failed_ids)
 
     # Per-novel cost sidecar — sibling to passages_enriched.json. Same
-    # shape as data/novels/<novel>/passage_enrichment_timings.json
-    # written by the sync generate_contexts.py path; timings_summary.py
-    # picks it up under the 'enrichment' stage when called against any
-    # run of this novel.
+    # shape as data/novels/<novel>/passage_enrichment_timings.json;
+    # timings_summary.py picks it up under the 'enrichment' stage when
+    # called against any run of this novel.
     timings_path = output_path.parent / "passage_enrichment_timings.json"
     timings_path.write_text(json.dumps(recorder.to_dict(), indent=2))
     logger.info(

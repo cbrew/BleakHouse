@@ -138,7 +138,7 @@ def run_condition(
         if not vectors.exists():
             logger.error(
                 "No vector index at %s. "
-                "Run generate_contexts.py and embed_passages.py first.",
+                "Run submit_passage_contexts/collect_passage_contexts and embed_passages.py first.",
                 vectors,
             )
             sys.exit(1)

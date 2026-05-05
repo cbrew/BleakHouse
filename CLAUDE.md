@@ -39,6 +39,19 @@ Deploy the Fly demo (replaces the live site):
 bash scripts/deploy_demo.sh          # tar data/runs/, fly deploy --local-only
 ```
 
+Onboard a new novel end-to-end (download → segment → enrichment batch →
+contexts batch → clustering):
+
+```bash
+bash scripts/add_novel.sh <novel_id>   # e.g. mrs_dalloway, oliver_twist
+```
+
+The script is idempotent (each step skips if its output is on disk) and
+verifies that the novel is registered in `enrichment/axes.py`,
+`enrichment/segment_novel.py`, and `enrichment/novel_prompts.py` before
+it touches the network. Wall-clock is ~1-2 hours for a typical novel,
+dominated by the two batch waits.
+
 The data tree (~165 MB, JSON only) is baked into the image at build
 time via a tarball with symlinks dereferenced. Audio mp3s stay in R2
 and are 302-redirected by the webapp using URLs parsed from `dvc.lock`

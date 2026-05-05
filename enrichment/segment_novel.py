@@ -36,6 +36,15 @@ class NovelConfig:
     author: str
     html_filename: str
     gutenberg_id: int
+    # Optional overrides for novels without conventional chapter structure
+    # (e.g. Mrs. Dalloway, a single-day stream of consciousness with no
+    # chapter breaks). When `chunk_paragraphs` is set, the parser ignores
+    # auto-detected structure and groups body <p>s into pseudo-chapters
+    # of that size; `start_marker` / `end_marker` (substrings) skip
+    # front-matter / end-matter (Gutenberg transcriber's note, etc.).
+    chunk_paragraphs: int | None = None
+    start_marker: str | None = None
+    end_marker: str | None = None
 
 
 NOVELS: dict[str, NovelConfig] = {
@@ -144,6 +153,27 @@ NOVELS: dict[str, NovelConfig] = {
         author="E. M. Forster",
         html_filename="pg2641-images.html",
         gutenberg_id=2641,
+    ),
+    "oliver_twist": NovelConfig(
+        key="oliver_twist",
+        title="Oliver Twist",
+        author="Charles Dickens",
+        html_filename="pg730-images.html",
+        gutenberg_id=730,
+    ),
+    "mrs_dalloway": NovelConfig(
+        key="mrs_dalloway",
+        title="Mrs. Dalloway",
+        author="Virginia Woolf",
+        html_filename="pg71865-images.html",
+        gutenberg_id=71865,
+        # Single-day stream of consciousness with no chapter structure.
+        # Chunk body <p>s into ~120 pseudo-sections (~10 per "hour" across
+        # the novel's 12-hour span). Skip front-matter (title page,
+        # copyright, dedication) until the famous opening line.
+        chunk_paragraphs=7,
+        start_marker="Mrs. Dalloway said she would buy",
+        end_marker="Minor punctuation errors",
     ),
 }
 
@@ -345,6 +375,56 @@ def parse_body_headings(tree: etree._Element, heading_tag: str = "h2") -> list[d
     return chapters
 
 
+def parse_chunked(
+    tree: etree._Element,
+    *,
+    chunk_size: int,
+    start_marker: str | None,
+    end_marker: str | None = None,
+) -> list[dict]:
+    """Parse a novel without conventional chapter structure by chunking
+    body <p>s into fixed-size pseudo-chapters.
+
+    `start_marker` (substring) drops paragraphs until one contains it,
+    skipping title page / copyright / dedication front-matter. The
+    paragraph containing the marker is itself kept as the first body
+    paragraph. `end_marker` is symmetric: collection stops as soon as a
+    paragraph contains it (useful for stripping transcriber's notes).
+    """
+    paragraphs = tree.xpath("//body//p")
+    texts: list[str] = []
+    started = start_marker is None
+    for p in paragraphs:
+        text = " ".join(p.itertext()).strip()
+        if not text or len(text) <= 2:
+            continue
+        if not started:
+            if start_marker is not None and start_marker in text:
+                started = True
+            else:
+                continue
+        if end_marker is not None and end_marker in text:
+            break
+        texts.append(text)
+
+    if not texts:
+        suffix = f" after marker {start_marker!r}" if start_marker else ""
+        raise ValueError(f"chunked parser found no body paragraphs{suffix}")
+
+    chapters: list[dict] = []
+    for i in range(0, len(texts), chunk_size):
+        chunk = texts[i : i + chunk_size]
+        chapter_num = (i // chunk_size) + 1
+        chapters.append(
+            {
+                "id": _make_chapter_id(chapter_num),
+                "title": f"Section {chapter_num}",
+                "paragraphs": chunk,
+            }
+        )
+    return chapters
+
+
 def detect_and_parse(html_path: Path) -> list[dict]:
     """Auto-detect HTML structure and parse chapters."""
     html_content = html_path.read_text()
@@ -483,7 +563,21 @@ def segment_novel(novel_key: str, *, max_words: int | None = None) -> None:
     logger.info("Parsing %s from %s", config.title, html_path)
     if max_words:
         logger.info("Splitting long paragraphs at ~%d words", max_words)
-    chapters = detect_and_parse(html_path)
+
+    if config.chunk_paragraphs is not None:
+        logger.info(
+            "Using chunked strategy (%d paragraphs/section, start_marker=%r)",
+            config.chunk_paragraphs, config.start_marker,
+        )
+        tree = etree.HTML(html_path.read_text())
+        chapters = parse_chunked(
+            tree,
+            chunk_size=config.chunk_paragraphs,
+            start_marker=config.start_marker,
+            end_marker=config.end_marker,
+        )
+    else:
+        chapters = detect_and_parse(html_path)
     logger.info("Found %d chapters", len(chapters))
 
     all_passages: list[dict] = []
