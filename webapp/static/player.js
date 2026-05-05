@@ -78,11 +78,13 @@ async function init() {
         showSelect(panelSelect, false);
         showSelect(groundingSelect, false);
         showSelect(hostprepSelect, false);
-        // Find the novel for this run
+        // Find the novel for this run, and seed currentRuns so loadRun()
+        // can look up the run's has_audio flag.
         for (const [name, runs] of Object.entries(novels)) {
             if (runs.some(r => r.run_id === directRun)) {
                 novelTitle.textContent = name + " Unpacked";
                 document.title = name + " — Literary Podcast";
+                currentRuns = runs;
                 break;
             }
         }
@@ -278,15 +280,22 @@ async function loadRun(runId, version = null) {
     const runMeta = currentRuns.find(r => r.run_id === runId);
     const hasAudio = runMeta ? runMeta.has_audio : true;
     const playerBar = document.getElementById("player-bar");
+    const noAudioBanner = document.getElementById("no-audio-banner");
+    const reportLink = document.getElementById("no-audio-report-link");
 
     if (!hasAudio) {
         playerBar.style.display = "none";
+        if (noAudioBanner) {
+            noAudioBanner.style.display = "";
+            if (reportLink) reportLink.href = `/report/${runId}`;
+        }
         if (audio) { audio.pause(); audio.src = ""; audio = null; }
         shardsManifest = null;
         return;
     }
 
     playerBar.style.display = "";
+    if (noAudioBanner) noAudioBanner.style.display = "none";
     if (audio) { audio.pause(); audio.src = ""; }
     if (shardPrefetch) { shardPrefetch.src = ""; shardPrefetch = null; }
 

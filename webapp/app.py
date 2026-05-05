@@ -1237,7 +1237,10 @@ def _build_run_lists_from_db() -> dict:
         if not rd.exists():
             continue
         s = _summarize_run_dir(rd)
-        if not (s["title"] and s["has_audio"]):
+        # Surface every run with a script + a report; the player UI
+        # branches on `has_audio` to offer either "Listen" or
+        # "Read the report".
+        if not (s["title"] and s["has_episode"] and s["has_report"]):
             continue
         novels.setdefault(s["novel"], []).append({
             "run_id": s["run_id"],
@@ -1259,8 +1262,11 @@ def _build_run_lists_from_db() -> dict:
             "title": s["title"],
             "novel": s["novel"],
             "condition": s["condition"],
+            "panel": s["panel"],
             "hostprep": s["hostprep"],
             "experts": s["experts"],
+            "has_audio": s["has_audio"],
+            "has_report": s["has_report"],
         })
     return {"novels": novels, "all_runs": all_runs}
 
