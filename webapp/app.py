@@ -645,6 +645,17 @@ async def get_prep(run_id: str):
     return result
 
 
+@app.get("/api/consumer/episodes")
+async def get_consumer_episodes():
+    """One row per (novel, panel) pair with rendered audio, ranked by
+    pipeline > hostprep > ref_tools > recency. Backs the consumer landing
+    cards. See webapp.consumer.best_episodes_for_consumer for the full
+    selection rules."""
+    from webapp.consumer import best_episodes_for_consumer  # pyright: ignore[reportMissingImports]
+
+    return {"episodes": best_episodes_for_consumer(data_dir=DATA_DIR)}
+
+
 @app.get("/api/prep/available")
 async def get_prep_available_runs():
     """List runs whose host-prep data is on disk and serveable.
