@@ -382,7 +382,11 @@ def build_report_html(manifest: dict) -> str:
                     f'<div class="reading-list"><h3>{escape(heading)}</h3><ul>'
                 )
                 for ref in refs:
-                    title_t = escape(ref.get("title") or "")
+                    # Hybrid (legacy listener-pick) recommended dicts use
+                    # `display` as the pre-formatted citation string and
+                    # leave structured fields null. Fall back to it when
+                    # `title` is missing.
+                    title_t = escape(ref.get("title") or ref.get("display") or "")
                     authors_l = ref.get("authors") or []
                     authors = ", ".join(escape(a) for a in authors_l[:3])
                     if len(authors_l) > 3:
@@ -390,7 +394,7 @@ def build_report_html(manifest: dict) -> str:
                     year = ref.get("year")
                     cited = ref.get("cited_by") or 0
                     url = ref.get("url") or ref.get("doi") or ""
-                    src = escape(ref.get("source") or "")
+                    src = escape(ref.get("source") or ref.get("verification_source") or "")
                     label = f'<strong>{title_t}</strong>'
                     if authors:
                         label += f' — {authors}'
