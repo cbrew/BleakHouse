@@ -331,17 +331,15 @@ def build_report_html(manifest: dict) -> str:
     if reading_list:
         entries = reading_list.get("entries") or []
         recommended = reading_list.get("recommended") or []
-        legacy_verified = reading_list.get("verified") or []
-        legacy_unverified = reading_list.get("unverified") or []
         # Some legacy manifests (BH first-wave) carry both shapes — a
         # post-pass filtered `recommended` plus the original verified /
-        # unverified arrays. The new schema is identified by a populated
-        # `entries`, not just a non-empty `recommended`.
-        use_new_schema = bool(entries)
-        if not use_new_schema and (legacy_verified or legacy_unverified):
-            use_new_schema = False
-        elif recommended and not (legacy_verified or legacy_unverified):
-            use_new_schema = True
+        # unverified arrays. The full lists are huge (~30-46 items) and
+        # the user wants the SELECTED subset to be primary, so route
+        # whenever `recommended` exists to the new-schema renderer (which
+        # shows just `recommended` and an empty tail for hybrid runs).
+        # Only fall through to the legacy verified/unverified renderer
+        # if there is genuinely no listener-pick output to show.
+        use_new_schema = bool(entries) or bool(recommended)
         if use_new_schema:
             # New schema. `entries` and `recommended` are lists of
             # CitationRecord dicts in the post-correct-by-construction
@@ -359,10 +357,20 @@ def build_report_html(manifest: dict) -> str:
             total = len(entries)
             n_recommended = len(recommended)
             rate = reading_list.get("verification_rate", 1.0)
+            # When `entries` is empty (hybrid manifests where the long
+            # tail lives in legacy `verified`/`unverified` arrays), the
+            # listener-pick `recommended` is the whole show — drop the
+            # "0 entries" prefix that would otherwise confuse readers.
+            if total == 0 and n_recommended > 0:
+                summary = f"{n_recommended} listener picks"
+            else:
+                summary = (
+                    f"{total} entries, {n_recommended} recommended, "
+                    f"{rate:.0%} verified"
+                )
             body_parts.append(
                 '<h2 class="seg-title">Reading List '
-                f'<span class="seg-type">({total} entries, {n_recommended} recommended, '
-                f'{rate:.0%} verified)</span></h2>'
+                f'<span class="seg-type">({summary})</span></h2>'
             )
             for heading, refs in (
                 ("Recommended for listeners", recommended),
