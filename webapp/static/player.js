@@ -664,24 +664,6 @@ function jumpToShardForTurn(segIdx, turnIdx) {
     return true;
 }
 
-// Manifest timestamps and the rendered mp3 can drift apart when the TTS
-// engine paces utterances differently from the timing model in the manifest.
-// Until manifests are rebuilt against the rendered audio, rescale linearly
-// using the ratio of actual audio.duration to manifest total_duration_ms.
-function manifestMsToAudioSeconds(ms) {
-    if (!audio || !audio.duration || !manifest || !manifest.total_duration_ms) {
-        return ms / 1000;
-    }
-    return (ms / manifest.total_duration_ms) * audio.duration;
-}
-
-function audioSecondsToManifestMs(sec) {
-    if (!audio || !audio.duration || !manifest || !manifest.total_duration_ms) {
-        return sec * 1000;
-    }
-    return (sec / audio.duration) * manifest.total_duration_ms;
-}
-
 function seekToSegment(segIdx) {
     if (!audio || !manifest) return;
     if (shardsManifest) {
@@ -690,7 +672,7 @@ function seekToSegment(segIdx) {
         return;
     }
     const seg = manifest.segments[segIdx];
-    audio.currentTime = manifestMsToAudioSeconds(seg.start_ms);
+    audio.currentTime = seg.start_ms / 1000;
     if (audio.paused) {
         audio.play();
         playBtn.textContent = "\u275A\u275A";
@@ -704,7 +686,7 @@ function seekToTurn(segIdx, turnIdx) {
         return;
     }
     const turn = manifest.segments[segIdx].turns[turnIdx];
-    audio.currentTime = manifestMsToAudioSeconds(turn.start_ms);
+    audio.currentTime = turn.start_ms / 1000;
     if (audio.paused) {
         audio.play();
         playBtn.textContent = "\u275A\u275A";
@@ -727,7 +709,7 @@ function syncLoop() {
                 });
             }
         } else {
-            const ms = audioSecondsToManifestMs(audio.currentTime);
+            const ms = audio.currentTime * 1000;
             seekBar.value = audio.currentTime;
             timeDisplay.textContent = formatTime(audio.currentTime) + " / " + formatTime(audio.duration || 0);
 
