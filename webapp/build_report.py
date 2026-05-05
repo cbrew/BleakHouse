@@ -635,6 +635,21 @@ def build_report(run_id: str) -> bool:
         logger.warning("No manifest for run %s — run build_manifest first", run_id)
         return False
 
+    # The listener-pick winnower writes its filtered output to
+    # phase2_5_reading_list.json after build_manifest has already baked
+    # an unfiltered reading list into manifest.json. Treat the per-run
+    # JSON as source of truth: if it exists, override the manifest's
+    # embedded reading_list before rendering.
+    rl_path = run_dir / "phase2_5_reading_list.json"
+    if rl_path.exists():
+        try:
+            rl = json.loads(rl_path.read_text())
+            manifest.setdefault("host_prep", {})
+            if isinstance(manifest.get("host_prep"), dict):
+                manifest["host_prep"]["reading_list"] = rl
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Failed to read %s: %s — using manifest copy", rl_path, exc)
+
     html = build_report_html(manifest)
     out_path = run_dir / "report.html"
     out_path.write_text(html)
