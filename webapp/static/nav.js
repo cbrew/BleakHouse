@@ -21,6 +21,7 @@
     nav.innerHTML = `
         <div class="nav-inner">
             <a class="nav-brand" href="/lab"><em>Not In Our Time</em></a>
+            <a class="nav-listen" href="/" title="Back to the listening site">&larr; Listen</a>
             <div class="nav-links">
                 ${links.map(l => {
                     const active = currentPath === l.href ||
@@ -57,7 +58,9 @@
         overflowEl.hidden = false;
         const moreWidth = overflowEl.offsetWidth || 80;
         const brandWidth = innerEl.querySelector('.nav-brand').offsetWidth;
-        const budget = innerWidth - brandWidth - moreWidth - 16;
+        const listenEl = innerEl.querySelector('.nav-listen');
+        const listenWidth = listenEl ? listenEl.offsetWidth : 0;
+        const budget = innerWidth - brandWidth - listenWidth - moreWidth - 16;
         let used = 0;
         const overflowed = [];
         for (const a of navItems) {
@@ -125,6 +128,23 @@
             border-right: 1px solid #1a2744;
             white-space: nowrap;
             flex: 0 0 auto;
+        }
+        .nav-listen {
+            color: #8888aa;
+            text-decoration: none;
+            font-size: 0.85em;
+            padding: 0.4em 0.7em;
+            margin-right: 0.7em;
+            border: 1px solid #1a2744;
+            border-radius: 12px;
+            white-space: nowrap;
+            flex: 0 0 auto;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .nav-listen:hover {
+            color: #e94560;
+            border-color: #e94560;
+            background: #1a2744;
         }
         .nav-links {
             display: flex;
