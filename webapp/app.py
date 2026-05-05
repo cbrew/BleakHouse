@@ -209,14 +209,22 @@ PAGES_DIR = Path(__file__).resolve().parent / "pages"
 
 @app.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
-    return templates.TemplateResponse(request, "landing.html")
+    """Consumer-facing landing: one card per (novel, panel) pair with audio.
+    Scholarly entry-point lives at /lab and is linked from every consumer
+    page's 'How was this made →' affordance."""
+    from webapp.consumer import best_episodes_for_consumer  # pyright: ignore[reportMissingImports]
+
+    episodes = best_episodes_for_consumer(data_dir=DATA_DIR)
+    return templates.TemplateResponse(
+        request, "consumer_landing.html", {"episodes": episodes}
+    )
 
 
 @app.get("/lab", response_class=HTMLResponse)
 async def scholarly_landing(request: Request):
     """Entry point for the scholarly site (the experiment matrix, blog,
     prompts, prep, etc.). Linked from the consumer site's 'How was this
-    made' link. Same content as the scholarly landing."""
+    made' link."""
     return templates.TemplateResponse(request, "landing.html")
 
 
