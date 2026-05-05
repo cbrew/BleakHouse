@@ -579,7 +579,14 @@ async def get_prep(run_id: str):
     else:
         interviews_path = fallback_interviews
         briefs_path = fallback_briefs
-    reading_path = run_dir / "phase2_5_reading_list.json"
+    # Read the reading list from the same directory as the interviews:
+    # retrofit dirs hold both an updated interviews.json (with ref-N tags)
+    # and the matching reading_list.json (with the entries that resolve
+    # those tags). The legacy run-id dir's reading_list has no `entries`
+    # block and would leave the tags unresolved.
+    reading_path = interviews_path.parent / "phase2_5_reading_list.json"
+    if not reading_path.exists():
+        reading_path = run_dir / "phase2_5_reading_list.json"
     config_path = run_dir / "config.json"
 
     if not interviews_path.exists():
@@ -600,6 +607,33 @@ async def get_prep(run_id: str):
                 "novel": cfg.get("novel", ""),
                 "experts": cfg.get("experts", []),
             }
+
+    # Retrofit interviews store proposed_references as ['ref-1', 'ref-2', ...]
+    # tags that index into reading_list.entries. Replace each tag in place
+    # with the matching entry dict (display/title/authors/year/url). Pre-
+    # retrofit interviews carry full citation strings already; those pass
+    # through untouched.
+    entries = (result.get("reading_list") or {}).get("entries") or []
+    by_tag: dict[str, dict] = {}
+    for e in entries:
+        if not isinstance(e, dict) or not e.get("tag"):
+            continue
+        if not e.get("display"):
+            authors = e.get("authors") or []
+            authors_str = ", ".join(authors) if isinstance(authors, list) else str(authors)
+            title = e.get("title") or ""
+            year = e.get("year")
+            parts = [p for p in [authors_str, title] if p]
+            display = ", ".join(parts)
+            if year:
+                display = f"{display} ({year})" if display else f"({year})"
+            e["display"] = display
+        by_tag[e["tag"]] = e
+    if by_tag:
+        for segment in result["interviews"]:
+            for expert in segment:
+                refs = expert.get("proposed_references") or []
+                expert["proposed_references"] = [by_tag.get(r, r) if isinstance(r, str) else r for r in refs]
     return result
 
 

@@ -214,11 +214,14 @@ function renderPrep(data) {
             if (expert.proposed_references && expert.proposed_references.length > 0) {
                 html += `<h4>Proposed References</h4>`;
                 for (const ref of expert.proposed_references) {
-                    const text = typeof ref === 'string' ? ref : (ref.raw_text || ref.title || JSON.stringify(ref));
-                    const verified = typeof ref === 'object' && ref.verified;
+                    const isDict = typeof ref === 'object' && ref !== null;
+                    const text = isDict
+                        ? (formatCitation(ref) || ref.raw_text || ref.title || JSON.stringify(ref))
+                        : esc(ref);
+                    const verified = isDict && (ref.verified || ref.verification_status === 'verified');
                     const cls = verified ? 'ref-verified' : 'ref-unverified';
                     const icon = verified ? '&#10003;' : '?';
-                    html += `<div class="ref-item"><span class="${cls}">${icon}</span> ${esc(text)}</div>`;
+                    html += `<div class="ref-item"><span class="${cls}">${icon}</span> ${text}</div>`;
                 }
             }
             html += `</div>`;
