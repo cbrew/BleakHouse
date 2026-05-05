@@ -21,16 +21,79 @@
     nav.innerHTML = `
         <div class="nav-inner">
             <a class="nav-brand" href="/"><em>Not In Our Time</em></a>
-            ${links.map(l => {
-                const active = currentPath === l.href ||
-                    (l.href !== '/' && currentPath.startsWith(l.href));
-                return `<a href="${l.href}" class="nav-link${active ? ' active' : ''}">${l.icon} ${l.label}</a>`;
-            }).join('')}
+            <div class="nav-links">
+                ${links.map(l => {
+                    const active = currentPath === l.href ||
+                        (l.href !== '/' && currentPath.startsWith(l.href));
+                    return `<a href="${l.href}" class="nav-link${active ? ' active' : ''}">${l.icon} ${l.label}</a>`;
+                }).join('')}
+            </div>
+            <div class="nav-overflow" hidden>
+                <button class="nav-more" type="button" aria-haspopup="true" aria-expanded="false">More &#9662;</button>
+                <div class="nav-more-menu" hidden></div>
+            </div>
         </div>
     `;
 
     // Insert at top of body
     document.body.insertBefore(nav, document.body.firstChild);
+
+    // Priority+ overflow: hide nav links that don't fit, mirror them into a "More" menu.
+    const navLinksEl = nav.querySelector('.nav-links');
+    const overflowEl = nav.querySelector('.nav-overflow');
+    const moreBtn = nav.querySelector('.nav-more');
+    const moreMenu = nav.querySelector('.nav-more-menu');
+    const navItems = Array.from(navLinksEl.querySelectorAll('.nav-link'));
+
+    function reflowNav() {
+        navItems.forEach(a => a.classList.remove('nav-hidden'));
+        overflowEl.hidden = true;
+        moreMenu.innerHTML = '';
+        const innerEl = nav.querySelector('.nav-inner');
+        const innerWidth = innerEl.clientWidth;
+        // If the nav fits, we're done.
+        if (navLinksEl.scrollWidth <= navLinksEl.clientWidth + 1) return;
+        // Otherwise, hide items from the right until it fits, accounting for the More button width.
+        overflowEl.hidden = false;
+        const moreWidth = overflowEl.offsetWidth || 80;
+        const brandWidth = innerEl.querySelector('.nav-brand').offsetWidth;
+        const budget = innerWidth - brandWidth - moreWidth - 16;
+        let used = 0;
+        const overflowed = [];
+        for (const a of navItems) {
+            used += a.offsetWidth;
+            if (used > budget) {
+                a.classList.add('nav-hidden');
+                overflowed.push(a);
+            }
+        }
+        if (overflowed.length === 0) {
+            overflowEl.hidden = true;
+            return;
+        }
+        overflowed.forEach(a => {
+            const item = document.createElement('a');
+            item.href = a.href;
+            item.className = 'nav-more-item' + (a.classList.contains('active') ? ' active' : '');
+            item.innerHTML = a.innerHTML;
+            moreMenu.appendChild(item);
+        });
+    }
+
+    moreBtn.addEventListener('click', () => {
+        const open = !moreMenu.hidden;
+        moreMenu.hidden = open;
+        moreBtn.setAttribute('aria-expanded', String(!open));
+    });
+    document.addEventListener('click', (e) => {
+        if (!overflowEl.contains(e.target)) {
+            moreMenu.hidden = true;
+            moreBtn.setAttribute('aria-expanded', 'false');
+        }
+    });
+    window.addEventListener('resize', reflowNav);
+    // Run after layout settles.
+    requestAnimationFrame(reflowNav);
 
     // Inject styles
     const style = document.createElement('style');
@@ -45,7 +108,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif;
         }
         .nav-inner {
-            max-width: 1400px;
+            max-width: min(1400px, 100vw - 2rem);
             margin: 0 auto;
             display: flex;
             align-items: center;
@@ -60,6 +123,14 @@
             padding: 0.6em 1em 0.6em 0;
             margin-right: 1em;
             border-right: 1px solid #1a2744;
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+        .nav-links {
+            display: flex;
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
         }
         .nav-link {
             color: #8888aa;
@@ -68,7 +139,10 @@
             font-size: 0.85em;
             transition: color 0.15s, background 0.15s;
             border-radius: 4px;
+            white-space: nowrap;
+            flex: 0 0 auto;
         }
+        .nav-link.nav-hidden { display: none; }
         .nav-link:hover {
             color: #e8e8e8;
             background: #1a2744;
@@ -77,6 +151,45 @@
             color: #e8e8e8;
             background: #16213e;
         }
+        .nav-overflow {
+            position: relative;
+            flex: 0 0 auto;
+            margin-left: auto;
+        }
+        .nav-more {
+            background: none;
+            border: 1px solid #1a2744;
+            color: #8888aa;
+            padding: 0.5em 0.8em;
+            font-size: 0.85em;
+            font-family: inherit;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .nav-more:hover { color: #e8e8e8; background: #1a2744; }
+        .nav-more-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: #0f1623;
+            border: 1px solid #1a2744;
+            border-radius: 6px;
+            min-width: 180px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            z-index: 1001;
+        }
+        .nav-more-menu[hidden] { display: none; }
+        .nav-more-item {
+            color: #8888aa;
+            text-decoration: none;
+            padding: 0.55em 0.9em;
+            font-size: 0.9em;
+        }
+        .nav-more-item:hover { color: #e8e8e8; background: #16213e; }
+        .nav-more-item.active { color: #e8e8e8; background: #16213e; }
         /* Push page content below sticky nav */
         #site-nav + * { margin-top: 0; }
     `;
@@ -129,21 +242,18 @@
     const fbStyle = document.createElement('style');
     fbStyle.textContent = `
         #feedback-footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
             background: #0f1623;
             border-top: 1px solid #1a2744;
-            padding: 6px 1em;
-            z-index: 1000;
+            padding: 10px 1em;
+            margin-top: 2em;
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             font-size: 0.85em;
         }
         .fb-inner {
-            max-width: 800px;
+            max-width: min(800px, 100vw - 2rem);
             margin: 0 auto;
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             gap: 8px;
         }
@@ -167,8 +277,6 @@
             font-size: 0.9em;
         }
         .fb-send:hover { background: #0f3460; }
-        /* Push page content above the fixed footer */
-        body { padding-bottom: 50px; }
     `;
     document.head.appendChild(fbStyle);
 

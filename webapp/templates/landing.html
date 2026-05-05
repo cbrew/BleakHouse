@@ -1,15 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Not In Our Time</title>
-<link rel="stylesheet" href="/static/page_base.css?v={{ v }}">
-<script src="/static/nav.js?v={{ v }}" defer></script>
+{% extends "base.html" %}
+{% block title %}Not In Our Time{% endblock %}
+{% block extra_head %}
 <style>
     .hero { text-align: center; padding: 1.5em 0 0.5em; }
-    .hero h1 { font-size: 2.4em; font-style: italic; }
+    .hero h1 { font-size: clamp(1.8em, 1.4em + 1.5vw, 2.4em); font-style: italic; }
     .hero .tagline { font-size: 1.05em; color: var(--text-dim); margin-top: 0.3em; }
-    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin: 1em 0; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1em; margin: 1em 0; }
     .card { background: var(--surface); border: 1px solid var(--surface-alt);
             border-radius: 8px; padding: 1em; }
     .card h3 { color: var(--accent); margin-bottom: 0.3em; font-size: 1em; }
@@ -18,11 +14,9 @@
     .tools { background: var(--surface); border: 1px solid var(--surface-alt);
              border-radius: 8px; padding: 1em; margin: 1.5em 0; font-size: 0.9em; }
     .tools h3 { color: var(--passage-warm); margin-bottom: 0.4em; }
-    @media (max-width: 700px) { .cards { grid-template-columns: 1fr; } }
 </style>
-</head>
-<body>
-<div class="content">
+{% endblock %}
+{% block content %}
 
 <div class="hero">
     <h1>Not In Our Time</h1>
@@ -107,6 +101,4 @@
 Chris Brew &mdash; The Ohio State University &amp; LexisNexis Legal &amp; Professional
 </p>
 
-</div>
-</body>
-</html>
+{% endblock %}

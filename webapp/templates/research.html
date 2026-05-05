@@ -1,21 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>BleakHouse — Research Findings</title>
-<link rel="stylesheet" href="/static/page_base.css?v={{ v }}">
-<script src="/static/nav.js?v={{ v }}" defer></script>
-</head>
-<body>
-<div class="content">
-
+{% extends "base.html" %}
+{% block title %}BleakHouse — Research Findings{% endblock %}
+{% block content %}
 <h1>Research Findings</h1>
 <p class="subtitle">Key results from 180 experimental conditions across 15 novels</p>
 
 <h2>1. Framework Dominance</h2>
 <p>Two algorithmically distinct reading strategies — synoptic (min-cost flow, 59 passages from 28 chapters) and analytical (embeddings, 32 from 20 chapters) — select nearly disjoint passage sets (Jaccard 0.057) yet produce discussions whose character is determined by the interpretive framework, not the reading strategy.</p>
 
-<table>
+<div class="table-scroll"><table>
 <tr><th>Dimension</th><th>Synoptic</th><th>Analytical</th><th>&Delta;</th></tr>
 <tr><td>character_development</td><td>83.5%</td><td>75.2%</td><td>+8.3</td></tr>
 <tr><td>plot_advancement</td><td>42.6%</td><td>32.5%</td><td>+10.2</td></tr>
@@ -23,7 +15,7 @@
 <tr><td>social_critique</td><td>50.6%</td><td>64.0%</td><td>&minus;13.4</td></tr>
 <tr><td>humor_entertainment</td><td>28.7%</td><td>24.4%</td><td>+4.3</td></tr>
 <tr><td>narrative_technique</td><td>90.1%</td><td>92.5%</td><td>&minus;2.4</td></tr>
-</table>
+</table></div>
 
 <p>Expert airtime is stable to &pm;2% across all 15 novels: Hartley 32&ndash;37%, Blackstone 30&ndash;37%, Woodcourt 29&ndash;34%.</p>
 
@@ -34,7 +26,7 @@
 <h2>2. The Knowledge Gradient</h2>
 <p>Without source passages, the LLM's ability to quote novels from memory ranges from 57% (Middlemarch) to 0% (Hester). All novels are on Project Gutenberg; the gradient reflects analytical reinforcement, not textual absence.</p>
 
-<table>
+<div class="table-scroll"><table>
 <tr><th>Novel</th><th>Author</th><th>Nop%</th><th>Gap</th></tr>
 <tr><td>Middlemarch</td><td>Eliot</td><td>57%</td><td>42pp</td></tr>
 <tr><td>Bleak House</td><td>Dickens</td><td>53%</td><td>45pp</td></tr>
@@ -48,7 +40,7 @@
 <tr><td>The Odd Women</td><td>Gissing</td><td>6%</td><td>91pp</td></tr>
 <tr><td>Hester</td><td>Oliphant</td><td>0%</td><td>98pp</td></tr>
 <tr><td>No Name</td><td>Collins</td><td>0%</td><td>95pp</td></tr>
-</table>
+</table></div>
 
 <img src="/static/img/knowledge_gradient.png" alt="Knowledge gradient scatter plot" style="max-width:100%; margin:1em 0; border-radius:8px;">
 
@@ -84,11 +76,11 @@
 
 <h2>4. Host Preparation Effect</h2>
 <p>Host prep raises questions per segment from ~1 to ~11, <strong>uniformly across all 15 novels</strong>.</p>
-<table>
+<div class="table-scroll"><table>
 <tr><th>Measure</th><th>Without HP</th><th>With HP</th></tr>
 <tr><td>Questions/segment</td><td>~1</td><td>~11</td></tr>
 <tr><td>Words/episode</td><td>~8,300</td><td>~12,500</td></tr>
-</table>
+</table></div>
 <p>The effect is architectural, not content-dependent. Scaffolding transforms monologue into dialogue regardless of the novel.</p>
 
 <h2>5. The Interdisciplinary Panel</h2>
@@ -100,7 +92,4 @@
 <li><strong>ICCC 2026:</strong> "The Reader Makes the Reading: Framework Dominance and Pastiche in LLM-Generated Literary Discussion" (short paper)</li>
 <li><strong>DH paper:</strong> "Reading Without Having Read: How Reading Strategy, Interpretive Framework, and Textual Grounding Shape Computational Literary Discussion"</li>
 </ul>
-
-</div>
-</body>
-</html>
+{% endblock %}

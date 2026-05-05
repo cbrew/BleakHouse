@@ -1,17 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Literary Podcast Player</title>
-    <link rel="stylesheet" href="/static/style.css?v={{ v }}">
-    <script src="/static/nav.js?v={{ v }}" defer></script>
-    <style>
+{% extends "base.html" %}
+{% block title %}Literary Podcast Player{% endblock %}
+{% block stylesheet %}style.css{% endblock %}
+{% block extra_head %}
+<style>
         .player-layout {
             display: grid;
             grid-template-columns: 1fr 260px;
             gap: 1.5em;
-            max-width: 1200px;
+            max-width: min(1200px, 100vw - 2rem);
             margin: 0 auto;
             padding: 0 1em;
         }
@@ -66,9 +62,9 @@
             .player-layout { grid-template-columns: 1fr; }
             .player-sidebar { position: static; }
         }
-    </style>
-</head>
-<body>
+</style>
+{% endblock %}
+{% block body %}
     <header>
         <h1 id="novel-title">Literary Podcast Player</h1>
         <div style="display:flex;align-items:center;gap:0.7em;flex-wrap:wrap;justify-content:center;">
@@ -120,5 +116,4 @@
     </div>
 
     <script src="/static/player.js?v={{ v }}"></script>
-</body>
-</html>
+{% endblock %}

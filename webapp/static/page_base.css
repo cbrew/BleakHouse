@@ -16,12 +16,15 @@ body {
     line-height: 1.7;
 }
 .content {
-    max-width: 860px;
+    max-width: min(54rem, 100vw - 2rem);
     margin: 0 auto;
-    padding: 2em 1.5em;
+    padding: 2em clamp(1rem, 3vw, 1.5em);
+}
+.content--wide {
+    max-width: min(72rem, 100vw - 2rem);
 }
 h1 {
-    font-size: 1.8em;
+    font-size: clamp(1.5em, 1.2em + 1vw, 1.8em);
     color: var(--accent);
     margin-bottom: 0.3em;
 }
@@ -31,7 +34,7 @@ h1 {
     margin-bottom: 2em;
 }
 h2 {
-    font-size: 1.3em;
+    font-size: clamp(1.15em, 1em + 0.6vw, 1.3em);
     color: var(--accent);
     margin: 1.8em 0 0.6em;
     border-bottom: 1px solid var(--surface-alt);
@@ -106,3 +109,20 @@ blockquote {
     color: var(--text-dim);
     font-style: italic;
 }
+
+/* Wrap any wide table with this so the page itself never overflows.
+   Uses scroll-shadow gradients to hint at hidden content on either edge. */
+.table-scroll {
+    overflow-x: auto;
+    margin: 1em 0;
+    background:
+        linear-gradient(to right, var(--bg) 30%, transparent),
+        linear-gradient(to right, transparent, var(--bg) 70%) 100% 0,
+        radial-gradient(farthest-side at 0 50%, rgba(0,0,0,0.4), transparent),
+        radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.4), transparent) 100% 0;
+    background-repeat: no-repeat;
+    background-color: var(--bg);
+    background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+    background-attachment: local, local, scroll, scroll;
+}
+.table-scroll > table { margin: 0; }

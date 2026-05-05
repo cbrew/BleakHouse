@@ -1,13 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>BleakHouse — Metrics</title>
-<link rel="stylesheet" href="/static/page_base.css?v={{ v }}">
-<script src="/static/nav.js?v={{ v }}" defer></script>
-</head>
-<body>
-<div class="content">
+{% extends "base.html" %}
+{% block title %}BleakHouse — Metrics{% endblock %}
+{% block content %}
 
 <h1>Metrics Dashboard</h1>
 <p class="subtitle">Aggregate statistics from the 270-condition experiment matrix</p>
@@ -16,27 +9,26 @@
 <div id="metrics-content" style="display:none">
 
 <h2>Quote Verification by Pipeline</h2>
-<table id="qv-pipeline">
+<div class="table-scroll"><table id="qv-pipeline">
 <tr><th>Pipeline</th><th>Runs</th><th>Mean verified%</th></tr>
-</table>
+</table></div>
 
 <h2>Expert Airtime Stability</h2>
 <p id="airtime-summary"></p>
-<table id="airtime-table">
+<div class="table-scroll"><table id="airtime-table">
 <tr><th>Novel</th><th>Expert 1</th><th>Expert 2</th><th>Expert 3</th></tr>
-</table>
+</table></div>
 
 <h2>Host Preparation Effect</h2>
-<table id="hostprep-table">
+<div class="table-scroll"><table id="hostprep-table">
 <tr><th>Novel</th><th>Q/seg (no HP)</th><th>Q/seg (HP)</th><th>Ratio</th></tr>
-</table>
+</table></div>
 
 <h2>Episode Size</h2>
-<table id="size-table">
+<div class="table-scroll"><table id="size-table">
 <tr><th>Pipeline</th><th>Mean words</th><th>Mean segments</th><th>Mean quotes</th></tr>
-</table>
+</table></div>
 
-</div>
 </div>
 
 <script>
@@ -121,5 +113,5 @@ fetch('/tracker/data').then(r => r.json()).then(data => {
         'See the tracker matrix for per-run details.';
 });
 </script>
-</body>
-</html>
+
+{% endblock %}

@@ -1,10 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Not In Our Time — Examples</title>
-<link rel="stylesheet" href="/static/page_base.css?v={{ v }}">
-<script src="/static/nav.js?v={{ v }}" defer></script>
+{% extends "base.html" %}
+{% block title %}Not In Our Time — Examples{% endblock %}
+{% block extra_head %}
 <style>
     .speaker { font-weight: 700; margin-top: 1em; }
     .speaker.host { color: var(--accent); }
@@ -14,14 +10,12 @@
     .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.8em; font-weight: 600; font-family: sans-serif; }
     .badge.verified { background: #1e4620; color: #6fdc6f; }
     .badge.invented { background: var(--accent); color: #fff; }
-    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5em; margin: 1em 0; }
+    .compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 1.5em; margin: 1em 0; }
     .compare-panel { background: var(--surface); border: 1px solid var(--surface-alt); border-radius: 8px; padding: 1em; }
     .compare-panel h3 { margin-top: 0; }
-    @media (max-width: 800px) { .compare { grid-template-columns: 1fr; } }
 </style>
-</head>
-<body>
-<div class="content">
+{% endblock %}
+{% block content %}
 
 <h1>Conversational Examples</h1>
 <p class="subtitle">Side-by-side excerpts, pastiche analysis, and host preparation in action</p>
@@ -141,6 +135,4 @@
 <li><a href="/report/bh_trn_alternatives_hostprep">Alternative panel</a> — Trevelyan, Leigh, Rosen on Bleak House (transport + host prep). Also listen to the <a href="/player?run=bh_trn_alternatives_hostprep&amp;version=trevelyan_v2">experimental 3.1-flash rendering</a> of this episode.</li>
 </ul>
 
-</div>
-</body>
-</html>
+{% endblock %}

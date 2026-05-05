@@ -1,10 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Not In Our Time &mdash; Host Preparation</title>
-<link rel="stylesheet" href="/static/page_base.css?v={{ v }}">
-<script src="/static/nav.js?v={{ v }}" defer></script>
+{% extends "base.html" %}
+{% block title %}Not In Our Time &mdash; Host Preparation{% endblock %}
+{% block extra_head %}
 <style>
   .run-selector { margin: 1em 0 1.5em; }
   .run-selector select { font-size: 1em; padding: 0.3em 0.5em; }
@@ -44,9 +40,8 @@
   #no-data { display: none; text-align: center; padding: 3em; color: #8888aa; }
   .cross-eng { margin: 0.3em 0; padding: 0.4em 0.6em; background: #1a1a2e; border-radius: 4px; font-size: 0.9em; }
 </style>
-</head>
-<body>
-<div class="content">
+{% endblock %}
+{% block content %}
 
 <h1>Host Preparation</h1>
 <p class="subtitle">Pre-interviews, questions, and scholarly references gathered before recording</p>
@@ -66,7 +61,6 @@
 </div>
 <div id="prep-content" style="display:none;"></div>
 
-</div>
 <script>
 const params = new URLSearchParams(window.location.search);
 let currentRun = params.get('run') || '';
@@ -326,5 +320,5 @@ function formatCitation(rec) {
     return rec.url ? `<a href="${esc(rec.url)}" target="_blank" rel="noopener">${text}</a>` : text;
 }
 </script>
-</body>
-</html>
+
+{% endblock %}
