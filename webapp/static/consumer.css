@@ -1,0 +1,177 @@
+/* Consumer-site theme: light, book-paper, serif. Deliberately distinct
+   from the dark scholarly theme in page_base.css so visitors can tell at
+   a glance which site they're on. */
+:root {
+    --bg: #f7f4ee;          /* warm off-white, like aged paper */
+    --surface: #ffffff;     /* card background */
+    --surface-alt: #ece6d8; /* subtle separators */
+    --text: #1a1f2e;        /* near-black, easier on eyes than pure #000 */
+    --text-dim: #6a6f7c;    /* secondary text */
+    --accent: #b22222;      /* deep crimson — same hue family as scholarly site */
+    --accent-soft: #f3e3e3; /* tinted accent background */
+    --link: #8a1a1a;        /* link color reads as text first, accent second */
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: Georgia, "Times New Roman", serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- top nav --- */
+.consumer-nav {
+    background: var(--bg);
+    border-bottom: 1px solid var(--surface-alt);
+    padding: 1em clamp(1rem, 3vw, 2rem);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1em;
+    flex-wrap: wrap;
+}
+.consumer-brand {
+    color: var(--accent);
+    font-size: 1.3em;
+    font-weight: 700;
+    text-decoration: none;
+    letter-spacing: 0.01em;
+}
+.consumer-brand em { font-style: italic; }
+.consumer-lab-link {
+    color: var(--text-dim);
+    font-size: 0.9em;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s, color 0.15s;
+}
+.consumer-lab-link:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+/* --- main content --- */
+.consumer-content {
+    flex: 1;
+    width: 100%;
+    max-width: min(60rem, 100vw - 2rem);
+    margin: 0 auto;
+    padding: clamp(2em, 5vw, 4em) clamp(1rem, 3vw, 2rem);
+}
+
+h1 {
+    font-size: clamp(1.8em, 1.4em + 1.5vw, 2.6em);
+    font-style: italic;
+    color: var(--text);
+    margin-bottom: 0.3em;
+    font-weight: normal;
+    letter-spacing: -0.01em;
+}
+.subtitle {
+    color: var(--text-dim);
+    font-size: 1.05em;
+    margin-bottom: 2em;
+}
+h2 {
+    font-size: clamp(1.2em, 1em + 0.6vw, 1.4em);
+    color: var(--text);
+    margin: 2em 0 0.6em;
+    font-weight: 600;
+}
+h3 {
+    font-size: 1.1em;
+    color: var(--text);
+    margin: 1em 0 0.3em;
+    font-weight: 600;
+}
+p { margin-bottom: 1em; }
+a {
+    color: var(--link);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
+a:hover { color: var(--accent); }
+
+/* --- footer --- */
+.consumer-footer {
+    border-top: 1px solid var(--surface-alt);
+    padding: 1.5em clamp(1rem, 3vw, 2rem);
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.9em;
+}
+.consumer-footer a {
+    color: var(--text-dim);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+}
+.consumer-footer a:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+/* --- card grid (used by landing) --- */
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    gap: 1.5em;
+    margin: 1.5em 0;
+}
+.card {
+    background: var(--surface);
+    border: 1px solid var(--surface-alt);
+    border-radius: 8px;
+    padding: 1.4em 1.4em 1.2em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+.card-novel {
+    font-size: 1.2em;
+    font-weight: 600;
+    font-style: italic;
+    color: var(--text);
+    margin: 0;
+}
+.card-author {
+    color: var(--text-dim);
+    font-size: 0.9em;
+}
+.card-panel {
+    color: var(--accent);
+    font-size: 0.8em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.card-teaser {
+    color: var(--text);
+    font-size: 0.95em;
+    margin: 0.3em 0;
+    flex: 1;
+    font-style: italic;
+}
+.card-listen {
+    align-self: flex-start;
+    background: var(--accent);
+    color: #fff;
+    text-decoration: none;
+    padding: 0.5em 1.2em;
+    border-radius: 4px;
+    font-size: 0.95em;
+    font-weight: 600;
+    transition: background 0.15s;
+    margin-top: 0.4em;
+}
+.card-listen:hover { background: #8a1818; color: #fff; }
