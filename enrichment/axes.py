@@ -51,6 +51,7 @@ NOVELS: tuple[Novel, ...] = (
     Novel("hest", "hester", "Hester", "Oliphant", 1883),
     Novel("rwv", "room_with_a_view", "A Room with a View", "Forster", 1908),
     Novel("ot", "oliver_twist", "Oliver Twist", "Dickens", 1838),
+    Novel("mdal", "mrs_dalloway", "Mrs. Dalloway", "Woolf", 1925),
 )
 
 NOVEL_KEYS: frozenset[str] = frozenset(n.key for n in NOVELS)

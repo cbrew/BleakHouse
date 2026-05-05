@@ -152,6 +152,13 @@ NOVELS: dict[str, NovelConfig] = {
         html_filename="pg730-images.html",
         gutenberg_id=730,
     ),
+    "mrs_dalloway": NovelConfig(
+        key="mrs_dalloway",
+        title="Mrs. Dalloway",
+        author="Virginia Woolf",
+        html_filename="pg71865-images.html",
+        gutenberg_id=71865,
+    ),
 }
 
 

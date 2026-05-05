@@ -346,6 +346,33 @@ NOVEL_CONFIGS: dict[str, NovelPromptConfig] = {
             "'Jack Dawkins' as appropriate). Include characters referenced indirectly."
         ),
     ),
+    "mrs_dalloway": NovelPromptConfig(
+        title="Mrs. Dalloway",
+        author="Virginia Woolf",
+        year="1925",
+        narration_note=(
+            "*Mrs. Dalloway* uses third-person free indirect discourse "
+            "throughout, moving fluidly between the consciousnesses of "
+            "different characters within a single day in post-WWI London. "
+            "Woolf's 'tunnelling' technique excavates each character's "
+            "memory and association without external scene breaks; transitions "
+            "are often signalled only by the chime of Big Ben or a shared "
+            "external event seen from multiple perspectives."
+        ),
+        theme_examples=(
+            "'time', 'memory', 'consciousness', 'shellshock', 'war', "
+            "'madness', 'suicide', 'class', 'marriage', 'sexuality', "
+            "'parties', 'mortality', 'London', 'modernity', 'empire'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Clarissa Dalloway' not 'Clarissa', "
+            "'Septimus Warren Smith' not 'Septimus', 'Peter Walsh' not "
+            "'Peter', 'Sally Seton' not 'Sally', 'Richard Dalloway' not "
+            "'Richard', 'Doris Kilman' not 'Miss Kilman', 'Rezia' or "
+            "'Lucrezia' as appropriate). Include characters referenced "
+            "indirectly through memory."
+        ),
+    ),
     "hester": NovelPromptConfig(
         title="Hester",
         author="Mrs Oliphant",
@@ -513,6 +540,17 @@ def get_novel_arcs(novel_key: str | None = None) -> list[tuple[str, str, int, st
             ("Fagin's grooming of street children", "Fagin", 5,
              "prov_social_critique", "not_none", 3),
             ("Nancy's divided loyalties", "Nancy", 4,
+             "prov_character_development", "not_none", 2),
+        ],
+        "mrs_dalloway": [
+            ("Clarissa's interior life and reckoning with the past",
+             "Clarissa Dalloway", 6,
+             "prov_character_development", "not_none", 3),
+            ("Septimus Warren Smith and the legacy of war trauma",
+             "Septimus Warren Smith", 5,
+             "prov_social_critique", "not_none", 3),
+            ("Peter Walsh's return and the road not taken",
+             "Peter Walsh", 4,
              "prov_character_development", "not_none", 2),
         ],
     }
