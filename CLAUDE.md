@@ -52,6 +52,11 @@ verifies that the novel is registered in `enrichment/axes.py`,
 it touches the network. Wall-clock is ~1-2 hours for a typical novel,
 dominated by the two batch waits.
 
+**Adding a novel** = three manual registry edits before `add_novel.sh`:
+- `enrichment/axes.py` — `NOVELS` tuple (key, id, title, author, year)
+- `enrichment/segment_novel.py` — `NOVELS` dict (gutenberg_id, html_filename; for chapterless modernist novels, set `chunk_paragraphs` + `start_marker` + `end_marker`)
+- `enrichment/novel_prompts.py` — `NOVEL_CONFIGS` entry + a 3-arc list under `get_novel_arcs`
+
 The data tree (~165 MB, JSON only) is baked into the image at build
 time via a tarball with symlinks dereferenced. Audio mp3s stay in R2
 and are 302-redirected by the webapp using URLs parsed from `dvc.lock`
@@ -62,6 +67,14 @@ git-tracked files from removed stages (run_manifest in particular).
 Run it manually after `git pull` to refresh your local cache.
 
 No CI/CD.
+
+## Gotchas
+
+- **DVC-tracked files are read-only symlinks.** `data/experiments.db` and per-run JSONs (`phase2_5_reading_list.json`, etc.) point into the DVC cache; mutation fails with `readonly database` or `Permission denied`. Run `uv run dvc unprotect <path>` before writing.
+- **`build_manifest` runs before the listener-pick winnower**, so `manifest.json`'s embedded `host_prep.reading_list` is the unfiltered candidate set. The winnowed `recommended` only lands in `data/runs/<id>/phase2_5_reading_list.json` — read that file as source of truth.
+- **Three reading-list schemas coexist:** new (`entries` + `recommended`), legacy (`verified` + `unverified`), and hybrid (legacy fields *plus* a 3-5-item `recommended` from the listener-pick post-pass). Route any manifest with non-empty `recommended` through the new-schema renderer.
+- **Webapp run discovery is DB-driven.** New runs need (1) `scripts/generate_run_manifest.py --run <id>` to write `run_manifest.json`, then (2) `uv run python -m enrichment.expdb scan` to refresh `data/experiments.db` (which itself usually needs `dvc unprotect` first).
+- **`dvc.lock` carries perpetual churn** from unrelated `render_audio.py` md5 updates that aren't from the current branch. `git checkout -- dvc.lock` before staging feature commits unless you're deliberately updating DVC tracking.
 
 ## Architecture
 
