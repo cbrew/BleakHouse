@@ -89,7 +89,9 @@ _build_audio_r2_map()
 
 
 def get_git_sha() -> str:
-    """Get short git SHA for cache-busting."""
+    """Cache-buster token. Prefers git short SHA; in containers without
+    git history, falls back to a hash of static-asset bytes so any change
+    to nav.js / CSS / templates invalidates the browser cache."""
     try:
         return subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"],
@@ -97,7 +99,14 @@ def get_git_sha() -> str:
             stderr=subprocess.DEVNULL
         ).decode("ascii").strip()
     except Exception:
-        return "unknown"
+        import hashlib
+        h = hashlib.sha1()
+        for path in sorted((STATIC_DIR).rglob("*")):
+            if path.is_file():
+                h.update(path.read_bytes())
+        for path in sorted((TEMPLATES_DIR).rglob("*.html")):
+            h.update(path.read_bytes())
+        return h.hexdigest()[:8]
 
 
 GIT_SHA = get_git_sha()
