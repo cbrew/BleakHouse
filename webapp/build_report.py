@@ -331,7 +331,18 @@ def build_report_html(manifest: dict) -> str:
     if reading_list:
         entries = reading_list.get("entries") or []
         recommended = reading_list.get("recommended") or []
-        if entries or recommended:
+        legacy_verified = reading_list.get("verified") or []
+        legacy_unverified = reading_list.get("unverified") or []
+        # Some legacy manifests (BH first-wave) carry both shapes — a
+        # post-pass filtered `recommended` plus the original verified /
+        # unverified arrays. The new schema is identified by a populated
+        # `entries`, not just a non-empty `recommended`.
+        use_new_schema = bool(entries)
+        if not use_new_schema and (legacy_verified or legacy_unverified):
+            use_new_schema = False
+        elif recommended and not (legacy_verified or legacy_unverified):
+            use_new_schema = True
+        if use_new_schema:
             # New schema. `entries` and `recommended` are lists of
             # CitationRecord dicts in the post-correct-by-construction
             # files; pre-CBC files keep them as plain title strings.
