@@ -321,42 +321,99 @@ def build_report_html(manifest: dict) -> str:
                 f'</div>'
             )
 
-    # Reading list section
+    # Reading list section. Two schemas in the wild:
+    #   - Legacy (pre-Phase-2.5 reference tools): {verified: [...], unverified: [...], verification_rate}
+    #   - Current ("correct-by-construction"): {entries: [CitationRecord...], recommended: [...],
+    #     total_proposed, total_verified, verification_rate}
+    # CitationRecord keys: tag, title, authors, year, type, publisher,
+    # description, cited_by, url, doi, source, parent_tag, audience.
     reading_list = (host_prep or {}).get("reading_list")
     if reading_list:
-        verified = reading_list.get("verified", [])
-        unverified = reading_list.get("unverified", [])
-        rate = reading_list.get("verification_rate", 0)
-        body_parts.append(
-            '<h2 class="seg-title">Reading List '
-            f'<span class="seg-type">({len(verified)} verified, '
-            f'{len(unverified)} unverified, {rate:.0%} rate)</span></h2>'
-        )
-        if verified:
-            body_parts.append('<div class="reading-list"><h3>Verified references</h3><ul>')
-            for ref in verified:
-                source = ref.get("verification_source", "")
-                expert = ref.get("expert_name", "")
-                raw = ref.get("raw_text", "")
-                oa_title = ref.get("openalex_title", "")
-                cited = ref.get("openalex_cited_by", 0)
-                label = f"{escape(raw)}"
-                if oa_title and oa_title != raw:
-                    label += f' <span class="seg-type">[{escape(oa_title)}]</span>'
-                if cited:
-                    label += f' <span class="seg-type">(cited {cited}×)</span>'
+        entries = reading_list.get("entries") or []
+        recommended = reading_list.get("recommended") or []
+        if entries or recommended:
+            # New schema. Show recommended first (the listener-friendly
+            # subset), then the long tail of all entries minus recommended.
+            rec_tags = {e.get("tag") for e in recommended if e.get("tag")}
+            tail = [e for e in entries if e.get("tag") not in rec_tags]
+            total = len(entries)
+            n_recommended = len(recommended)
+            rate = reading_list.get("verification_rate", 1.0)
+            body_parts.append(
+                '<h2 class="seg-title">Reading List '
+                f'<span class="seg-type">({total} entries, {n_recommended} recommended, '
+                f'{rate:.0%} verified)</span></h2>'
+            )
+            for heading, refs in (
+                ("Recommended for listeners", recommended),
+                ("Full reading list", tail),
+            ):
+                if not refs:
+                    continue
                 body_parts.append(
-                    f'<li>{label} — <em>{escape(expert)}</em> '
-                    f'<span class="match-badge">{escape(source)}</span></li>'
+                    f'<div class="reading-list"><h3>{escape(heading)}</h3><ul>'
                 )
-            body_parts.append('</ul></div>')
-        if unverified:
-            body_parts.append('<div class="reading-list"><h3>Unverified references</h3><ul>')
-            for ref in unverified:
-                expert = ref.get("expert_name", "")
-                raw = ref.get("raw_text", "")
-                body_parts.append(f'<li>{escape(raw)} — <em>{escape(expert)}</em></li>')
-            body_parts.append('</ul></div>')
+                for ref in refs:
+                    title_t = escape(ref.get("title") or "")
+                    authors_l = ref.get("authors") or []
+                    authors = ", ".join(escape(a) for a in authors_l[:3])
+                    if len(authors_l) > 3:
+                        authors += " et al."
+                    year = ref.get("year")
+                    cited = ref.get("cited_by") or 0
+                    url = ref.get("url") or ref.get("doi") or ""
+                    src = escape(ref.get("source") or "")
+                    label = f'<strong>{title_t}</strong>'
+                    if authors:
+                        label += f' — {authors}'
+                    if year:
+                        label += f' ({escape(str(year))})'
+                    if url:
+                        label += (
+                            f' <a href="{escape(url)}" target="_blank" '
+                            f'rel="noopener">link</a>'
+                        )
+                    if cited:
+                        label += f' <span class="seg-type">(cited {cited}×)</span>'
+                    if src:
+                        label += f' <span class="match-badge">{src}</span>'
+                    body_parts.append(f'<li>{label}</li>')
+                body_parts.append('</ul></div>')
+        else:
+            # Legacy schema fallback.
+            verified = reading_list.get("verified", [])
+            unverified = reading_list.get("unverified", [])
+            rate = reading_list.get("verification_rate", 0)
+            body_parts.append(
+                '<h2 class="seg-title">Reading List '
+                f'<span class="seg-type">({len(verified)} verified, '
+                f'{len(unverified)} unverified, {rate:.0%} rate)</span></h2>'
+            )
+            if verified:
+                body_parts.append('<div class="reading-list"><h3>Verified references</h3><ul>')
+                for ref in verified:
+                    source = ref.get("verification_source", "")
+                    expert = ref.get("expert_name", "")
+                    raw = ref.get("raw_text", "")
+                    oa_title = ref.get("openalex_title", "")
+                    cited = ref.get("openalex_cited_by", 0)
+                    label = f"{escape(raw)}"
+                    if oa_title and oa_title != raw:
+                        label += f' <span class="seg-type">[{escape(oa_title)}]</span>'
+                    if cited:
+                        label += f' <span class="seg-type">(cited {cited}×)</span>'
+                    body_parts.append(
+                        f'<li>{label} — <em>{escape(expert)}</em> '
+                        f'<span class="match-badge">{escape(source)}</span></li>'
+                    )
+                body_parts.append('</ul></div>')
+            if unverified:
+                body_parts.append('<div class="reading-list"><h3>Unverified references</h3><ul>')
+                for ref in unverified:
+                    expert = ref.get("expert_name", "")
+                    raw = ref.get("raw_text", "")
+                    body_parts.append(f'<li>{escape(raw)} — <em>{escape(expert)}</em></li>')
+                body_parts.append('</ul></div>')
 
     source_label = "No passages (prior knowledge)" if is_ungrounded else f"Passage-grounded ({passage_source})"
 
