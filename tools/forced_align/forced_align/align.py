@@ -98,9 +98,10 @@ def align_transcript(
         return []
 
     # Build chunks with proportional time brackets and a small overlap.
+    # Chunking is purely a memory budget for whisperx.align — single-segment
+    # alignment of a 100-min mp3 OOMs the wav2vec2 activations on CPU.
+    # The merge below is global and doesn't care about chunk boundaries.
     segments: list[dict] = []
-    chunk_word_ranges: list[tuple[int, int]] = []  # (first_idx, last_idx) inclusive
-    chunk_audio_brackets: list[tuple[float, float]] = []  # (start_s, end_s)
     i = 0
     while i < n_words:
         j = min(i + chunk_words, n_words)
@@ -111,8 +112,6 @@ def align_transcript(
             "start": chunk_start_s,
             "end": chunk_end_s,
         })
-        chunk_word_ranges.append((i, j - 1))
-        chunk_audio_brackets.append((chunk_start_s, chunk_end_s))
         i = j
 
     logger.info(
@@ -126,83 +125,46 @@ def align_transcript(
         return_char_alignments=False,
     )
 
-    # WhisperX may return more output segments than input chunks (it
-    # subdivides at internal silences). Bucket each output segment to
-    # its input chunk by start-time, then walk per-chunk so script-index
-    # matching stays bounded to that chunk's word range. Overlap dups
-    # at chunk boundaries get filtered via seen_script_idx.
-    output_segments = result.get("segments", [])
+    # Map WhisperX's aligned word stream back to the script via classic
+    # sequence alignment. difflib.SequenceMatcher computes the longest
+    # common subsequence (Ratcliff-Obershelp) and returns matching
+    # blocks (i, j, n) where aligned[i:i+n] == script[j:j+n]. Hallucinated
+    # words don't appear in any block and are dropped; script words
+    # WhisperX missed simply don't get script-indexed and remain
+    # unaligned. No greedy cursor; no chunk-aware bucketing in the merge.
+    import difflib
 
-    def _chunk_for_start(t: float) -> int:
-        for ci, (a, b) in enumerate(chunk_audio_brackets):
-            if a <= t <= b:
-                return ci
-        # Fall through (segment slightly outside any bracket): pick closest.
-        return min(
-            range(len(chunk_audio_brackets)),
-            key=lambda ci: min(
-                abs(t - chunk_audio_brackets[ci][0]),
-                abs(t - chunk_audio_brackets[ci][1]),
-            ),
-        )
-
-    # Bucket each individual word (not segment) into its chunk by start
-    # time, so a word near a chunk boundary lands in the chunk whose
-    # script range it belongs to. WhisperX subdivides chunks at internal
-    # silences, so a single output segment's words can span both sides
-    # of a chunk boundary — bucketing at word granularity is the only
-    # robust split.
     all_words: list[dict] = []
-    for seg in output_segments:
+    for seg in result.get("segments", []):
         for w in seg.get("words", []):
             if "start" in w and "end" in w:
                 all_words.append(w)
 
-    chunk_words_out: list[list[dict]] = [[] for _ in chunk_word_ranges]
-    for w in all_words:
-        ci = _chunk_for_start(float(w["start"]))
-        chunk_words_out[ci].append(w)
-    for bucket in chunk_words_out:
-        bucket.sort(key=lambda x: float(x["start"]))
+    aligned_norm = [_normalise(w.get("word", "")) for w in all_words]
+    script_norm = [_normalise(s) for s in words]
 
-    # Greedy matching corrupts the script cursor when WhisperX emits a
-    # noise/hallucination word that doesn't appear anywhere in this
-    # chunk's script range — the cursor walks past `last` searching, and
-    # every subsequent word in the chunk is dropped. Use a bounded
-    # forward window: search up to `match_window` ahead of local_idx;
-    # if no match, skip the aligned word and leave the cursor put.
-    match_window = 50
+    matcher = difflib.SequenceMatcher(
+        a=aligned_norm, b=script_norm, autojunk=False,
+    )
+
     out: list[AlignedWord] = []
-    seen_script_idx: set[int] = set()
-    for chunk_idx, (first, last) in enumerate(chunk_word_ranges):
-        local_idx = first
-        unmatched = 0
-        for w in chunk_words_out[chunk_idx]:
-            wtext = _normalise(w.get("word", ""))
-            if not wtext:
+    seen: set[int] = set()
+    for block_i, block_j, block_n in matcher.get_matching_blocks():
+        for k in range(block_n):
+            aligned_w = all_words[block_i + k]
+            script_idx = block_j + k
+            if script_idx in seen:
                 continue
-            found = -1
-            search_end = min(last + 1, local_idx + match_window)
-            for probe in range(local_idx, search_end):
-                if _normalise(words[probe]) == wtext:
-                    found = probe
-                    break
-            if found < 0:
-                unmatched += 1
-                continue
-            if found not in seen_script_idx:
-                out.append(AlignedWord(
-                    word=w.get("word", ""),
-                    start_s=float(w["start"]),
-                    end_s=float(w["end"]),
-                    script_index=found,
-                ))
-                seen_script_idx.add(found)
-            local_idx = found + 1
-        if unmatched:
-            logger.debug(
-                "chunk %d: %d aligned words didn't match within window",
-                chunk_idx, unmatched,
-            )
-    out.sort(key=lambda aw: aw.script_index or 0)
+            seen.add(script_idx)
+            out.append(AlignedWord(
+                word=aligned_w.get("word", ""),
+                start_s=float(aligned_w["start"]),
+                end_s=float(aligned_w["end"]),
+                script_index=script_idx,
+            ))
+    matched = len(out)
+    logger.info(
+        "matched %d/%d script words to alignment (%.1f%%)",
+        matched, n_words, 100.0 * matched / max(1, n_words),
+    )
     return out
