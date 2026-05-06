@@ -779,15 +779,23 @@ async def serve_shards_manifest(run_id: str):
 
 @app.get("/audio/{run_id}/shards/{profile}/{filename}")
 async def serve_shard_audio(run_id: str, profile: str, filename: str):
-    """302-redirect a shard mp3 request to R2.
+    """Serve a shard mp3.
 
-    Each shard's md5 is recorded in audio/shards.json (one entry per
-    shard, keyed by `file` basename). Lookup is per-request — small JSON,
-    cheap to parse. The shard mp3 dir itself is DVC-tracked as a
-    .dvc-sidecar directory; bytes live at the standard R2 content-address.
+    Local fallback first: if the file exists on disk under
+    data/runs/<run>/audio/shards/<profile>/<filename>, serve it directly
+    via FileResponse. This keeps the dev loop fast — newly-generated
+    shards (e.g. forced-alignment pilot output) can be listened to
+    before `dvc add` + `dvc push -r r2`.
+
+    Otherwise 302-redirect to R2 using the md5 recorded in
+    audio/shards.json. The deployed container has no shard mp3s on disk;
+    R2 is the canonical store.
     """
     if any(".." in p for p in (run_id, profile, filename)):
         raise HTTPException(400, "Invalid path")
+    local_path = DATA_DIR / "runs" / run_id / "audio" / "shards" / profile / filename
+    if local_path.exists():
+        return FileResponse(str(local_path), media_type="audio/mpeg")
     shards_path = DATA_DIR / "runs" / run_id / "audio" / "shards.json"
     if not shards_path.exists():
         raise HTTPException(404, f"No shards manifest for run {run_id}")
