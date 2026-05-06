@@ -100,10 +100,10 @@ def align_transcript(
     # Build chunks with proportional time brackets and a small overlap.
     segments: list[dict] = []
     chunk_word_ranges: list[tuple[int, int]] = []  # (first_idx, last_idx) inclusive
+    chunk_audio_brackets: list[tuple[float, float]] = []  # (start_s, end_s)
     i = 0
     while i < n_words:
         j = min(i + chunk_words, n_words)
-        # Proportional audio bracket for this word range.
         chunk_start_s = max(0.0, (i / n_words) * total_s - overlap_s)
         chunk_end_s = min(total_s, (j / n_words) * total_s + overlap_s)
         segments.append({
@@ -112,6 +112,7 @@ def align_transcript(
             "end": chunk_end_s,
         })
         chunk_word_ranges.append((i, j - 1))
+        chunk_audio_brackets.append((chunk_start_s, chunk_end_s))
         i = j
 
     logger.info(
@@ -125,35 +126,60 @@ def align_transcript(
         return_char_alignments=False,
     )
 
-    # Merge per-chunk alignments back to a single AlignedWord list.
-    # Walk each chunk's aligned words and match against the chunk's
-    # known script-word range so script_index lands in the right place
-    # even when some chunks dropped words.
+    # WhisperX may return more output segments than input chunks (it
+    # subdivides at internal silences). Bucket each output segment to
+    # its input chunk by start-time, then walk per-chunk so script-index
+    # matching stays bounded to that chunk's word range. Overlap dups
+    # at chunk boundaries get filtered via seen_script_idx.
+    output_segments = result.get("segments", [])
+
+    def _chunk_for_start(t: float) -> int:
+        for ci, (a, b) in enumerate(chunk_audio_brackets):
+            if a <= t <= b:
+                return ci
+        # Fall through (segment slightly outside any bracket): pick closest.
+        return min(
+            range(len(chunk_audio_brackets)),
+            key=lambda ci: min(
+                abs(t - chunk_audio_brackets[ci][0]),
+                abs(t - chunk_audio_brackets[ci][1]),
+            ),
+        )
+
+    chunk_segments: list[list[dict]] = [[] for _ in chunk_word_ranges]
+    for seg in output_segments:
+        ci = _chunk_for_start(float(seg.get("start", 0.0)))
+        chunk_segments[ci].append(seg)
+
     out: list[AlignedWord] = []
     seen_script_idx: set[int] = set()
-    for chunk_idx, seg in enumerate(result.get("segments", [])):
-        first, last = chunk_word_ranges[chunk_idx]
-        local_idx = first  # cursor into the script for this chunk
-        for w in seg.get("words", []):
-            if "start" not in w or "end" not in w:
-                continue
-            wtext = _normalise(w.get("word", ""))
-            while local_idx <= last and _normalise(words[local_idx]) != wtext:
-                local_idx += 1
-            if local_idx > last:
-                logger.debug(
-                    "chunk %d: ran past end while matching '%s'",
-                    chunk_idx, wtext,
-                )
+    for chunk_idx, (first, last) in enumerate(chunk_word_ranges):
+        local_idx = first
+        ran_past_end = False
+        for seg in chunk_segments[chunk_idx]:
+            if ran_past_end:
                 break
-            if local_idx not in seen_script_idx:
-                out.append(AlignedWord(
-                    word=w.get("word", ""),
-                    start_s=float(w["start"]),
-                    end_s=float(w["end"]),
-                    script_index=local_idx,
-                ))
-                seen_script_idx.add(local_idx)
-            local_idx += 1
+            for w in seg.get("words", []):
+                if "start" not in w or "end" not in w:
+                    continue
+                wtext = _normalise(w.get("word", ""))
+                while local_idx <= last and _normalise(words[local_idx]) != wtext:
+                    local_idx += 1
+                if local_idx > last:
+                    logger.debug(
+                        "chunk %d: ran past end while matching '%s'",
+                        chunk_idx, wtext,
+                    )
+                    ran_past_end = True
+                    break
+                if local_idx not in seen_script_idx:
+                    out.append(AlignedWord(
+                        word=w.get("word", ""),
+                        start_s=float(w["start"]),
+                        end_s=float(w["end"]),
+                        script_index=local_idx,
+                    ))
+                    seen_script_idx.add(local_idx)
+                local_idx += 1
     out.sort(key=lambda aw: aw.script_index or 0)
     return out
