@@ -21,11 +21,21 @@ _align_metadata: Any = None
 
 
 def _detect_device() -> str:
-    """MPS on Apple-silicon, CUDA on Linux GPU, CPU fallback."""
+    """CUDA on Linux GPU, CPU otherwise.
+
+    We deliberately do NOT use MPS on Apple silicon: WhisperX's
+    wav2vec2 alignment model uses F.conv1d, which has no MPS kernel
+    in current PyTorch — `NotImplementedError: convolution_overrideable
+    not implemented` mid-alignment. CPU is slower (30–60 min per
+    100-min mp3 vs 10–15 on MPS) but always works. Override with
+    FORCED_ALIGN_DEVICE=mps if you want to try anyway.
+    """
+    import os
+    override = os.environ.get("FORCED_ALIGN_DEVICE")
+    if override:
+        return override
     try:
         import torch
-        if torch.backends.mps.is_available():
-            return "mps"
         if torch.cuda.is_available():
             return "cuda"
     except Exception:  # noqa: BLE001
