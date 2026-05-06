@@ -51,6 +51,42 @@ R2_PUBLIC_URL = os.environ.get(
     "BLEAKHOUSE_R2_PUBLIC_URL",
     "https://pub-0ac622dd336f40438799d8dbd211234a.r2.dev",
 )
+
+
+def _dvc_cache_dir() -> Path:
+    """DVC cache root for content-addressed lookup of audio bytes.
+
+    Reads cache.dir from .dvc/config.local (where the local override
+    lives), falls back to .dvc/config (committed default), and finally
+    to .dvc/cache (DVC's hard default if neither config sets it). Used
+    only by the audio routes to serve bytes locally before a dvc push;
+    production containers have no DVC tree so the lookup misses and
+    routes 302 to R2 as today.
+    """
+    import configparser
+    for cfg_path in (BASE_DIR / ".dvc" / "config.local", BASE_DIR / ".dvc" / "config"):
+        if cfg_path.exists():
+            cp = configparser.ConfigParser()
+            try:
+                cp.read(cfg_path)
+            except configparser.Error:
+                continue
+            if cp.has_option("cache", "dir"):
+                return Path(cp.get("cache", "dir").strip().strip('"'))
+    return BASE_DIR / ".dvc" / "cache"
+
+
+_DVC_CACHE_DIR = _dvc_cache_dir()
+
+
+def _cache_path_for_md5(md5: str) -> Path:
+    """Locate a content-addressed file in the DVC cache.
+
+    Layout: <cache_root>/files/md5/<md5[:2]>/<md5[2:]>. The cache may
+    or may not contain the file (depends on whether `dvc add` has run
+    on this host). Caller checks .is_file() before serving.
+    """
+    return _DVC_CACHE_DIR / "files" / "md5" / md5[:2] / md5[2:]
 _AUDIO_R2_URLS: dict[str, str] = {}
 
 
@@ -754,12 +790,17 @@ async def script_viewer(request: Request, run_id: str):
 
 @app.get("/audio/{run_id}/shards.json")
 async def serve_shards_manifest(run_id: str):
-    """Return the per-turn shards index with R2 URLs injected.
+    """Return the per-turn shards index with playback URLs injected.
 
-    The player (webapp/static/player.js) reads `shard.url` per shard,
-    so we resolve each shard's md5 to its public R2 URL inline. The
-    /audio/<run>/shards/<profile>/<file> redirect handler below remains
-    a fallback for older callers that walk the file basename instead.
+    The player (webapp/static/player.js) reads `shard.url` per shard.
+    Resolution per md5:
+      - If the local DVC cache has these bytes, route playback through
+        our /audio/<run>/shards/<profile>/<file> endpoint, which serves
+        from disk. Lets dev iterate (post-`dvc add`, pre-`dvc push`)
+        before any R2 upload happens.
+      - Otherwise, point straight at R2 — bypasses the webapp so bytes
+        never pass through Fly. Production always lands here because the
+        deploy tarball excludes shard mp3s.
     """
     if ".." in run_id:
         raise HTTPException(400, "Invalid path")
@@ -770,21 +811,40 @@ async def serve_shards_manifest(run_id: str):
         manifest = json.loads(path.read_text())
     except json.JSONDecodeError:
         raise HTTPException(500, "Malformed shards.json")  # noqa: B904
+    profile = manifest.get("profile", "classic")
     for shard in manifest.get("shards", []):
         h = shard.get("md5") or ""
-        if h:
+        if not h:
+            continue
+        if _cache_path_for_md5(h).is_file():
+            shard["url"] = f"/audio/{run_id}/shards/{profile}/{shard['file']}"
+        else:
             shard["url"] = f"{R2_PUBLIC_URL}/files/md5/{h[:2]}/{h[2:]}"
     return manifest
 
 
 @app.get("/audio/{run_id}/shards/{profile}/{filename}")
 async def serve_shard_audio(run_id: str, profile: str, filename: str):
-    """302-redirect a shard mp3 request to R2.
+    """Serve a shard mp3 by md5 — content-addressed.
 
     Each shard's md5 is recorded in audio/shards.json (one entry per
-    shard, keyed by `file` basename). Lookup is per-request — small JSON,
-    cheap to parse. The shard mp3 dir itself is DVC-tracked as a
-    .dvc-sidecar directory; bytes live at the standard R2 content-address.
+    shard, keyed by `file` basename). Identity flows from the md5: the
+    same md5 addresses the file in the local DVC cache and on R2 (both
+    layout bytes at /files/md5/<prefix>/<rest>).
+
+    Resolution order:
+      1. Local DVC cache. After `dvc add` on this host, the bytes live
+         at <cache>/files/md5/<prefix>/<rest>; serve via FileResponse.
+         Identity holds because the cache path IS the md5 — DVC's
+         content-addressed invariant.
+      2. R2 redirect. The deployed container has no DVC cache; R2 is
+         the canonical store. Production always falls through here.
+
+    A pre-`dvc add` regular file at data/runs/<run>/audio/shards/...
+    isn't in the cache yet and so won't be found here. The workflow is:
+    align → `dvc add data/runs/<run>/audio/shards` → listen → push.
+    The `dvc add` step is cheap (no upload — moves files into the cache
+    and replaces them with symlinks).
     """
     if any(".." in p for p in (run_id, profile, filename)):
         raise HTTPException(400, "Invalid path")
@@ -798,6 +858,9 @@ async def serve_shard_audio(run_id: str, profile: str, filename: str):
     for shard in shards:
         if shard.get("file") == filename and shard.get("md5"):
             md5 = shard["md5"]
+            cache_path = _cache_path_for_md5(md5)
+            if cache_path.is_file():
+                return FileResponse(str(cache_path), media_type="audio/mpeg")
             return RedirectResponse(
                 f"{R2_PUBLIC_URL}/files/md5/{md5[:2]}/{md5[2:]}",
                 status_code=302,

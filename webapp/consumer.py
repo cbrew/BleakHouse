@@ -126,6 +126,18 @@ def best_episodes_for_consumer(data_dir: Path | None = None) -> list[dict[str, A
     with db_conn() as conn:
         rows = [dict(r) for r in conn.execute(_QUERY)]
 
+    # Filter to rows whose run-dir actually has serveable audio on disk.
+    # Retrofit episodes (created later than the original audio render)
+    # have audio_artifact rows in the DB pointing at the original run's
+    # mp3, but no podcast.mp3 or shards in the retrofit run-dir itself.
+    # Picking such a row leads the player to /audio/<retrofit_run>/...
+    # which 404s. Filter by what's actually on disk under the run_id.
+    def _has_serveable_audio(run_id: str) -> bool:
+        run_dir = runs_root / run_id / "audio"
+        return (run_dir / "shards.json").exists() or (run_dir / "podcast.mp3").exists()
+
+    rows = [r for r in rows if _has_serveable_audio(r["run_id"])]
+
     # Bucket by (novel, panel) and keep the best run in each bucket.
     buckets: dict[tuple[str, str], dict[str, Any]] = {}
     for row in rows:

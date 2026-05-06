@@ -8,10 +8,20 @@ from pathlib import Path
 import pytest
 
 
-def _build_fixture_db(db_path: Path, rows: list[dict]) -> None:
+def _build_fixture(db_path: Path, data_dir: Path, rows: list[dict]) -> None:
     """Create a minimal experiments DB with episode/script_version/audio_artifact
-    populated from the given rows. Each row is a single (episode, script,
-    [audio]) bundle; pass audio_duration=None to omit the audio_artifact."""
+    populated from the given rows, and create on-disk podcast.mp3 marker files
+    for runs whose audio_duration is set. The selector's on-disk filter looks
+    for these markers to exclude retrofit episodes that have audio_artifact
+    rows in the DB but no audio bytes in the run-dir.
+
+    Each row is a single (episode, script, [audio]) bundle; pass
+    audio_duration=None to omit the audio_artifact AND skip the marker file."""
+    for r in rows:
+        if r.get("audio_duration") is not None:
+            audio_dir = data_dir / "runs" / r["label"] / "audio"
+            audio_dir.mkdir(parents=True, exist_ok=True)
+            (audio_dir / "podcast.mp3").write_bytes(b"")
     conn = sqlite3.connect(db_path)
     conn.executescript("""
         CREATE TABLE episode (
@@ -66,7 +76,7 @@ def fixture_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def test_picks_trn_hostprep_refs_within_a_bucket(fixture_db: Path, tmp_path: Path) -> None:
     """Within (bh, literary) the row with trn+hostprep+ref_tools must win."""
-    _build_fixture_db(fixture_db, [
+    _build_fixture(fixture_db, tmp_path, [
         {"novel": "bh", "panel": "literary", "pipeline": "emb",
          "hostprep": 1, "ref_tools": 1, "label": "bh_emb_lit_hp_rt", "audio_duration": 100},
         {"novel": "bh", "panel": "literary", "pipeline": "trn",
@@ -87,7 +97,7 @@ def test_picks_trn_hostprep_refs_within_a_bucket(fixture_db: Path, tmp_path: Pat
 def test_one_card_per_novel_panel_pair(fixture_db: Path, tmp_path: Path) -> None:
     """Two novels × two panels with audio = 4 cards. A panel without audio
     contributes nothing; a novel where every panel lacks audio drops out."""
-    _build_fixture_db(fixture_db, [
+    _build_fixture(fixture_db, tmp_path, [
         # Bleak House — three panels, two with audio
         {"novel": "bh", "panel": "literary", "pipeline": "trn",
          "hostprep": 1, "ref_tools": 1, "label": "bh_lit", "audio_duration": 100},
@@ -116,7 +126,7 @@ def test_one_card_per_novel_panel_pair(fixture_db: Path, tmp_path: Path) -> None
 def test_transport_alias_ranks_with_trn(fixture_db: Path, tmp_path: Path) -> None:
     """Some legacy episode rows store the pipeline as 'transport' instead
     of 'trn'; both should rank above emb."""
-    _build_fixture_db(fixture_db, [
+    _build_fixture(fixture_db, tmp_path, [
         {"novel": "bh", "panel": "literary", "pipeline": "emb",
          "hostprep": 1, "ref_tools": 1, "label": "bh_emb", "audio_duration": 100},
         {"novel": "bh", "panel": "literary", "pipeline": "transport",
@@ -130,7 +140,7 @@ def test_transport_alias_ranks_with_trn(fixture_db: Path, tmp_path: Path) -> Non
 
 def test_recency_breaks_ties(fixture_db: Path, tmp_path: Path) -> None:
     """When pipeline/hostprep/ref_tools all tie, pick the newer script."""
-    _build_fixture_db(fixture_db, [
+    _build_fixture(fixture_db, tmp_path, [
         {"novel": "bh", "panel": "literary", "pipeline": "trn",
          "hostprep": 1, "ref_tools": 1, "label": "bh_old",
          "audio_duration": 100, "script_created": 1000.0},
@@ -146,7 +156,7 @@ def test_recency_breaks_ties(fixture_db: Path, tmp_path: Path) -> None:
 def test_results_sorted_by_novel_then_panel(fixture_db: Path, tmp_path: Path) -> None:
     """Output ordering: novel title alphabetical, then literary > alternatives
     > interdisciplinary within each novel."""
-    _build_fixture_db(fixture_db, [
+    _build_fixture(fixture_db, tmp_path, [
         {"novel": "hest", "panel": "interdisciplinary", "pipeline": "trn",
          "hostprep": 1, "ref_tools": 0, "label": "hest_int", "audio_duration": 50},
         {"novel": "bh", "panel": "interdisciplinary", "pipeline": "trn",
