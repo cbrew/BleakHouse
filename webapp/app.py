@@ -790,12 +790,17 @@ async def script_viewer(request: Request, run_id: str):
 
 @app.get("/audio/{run_id}/shards.json")
 async def serve_shards_manifest(run_id: str):
-    """Return the per-turn shards index with R2 URLs injected.
+    """Return the per-turn shards index with playback URLs injected.
 
-    The player (webapp/static/player.js) reads `shard.url` per shard,
-    so we resolve each shard's md5 to its public R2 URL inline. The
-    /audio/<run>/shards/<profile>/<file> redirect handler below remains
-    a fallback for older callers that walk the file basename instead.
+    The player (webapp/static/player.js) reads `shard.url` per shard.
+    Resolution per md5:
+      - If the local DVC cache has these bytes, route playback through
+        our /audio/<run>/shards/<profile>/<file> endpoint, which serves
+        from disk. Lets dev iterate (post-`dvc add`, pre-`dvc push`)
+        before any R2 upload happens.
+      - Otherwise, point straight at R2 — bypasses the webapp so bytes
+        never pass through Fly. Production always lands here because the
+        deploy tarball excludes shard mp3s.
     """
     if ".." in run_id:
         raise HTTPException(400, "Invalid path")
@@ -806,9 +811,14 @@ async def serve_shards_manifest(run_id: str):
         manifest = json.loads(path.read_text())
     except json.JSONDecodeError:
         raise HTTPException(500, "Malformed shards.json")  # noqa: B904
+    profile = manifest.get("profile", "classic")
     for shard in manifest.get("shards", []):
         h = shard.get("md5") or ""
-        if h:
+        if not h:
+            continue
+        if _cache_path_for_md5(h).is_file():
+            shard["url"] = f"/audio/{run_id}/shards/{profile}/{shard['file']}"
+        else:
             shard["url"] = f"{R2_PUBLIC_URL}/files/md5/{h[:2]}/{h[2:]}"
     return manifest
 
