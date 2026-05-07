@@ -63,3 +63,11 @@ packages = ["enrichment", "webapp", "cas"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "enrichment/expdb/schema.sql" = "enrichment/expdb/schema.sql"
+
+[tool.pyright]
+# Align IDE pyright with `uv run pyright` (which runs inside the .venv).
+# Without these, IDE-launched pyright cannot find the editable-installed
+# top-level packages (cas, enrichment, webapp) or third-party deps.
+venvPath = "."
+venv = ".venv"
+extraPaths = ["."]
