@@ -71,3 +71,10 @@ packages = ["enrichment", "webapp", "cas"]
 venvPath = "."
 venv = ".venv"
 extraPaths = ["."]
+
+[[tool.mypy.overrides]]
+# boto3/botocore ship without py.typed; mypy can't analyze them. We rely
+# on pyright for type checking the boto3-using code (cas.store has a
+# narrow `# type: ignore[name-defined]` on _r2_client's return type).
+module = ["boto3", "boto3.*", "botocore", "botocore.*", "moto", "moto.*"]
+ignore_missing_imports = true

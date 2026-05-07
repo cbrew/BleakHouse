@@ -45,6 +45,11 @@ def test_clusters_literary_raises_when_novel_dir_missing(fake_repo: Path) -> Non
         paths.clusters_literary("nope")
 
 
+def test_clusters_characters_raises_when_novel_dir_missing(fake_repo: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="novel 'nope' not registered"):
+        paths.clusters_characters("nope")
+
+
 def test_assignments_resolves_under_run_dir(fake_repo: Path) -> None:
     p = paths.assignments("bh_trn_literary")
     assert p == fake_repo / "data" / "runs" / "bh_trn_literary" / "phase1_assignments.json"
