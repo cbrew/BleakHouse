@@ -19,8 +19,9 @@ def cas_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 @pytest.fixture
 def r2_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Set R2 env vars to test values. Used by tests that touch boto3
-    via moto. Real-R2 integration tests do NOT use this fixture."""
-    monkeypatch.setenv("R2_ENDPOINT_URL", "https://r2.test.local")
+    via moto. R2_ENDPOINT_URL is intentionally omitted: moto intercepts
+    standard AWS S3 requests but does NOT intercept custom endpoint URLs.
+    Real-R2 integration tests do NOT use this fixture."""
     monkeypatch.setenv("R2_ACCESS_KEY_ID", "test_access")
     monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "test_secret")
     monkeypatch.setenv("BLEAKHOUSE_R2_BUCKET", "test-bucket")

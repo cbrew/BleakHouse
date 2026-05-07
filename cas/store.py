@@ -11,6 +11,9 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import boto3
+from botocore.exceptions import ClientError
+
 # Repo root is two levels up from this file (cas/store.py).
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -83,3 +86,83 @@ def _md5_of_file(path: Path) -> str:
         for chunk in iter(lambda: f.read(64 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _bucket() -> str:
+    return os.environ.get("BLEAKHOUSE_R2_BUCKET", "not-in-our-time")
+
+
+def _r2_client() -> boto3.client:  # type: ignore[name-defined]
+    """Construct a fresh boto3 S3 client.
+
+    Required env vars: R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY.
+    Optional env var: R2_ENDPOINT_URL (omit for moto/test use).
+    Raises KeyError on missing required var.
+    """
+    kwargs: dict[str, object] = {
+        "aws_access_key_id": os.environ["R2_ACCESS_KEY_ID"],
+        "aws_secret_access_key": os.environ["R2_SECRET_ACCESS_KEY"],
+        "region_name": "auto",
+    }
+    endpoint = os.environ.get("R2_ENDPOINT_URL")
+    if endpoint:
+        kwargs["endpoint_url"] = endpoint
+    return boto3.client("s3", **kwargs)
+
+
+def _r2_key(md5: str) -> str:
+    return f"files/md5/{md5[:2]}/{md5[2:]}"
+
+
+def has_remote(md5: str) -> bool:
+    """True if R2 has the blob (HEAD check)."""
+    try:
+        _r2_client().head_object(Bucket=_bucket(), Key=_r2_key(md5))
+    except ClientError as exc:
+        code = exc.response.get("Error", {}).get("Code", "")
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            return False
+        raise
+    return True
+
+
+def push(md5: str) -> None:
+    """Upload local blob to R2. Idempotent (HEAD-then-PUT).
+
+    Raises FileNotFoundError if blob missing locally.
+    """
+    src = local_path(md5)
+    if src is None:
+        raise FileNotFoundError(f"md5 {md5} not in local CAS")
+    if has_remote(md5):
+        return
+    with src.open("rb") as f:
+        _r2_client().put_object(Bucket=_bucket(), Key=_r2_key(md5), Body=f)
+
+
+def pull(md5: str) -> Path:
+    """Download blob from R2 into local CAS; return local path.
+
+    Raises FileNotFoundError if blob missing in R2.
+    """
+    dest = _cas_path_for(md5)
+    if dest.is_file():
+        return dest
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        dir=dest.parent, prefix=".pull-", suffix=".tmp", delete=False
+    ) as tmp_f:
+        tmp = Path(tmp_f.name)
+    try:
+        _r2_client().download_file(_bucket(), _r2_key(md5), str(tmp))
+        tmp.rename(dest)
+    except ClientError as exc:
+        tmp.unlink(missing_ok=True)
+        code = exc.response.get("Error", {}).get("Code", "")
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            raise FileNotFoundError(f"md5 {md5} not in R2") from exc
+        raise
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    return dest
