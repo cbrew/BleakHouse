@@ -118,6 +118,7 @@ def run_phase0(
     run_dir: Path,
     no_design: bool = False,
     segment_model: str | None = None,
+    length: str = "long",
 ) -> list[SegmentTemplate]:
     """Phase 0: segment design. Returns segment templates.
 
@@ -138,6 +139,7 @@ def run_phase0(
             prompt_version=prompt_version,
             personas=personas if prompt_version >= 3 else None,
             recorder=recorder,
+            length=length,
         )
         if segment_model is not None:
             kwargs["model"] = segment_model
@@ -329,6 +331,7 @@ def run_phase_2_5(
     interview_model: str = "claude-haiku-4-5-20251001",
     planning_model: str = "claude-sonnet-4-6",
     use_reference_tools: bool = False,
+    length: str = "long",
 ) -> list[HostBrief]:
     """Phase 2.5: host preparation (pre-interviews + question planning)."""
     from enrichment.host_prep import run_host_prep  # pyright: ignore[reportMissingImports]
@@ -351,6 +354,7 @@ def run_phase_2_5(
         planning_model=planning_model,
         use_reference_tools=use_reference_tools,
         run_dir=run_dir,
+        length=length,
     )
 
     with open(run_dir / "phase2_5_host_briefs.json", "w") as f:
@@ -536,12 +540,14 @@ Examples:
 
     # ── Phase 0: Segment design ──
     if resume and resume >= 1:
-        templates = run_phase0(experts, arcs, args.prompt_version, personas, run_dir)
+        templates = run_phase0(experts, arcs, args.prompt_version, personas,
+                               run_dir, length=args.length)
     else:
         templates = run_phase0(
             experts, arcs, args.prompt_version, personas, run_dir,
             no_design=args.no_design_segments,
             segment_model=args.segment_model,
+            length=args.length,
         )
 
     if args.phase < 1:
@@ -617,6 +623,7 @@ Examples:
             interview_model=args.interview_model,
             planning_model=args.model,
             use_reference_tools=args.reference_tools,
+            length=args.length,
         )
 
     if args.only_host_prep:

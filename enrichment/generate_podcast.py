@@ -259,12 +259,24 @@ _SEGMENT_LENGTH_LONG = """\
 
 
 _SEGMENT_LENGTH_SHORT = """\
-**Segment length:** Each segment should be approximately 600 words \
-(700 for the opening segment with introductions).  This is roughly \
-4 minutes of audio.  Prioritise quality over quantity ruthlessly: a \
-4-minute segment is about three substantive points well-developed, \
-not eight points name-checked.  Cut every line that doesn't earn its \
-place.  Better one sharp quote unpacked than three quotes flagged."""
+**Segment length: HARD CAP 400 words per segment** (500 for the \
+opening segment with introductions).  This is roughly 3 minutes of \
+audio.
+
+This is a strict constraint, not a target.  The segment will be \
+truncated if it exceeds 400 words.  Plan accordingly:
+
+- ONE quote per segment, well-chosen, briefly set up and unpacked \
+in two sentences.  Not three quotes flagged.  Not the same quote read \
+twice from different angles.
+- TWO substantive analytical points, not five.  Pick the most striking.
+- Tight conversational moves: question → answer → one beat of cross-talk \
+→ host bridge.  No long monologues, no repeated agreement.
+- Cut every line that doesn't earn its place.  No "let me build on \
+that" filler, no recap of what the previous expert just said.
+
+If you find yourself writing a fourth point or a second quote, stop \
+and cut.  The constraint is the editorial discipline."""
 
 
 _QUOTE_SOURCING_V2 = """

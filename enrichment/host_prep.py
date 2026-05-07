@@ -392,7 +392,7 @@ You are a podcast host planning questions for a segment of a literary \
 discussion about **{novel_title}** by **{novel_author}**.
 
 You've just finished pre-interviews with each expert.  Your job is to \
-plan 3–5 targeted questions that will:
+plan {question_count_phrase} targeted questions that will:
 
 1. Draw out each expert's strongest, most interesting take
 2. Set up productive disagreements between experts
@@ -422,8 +422,11 @@ _QUESTION_PLANNING_USER = """\
 
 {interview_block}
 
-Plan 3–5 questions for this segment.  Make them specific, conversational, \
-and designed to produce good radio."""
+Plan {question_count_phrase} questions for this segment.  Make them \
+specific, conversational, and designed to produce good radio."""
+
+_QUESTION_COUNT_LONG = "3–5"
+_QUESTION_COUNT_SHORT = "1–2"
 
 
 def _format_interviews(interviews: list[PreInterviewResponse]) -> str:
@@ -451,15 +454,29 @@ def plan_questions(
     model: str = "claude-sonnet-4-6",
     verified_references: list[str] | None = None,
     recorder: Recorder | None = None,
+    length: str = "long",
 ) -> HostBrief:
-    """Plan questions for one segment based on pre-interviews."""
+    """Plan questions for one segment based on pre-interviews.
+
+    length: 'long' asks for 3–5 questions per segment (production
+    default); 'short' asks for 1–2 questions per segment, since each
+    Q+A round contributes 6–10 turns (~3 min audio per round) and
+    short-form episodes only have ~3 min budget per segment total."""
+    if length == "short":
+        question_count_phrase = _QUESTION_COUNT_SHORT
+    elif length == "long":
+        question_count_phrase = _QUESTION_COUNT_LONG
+    else:
+        raise ValueError(f"unknown length {length!r} (expected 'long' or 'short')")
     system = _QUESTION_PLANNING_SYSTEM.format(
         novel_title=novel_title,
         novel_author=novel_author,
+        question_count_phrase=question_count_phrase,
     )
     user = _QUESTION_PLANNING_USER.format(
         segment_name=segment_name,
         interview_block=_format_interviews(interviews),
+        question_count_phrase=question_count_phrase,
     )
     if verified_references:
         user += "\n\n## Verified scholarly references for this segment\n\n"
@@ -660,6 +677,7 @@ def run_host_prep(
     planning_model: str = "claude-sonnet-4-6",
     use_reference_tools: bool = False,
     run_dir: Path | None = None,
+    length: str = "long",
 ) -> tuple[list[HostBrief], list[list[PreInterviewResponse]]]:
     """Run the full Phase 2.5 pipeline: pre-interviews + question planning.
 
@@ -802,6 +820,7 @@ def run_host_prep(
             novel_title, novel_author, planning_model,
             verified_references=seg_refs,
             recorder=plan_recorder,
+            length=length,
         )
         timing.merge(plan_recorder)  # auto-flushes via flush_path
         briefs.append(brief)
