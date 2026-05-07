@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import tempfile
 from pathlib import Path
 
 # Repo root is two levels up from this file (cas/store.py).
@@ -49,9 +50,18 @@ def put(path: Path) -> str:
     dest = _cas_path_for(md5)
     if not dest.is_file():
         dest.parent.mkdir(parents=True, exist_ok=True)
-        tmp = dest.with_name(dest.name + ".tmp")
-        shutil.copyfile(path, tmp)
-        tmp.rename(dest)
+        # NamedTemporaryFile in dest.parent guarantees a unique name even
+        # under concurrent puts of the same md5; same-FS rename is atomic.
+        with tempfile.NamedTemporaryFile(
+            dir=dest.parent, prefix=".put-", suffix=".tmp", delete=False
+        ) as tmp_f:
+            tmp = Path(tmp_f.name)
+        try:
+            shutil.copyfile(path, tmp)
+            tmp.rename(dest)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
     return md5
 
 
@@ -66,7 +76,9 @@ def has_local(md5: str) -> bool:
 
 
 def _md5_of_file(path: Path) -> str:
-    h = hashlib.md5()
+    # usedforsecurity=False is a no-op outside FIPS but lets the call
+    # work in FIPS-mode environments where md5 is otherwise rejected.
+    h = hashlib.md5(usedforsecurity=False)
     with path.open("rb") as f:
         for chunk in iter(lambda: f.read(64 * 1024), b""):
             h.update(chunk)
