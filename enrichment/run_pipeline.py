@@ -56,6 +56,50 @@ PIPELINES = ["transport", "no-passages", "embedding"]
 
 
 # ---------------------------------------------------------------------------
+# Preflight: enrichment-completeness smoke test
+# ---------------------------------------------------------------------------
+
+
+_PREFLIGHT_EMPTY_THRESHOLD = 0.05  # ≤5% empty allowed
+
+
+def _preflight_check(novel: str) -> None:
+    """Validate passages_enriched.json before the pipeline starts.
+
+    Catches the 'data is loadable but unusable' class — JSON parses
+    fine but the fields the pipeline actually reads are empty,
+    silently substituted by a missing-data fallback. (See
+    enrichment/segment_transport.py:build_passage_assignments — the
+    bleak_house bug that masked empty popovers for 32 long-form runs.)
+
+    The pipeline reads `passage["text"]` (top-level) and
+    `passage["enrichment"]["summary"]` (nested). best_quote is NOT
+    checked because legitimate nulls exist for digressions /
+    non-literary passages (quotability == "none"). Threshold ≥95%
+    complete; raises RuntimeError on miss with the first 5 offending
+    passage IDs for triage.
+    """
+    from cas import paths as cas_paths
+
+    enriched = json.loads(cas_paths.passages_enriched(novel).read_text())
+    if not enriched:
+        raise RuntimeError(f"passages_enriched.json for {novel} is empty")
+    bad: list[str] = []
+    for p in enriched:
+        text = p.get("text") or ""
+        summary = (p.get("enrichment") or {}).get("summary") or ""
+        if not text or not summary:
+            bad.append(p.get("passage_id", "<missing-id>"))
+    if len(bad) / len(enriched) > _PREFLIGHT_EMPTY_THRESHOLD:
+        raise RuntimeError(
+            f"{len(bad)}/{len(enriched)} passages in {novel} have empty "
+            f"text or enrichment.summary "
+            f"(>{_PREFLIGHT_EMPTY_THRESHOLD:.0%} threshold). "
+            f"First 5: {bad[:5]}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
@@ -472,6 +516,11 @@ Examples:
 
     # Set novel identity
     os.environ["BLEAKHOUSE_NOVEL"] = args.novel
+
+    # Preflight: enrichment-completeness smoke test. Catches the
+    # 'data is loadable but unusable' class before any phase runs.
+    _preflight_check(args.novel)
+
     # Apply the _short suffix to the run name when --length short is set.
     # This keeps existing call sites that pass --name <base> unchanged for
     # long runs and writes shorts to <base>_short/ siblings, matching the
