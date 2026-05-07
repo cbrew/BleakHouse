@@ -1,7 +1,8 @@
 """Unit tests for scripts.run_status (the pure formatting/aggregation parts).
 
-The dvc-status integration is covered by manual smoke runs; here we
-exercise the formatting logic against synthetic inputs.
+Post-CAS-migration the DVC stage-status integration is gone; the
+script reports purely on file presence. STALE is no longer a
+possible verdict — only FRESH and INCOMPLETE.
 """
 from __future__ import annotations
 
@@ -25,22 +26,6 @@ def test_format_text_fresh_run() -> None:
     assert "phase0_segments" in text
     assert "FRESH" in text
     assert "VERDICT: FRESH" in text
-
-
-def test_format_text_stale_run() -> None:
-    report = {
-        "run_id": "bh_trn_literary",
-        "run_dir": "/repo/data/runs/bh_trn_literary",
-        "verdict": "STALE",
-        "stages": [
-            {"phase": "phase4_audio", "state": "STALE",
-             "files_present": ["audio/podcast.mp3"], "files_missing": [],
-             "reasons": [{"changed deps": ["enrichment/render_audio.py"]}]},
-        ],
-    }
-    text = _format_text(report)
-    assert "STALE" in text
-    assert "VERDICT: STALE" in text
 
 
 def test_format_text_missing_files() -> None:

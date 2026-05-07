@@ -55,9 +55,8 @@ def _build_audio_r2_map(
     signal: no manifest → no audio player.
 
     Malformed manifests (bad JSON or schema_version != 1) are dropped from
-    the map and recorded in the returned data_health list. Replaces the
-    previous dvc.lock parser; the audio engine now writes assets.json
-    directly via `enrichment/render_audio.py`.
+    the map and recorded in the returned data_health list. The audio
+    engine writes assets.json directly via cas.store.put.
     """
     audio_map: dict[str, str] = {}
     health: list[dict[str, str]] = []
@@ -120,11 +119,9 @@ GIT_SHA = get_git_sha()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.globals["v"] = GIT_SHA
 
-# Audio lives at data/runs/<run>/audio/ — locally this is a symlink
-# into the DVC cache; in the container it's a real file bundled from
-# the staged demo_data/ tree. There used to be a PODCAST_AUDIO_DIR
-# env override pointing at a separate volume; that layout has been
-# folded into the canonical path.
+# Audio lives at data/runs/<run>/audio/. Bytes are served from R2
+# via 302 redirect; the local working-tree mp3 files (if present)
+# are optional copies, not load-bearing for the deployed webapp.
 
 app = FastAPI(title="Literary Podcast Player")
 
@@ -1163,42 +1160,6 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     return summary
 
 
-def _dvc_stale_runs() -> dict[str, list[str]]:
-    """Return {run_id: [stale_stage_phase, ...]} by parsing `dvc status --json`.
-
-    Each DVC stage name is `<phase>@<run_id>` (see dvc.yaml matrix).
-    Empty dict means clean.
-
-    `dvc` is expected on PATH (in the deploy container it's pip-
-    installed; locally it's in the uv-managed project venv). Anything
-    that prevents it from running cleanly degrades to {}.
-    """
-    import subprocess
-    try:
-        proc = subprocess.run(
-            ["dvc", "status", "--json"],
-            capture_output=True, text=True, timeout=20, cwd=BASE_DIR,
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return {}
-    if proc.returncode != 0 and proc.returncode != 1:
-        # dvc status returns 1 when the graph is dirty — that's fine.
-        return {}
-    try:
-        data = json.loads(proc.stdout or "{}")
-    except json.JSONDecodeError:
-        return {}
-    if not isinstance(data, dict):
-        return {}
-    stale: dict[str, list[str]] = {}
-    for stage_name in data:
-        if "@" not in stage_name:
-            continue
-        phase, run_id = stage_name.split("@", 1)
-        stale.setdefault(run_id, []).append(phase)
-    return stale
-
-
 def _build_tracker_matrix_from_db() -> dict:
     """Build the /tracker/data response from data/experiments.db.
 
@@ -1213,7 +1174,6 @@ def _build_tracker_matrix_from_db() -> dict:
     from webapp.db_views import matrix_rows  # pyright: ignore[reportMissingImports]
 
     runs_dir = DATA_DIR / "runs"
-    stale_by_run = _dvc_stale_runs()
     db_rows = matrix_rows()
     by_axes = {
         (r["novel"], r["panel"], r["pipeline"], int(r["hostprep"]), r["generator"]): r
@@ -1231,7 +1191,6 @@ def _build_tracker_matrix_from_db() -> dict:
             _summarize_run_dir(rd) if rd.exists()
             else {"name": run_id, "run_id": run_id, "status": "missing"}
         )
-        summary["dvc_stale_phases"] = stale_by_run.get(run_id, [])
         cell_cache[run_id] = summary
         return summary
 
@@ -1839,12 +1798,8 @@ function _renderWithGenerator(data, gen) {
                 const cls = c.q >= 5 ? 'hi' : c.q >= 2 ? 'mi' : 'lo';
                 const cdata = encodeURIComponent(JSON.stringify(c)).replace(/'/g, "%27");
                 const audio = c.has_audio ? '<span style="font-size:0.7em;color:#27ae60" title="Audio available">&#9835;</span>' : '';
-                const stalePhases = c.dvc_stale_phases || [];
-                const stale = stalePhases.length > 0
-                    ? `<span style="font-size:0.7em;color:#c0392b" title="DVC stale: ${stalePhases.join(', ')}">&#9888;</span>`
-                    : '';
                 html += `<td class="d ${cls}" onclick="showRunDetail(event, '${cdata}')">` +
-                    `<span class="q">${c.q}</span>${audio}${stale}<br>` +
+                    `<span class="q">${c.q}</span>${audio}<br>` +
                     `<span class="r">${c.r}</span><br>` +
                     `<span class="w">${Math.round(c.w/1000)}k</span></td>`;
             }

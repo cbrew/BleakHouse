@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
-# Audio for every run lives at data/runs/<run>/audio/. Locally these
-# are symlinks into the DVC cache; in the demo container they're real
-# files bundled from the staged demo_data/.
+# Audio for every run lives at data/runs/<run>/audio/. Bytes are
+# served via R2 (302-redirected by the webapp); local mp3 files are
+# optional working-tree copies, not load-bearing.
 
 # Novel title → path under data/ to passages_enriched.json. Every novel
 # (including bleak_house, normalised 2026-04-24) lives at
