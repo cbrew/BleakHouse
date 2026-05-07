@@ -98,6 +98,7 @@ def build_run_name(
     panel: str,
     *,
     hostprep: bool = False,
+    length: str = "long",
 ) -> str:
     """Canonical run-dir name via `axes.RunAxes.dir_name()`."""
     if novel_key not in NOVEL_BY_ID:
@@ -112,6 +113,7 @@ def build_run_name(
         pipeline=CONDITION_TO_PIPELINE[condition],
         panel=panel_id,
         hostprep=hostprep,
+        length=length,
     )
     return axes.dir_name()
 
@@ -122,10 +124,12 @@ def run_condition(
     panel: str,
     prompt_version: int,
     hostprep: bool = False,
+    length: str = "long",
 ) -> None:
     """Run a single condition, setting BLEAKHOUSE_NOVEL in the environment."""
     panel_id = _resolve_panel(panel)
-    name = build_run_name(novel_key, condition, panel_id, hostprep=hostprep)
+    name = build_run_name(novel_key, condition, panel_id,
+                          hostprep=hostprep, length=length)
 
     novel_dir = DATA_DIR / "novels" / novel_key
     enriched = novel_dir / "passages_enriched.json"
@@ -149,6 +153,7 @@ def run_condition(
         "--novel", novel_key,
         "--pipeline", condition,
         "--prompt-version", str(prompt_version),
+        "--length", length,
     ]
     for replacement in PANEL_REPLACEMENTS[panel_id]:
         cmd.extend(["--replace-expert", replacement])
@@ -182,6 +187,11 @@ def main() -> None:
     parser.add_argument("--hostprep", action="store_true",
                         help="Enable Phase 2.5 host preparation.")
     parser.add_argument(
+        "--length", choices=("long", "short"), default="long",
+        help="Episode length variant. 'long' (~90 min) is the legacy "
+             "default; 'short' (~30 min) writes to a sibling _short run dir.",
+    )
+    parser.add_argument(
         "--all", action="store_true",
         help="Run all conditions × panels",
     )
@@ -209,7 +219,8 @@ def main() -> None:
             for condition in conditions:
                 try:
                     run_condition(args.novel, condition, panel,
-                                  args.prompt_version, hostprep=args.hostprep)
+                                  args.prompt_version, hostprep=args.hostprep,
+                                  length=args.length)
                 except subprocess.CalledProcessError as e:
                     logger.error(
                         "FAILED: %s %s %s (exit %d)",
@@ -217,7 +228,8 @@ def main() -> None:
                     )
     elif args.condition and args.panel:
         run_condition(args.novel, args.condition, args.panel,
-                      args.prompt_version, hostprep=args.hostprep)
+                      args.prompt_version, hostprep=args.hostprep,
+                      length=args.length)
     else:
         parser.error("Provide --condition and --panel, or use --all")
 

@@ -463,6 +463,7 @@ def generate_segment_script(
     next_segment_title: str | None = None,
     host_brief: HostBrief | None = None,
     recorder: Recorder | None = None,
+    length: str = "long",
 ) -> EpisodeSegment:
     """Generate a multi-voice script for one segment via structured output."""
     system_msg, user_msg = build_messages(
@@ -470,6 +471,7 @@ def generate_segment_script(
         previous_segment_title=previous_segment_title,
         next_segment_title=next_segment_title,
         host_brief=host_brief,
+        length=length,
     )
 
     logger.info(
@@ -561,6 +563,7 @@ def run_phase3(
     prompt_version: int = 2,
     host_briefs: list[HostBrief] | None = None,
     run_dir: Path | None = None,
+    length: str = "long",
 ) -> dict:
     """Phase 3: script generation. Shared by all pipeline types.
 
@@ -604,6 +607,7 @@ def run_phase3(
             next_segment_title=next_title,
             host_brief=brief,
             recorder=recorder,
+            length=length,
         )
         episode_segments.append(episode_seg)
         logger.info(

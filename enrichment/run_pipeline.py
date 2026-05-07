@@ -451,6 +451,13 @@ Examples:
         help="Regenerate only Phase 2.5 outputs, reading phases 0/1/2 from disk. "
              "Implies --host-prep; exits before phase 3.",
     )
+    parser.add_argument(
+        "--length", choices=("long", "short"), default="long",
+        help="Episode length variant. 'long' (~90 min, ~1500 words/segment) "
+             "is the legacy default. 'short' (~30 min, ~600 words/segment) "
+             "uses a tighter Phase 3 prompt and writes to a sibling run dir "
+             "with a '_short' suffix on the name.",
+    )
 
     args = parser.parse_args()
 
@@ -461,7 +468,14 @@ Examples:
 
     # Set novel identity
     os.environ["BLEAKHOUSE_NOVEL"] = args.novel
-    logger.info("Novel: %s, Pipeline: %s, Run: %s", args.novel, args.pipeline, args.name)
+    # Apply the _short suffix to the run name when --length short is set.
+    # This keeps existing call sites that pass --name <base> unchanged for
+    # long runs and writes shorts to <base>_short/ siblings, matching the
+    # convention in enrichment/axes.py (LENGTH_TOKEN).
+    if args.length == "short" and not args.name.endswith("_short"):
+        args.name = f"{args.name}_short"
+    logger.info("Novel: %s, Pipeline: %s, Length: %s, Run: %s",
+                args.novel, args.pipeline, args.length, args.name)
 
     # Build expert and persona lists
     experts: list[ExpertProfile] = list(DEFAULT_EXPERTS)
@@ -499,6 +513,7 @@ Examples:
         "panel": panel,
         "hostprep": args.host_prep,
         "generator": generator,
+        "length": args.length,
     }
 
     # Save config
@@ -616,6 +631,7 @@ Examples:
         prompt_version=args.prompt_version,
         host_briefs=host_briefs,
         run_dir=run_dir,
+        length=args.length,
     )
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)
