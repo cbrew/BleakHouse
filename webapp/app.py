@@ -25,6 +25,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import StreamingResponse
 
+from cas import store as cas_store
 from enrichment import axes
 
 # Telemetry endpoints (/api/pageview, /api/feedback) write to stdout via
@@ -42,86 +43,56 @@ DATA_DIR = Path(os.environ.get("BLEAKHOUSE_DATA_DIR", str(BASE_DIR / "data")))
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
-# R2 public bucket URL — audio mp3s are 302-redirected here so bytes
-# never pass through Fly. Override with BLEAKHOUSE_R2_PUBLIC_URL when
-# the bucket changes. The mp3-hash → URL map is built once at import
-# time from dvc.lock (the canonical hash source — no derived-cache
-# staleness window).
-R2_PUBLIC_URL = os.environ.get(
-    "BLEAKHOUSE_R2_PUBLIC_URL",
-    "https://pub-0ac622dd336f40438799d8dbd211234a.r2.dev",
-)
 
+def _build_audio_r2_map(
+    data_dir: Path,
+) -> tuple[dict[str, str], list[dict[str, str]]]:
+    """Walk per-run audio/assets.json; return (R2 URL map, data_health entries).
 
-def _dvc_cache_dir() -> Path:
-    """DVC cache root for content-addressed lookup of audio bytes.
+    Map keys are on-disk paths (`data/runs/<run>/audio/<filename>`); values
+    are R2 public URLs constructed via `cas.store.url(md5)`. Runs with no
+    `assets.json` contribute zero entries — the hard binary visibility
+    signal: no manifest → no audio player.
 
-    Reads cache.dir from .dvc/config.local (where the local override
-    lives), falls back to .dvc/config (committed default), and finally
-    to .dvc/cache (DVC's hard default if neither config sets it). Used
-    only by the audio routes to serve bytes locally before a dvc push;
-    production containers have no DVC tree so the lookup misses and
-    routes 302 to R2 as today.
+    Malformed manifests (bad JSON or schema_version != 1) are dropped from
+    the map and recorded in the returned data_health list. Replaces the
+    previous dvc.lock parser; the audio engine now writes assets.json
+    directly via `enrichment/render_audio.py`.
     """
-    import configparser
-    for cfg_path in (BASE_DIR / ".dvc" / "config.local", BASE_DIR / ".dvc" / "config"):
-        if cfg_path.exists():
-            cp = configparser.ConfigParser()
-            try:
-                cp.read(cfg_path)
-            except configparser.Error:
-                continue
-            if cp.has_option("cache", "dir"):
-                return Path(cp.get("cache", "dir").strip().strip('"'))
-    return BASE_DIR / ".dvc" / "cache"
-
-
-_DVC_CACHE_DIR = _dvc_cache_dir()
-
-
-def _cache_path_for_md5(md5: str) -> Path:
-    """Locate a content-addressed file in the DVC cache.
-
-    Layout: <cache_root>/files/md5/<md5[:2]>/<md5[2:]>. The cache may
-    or may not contain the file (depends on whether `dvc add` has run
-    on this host). Caller checks .is_file() before serving.
-    """
-    return _DVC_CACHE_DIR / "files" / "md5" / md5[:2] / md5[2:]
-_AUDIO_R2_URLS: dict[str, str] = {}
-
-
-def _build_audio_r2_map() -> None:
-    """Parse dvc.lock once and populate _AUDIO_R2_URLS for every audio mp3.
-
-    Audio stages in dvc.yaml are foreach-expanded as `phase4_audio@<run>`
-    (gemini classic), `phase4_audio_qwen@<run>`, and
-    `phase4_audio_trevelyan_v2@<run>`. Each lists an mp3 out with an md5
-    that is the R2 content-address. Map keys are the on-disk paths
-    (e.g. `data/runs/<run>/audio/podcast.mp3`) so the request handler
-    can look up directly by `data/runs/{run_id}/audio/{filename}`.
-    """
-    import yaml
-    lock_path = BASE_DIR / "dvc.lock"
-    if not lock_path.exists():
-        logger.warning("dvc.lock not found at %s; audio R2 redirects disabled", lock_path)
-        return
-    with open(lock_path) as f:
-        lock = yaml.safe_load(f) or {}
-    audio_prefixes = ("phase4_audio@", "phase4_audio_qwen@", "phase4_audio_trevelyan_v2@")
-    count = 0
-    for stage_name, stage in (lock.get("stages") or {}).items():
-        if not isinstance(stage, dict) or not stage_name.startswith(audio_prefixes):
+    audio_map: dict[str, str] = {}
+    health: list[dict[str, str]] = []
+    runs_dir = data_dir / "runs"
+    if not runs_dir.is_dir():
+        return audio_map, health
+    for assets_path in sorted(runs_dir.glob("*/audio/assets.json")):
+        run_id = assets_path.parent.parent.name
+        try:
+            data = json.loads(assets_path.read_text())
+        except json.JSONDecodeError as exc:
+            health.append(
+                {"run_id": run_id, "manifest": "audio/assets.json",
+                 "error": f"json decode failed: {exc}"}
+            )
             continue
-        for out in stage.get("outs", []) or []:
-            path = out.get("path", "")
-            md5 = out.get("md5", "")
-            if path.endswith(".mp3") and md5:
-                _AUDIO_R2_URLS[path] = f"{R2_PUBLIC_URL}/files/md5/{md5[:2]}/{md5[2:]}"
-                count += 1
-    logger.info("Loaded %d audio R2 URLs from dvc.lock", count)
+        if data.get("schema_version") != 1:
+            health.append(
+                {"run_id": run_id, "manifest": "audio/assets.json",
+                 "error": f"unexpected schema_version {data.get('schema_version')!r}"}
+            )
+            continue
+        for filename, md5 in (data.get("assets") or {}).items():
+            audio_map[f"data/runs/{run_id}/audio/{filename}"] = cas_store.url(md5)
+    return audio_map, health
 
 
-_build_audio_r2_map()
+_AUDIO_R2_URLS, _DATA_HEALTH = _build_audio_r2_map(DATA_DIR)
+logger.info(
+    "Loaded %d audio R2 URLs from audio/assets.json (%d health flags)",
+    len(_AUDIO_R2_URLS),
+    len(_DATA_HEALTH),
+)
+for entry in _DATA_HEALTH:
+    logger.error("data_health: %s", entry)
 
 
 def get_git_sha() -> str:
@@ -813,10 +784,10 @@ async def serve_shards_manifest(run_id: str):
         h = shard.get("md5") or ""
         if not h:
             continue
-        if _cache_path_for_md5(h).is_file():
+        if cas_store.has_local(h):
             shard["url"] = f"/audio/{run_id}/shards/{profile}/{shard['file']}"
         else:
-            shard["url"] = f"{R2_PUBLIC_URL}/files/md5/{h[:2]}/{h[2:]}"
+            shard["url"] = cas_store.url(h)
     return manifest
 
 
@@ -855,13 +826,10 @@ async def serve_shard_audio(run_id: str, profile: str, filename: str):
     for shard in shards:
         if shard.get("file") == filename and shard.get("md5"):
             md5 = shard["md5"]
-            cache_path = _cache_path_for_md5(md5)
-            if cache_path.is_file():
+            cache_path = cas_store.local_path(md5)
+            if cache_path is not None:
                 return FileResponse(str(cache_path), media_type="audio/mpeg")
-            return RedirectResponse(
-                f"{R2_PUBLIC_URL}/files/md5/{md5[:2]}/{md5[2:]}",
-                status_code=302,
-            )
+            return RedirectResponse(cas_store.url(md5), status_code=302)
     raise HTTPException(404, f"No shard {profile}/{filename} for run {run_id}")
 
 

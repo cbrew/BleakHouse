@@ -1,6 +1,7 @@
 """Audio routes: mp3s 302-redirect to R2 (CDN-edged); audio JSON
-manifests served locally from disk. R2 URLs are sourced from dvc.lock
-at app import time."""
+manifests served locally from disk. R2 URLs are sourced from per-run
+audio/assets.json (legacy non-shard mp3s) at app import time, and from
+audio/shards.json (per-turn mp3s) on each request."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -17,11 +18,12 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     (runs / "manifest.json").write_text('{"segments": []}')
     (runs / "shards.json").write_text('{"shards": []}')
 
+    monkeypatch.setenv("BLEAKHOUSE_R2_PUBLIC_URL", "https://r2.example.test")
     import webapp.app as appmod
 
     monkeypatch.setattr(appmod, "DATA_DIR", tmp_path / "data")
-    monkeypatch.setattr(appmod, "R2_PUBLIC_URL", "https://r2.example.test")
-    # Synthesise an R2 URL map: same shape _build_audio_r2_map() produces.
+    # Synthesise the R2 URL map directly: shape matches what
+    # _build_audio_r2_map() produces by walking audio/assets.json.
     monkeypatch.setattr(appmod, "_AUDIO_R2_URLS", {
         "data/runs/test_run/audio/podcast.mp3":
             "https://r2.example.test/files/md5/aa/bbccdd",
@@ -68,10 +70,10 @@ def test_shards_json_injects_r2_urls(tmp_path, monkeypatch) -> None:
         ']}'
     )
 
+    monkeypatch.setenv("BLEAKHOUSE_R2_PUBLIC_URL", "https://r2.example.test")
     import webapp.app as appmod
 
     monkeypatch.setattr(appmod, "DATA_DIR", tmp_path / "data")
-    monkeypatch.setattr(appmod, "R2_PUBLIC_URL", "https://r2.example.test")
     c = TestClient(appmod.app)
 
     resp = c.get("/audio/shard_run/shards.json", follow_redirects=False)
@@ -93,10 +95,10 @@ def test_shard_audio_redirects_to_r2(tmp_path, monkeypatch) -> None:
         ']}'
     )
 
+    monkeypatch.setenv("BLEAKHOUSE_R2_PUBLIC_URL", "https://r2.example.test")
     import webapp.app as appmod
 
     monkeypatch.setattr(appmod, "DATA_DIR", tmp_path / "data")
-    monkeypatch.setattr(appmod, "R2_PUBLIC_URL", "https://r2.example.test")
     c = TestClient(appmod.app)
 
     r = c.get("/audio/shard_run/shards/trevelyan_v2/0000.mp3", follow_redirects=False)
@@ -120,3 +122,101 @@ def test_path_traversal_rejected(client: TestClient) -> None:
 def test_audio_unknown_run_404s(client: TestClient) -> None:
     resp = client.get("/audio/nonexistent_run/podcast.mp3", follow_redirects=False)
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# _build_audio_r2_map — walks audio/assets.json (replaces dvc.lock parser)
+# ---------------------------------------------------------------------------
+
+
+def test_build_audio_r2_map_walks_assets_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Per-run audio/assets.json populates _AUDIO_R2_URLS with cas.url() values."""
+    runs = tmp_path / "data" / "runs"
+    (runs / "run_a" / "audio").mkdir(parents=True)
+    (runs / "run_a" / "audio" / "assets.json").write_text(
+        '{"schema_version": 1, "assets": '
+        '{"podcast.mp3": "aaaa1111bbbb2222cccc3333dddd4444"}}'
+    )
+    (runs / "run_b" / "audio").mkdir(parents=True)
+    (runs / "run_b" / "audio" / "assets.json").write_text(
+        '{"schema_version": 1, "assets": '
+        '{"podcast.mp3": "1111aaaa2222bbbb3333cccc4444dddd",'
+        ' "podcast_qwen.mp3": "ffff1111ffff2222ffff3333ffff4444"}}'
+    )
+
+    monkeypatch.setenv("BLEAKHOUSE_R2_PUBLIC_URL", "https://r2.example.test")
+    import webapp.app as appmod
+
+    audio_map, health = appmod._build_audio_r2_map(tmp_path / "data")
+
+    assert audio_map == {
+        "data/runs/run_a/audio/podcast.mp3":
+            "https://r2.example.test/files/md5/aa/aa1111bbbb2222cccc3333dddd4444",
+        "data/runs/run_b/audio/podcast.mp3":
+            "https://r2.example.test/files/md5/11/11aaaa2222bbbb3333cccc4444dddd",
+        "data/runs/run_b/audio/podcast_qwen.mp3":
+            "https://r2.example.test/files/md5/ff/ff1111ffff2222ffff3333ffff4444",
+    }
+    assert health == []
+
+
+def test_build_audio_r2_map_skips_runs_without_assets_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Runs with no assets.json contribute zero entries (hard-binary visibility)."""
+    runs = tmp_path / "data" / "runs"
+    (runs / "no_audio_run" / "audio").mkdir(parents=True)
+    # Note: no assets.json. Directory exists; in-progress run.
+
+    monkeypatch.setenv("BLEAKHOUSE_R2_PUBLIC_URL", "https://r2.example.test")
+    import webapp.app as appmod
+
+    audio_map, health = appmod._build_audio_r2_map(tmp_path / "data")
+
+    assert audio_map == {}
+    assert health == []
+
+
+def test_build_audio_r2_map_flags_malformed_assets_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Malformed assets.json → drop, log to data_health, do not crash startup."""
+    runs = tmp_path / "data" / "runs"
+    (runs / "broken_run" / "audio").mkdir(parents=True)
+    (runs / "broken_run" / "audio" / "assets.json").write_text(
+        "not valid json {{{"
+    )
+
+    monkeypatch.setenv("BLEAKHOUSE_R2_PUBLIC_URL", "https://r2.example.test")
+    import webapp.app as appmod
+
+    audio_map, health = appmod._build_audio_r2_map(tmp_path / "data")
+
+    assert audio_map == {}
+    assert len(health) == 1
+    assert health[0]["run_id"] == "broken_run"
+    assert health[0]["manifest"] == "audio/assets.json"
+    assert "json" in health[0]["error"].lower()
+
+
+def test_build_audio_r2_map_flags_wrong_schema_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """schema_version != 1 → flag in data_health, not in map."""
+    runs = tmp_path / "data" / "runs"
+    (runs / "future_run" / "audio").mkdir(parents=True)
+    (runs / "future_run" / "audio" / "assets.json").write_text(
+        '{"schema_version": 99, "assets": {"podcast.mp3": "aa' + '0' * 30 + '"}}'
+    )
+
+    monkeypatch.setenv("BLEAKHOUSE_R2_PUBLIC_URL", "https://r2.example.test")
+    import webapp.app as appmod
+
+    audio_map, health = appmod._build_audio_r2_map(tmp_path / "data")
+
+    assert audio_map == {}
+    assert len(health) == 1
+    assert health[0]["run_id"] == "future_run"
+    assert "schema_version" in health[0]["error"]
