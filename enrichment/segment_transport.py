@@ -104,15 +104,15 @@ def build_passage_assignments(
     """Convert Phase 1 output into enriched PassageAssignment objects."""
     passage_map = {p.passage_id: p for p in passages}
 
-    # Load full enrichment for text, summary, best_quote, themes
+    # Load full enrichment for text, summary, best_quote, themes.
+    # The legacy `data/passages_enriched.json` path was retired when novels
+    # moved under `data/novels/<id>/`. bleak_house lives at
+    # `data/novels/bleak_house/passages_enriched.json` like every other novel.
     enr_map: dict[str, dict] = {}  # type: ignore[type-arg]
     if enrichment_data is None:
         import os
-        novel = os.environ.get("BLEAKHOUSE_NOVEL")
-        if novel and novel != "bleak_house":
-            enr_path = DATA_DIR / "novels" / novel / "passages_enriched.json"
-        else:
-            enr_path = DATA_DIR / "passages_enriched.json"
+        novel = os.environ.get("BLEAKHOUSE_NOVEL", "bleak_house")
+        enr_path = DATA_DIR / "novels" / novel / "passages_enriched.json"
         if enr_path.exists():
             with open(enr_path) as f:
                 enrichment_data = json.load(f)
