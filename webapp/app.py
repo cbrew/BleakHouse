@@ -659,11 +659,8 @@ async def get_prep(run_id: str):
     else:
         interviews_path = fallback_interviews
         briefs_path = fallback_briefs
-    # Read the reading list from the same directory as the interviews:
-    # retrofit dirs hold both an updated interviews.json (with ref-N tags)
-    # and the matching reading_list.json (with the entries that resolve
-    # those tags). The legacy run-id dir's reading_list has no `entries`
-    # block and would leave the tags unresolved.
+    # Read phase2_5_reading_list.json from the same directory as the
+    # interviews (retrofit dir if there is one, canonical run dir otherwise).
     reading_path = interviews_path.parent / "phase2_5_reading_list.json"
     if not reading_path.exists():
         reading_path = run_dir / "phase2_5_reading_list.json"
