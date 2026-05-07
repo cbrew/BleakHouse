@@ -67,9 +67,9 @@ echo
 
 # Step 1: Download HTML from Gutenberg.
 if [ -f "$NOVEL_DIR/$HTML_FILENAME" ]; then
-    echo "==> [1/6] HTML already present at $NOVEL_DIR/$HTML_FILENAME — skipping"
+    echo "==> [1/5] HTML already present at $NOVEL_DIR/$HTML_FILENAME — skipping"
 else
-    echo "==> [1/6] download HTML from Gutenberg"
+    echo "==> [1/5] download HTML from Gutenberg"
     curl -fsSL \
         "https://www.gutenberg.org/cache/epub/${GUTENBERG_ID}/${HTML_FILENAME}" \
         -o "$NOVEL_DIR/$HTML_FILENAME"
@@ -77,26 +77,26 @@ fi
 
 # Step 2: Chapter / passage segmentation.
 if [ -f "$NOVEL_DIR/passages_raw.json" ]; then
-    echo "==> [2/6] passages_raw.json already present — skipping"
+    echo "==> [2/5] passages_raw.json already present — skipping"
 else
-    echo "==> [2/6] segment chapters into passages"
+    echo "==> [2/5] segment chapters into passages"
     uv run python -m enrichment.segment_novel --novel "$NOVEL"
 fi
 
 # Step 3: Submit + collect Phase-0 enrichment batch (literary features).
 if [ -f "$NOVEL_DIR/passages_enriched.json" ]; then
-    echo "==> [3/6] passages_enriched.json already present — skipping enrichment batch"
+    echo "==> [3/5] passages_enriched.json already present — skipping enrichment batch"
 else
-    echo "==> [3/6] submit + collect literary-features batch (polls; up to ~1 hr)"
+    echo "==> [3/5] submit + collect literary-features batch (polls; up to ~1 hr)"
     uv run python -m enrichment.submit_passages_enriched --novel "$NOVEL"
     uv run python -m enrichment.collect_passages_enriched --novel "$NOVEL"
 fi
 
 # Step 4: Submit + poll-collect passage contexts batch.
 if [ -f "$NOVEL_DIR/passages_contextual.json" ]; then
-    echo "==> [4/6] passages_contextual.json already present — skipping contexts batch"
+    echo "==> [4/5] passages_contextual.json already present — skipping contexts batch"
 else
-    echo "==> [4/6] submit passage-contexts batch"
+    echo "==> [4/5] submit passage-contexts batch"
     uv run python -m enrichment.submit_passage_contexts --novel "$NOVEL"
     echo "    polling every 60s until the contexts batch ends..."
     while [ ! -f "$NOVEL_DIR/passages_contextual.json" ]; do
@@ -107,22 +107,17 @@ fi
 
 # Step 5: Cluster (literary features + character co-occurrence).
 if [ -f "$NOVEL_DIR/clusters_literary.json" ]; then
-    echo "==> [5/6] clusters_literary.json already present — skipping"
+    echo "==> [5/5] clusters_literary.json already present — skipping"
 else
-    echo "==> [5/6a] cluster passages by literary features"
+    echo "==> [5/5a] cluster passages by literary features"
     uv run python -m enrichment.cluster_literary --novel "$NOVEL"
 fi
 if [ -f "$NOVEL_DIR/clusters_characters.json" ]; then
-    echo "==> [5/6] clusters_characters.json already present — skipping"
+    echo "==> [5/5] clusters_characters.json already present — skipping"
 else
-    echo "==> [5/6b] cluster passages by character co-occurrence"
+    echo "==> [5/5b] cluster passages by character co-occurrence"
     uv run python -m enrichment.cluster_characters --novel "$NOVEL"
 fi
-
-# Step 6: Persist artefacts in DVC cache (best-effort; data may not be
-# tracked by any current dvc stage, in which case this is a no-op).
-echo "==> [6/6] dvc commit (best-effort; ignored if nothing tracks these files)"
-uv run --no-sync dvc commit -f 2>&1 | tail -5 || true
 
 echo
 echo "SUCCESS: $NOVEL onboarded. Artefacts at $NOVEL_DIR/"

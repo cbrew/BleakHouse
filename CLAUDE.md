@@ -16,7 +16,6 @@ Uses uv with PEP 621 pyproject.toml. Python 3.12+.
 
 ```bash
 uv sync                    # install dependencies
-uv run dvc pull -r r2      # materialise data/runs/ from DVC remote (~165 MB)
 uv run python <script>     # run any script
 uv run pytest              # run tests
 uv run ruff check .        # lint
@@ -27,9 +26,11 @@ uv run mypy .              # type check (alternative)
 After producing a new run locally:
 
 ```bash
-uv run dvc commit <stage>@<run_id>   # records the on-disk hash
-uv run dvc push -r r2                # uploads to R2
-git add config.json runs.yaml dvc.lock
+# enrichment/render_audio.py auto-puts shard bytes into <CAS_ROOT>/files/md5/...
+# Push to R2 explicitly via the migration script's populate phase, or per-md5
+# via cas.store.push(md5).
+uv run python -c "from cas import store; [store.push(m) for m in <md5_list>]"
+git add config.json data/runs/<id>/ ...
 git commit && git push
 ```
 
@@ -58,23 +59,39 @@ dominated by the two batch waits.
 - `enrichment/novel_prompts.py` — `NOVEL_CONFIGS` entry + a 3-arc list under `get_novel_arcs`
 
 The data tree (~165 MB, JSON only) is baked into the image at build
-time via a tarball with symlinks dereferenced. Audio mp3s stay in R2
-and are 302-redirected by the webapp using URLs parsed from `dvc.lock`
-at app startup. No DVC binary or R2 secrets in the container.
-
-Note: `dvc pull` is **not** run by `deploy_demo.sh` — it deletes
-git-tracked files from removed stages (run_manifest in particular).
-Run it manually after `git pull` to refresh your local cache.
+time via a tarball. Audio mp3s stay in R2 and are 302-redirected by
+the webapp using URLs built from per-run `audio/assets.json` and
+`audio/shards.json` at app startup. No R2 secrets in the container.
 
 No CI/CD.
 
+## Storage: CAS replaces DVC
+
+DVC was retired in BleakHouse-zmlw (2026-05-07). Bytes are now
+addressed by md5 via the `cas/` package:
+
+- `cas.store.put(path) -> md5` — copy bytes into `<CAS_ROOT>/files/md5/<prefix>/<rest>` and return md5
+- `cas.store.url(md5) -> str` — R2 public URL
+- `cas.store.local_path(md5) -> Path | None` — `None` if not in local CAS
+- `cas.store.push(md5)` / `cas.store.pull(md5)` — R2 round-trip
+
+`<CAS_ROOT>` defaults to `<repo>/data/cas`; override with
+`BLEAKHOUSE_CAS_ROOT`. R2 push/pull needs `R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT_URL`. Webapp does NOT need
+credentials — it serves redirects only.
+
+Per-run audio metadata (no audio bytes in working tree):
+
+- `data/runs/<id>/audio/assets.json` — legacy single-mp3 runs:
+  `{"schema_version":1, "assets": {"podcast.mp3": "<md5>", ...}}`
+- `data/runs/<id>/audio/shards.json` — per-turn shard runs:
+  same shape as before; each shard has `md5` populated by `cas.put`
+
 ## Gotchas
 
-- **DVC-tracked files are read-only symlinks.** `data/experiments.db` and per-run JSONs (`phase2_5_reading_list.json`, etc.) point into the DVC cache; mutation fails with `readonly database` or `Permission denied`. Run `uv run dvc unprotect <path>` before writing.
 - **`build_manifest` runs before the listener-pick winnower**, so `manifest.json`'s embedded `host_prep.reading_list` is the unfiltered candidate set. The winnowed `recommended` only lands in `data/runs/<id>/phase2_5_reading_list.json` — read that file as source of truth.
 - **Three reading-list schemas coexist:** new (`entries` + `recommended`), legacy (`verified` + `unverified`), and hybrid (legacy fields *plus* a 3-5-item `recommended` from the listener-pick post-pass). Route any manifest with non-empty `recommended` through the new-schema renderer.
-- **Webapp run discovery is DB-driven.** New runs need (1) `scripts/generate_run_manifest.py --run <id>` to write `run_manifest.json`, then (2) `uv run python -m enrichment.expdb scan` to refresh `data/experiments.db` (which itself usually needs `dvc unprotect` first).
-- **`dvc.lock` carries perpetual churn** from unrelated `render_audio.py` md5 updates that aren't from the current branch. `git checkout -- dvc.lock` before staging feature commits unless you're deliberately updating DVC tracking.
+- **Webapp run discovery is DB-driven.** New runs need (1) `scripts/generate_run_manifest.py --run <id>` to write `run_manifest.json`, then (2) `uv run python -m enrichment.expdb scan` to refresh `data/experiments.db`.
 
 ## Architecture
 

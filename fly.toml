@@ -11,14 +11,15 @@ primary_region = 'iad'
   auto_start_machines = true
   min_machines_running = 0
 
-# Architecture (bake-at-build, 2026-05-03):
-# - JSON pipeline outs are pre-pulled by `dvc pull` on the dev machine,
-#   tar-bundled (symlinks dereferenced), and COPYed into the image at
-#   build time. ~165 MB extra image size; instant cold starts.
+# Architecture (bake-at-build):
+# - JSON pipeline outs (data/runs/) are tar-bundled on the dev machine
+#   and COPYed into the image at build time. ~165 MB extra image size;
+#   instant cold starts.
 # - Audio mp3s stay in Cloudflare R2; webapp 302-redirects mp3 requests
-#   to public r2.dev URLs built from dvc.lock at app import time.
-# - Container has no DVC binary, no R2 secrets, no volume. The webapp
-#   reads files as-is and the only network egress is HTML/JSON to users.
+#   to public r2.dev URLs built from per-run audio/assets.json at app
+#   import time and from audio/shards.json on each shard request.
+# - Container has no R2 secrets and no volume. The webapp reads files
+#   as-is and the only network egress is HTML/JSON to users.
 
 [[vm]]
   memory = '1024mb'

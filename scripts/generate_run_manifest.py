@@ -1,7 +1,12 @@
 """Generate data/runs/<id>/run_manifest.json — the single source of truth for a run.
 
-Reconciles the webapp's view of a run with DVC's state by reading
-dvc.lock and inspecting the filesystem.
+NOTE: Pre-CAS-migration this script reconciled with DVC by reading
+dvc.lock; that source was removed in BleakHouse-zmlw (Phase E). Now
+runs without an existing run_manifest.json get a degraded manifest
+based on on-disk file presence only — the per-stage `hash` field is
+populated from the actual file md5 (no canonical reference to compare
+against). Existing manifests are preferred; this script is a recovery
+tool only.
 
 Usage:
     uv run python scripts/generate_run_manifest.py [--run <id>]
@@ -17,14 +22,11 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-import yaml
-
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RUNS_DIR = BASE_DIR / "data" / "runs"
-DVC_LOCK_PATH = BASE_DIR / "dvc.lock"
 
 
 def get_git_sha(path: Path) -> str:
@@ -44,13 +46,6 @@ def get_file_md5(path: Path) -> str | None:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
-
-
-def load_dvc_lock():
-    if not DVC_LOCK_PATH.exists():
-        return {}
-    with open(DVC_LOCK_PATH) as f:
-        return yaml.safe_load(f)
 
 
 def generate_manifest(run_id: str, lock_data: dict, lock_sha: str):
@@ -126,15 +121,18 @@ def generate_manifest(run_id: str, lock_data: dict, lock_sha: str):
         if key.startswith("phase4_audio"):
             # audio_variants entry
             variant_name = "classic"
-            if "qwen" in key: variant_name = "qwen"
-            elif "trevelyan_v2" in key: variant_name = "trevelyan_v2"
-            
+            if "qwen" in key:
+                variant_name = "qwen"
+            elif "trevelyan_v2" in key:
+                variant_name = "trevelyan_v2"
+
             # Find manifest and mp3 in outs
             audio_file = None
             audio_manifest = None
             for out in outs:
                 p = out["path"]
-                if p.endswith(".mp3"): audio_file = p
+                if p.endswith(".mp3"):
+                    audio_file = p
                 if p.endswith("manifest.json") or p.endswith("manifest_qwen.json") or p.endswith("manifest_trevelyan_v2.json"):
                     audio_manifest = p
             
@@ -179,7 +177,10 @@ def main():
     parser.add_argument("--run", help="Run ID to generate manifest for (default: all)")
     args = parser.parse_args()
 
-    lock_data = load_dvc_lock()
+    # lock_data is now always empty post-CAS-migration; the script falls
+    # back to on-disk file presence to populate stages. lock_sha records
+    # the git SHA at generation time for provenance (no DVC reconciliation).
+    lock_data: dict = {}
     lock_sha = get_git_sha(BASE_DIR)
 
     if args.run:

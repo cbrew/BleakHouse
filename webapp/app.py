@@ -762,13 +762,12 @@ async def serve_shards_manifest(run_id: str):
 
     The player (webapp/static/player.js) reads `shard.url` per shard.
     Resolution per md5:
-      - If the local DVC cache has these bytes, route playback through
-        our /audio/<run>/shards/<profile>/<file> endpoint, which serves
-        from disk. Lets dev iterate (post-`dvc add`, pre-`dvc push`)
-        before any R2 upload happens.
-      - Otherwise, point straight at R2 — bypasses the webapp so bytes
-        never pass through Fly. Production always lands here because the
-        deploy tarball excludes shard mp3s.
+      - If the local CAS has these bytes (cas.store.has_local), route
+        playback through /audio/<run>/shards/<profile>/<file>, which
+        serves from disk. Lets dev iterate before pushing to R2.
+      - Otherwise, point straight at R2 (cas.store.url) — bypasses the
+        webapp so bytes never pass through Fly. Production always
+        lands here because the deploy tarball excludes shard mp3s.
     """
     if ".." in run_id:
         raise HTTPException(400, "Invalid path")
@@ -797,22 +796,16 @@ async def serve_shard_audio(run_id: str, profile: str, filename: str):
 
     Each shard's md5 is recorded in audio/shards.json (one entry per
     shard, keyed by `file` basename). Identity flows from the md5: the
-    same md5 addresses the file in the local DVC cache and on R2 (both
+    same md5 addresses the file in the local CAS and on R2 (both
     layout bytes at /files/md5/<prefix>/<rest>).
 
     Resolution order:
-      1. Local DVC cache. After `dvc add` on this host, the bytes live
-         at <cache>/files/md5/<prefix>/<rest>; serve via FileResponse.
-         Identity holds because the cache path IS the md5 — DVC's
-         content-addressed invariant.
-      2. R2 redirect. The deployed container has no DVC cache; R2 is
-         the canonical store. Production always falls through here.
-
-    A pre-`dvc add` regular file at data/runs/<run>/audio/shards/...
-    isn't in the cache yet and so won't be found here. The workflow is:
-    align → `dvc add data/runs/<run>/audio/shards` → listen → push.
-    The `dvc add` step is cheap (no upload — moves files into the cache
-    and replaces them with symlinks).
+      1. Local CAS (cas.store.local_path). When the audio generator
+         has run on this host, bytes live at <CAS_ROOT>/files/md5/
+         <prefix>/<rest>; serve via FileResponse.
+      2. R2 redirect (cas.store.url). The deployed container has no
+         local CAS; R2 is the canonical store. Production always
+         falls through here.
     """
     if any(".." in p for p in (run_id, profile, filename)):
         raise HTTPException(400, "Invalid path")
@@ -837,8 +830,7 @@ async def serve_shard_audio(run_id: str, profile: str, filename: str):
 async def serve_audio(run_id: str, filename: str):
     """Serve audio: mp3s 302-redirect to R2 (CDN-edged, bytes bypass Fly);
     audio-manifest JSON files (manifest.json, manifest_qwen.json, etc.)
-    are pulled into the local cache by `dvc pull` and served as static
-    files.
+    are bundled into the deploy image and served as static files.
     """
     if ".." in run_id or ".." in filename:
         raise HTTPException(400, "Invalid path")
