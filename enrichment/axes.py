@@ -152,6 +152,9 @@ DEFAULT_GENERATOR: str = _default_generator_from_params()
 
 
 HOSTPREP_TOKEN: str = "hostprep"
+LENGTH_TOKEN: str = "short"
+LENGTHS: frozenset[str] = frozenset({"long", "short"})
+DEFAULT_LENGTH: str = "long"
 
 
 @dataclass(frozen=True)
@@ -161,6 +164,7 @@ class RunAxes:
     panel: str
     hostprep: bool
     generator: str = DEFAULT_GENERATOR
+    length: str = DEFAULT_LENGTH
 
     def __post_init__(self) -> None:
         if self.novel not in NOVEL_KEYS:
@@ -171,6 +175,8 @@ class RunAxes:
             raise ValueError(f"unknown panel {self.panel!r}")
         if self.generator not in GENERATORS:
             raise ValueError(f"unknown generator {self.generator!r}")
+        if self.length not in LENGTHS:
+            raise ValueError(f"unknown length {self.length!r}")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -179,6 +185,7 @@ class RunAxes:
             "panel": self.panel,
             "hostprep": self.hostprep,
             "generator": self.generator,
+            "length": self.length,
         }
 
     @classmethod
@@ -189,6 +196,7 @@ class RunAxes:
             panel=str(d["panel"]),
             hostprep=bool(d["hostprep"]),
             generator=str(d.get("generator", DEFAULT_GENERATOR)),
+            length=str(d.get("length", DEFAULT_LENGTH)),
         )
 
     def dir_name(self) -> str:
@@ -198,6 +206,7 @@ class RunAxes:
             panel=self.panel,
             hostprep=self.hostprep,
             generator=self.generator,
+            length=self.length,
         )
 
 
@@ -208,13 +217,15 @@ def run_dir_name(
     panel: str,
     hostprep: bool,
     generator: str = DEFAULT_GENERATOR,
+    length: str = DEFAULT_LENGTH,
 ) -> str:
     """Build a canonical run directory name from explicit axis values.
 
     Rules:
       - `novel` in NOVEL_KEYS, `pipeline` in PIPELINES, `panel` in PANELS,
-        `generator` in GENERATORS; otherwise `ValueError`.
+        `generator` in GENERATORS, `length` in LENGTHS; otherwise `ValueError`.
       - `hostprep=True` appends `_hostprep`.
+      - `length == "short"` appends `_short` (after hostprep, before generator).
       - `generator != DEFAULT_GENERATOR` appends `_<generator>`; the default
         is omitted so pre-existing run dirs keep their shape.
     """
@@ -226,10 +237,14 @@ def run_dir_name(
         raise ValueError(f"unknown panel {panel!r}")
     if generator not in GENERATORS:
         raise ValueError(f"unknown generator {generator!r}")
+    if length not in LENGTHS:
+        raise ValueError(f"unknown length {length!r}")
 
     parts = [novel, pipeline, panel]
     if hostprep:
         parts.append(HOSTPREP_TOKEN)
+    if length != DEFAULT_LENGTH:
+        parts.append(LENGTH_TOKEN)
     if generator != DEFAULT_GENERATOR:
         parts.append(generator)
     return "_".join(parts)
@@ -239,9 +254,10 @@ def parse_run_dir_name(name: str) -> RunAxes:
     """Invert `run_dir_name` — raise `ValueError` on any unknown token.
 
     The parser walks the first three tokens against novel/pipeline/panel
-    vocabularies, optionally consumes the literal `hostprep`, and treats the
-    remainder (which may itself contain underscores, e.g. `cerebras_qwen`)
-    as the generator. Absent remainder → `DEFAULT_GENERATOR`.
+    vocabularies, optionally consumes the literal `hostprep`, optionally
+    the literal `short`, and treats the remainder (which may itself
+    contain underscores, e.g. `cerebras_qwen`) as the generator. Absent
+    remainder → `DEFAULT_GENERATOR`.
     """
     parts = name.split("_")
     if len(parts) < 3:
@@ -262,6 +278,11 @@ def parse_run_dir_name(name: str) -> RunAxes:
         hostprep = True
         remainder = remainder[1:]
 
+    length = DEFAULT_LENGTH
+    if remainder and remainder[0] == LENGTH_TOKEN:
+        length = "short"
+        remainder = remainder[1:]
+
     if not remainder:
         generator = DEFAULT_GENERATOR
     else:
@@ -275,4 +296,5 @@ def parse_run_dir_name(name: str) -> RunAxes:
         panel=panel,
         hostprep=hostprep,
         generator=generator,
+        length=length,
     )

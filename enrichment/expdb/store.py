@@ -21,7 +21,7 @@ from .models import (
 # TTSConfig is imported for re-export — callers may want the row dataclass.
 _ = TTSConfig
 
-EXPECTED_USER_VERSION = 5
+EXPECTED_USER_VERSION = 6
 
 # v4→v5: introduce run_cost table for per-stage cost rollups
 # (BleakHouse-ybbn / Option B). Pure additive — no existing data
@@ -51,6 +51,41 @@ CREATE TABLE IF NOT EXISTS run_cost (
 CREATE INDEX IF NOT EXISTS idx_run_cost_label ON run_cost(run_label);
 CREATE INDEX IF NOT EXISTS idx_run_cost_stage ON run_cost(stage);
 CREATE INDEX IF NOT EXISTS idx_run_cost_genrun ON run_cost(generation_run_id);
+"""
+
+# v5→v6: add `length` axis to episode (long|short).
+#
+# Adding a column to a UNIQUE constraint requires a table swap on SQLite.
+# Existing rows are all 'long' by definition (no shorts have been rendered
+# until BleakHouse-x3r6). FK to episode.id is preserved by reusing the
+# same id values via `INSERT INTO ... SELECT id, ...`.
+_V5_TO_V6_SQL = """
+PRAGMA foreign_keys = OFF;
+
+CREATE TABLE episode_v6 (
+    id           INTEGER PRIMARY KEY,
+    novel        TEXT NOT NULL,
+    panel        TEXT NOT NULL,
+    pipeline     TEXT NOT NULL,
+    hostprep     INTEGER NOT NULL,
+    generator    TEXT NOT NULL,
+    ref_tools    INTEGER NOT NULL,
+    length       TEXT NOT NULL DEFAULT 'long',
+    label        TEXT NOT NULL,
+    created_at   REAL NOT NULL,
+    UNIQUE(novel, panel, pipeline, hostprep, generator, ref_tools, length)
+);
+
+INSERT INTO episode_v6 (id, novel, panel, pipeline, hostprep, generator,
+                        ref_tools, length, label, created_at)
+    SELECT id, novel, panel, pipeline, hostprep, generator,
+           ref_tools, 'long', label, created_at
+    FROM episode;
+
+DROP TABLE episode;
+ALTER TABLE episode_v6 RENAME TO episode;
+
+PRAGMA foreign_keys = ON;
 """
 
 # Repo root: enrichment/expdb/store.py → enrichment/expdb → enrichment → REPO
@@ -102,10 +137,17 @@ class Store:
                 c.executescript(_schema_sql())
                 c.execute(f"PRAGMA user_version = {EXPECTED_USER_VERSION}")
                 return
-            if current == 4 and EXPECTED_USER_VERSION == 5:
+            if current == 4:
                 # Pure additive delta — apply in place, no rescan needed.
                 c.executescript(_V4_TO_V5_SQL)
+                current = 5
+            if current == 5 and EXPECTED_USER_VERSION == 6:
+                # Adds `length` column + extends UNIQUE constraint via
+                # table swap. All existing rows are length='long'.
+                c.executescript(_V5_TO_V6_SQL)
                 c.execute(f"PRAGMA user_version = {EXPECTED_USER_VERSION}")
+                return
+            if current == EXPECTED_USER_VERSION:
                 return
             raise RuntimeError(
                 f"DB at {self.path} is at user_version={current}, "
@@ -117,20 +159,21 @@ class Store:
 
     def upsert_episode(self, *, novel: str, panel: str, pipeline: str,
                        hostprep: bool, generator: str, ref_tools: bool,
-                       label: str) -> int:
+                       label: str, length: str = "long") -> int:
         with self._conn() as c:
             row = c.execute(
                 "SELECT id FROM episode WHERE novel=? AND panel=? AND pipeline=? "
-                "AND hostprep=? AND generator=? AND ref_tools=?",
-                (novel, panel, pipeline, int(hostprep), generator, int(ref_tools)),
+                "AND hostprep=? AND generator=? AND ref_tools=? AND length=?",
+                (novel, panel, pipeline, int(hostprep), generator,
+                 int(ref_tools), length),
             ).fetchone()
             if row is not None:
                 return int(row["id"])
             cur = c.execute(
                 "INSERT INTO episode(novel, panel, pipeline, hostprep, generator, "
-                "ref_tools, label, created_at) VALUES(?,?,?,?,?,?,?,?)",
+                "ref_tools, length, label, created_at) VALUES(?,?,?,?,?,?,?,?,?)",
                 (novel, panel, pipeline, int(hostprep), generator,
-                 int(ref_tools), label, time.time()),
+                 int(ref_tools), length, label, time.time()),
             )
             assert cur.lastrowid is not None
             return int(cur.lastrowid)
@@ -428,6 +471,8 @@ class Store:
 
 
 def _row_to_episode(row: sqlite3.Row) -> Episode:
+    keys = row.keys() if hasattr(row, "keys") else []
+    length = row["length"] if "length" in keys else "long"
     return Episode(
         id=int(row["id"]),
         novel=row["novel"],
@@ -436,6 +481,7 @@ def _row_to_episode(row: sqlite3.Row) -> Episode:
         hostprep=bool(row["hostprep"]),
         generator=row["generator"],
         ref_tools=bool(row["ref_tools"]),
+        length=length,
         label=row["label"],
         created_at=float(row["created_at"]),
     )

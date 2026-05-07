@@ -16,6 +16,7 @@ class Episode:
     ref_tools: bool
     label: str
     created_at: float
+    length: str = "long"
 
 
 @dataclass(frozen=True)

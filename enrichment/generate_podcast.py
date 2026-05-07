@@ -241,10 +241,7 @@ quote from the novel, use this pattern:
 - Use the enrichment metadata (themes, emotional register) to inform \
   the discussion, but never mention the metadata itself.
 
-**Segment length:** Each segment should be approximately 1,500 words \
-(1,800 for the opening segment with introductions).  This is roughly \
-10 minutes of audio.  Prioritise quality over quantity — if you have \
-5 questions but only room for 3, choose the best 3.
+{segment_length_block}
 
 **Inter-speaker timing (set via pause_before_ms on first utterance of turn):**
 - Same speaker continuation: 120-180 ms
@@ -252,6 +249,34 @@ quote from the novel, use this pattern:
 - Speaker switch after joke/sting: 260-420 ms
 - Before segment pivot or "Welcome back": 500-900 ms
 """
+
+
+_SEGMENT_LENGTH_LONG = """\
+**Segment length:** Each segment should be approximately 1,500 words \
+(1,800 for the opening segment with introductions).  This is roughly \
+10 minutes of audio.  Prioritise quality over quantity — if you have \
+5 questions but only room for 3, choose the best 3."""
+
+
+_SEGMENT_LENGTH_SHORT = """\
+**Segment length: HARD CAP 400 words per segment** (500 for the \
+opening segment with introductions).  This is roughly 3 minutes of \
+audio.
+
+This is a strict constraint, not a target.  The segment will be \
+truncated if it exceeds 400 words.  Plan accordingly:
+
+- ONE quote per segment, well-chosen, briefly set up and unpacked \
+in two sentences.  Not three quotes flagged.  Not the same quote read \
+twice from different angles.
+- TWO substantive analytical points, not five.  Pick the most striking.
+- Tight conversational moves: question → answer → one beat of cross-talk \
+→ host bridge.  No long monologues, no repeated agreement.
+- Cut every line that doesn't earn its place.  No "let me build on \
+that" filler, no recap of what the previous expert just said.
+
+If you find yourself writing a fourth point or a second quote, stop \
+and cut.  The constraint is the editorial discipline."""
 
 
 _QUOTE_SOURCING_V2 = """
@@ -273,11 +298,16 @@ def build_messages(
     previous_segment_title: str | None = None,
     next_segment_title: str | None = None,
     host_brief: HostBrief | None = None,
+    length: str = "long",
 ) -> tuple[str, str]:
     """Build system and user messages for a segment's LLM call.
 
     prompt_version=1: original prompts
     prompt_version=2: passage-grounded quoting instructions
+
+    length: 'long' (~1500 words/segment, ~10min audio) or 'short'
+    (~600 words/segment, ~4min audio). Selects the segment-length
+    instruction block in SYSTEM_PROMPT.
     """
     if prompt_version >= 2:
         quote_sourcing = _QUOTE_SOURCING_V2
@@ -288,6 +318,13 @@ def build_messages(
 
     title, author, show_name = _novel_info()
 
+    if length == "short":
+        segment_length_block = _SEGMENT_LENGTH_SHORT
+    elif length == "long":
+        segment_length_block = _SEGMENT_LENGTH_LONG
+    else:
+        raise ValueError(f"unknown length {length!r} (expected 'long' or 'short')")
+
     system = SYSTEM_PROMPT.format(
         personas=_build_persona_block(personas),
         num_experts=len(personas),
@@ -297,6 +334,7 @@ def build_messages(
         show_name=show_name,
         novel_title=title,
         novel_author=author,
+        segment_length_block=segment_length_block,
     )
 
     # When host prep is active, add questioning mandate to system prompt
@@ -437,6 +475,7 @@ def generate_segment_script(
     next_segment_title: str | None = None,
     host_brief: HostBrief | None = None,
     recorder: Recorder | None = None,
+    length: str = "long",
 ) -> EpisodeSegment:
     """Generate a multi-voice script for one segment via structured output."""
     system_msg, user_msg = build_messages(
@@ -444,6 +483,7 @@ def generate_segment_script(
         previous_segment_title=previous_segment_title,
         next_segment_title=next_segment_title,
         host_brief=host_brief,
+        length=length,
     )
 
     logger.info(
@@ -535,6 +575,7 @@ def run_phase3(
     prompt_version: int = 2,
     host_briefs: list[HostBrief] | None = None,
     run_dir: Path | None = None,
+    length: str = "long",
 ) -> dict:
     """Phase 3: script generation. Shared by all pipeline types.
 
@@ -578,6 +619,7 @@ def run_phase3(
             next_segment_title=next_title,
             host_brief=brief,
             recorder=recorder,
+            length=length,
         )
         episode_segments.append(episode_seg)
         logger.info(

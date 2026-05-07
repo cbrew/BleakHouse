@@ -89,8 +89,8 @@ You will be given:
 2. The character arcs being tracked and their importance
 3. The material supply — how many strong and weak passages exist per dimension
 
-Your job: design 5-8 episode segments that make editorial sense for THIS \
-specific panel.  Each segment needs:
+Your job: design {segment_count_phrase} episode segments that make editorial \
+sense for THIS specific panel.  Each segment needs:
 - A compelling title (e.g. "The Fog and What It Hides", not just "Opening")
 - A segment_type (opening, deep_dive, discussion, close_reading, closing)
 - Which analytical dimensions it should draw from (prov_* field names)
@@ -103,7 +103,7 @@ Design principles:
 - Give each expert at least one segment where they lead
 - Give each tracked arc at least one segment where it features
 - Segment titles should be evocative and specific to the novel, not generic
-- Total max_passages across all segments should be 25-35 (a 45-60 minute episode)
+- {total_passages_phrase}
 - Exactly one opening and one closing segment
 - Only use dimensions that at least one expert demands or one arc requires — \
 don't create demand for dimensions nobody on the panel cares about
@@ -128,8 +128,8 @@ personality/perspective descriptions
 2. The character arcs being tracked and their importance
 3. The material supply — how many strong and weak passages exist per dimension
 
-Your job: design 5-8 episode segments that make editorial sense for THIS \
-specific panel.  Each segment needs:
+Your job: design {segment_count_phrase} episode segments that make editorial \
+sense for THIS specific panel.  Each segment needs:
 - A compelling title (e.g. "The Fog and What It Hides", not just "Opening")
 - A segment_type (opening, deep_dive, discussion, close_reading, closing)
 - Which analytical dimensions it should draw from (prov_* field names)
@@ -142,7 +142,7 @@ Design principles:
 - Give each expert at least one segment where they lead
 - Give each tracked arc at least one segment where it features
 - Segment titles should be evocative and specific to the novel, not generic
-- Total max_passages across all segments should be 25-35 (a 45-60 minute episode)
+- {total_passages_phrase}
 - Exactly one opening and one closing segment
 - Only use dimensions that at least one expert demands or one arc requires — \
 don't create demand for dimensions nobody on the panel cares about
@@ -162,6 +162,20 @@ Available dimensions (prov_* fields from the enrichment schema):
   prov_social_critique, prov_humor_entertainment, prov_atmosphere_setting,
   prov_narrative_technique
 """
+
+# Length-conditional substitutions for SYSTEM_PROMPT_V3:
+#   long  → 5-8 segments, 25-35 total passages, 45-60 minute target
+#   short → 4-5 segments, 12-18 total passages, 20-30 minute target
+_SEGMENT_COUNT_LONG = "5-8"
+_SEGMENT_COUNT_SHORT = "4-5"
+_TOTAL_PASSAGES_LONG = (
+    "Total max_passages across all segments should be 25-35 "
+    "(a 45-60 minute episode)"
+)
+_TOTAL_PASSAGES_SHORT = (
+    "Total max_passages across all segments should be 12-18 "
+    "(a 20-30 minute episode)"
+)
 
 PROVISION_DIMENSIONS = [
     "prov_character_development",
@@ -244,17 +258,30 @@ def design_segments(
     prompt_version: int = 2,
     personas: list[ExpertPersona] | None = None,
     recorder: Recorder | None = None,
+    length: str = "long",
 ) -> list[SegmentTemplate]:
     """Design segment templates for this panel configuration.
 
     prompt_version=1: original prompt (no supply info)
     prompt_version=2: supply-aware prompt (includes passage supply summary)
     prompt_version=3: v2 + expert persona descriptions for personality-aware design
+
+    length: 'long' targets 5-8 segments / 25-35 passages / 45-60 min episodes;
+    'short' targets 4-5 segments / 12-18 passages / 20-30 min episodes.
     """
     if client is None:
         client = anthropic.Anthropic()
 
     novel_ref = _novel_ref()
+
+    if length == "short":
+        segment_count_phrase = _SEGMENT_COUNT_SHORT
+        total_passages_phrase = _TOTAL_PASSAGES_SHORT
+    elif length == "long":
+        segment_count_phrase = _SEGMENT_COUNT_LONG
+        total_passages_phrase = _TOTAL_PASSAGES_LONG
+    else:
+        raise ValueError(f"unknown length {length!r} (expected 'long' or 'short')")
 
     if prompt_version >= 3:
         panel_summary = _build_panel_summary(experts, arcs, personas=personas)
@@ -263,7 +290,11 @@ def design_segments(
             f"{panel_summary}\n\n{supply_summary}\n\n"
             "Design the episode segments for this panel."
         )
-        system = SYSTEM_PROMPT_V3.format(novel_ref=novel_ref)
+        system = SYSTEM_PROMPT_V3.format(
+            novel_ref=novel_ref,
+            segment_count_phrase=segment_count_phrase,
+            total_passages_phrase=total_passages_phrase,
+        )
     elif prompt_version >= 2:
         panel_summary = _build_panel_summary(experts, arcs)
         supply_summary = _build_supply_summary()
@@ -271,7 +302,11 @@ def design_segments(
             f"{panel_summary}\n\n{supply_summary}\n\n"
             "Design the episode segments for this panel."
         )
-        system = SYSTEM_PROMPT_V2.format(novel_ref=novel_ref)
+        system = SYSTEM_PROMPT_V2.format(
+            novel_ref=novel_ref,
+            segment_count_phrase=segment_count_phrase,
+            total_passages_phrase=total_passages_phrase,
+        )
     else:
         panel_summary = _build_panel_summary(experts, arcs)
         user_msg = (

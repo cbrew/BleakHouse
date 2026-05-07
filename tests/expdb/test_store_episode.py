@@ -85,3 +85,28 @@ def test_ref_tools_is_part_of_episode_key(store: Store) -> None:
     with_   = _ep(store, hostprep=True, ref_tools=True,
                    label="cran_nop_literary_hostprep_retrofit_v1")
     assert without != with_
+
+
+def test_length_is_part_of_episode_key(store: Store) -> None:
+    """Same axes, different length variants → distinct episodes.
+
+    BleakHouse-x3r6: long (~90 min) and short (~30 min) renderings
+    of the same (novel, panel, pipeline, hostprep, generator, ref_tools)
+    cell are distinct experimental conditions and live in sibling run
+    dirs (<base>/ vs <base>_short/).
+    """
+    long = _ep(store, length="long", label="bh_trn_literary")
+    short = _ep(store, length="short", label="bh_trn_literary_short")
+    assert long != short
+
+    # Default length='long' when omitted (back-compat for callers that
+    # don't yet know about the axis).
+    legacy_call = _ep(store, label="bh_trn_literary")  # no length kwarg
+    assert legacy_call == long
+
+
+def test_episode_length_round_trips(store: Store) -> None:
+    eid = _ep(store, length="short", label="bh_trn_literary_short")
+    ep = store.get_episode(eid)
+    assert ep is not None
+    assert ep.length == "short"

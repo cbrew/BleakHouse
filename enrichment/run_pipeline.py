@@ -118,6 +118,7 @@ def run_phase0(
     run_dir: Path,
     no_design: bool = False,
     segment_model: str | None = None,
+    length: str = "long",
 ) -> list[SegmentTemplate]:
     """Phase 0: segment design. Returns segment templates.
 
@@ -138,6 +139,7 @@ def run_phase0(
             prompt_version=prompt_version,
             personas=personas if prompt_version >= 3 else None,
             recorder=recorder,
+            length=length,
         )
         if segment_model is not None:
             kwargs["model"] = segment_model
@@ -329,6 +331,7 @@ def run_phase_2_5(
     interview_model: str = "claude-haiku-4-5-20251001",
     planning_model: str = "claude-sonnet-4-6",
     use_reference_tools: bool = False,
+    length: str = "long",
 ) -> list[HostBrief]:
     """Phase 2.5: host preparation (pre-interviews + question planning)."""
     from enrichment.host_prep import run_host_prep  # pyright: ignore[reportMissingImports]
@@ -351,6 +354,7 @@ def run_phase_2_5(
         planning_model=planning_model,
         use_reference_tools=use_reference_tools,
         run_dir=run_dir,
+        length=length,
     )
 
     with open(run_dir / "phase2_5_host_briefs.json", "w") as f:
@@ -451,6 +455,13 @@ Examples:
         help="Regenerate only Phase 2.5 outputs, reading phases 0/1/2 from disk. "
              "Implies --host-prep; exits before phase 3.",
     )
+    parser.add_argument(
+        "--length", choices=("long", "short"), default="long",
+        help="Episode length variant. 'long' (~90 min, ~1500 words/segment) "
+             "is the legacy default. 'short' (~30 min, ~600 words/segment) "
+             "uses a tighter Phase 3 prompt and writes to a sibling run dir "
+             "with a '_short' suffix on the name.",
+    )
 
     args = parser.parse_args()
 
@@ -461,7 +472,14 @@ Examples:
 
     # Set novel identity
     os.environ["BLEAKHOUSE_NOVEL"] = args.novel
-    logger.info("Novel: %s, Pipeline: %s, Run: %s", args.novel, args.pipeline, args.name)
+    # Apply the _short suffix to the run name when --length short is set.
+    # This keeps existing call sites that pass --name <base> unchanged for
+    # long runs and writes shorts to <base>_short/ siblings, matching the
+    # convention in enrichment/axes.py (LENGTH_TOKEN).
+    if args.length == "short" and not args.name.endswith("_short"):
+        args.name = f"{args.name}_short"
+    logger.info("Novel: %s, Pipeline: %s, Length: %s, Run: %s",
+                args.novel, args.pipeline, args.length, args.name)
 
     # Build expert and persona lists
     experts: list[ExpertProfile] = list(DEFAULT_EXPERTS)
@@ -499,6 +517,7 @@ Examples:
         "panel": panel,
         "hostprep": args.host_prep,
         "generator": generator,
+        "length": args.length,
     }
 
     # Save config
@@ -521,12 +540,14 @@ Examples:
 
     # ── Phase 0: Segment design ──
     if resume and resume >= 1:
-        templates = run_phase0(experts, arcs, args.prompt_version, personas, run_dir)
+        templates = run_phase0(experts, arcs, args.prompt_version, personas,
+                               run_dir, length=args.length)
     else:
         templates = run_phase0(
             experts, arcs, args.prompt_version, personas, run_dir,
             no_design=args.no_design_segments,
             segment_model=args.segment_model,
+            length=args.length,
         )
 
     if args.phase < 1:
@@ -602,6 +623,7 @@ Examples:
             interview_model=args.interview_model,
             planning_model=args.model,
             use_reference_tools=args.reference_tools,
+            length=args.length,
         )
 
     if args.only_host_prep:
@@ -616,6 +638,7 @@ Examples:
         prompt_version=args.prompt_version,
         host_briefs=host_briefs,
         run_dir=run_dir,
+        length=args.length,
     )
     with open(run_dir / "phase3_episode.json", "w") as f:
         json.dump(phase3, f, indent=2)

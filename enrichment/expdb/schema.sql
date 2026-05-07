@@ -5,6 +5,9 @@
 --   ref_tools   — whether hostprep had OpenAlex/Wikipedia reference search
 --                 enabled, which injects scholarly citations into the host's
 --                 questions and produces phase2_5_reading_list.json
+--   length      — 'long' (~90-min episodes, the original scope) or 'short'
+--                 (~30-min episodes, regenerated with a tighter Phase 3 prompt
+--                 target). Short variants live in <run>_short/ sibling dirs.
 CREATE TABLE episode (
     id           INTEGER PRIMARY KEY,
     novel        TEXT NOT NULL,
@@ -13,9 +16,10 @@ CREATE TABLE episode (
     hostprep     INTEGER NOT NULL,
     generator    TEXT NOT NULL,
     ref_tools    INTEGER NOT NULL,
+    length       TEXT NOT NULL DEFAULT 'long',
     label        TEXT NOT NULL,
     created_at   REAL NOT NULL,
-    UNIQUE(novel, panel, pipeline, hostprep, generator, ref_tools)
+    UNIQUE(novel, panel, pipeline, hostprep, generator, ref_tools, length)
 );
 
 -- Host preparation: per-(segment, expert) Haiku interviews +
