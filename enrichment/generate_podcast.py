@@ -241,10 +241,7 @@ quote from the novel, use this pattern:
 - Use the enrichment metadata (themes, emotional register) to inform \
   the discussion, but never mention the metadata itself.
 
-**Segment length:** Each segment should be approximately 1,500 words \
-(1,800 for the opening segment with introductions).  This is roughly \
-10 minutes of audio.  Prioritise quality over quantity — if you have \
-5 questions but only room for 3, choose the best 3.
+{segment_length_block}
 
 **Inter-speaker timing (set via pause_before_ms on first utterance of turn):**
 - Same speaker continuation: 120-180 ms
@@ -252,6 +249,22 @@ quote from the novel, use this pattern:
 - Speaker switch after joke/sting: 260-420 ms
 - Before segment pivot or "Welcome back": 500-900 ms
 """
+
+
+_SEGMENT_LENGTH_LONG = """\
+**Segment length:** Each segment should be approximately 1,500 words \
+(1,800 for the opening segment with introductions).  This is roughly \
+10 minutes of audio.  Prioritise quality over quantity — if you have \
+5 questions but only room for 3, choose the best 3."""
+
+
+_SEGMENT_LENGTH_SHORT = """\
+**Segment length:** Each segment should be approximately 600 words \
+(700 for the opening segment with introductions).  This is roughly \
+4 minutes of audio.  Prioritise quality over quantity ruthlessly: a \
+4-minute segment is about three substantive points well-developed, \
+not eight points name-checked.  Cut every line that doesn't earn its \
+place.  Better one sharp quote unpacked than three quotes flagged."""
 
 
 _QUOTE_SOURCING_V2 = """
@@ -273,11 +286,16 @@ def build_messages(
     previous_segment_title: str | None = None,
     next_segment_title: str | None = None,
     host_brief: HostBrief | None = None,
+    length: str = "long",
 ) -> tuple[str, str]:
     """Build system and user messages for a segment's LLM call.
 
     prompt_version=1: original prompts
     prompt_version=2: passage-grounded quoting instructions
+
+    length: 'long' (~1500 words/segment, ~10min audio) or 'short'
+    (~600 words/segment, ~4min audio). Selects the segment-length
+    instruction block in SYSTEM_PROMPT.
     """
     if prompt_version >= 2:
         quote_sourcing = _QUOTE_SOURCING_V2
@@ -288,6 +306,13 @@ def build_messages(
 
     title, author, show_name = _novel_info()
 
+    if length == "short":
+        segment_length_block = _SEGMENT_LENGTH_SHORT
+    elif length == "long":
+        segment_length_block = _SEGMENT_LENGTH_LONG
+    else:
+        raise ValueError(f"unknown length {length!r} (expected 'long' or 'short')")
+
     system = SYSTEM_PROMPT.format(
         personas=_build_persona_block(personas),
         num_experts=len(personas),
@@ -297,6 +322,7 @@ def build_messages(
         show_name=show_name,
         novel_title=title,
         novel_author=author,
+        segment_length_block=segment_length_block,
     )
 
     # When host prep is active, add questioning mandate to system prompt
