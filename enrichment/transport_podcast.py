@@ -43,25 +43,26 @@ OUTPUT_FILE = DATA_DIR / "transport_assignments.json"
 
 # Every novel — including bleak_house — has its data at
 # data/novels/{novel}/. The BLEAKHOUSE_NOVEL env var selects the novel;
-# absent, we default to bleak_house. This uniformity matters for DVC:
-# phase1/2 stages can template `data/novels/${item.novel_id}/...`
-# without a bh special case.
-def _novel_data_dir() -> Path:
+# absent, we default to bleak_house. Routed through cas.paths so all
+# novel-aware path resolution is centralised in one place.
+def _current_novel() -> str:
     import os
-    novel = os.environ.get("BLEAKHOUSE_NOVEL") or "bleak_house"
-    return DATA_DIR / "novels" / novel
+    return os.environ.get("BLEAKHOUSE_NOVEL") or "bleak_house"
 
 
 def _passages_file() -> Path:
-    return _novel_data_dir() / "passages_enriched.json"
+    from cas import paths as cas_paths
+    return cas_paths.passages_enriched(_current_novel())
 
 
 def _clusters_literary_file() -> Path:
-    return _novel_data_dir() / "clusters_literary.json"
+    from cas import paths as cas_paths
+    return cas_paths.clusters_literary(_current_novel())
 
 
 def _clusters_characters_file() -> Path:
-    return _novel_data_dir() / "clusters_characters.json"
+    from cas import paths as cas_paths
+    return cas_paths.clusters_characters(_current_novel())
 
 # ---------------------------------------------------------------------------
 # Constants

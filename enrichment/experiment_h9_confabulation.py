@@ -133,13 +133,8 @@ def get_wikipedia_word_counts(novels: list[str]) -> dict[str, int]:
 
 def load_source_text(novel: str, runs_dir: Path) -> str:
     """Load concatenated passage text for fuzzy matching."""
-    if novel == "bleak_house":
-        path = Path("data/passages_enriched.json")
-        if path.exists():
-            passages = json.loads(path.read_text())
-            return " ".join(p.get("text", "") for p in passages).lower()
-
-    novel_path = Path("data/novels") / novel / "passages_enriched.json"
+    from cas import paths as cas_paths
+    novel_path = cas_paths.passages_enriched(novel)
     if novel_path.exists():
         passages = json.loads(novel_path.read_text())
         return " ".join(p.get("text", "") for p in passages).lower()

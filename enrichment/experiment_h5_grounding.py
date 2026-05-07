@@ -60,18 +60,12 @@ UNGROUNDED = {"nop"}
 def load_source_text(novel: str, runs_dir: Path) -> str:
     """Load concatenated passage text for fuzzy matching.
 
-    BH: data/passages_enriched.json
-    Others: data/novels/<key>/passages_enriched.json
-    Fallback: collect from phase1_assignments.json across runs.
+    Prefers data/novels/<novel>/passages_enriched.json (canonical, novel-aware
+    path); falls back to collecting from phase1_assignments.json across runs
+    when enrichment hasn't been run for the novel yet.
     """
-    if novel == "bleak_house":
-        path = Path("data/passages_enriched.json")
-        if path.exists():
-            passages = json.loads(path.read_text())
-            return " ".join(p.get("text", "") for p in passages).lower()
-
-    # Cross-novel enriched passages
-    novel_path = Path("data/novels") / novel / "passages_enriched.json"
+    from cas import paths as cas_paths
+    novel_path = cas_paths.passages_enriched(novel)
     if novel_path.exists():
         passages = json.loads(novel_path.read_text())
         return " ".join(p.get("text", "") for p in passages).lower()

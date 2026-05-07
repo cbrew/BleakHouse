@@ -173,11 +173,8 @@ def count_expert_words(episode: dict) -> dict[str, int]:
 
 def load_provision_profile(novel: str) -> dict[str, float] | None:
     """Load enriched passages and compute % of passages rated 'strong' per dim."""
-    if novel == "bleak_house":
-        path = Path("data/passages_enriched.json")
-    else:
-        path = Path("data/novels") / novel / "passages_enriched.json"
-
+    from cas import paths as cas_paths
+    path = cas_paths.passages_enriched(novel)
     if not path.exists():
         return None
 
@@ -391,16 +388,14 @@ def run(runs_dir: Path = RUNS_DIR) -> str:
     out(header)
     out("-" * len(header))
 
+    from cas import paths as cas_paths
     for novel in sorted(profiles.keys()):
         prof = profiles[novel]
-        # Get passage count
-        if novel == "bleak_house":
-            ppath = Path("data/passages_enriched.json")
-        else:
-            ppath = Path("data/novels") / novel / "passages_enriched.json"
         try:
-            n_passages = len(json.loads(ppath.read_text()))
-        except (json.JSONDecodeError, OSError):
+            n_passages = len(json.loads(
+                cas_paths.passages_enriched(novel).read_text()
+            ))
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
             n_passages = 0
 
         row = f"{NOVEL_LABELS.get(novel, novel):<25s}"

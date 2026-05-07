@@ -272,16 +272,17 @@ def compute_char_entropy_from_text(run_dir: Path, novel: str) -> float:
 def load_source_text(novel: str, runs_dir: Path) -> str:
     """Load the novel's source text for quote verification.
 
-    Uses passages_enriched.json for BH, or collects passage text from
-    phase1_assignments.json across all runs for that novel.
+    Prefers passages_enriched.json (canonical, novel-aware path); falls
+    back to collecting passage text from phase1_assignments.json across
+    runs when enrichment hasn't been run yet for the novel.
     """
-    if novel == "bleak_house":
-        path = Path("data/passages_enriched.json")
-        if path.exists():
-            passages = json.loads(path.read_text())
-            return " ".join(p.get("text", "") for p in passages).lower()
+    from cas import paths as cas_paths
+    enr_path = cas_paths.passages_enriched(novel)
+    if enr_path.exists():
+        passages = json.loads(enr_path.read_text())
+        return " ".join(p.get("text", "") for p in passages).lower()
 
-    # For cross-novel: collect text from phase1 assignments
+    # Fallback: collect text from phase1 assignments
     texts: set[str] = set()
     for rd in runs_dir.iterdir():
         if not rd.is_dir():

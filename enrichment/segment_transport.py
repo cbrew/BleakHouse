@@ -105,20 +105,24 @@ def build_passage_assignments(
     passage_map = {p.passage_id: p for p in passages}
 
     # Load full enrichment for text, summary, best_quote, themes.
-    # The legacy `data/passages_enriched.json` path was retired when novels
-    # moved under `data/novels/<id>/`. bleak_house lives at
-    # `data/novels/bleak_house/passages_enriched.json` like every other novel.
+    # Routed through cas.paths so novel resolution is centralised; missing
+    # data is a hard error (FileNotFoundError) rather than a silent
+    # fallback to empty fields. To deliberately run without enrichment,
+    # pass enrichment_data=[] explicitly. (Was a silent-fallback bug:
+    # bleak_house masked an empty-string substitution for 32 long-form
+    # runs because the legacy path no longer existed.)
+    import os
+
+    from cas import paths as cas_paths
     enr_map: dict[str, dict] = {}  # type: ignore[type-arg]
     if enrichment_data is None:
-        import os
         novel = os.environ.get("BLEAKHOUSE_NOVEL", "bleak_house")
-        enr_path = DATA_DIR / "novels" / novel / "passages_enriched.json"
-        if enr_path.exists():
-            with open(enr_path) as f:
-                enrichment_data = json.load(f)
-    if enrichment_data:
-        for p in enrichment_data:
-            enr_map[p["passage_id"]] = p
+        with open(cas_paths.passages_enriched(novel)) as f:
+            loaded: list[dict] = json.load(f)  # type: ignore[type-arg]
+    else:
+        loaded = enrichment_data
+    for p in loaded:
+        enr_map[p["passage_id"]] = p
 
     assignments: list[PassageAssignment] = []
 
