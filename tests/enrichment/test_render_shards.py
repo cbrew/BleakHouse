@@ -285,6 +285,39 @@ def test_experts_collected_from_episode(tmp_path: Path):
     assert "Host" not in expert_names  # Host excluded from experts list
 
 
+def test_write_shards_puts_bytes_into_cas(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """write_shards copies each shard's bytes into the local CAS via cas.put.
+
+    After the call, every shards.json md5 must resolve to a real blob at
+    <CAS_ROOT>/files/md5/<prefix>/<rest> with matching bytes.
+    """
+    cas_root = tmp_path / "cas"
+    cas_root.mkdir()
+    monkeypatch.setenv("BLEAKHOUSE_CAS_ROOT", str(cas_root))
+
+    episode = _mk_episode()
+    profile = get_profile("classic", classic_model_id="gemini-2.5-flash-preview-tts")
+
+    with patch("enrichment.render_audio.render_turn", return_value=_short_audio(500)):
+        shards = render_episode_to_shards(
+            episode, client=None, profile=profile, concurrency=1  # type: ignore[arg-type]
+        )
+
+    audio_dir = tmp_path / "audio"
+    manifest = write_shards(
+        shards, episode, audio_dir=audio_dir, profile_name="classic", bitrate="64k"
+    )
+
+    shard_dir = audio_dir / "shards" / "classic"
+    for shard_meta in manifest["shards"]:
+        md5 = shard_meta["md5"]
+        cas_blob = cas_root / "files" / "md5" / md5[:2] / md5[2:]
+        assert cas_blob.is_file(), f"no CAS blob for {shard_meta['file']} (md5={md5})"
+        assert cas_blob.read_bytes() == (shard_dir / shard_meta["file"]).read_bytes()
+
+
 @pytest.mark.parametrize("profile_name", ["classic"])
 def test_writes_under_profile_subdir(tmp_path: Path, profile_name: str):
     """Different profiles get separate shard dirs so renders don't collide."""

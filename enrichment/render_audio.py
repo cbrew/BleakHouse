@@ -30,6 +30,8 @@ from google import genai
 from google.genai import types
 from pydub import AudioSegment
 
+from cas import store as cas_store
+
 from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     PodcastEpisode,
     Turn,
@@ -357,7 +359,12 @@ def write_shards(
         filename = f"{idx:04d}.mp3"
         path = shard_dir / filename
         shard.audio.export(str(path), format="mp3", bitrate=bitrate)
-        md5 = hashlib.md5(path.read_bytes()).hexdigest()
+        # cas.put hashes the file and copies bytes into the local CAS
+        # (idempotent — repeat renders produce the same md5 → same blob
+        # → no rewrite). The working-tree mp3 stays where pydub wrote
+        # it; CAS holds an additional content-addressed copy. Push to
+        # R2 is a separate operator step (see scripts/cas_migrate.py).
+        md5 = cas_store.put(path)
 
         entry: dict = {
             "file": filename,

@@ -47,7 +47,8 @@ def test_writes_both_manifests(tmp_path: Path):
         ShardBoundary(0, 1, 2.5, 5.0),
     ]
     write_manifests(audio_dir=audio_dir, episode=episode,
-                    boundaries=boundaries, profile="classic")
+                    boundaries=boundaries, profile="classic",
+                    repo_root=tmp_path / "fake_repo")
 
     shards = json.loads((audio_dir / "shards.json").read_text())
     assert shards["schema_version"] == 1
@@ -78,3 +79,37 @@ def test_writes_both_manifests(tmp_path: Path):
     assert seg0["turns"][0]["end_ms"] == 2500
     assert seg0["turns"][1]["start_ms"] == 2500
     assert seg0["turns"][1]["end_ms"] == 5000
+
+
+def test_write_manifests_puts_bytes_into_cas(tmp_path: Path):
+    """Backup-mode parity with enrichment/render_audio.py: each shard's bytes
+    are also copied into <repo_root>/data/cas/files/md5/<prefix>/<rest>."""
+    audio_dir = tmp_path / "audio"
+    audio_dir.mkdir()
+    _make_shard_files(audio_dir, 1)
+    fake_repo = tmp_path / "fake_repo"
+    episode = {
+        "title": "T",
+        "experts": [],
+        "segments": [
+            {"title": "Opening", "segment_type": "opening", "turns": [
+                {"speaker": "Host", "role": "host",
+                 "utterances": [{"text": "Welcome.",
+                                 "sentence_type": "intro",
+                                 "is_quote": False,
+                                 "quote_mode": None,
+                                 "passage_ref": None}]},
+            ]},
+        ],
+    }
+    boundaries = [ShardBoundary(0, 0, 0.0, 2.5)]
+
+    write_manifests(audio_dir=audio_dir, episode=episode,
+                    boundaries=boundaries, profile="classic",
+                    repo_root=fake_repo)
+
+    expected_md5 = hashlib.md5(b"shard-0").hexdigest()
+    cas_blob = (fake_repo / "data" / "cas" / "files" / "md5"
+                / expected_md5[:2] / expected_md5[2:])
+    assert cas_blob.is_file()
+    assert cas_blob.read_bytes() == b"shard-0"
