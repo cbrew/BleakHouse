@@ -76,5 +76,11 @@ extraPaths = ["."]
 # boto3/botocore ship without py.typed; mypy can't analyze them. We rely
 # on pyright for type checking the boto3-using code (cas.store has a
 # narrow `# type: ignore[name-defined]` on _r2_client's return type).
-module = ["boto3", "boto3.*", "botocore", "botocore.*", "moto", "moto.*"]
+# PyYAML ships stubs as `types-PyYAML`; we don't install the dev stubs so
+# silence the missing-imports complaint here too.
+module = [
+    "boto3", "boto3.*", "botocore", "botocore.*",
+    "moto", "moto.*",
+    "yaml", "yaml.*",
+]
 ignore_missing_imports = true
