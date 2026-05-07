@@ -119,7 +119,7 @@ def test_runaxes_to_from_dict() -> None:
                    generator="cerebras_qwen")
     d = axes.to_dict()
     assert d == {"novel": "bh", "pipeline": "trn", "panel": "literary",
-                 "hostprep": True, "generator": "cerebras_qwen"}
+                 "hostprep": True, "generator": "cerebras_qwen", "length": "long"}
     assert RunAxes.from_dict(d) == axes
 
 
@@ -132,6 +132,57 @@ def test_runaxes_from_dict_defaults_generator() -> None:
 def test_runaxes_validates_on_init() -> None:
     with pytest.raises(ValueError):
         RunAxes(novel="XX", pipeline="trn", panel="literary", hostprep=False)
+
+
+# ---- length axis ------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "axes,expected",
+    [
+        # Default length="long" omits the suffix; existing names round-trip unchanged.
+        (dict(novel="bh", pipeline="trn", panel="literary", hostprep=False, length="long"),
+         "bh_trn_literary"),
+        # length="short" appends _short after panel/hostprep.
+        (dict(novel="bh", pipeline="trn", panel="literary", hostprep=False, length="short"),
+         "bh_trn_literary_short"),
+        (dict(novel="bh", pipeline="trn", panel="literary", hostprep=True, length="short"),
+         "bh_trn_literary_hostprep_short"),
+        # _short comes BEFORE the generator suffix.
+        (dict(novel="bh", pipeline="trn", panel="literary", hostprep=True,
+              length="short", generator="cerebras_qwen"),
+         "bh_trn_literary_hostprep_short_cerebras_qwen"),
+    ],
+)
+def test_run_dir_name_with_length(axes: dict, expected: str) -> None:
+    assert run_dir_name(**axes) == expected
+
+
+@pytest.mark.parametrize(
+    "name,expected_length",
+    [
+        ("bh_trn_literary", "long"),
+        ("bh_trn_literary_hostprep", "long"),
+        ("bh_trn_literary_short", "short"),
+        ("bh_trn_literary_hostprep_short", "short"),
+        ("bh_trn_literary_hostprep_short_cerebras_qwen", "short"),
+        ("bh_trn_literary_hostprep_cerebras_qwen", "long"),
+    ],
+)
+def test_parse_run_dir_name_length(name: str, expected_length: str) -> None:
+    assert parse_run_dir_name(name).length == expected_length
+
+
+def test_runaxes_length_round_trip() -> None:
+    axes = RunAxes(novel="bh", pipeline="trn", panel="literary", hostprep=True,
+                   length="short")
+    parsed = parse_run_dir_name(axes.dir_name())
+    assert parsed == axes
+
+
+def test_runaxes_unknown_length_raises() -> None:
+    with pytest.raises(ValueError):
+        RunAxes(novel="bh", pipeline="trn", panel="literary", hostprep=False,
+                length="medium")
 
 
 def test_panel_for_experts_exact_match() -> None:
