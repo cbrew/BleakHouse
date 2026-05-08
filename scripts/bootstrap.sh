@@ -32,7 +32,7 @@ done
 
 step() { printf "\n==> %s\n" "$1"; }
 
-step "[1/6] verify .env"
+step "[1/7] verify .env"
 if [ ! -f .env ]; then
     echo "  .env missing. Copy the template and fill in values:" >&2
     echo "    cp .env.example .env" >&2
@@ -41,20 +41,20 @@ if [ ! -f .env ]; then
 fi
 echo "  .env present ($(wc -l < .env) lines)"
 
-step "[2/6] uv sync — root project"
+step "[2/7] uv sync — root project"
 uv sync
 
-step "[3/6] uv sync — tools/forced_align"
+step "[3/7] uv sync — tools/forced_align"
 if [ -d tools/forced_align ]; then
     (cd tools/forced_align && uv sync)
 else
     echo "  tools/forced_align/ missing; skipping"
 fi
 
-step "[4/6] playwright install chromium"
+step "[4/7] playwright install chromium"
 uv run playwright install chromium
 
-step "[5/6] bd hooks install + import .beads/issues.jsonl"
+step "[5/7] bd hooks install + import .beads/issues.jsonl"
 # (a) Set git config core.hooksPath = .beads/hooks/ so bd's git
 #     integration runs (pre-commit / post-merge / pre-push etc.).
 #     Per-clone setting — not committed by git itself; idempotent.
@@ -71,7 +71,15 @@ else
     echo "  bd not on PATH; skipping (install via 'go install ...' or your usual route)"
 fi
 
-step "[6/6] system deps"
+step "[6/7] rebuild data/experiments.db from data/runs/"
+# data/experiments.db is gitignored (per-clone derived state); the
+# webapp's db_views queries fail with 'no such table episode' until
+# it's regenerated. expdb scan walks data/runs/<run>/run_manifest.json
+# + per-phase outputs and rebuilds the SQLite ledger. Idempotent;
+# safe to re-run.
+uv run python -m enrichment.expdb scan 2>&1 | tail -3
+
+step "[7/7] system deps"
 if command -v ffmpeg >/dev/null 2>&1; then
     echo "  ffmpeg: $(ffmpeg -version 2>&1 | head -1)"
 else
