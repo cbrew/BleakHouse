@@ -15,6 +15,10 @@ BleakHouse is a research project with two main workstreams built on **Hamilton**
 System deps:
 - `ffmpeg` (pydub mp3 export). `apt install ffmpeg` on Debian/Ubuntu;
   `brew install ffmpeg` on macOS.
+- `bd` (beads issue tracker). Install via the project's standard
+  route — see https://github.com/steveyegge/beads. The bootstrap
+  script wires up `git config core.hooksPath` and rehydrates the
+  issue tree from the committed `.beads/issues.jsonl`.
 - (Optional, for `tools/forced_align/` GPU): a CUDA runtime matching
   the torch wheel pulled by `uv sync` in that subdir. CPU torch works
   too; just slower.
@@ -26,7 +30,7 @@ git clone <repo>
 cd BleakHouse
 cp .env.example .env
 chmod u+w .env && $EDITOR .env && chmod u-w .env   # fill in keys
-bash scripts/bootstrap.sh                          # uv sync × 2 + playwright + ffmpeg probe
+bash scripts/bootstrap.sh                          # uv sync × 2 + playwright + bd hooks/import + ffmpeg probe
 # bash scripts/bootstrap.sh --pull-cas             # also prefetch ~7 GB CAS bytes from R2
 ```
 
@@ -34,6 +38,26 @@ bash scripts/bootstrap.sh                          # uv sync × 2 + playwright +
 in-repo default (`<repo>/data/cas/`); set to a path on a fast / large
 volume if you'd rather host CAS bytes elsewhere. See the comments in
 `.env.example` for the conventions used on the Mac dev box vs Linux.
+
+## Beads state in git
+
+The bd issue tree (issues, dependencies, memories) is committed at
+`.beads/issues.jsonl` so a fresh clone sees the same history. The
+binary Dolt database (`.beads/dolt/`), runtime sockets/locks, the
+credential key, and `.beads/backup/` are gitignored via
+`.beads/.gitignore`.
+
+`scripts/bootstrap.sh` step 5/6 runs `bd hooks install` (sets
+`core.hooksPath = .beads/hooks/` — a per-clone setting that git
+itself does NOT commit) and `bd import` (rehydrates the local Dolt
+db from the committed JSONL). Auto-import would do the same on first
+read; running it during bootstrap surfaces errors loudly.
+
+`bd init --stealth` adds `.beads/` to `.git/info/exclude` to hide
+the tracker entirely from git. We deliberately operate in non-stealth
+mode so the issue tree travels with the repo. If you ever see
+`auto-export: git add failed: exit status 1` warnings on `bd update`
+/ `bd close`, check `.git/info/exclude` for a stray `.beads/` line.
 
 ## Build & Run
 
