@@ -32,7 +32,7 @@ done
 
 step() { printf "\n==> %s\n" "$1"; }
 
-step "[1/5] verify .env"
+step "[1/6] verify .env"
 if [ ! -f .env ]; then
     echo "  .env missing. Copy the template and fill in values:" >&2
     echo "    cp .env.example .env" >&2
@@ -41,26 +41,32 @@ if [ ! -f .env ]; then
 fi
 echo "  .env present ($(wc -l < .env) lines)"
 
-step "[2/5] uv sync — root project"
+step "[2/6] uv sync — root project"
 uv sync
 
-step "[3/5] uv sync — tools/forced_align"
+step "[3/6] uv sync — tools/forced_align"
 if [ -d tools/forced_align ]; then
     (cd tools/forced_align && uv sync)
 else
     echo "  tools/forced_align/ missing; skipping"
 fi
 
-step "[4/5] playwright install chromium"
+step "[4/6] playwright install chromium"
 uv run playwright install chromium
 
-step "[5/6] bd hooks install"
-# Sets git config core.hooksPath to .beads/hooks/ so bd's git
-# integration runs (pre-commit / post-merge / pre-push etc.).
-# Per-clone setting — not committed by git itself, so every clone
-# re-runs this. Idempotent.
+step "[5/6] bd hooks install + import .beads/issues.jsonl"
+# (a) Set git config core.hooksPath = .beads/hooks/ so bd's git
+#     integration runs (pre-commit / post-merge / pre-push etc.).
+#     Per-clone setting — not committed by git itself; idempotent.
+# (b) Import the committed JSONL into the local Dolt database so
+#     the issue tree appears in this clone. Auto-import would do
+#     this on first read anyway, but doing it explicitly here
+#     surfaces any errors loudly.
 if command -v bd >/dev/null 2>&1; then
     bd hooks install 2>&1 | head -3 || true
+    if [ -f .beads/issues.jsonl ]; then
+        bd import 2>&1 | tail -3 || true
+    fi
 else
     echo "  bd not on PATH; skipping (install via 'go install ...' or your usual route)"
 fi
