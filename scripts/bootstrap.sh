@@ -54,7 +54,18 @@ fi
 step "[4/5] playwright install chromium"
 uv run playwright install chromium
 
-step "[5/5] system deps"
+step "[5/6] bd hooks install"
+# Sets git config core.hooksPath to .beads/hooks/ so bd's git
+# integration runs (pre-commit / post-merge / pre-push etc.).
+# Per-clone setting — not committed by git itself, so every clone
+# re-runs this. Idempotent.
+if command -v bd >/dev/null 2>&1; then
+    bd hooks install 2>&1 | head -3 || true
+else
+    echo "  bd not on PATH; skipping (install via 'go install ...' or your usual route)"
+fi
+
+step "[6/6] system deps"
 if command -v ffmpeg >/dev/null 2>&1; then
     echo "  ffmpeg: $(ffmpeg -version 2>&1 | head -1)"
 else
