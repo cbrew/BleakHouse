@@ -10,6 +10,31 @@ BleakHouse is a research project with two main workstreams built on **Hamilton**
 2. **RAG Tutorial Pipeline** (secondary) - A modular blog-ingestion and question-answering system
 
 
+## First-time setup (clone → working system)
+
+System deps:
+- `ffmpeg` (pydub mp3 export). `apt install ffmpeg` on Debian/Ubuntu;
+  `brew install ffmpeg` on macOS.
+- (Optional, for `tools/forced_align/` GPU): a CUDA runtime matching
+  the torch wheel pulled by `uv sync` in that subdir. CPU torch works
+  too; just slower.
+
+Then:
+
+```bash
+git clone <repo>
+cd BleakHouse
+cp .env.example .env
+chmod u+w .env && $EDITOR .env && chmod u-w .env   # fill in keys
+bash scripts/bootstrap.sh                          # uv sync × 2 + playwright + ffmpeg probe
+# bash scripts/bootstrap.sh --pull-cas             # also prefetch ~7 GB CAS bytes from R2
+```
+
+`BLEAKHOUSE_CAS_ROOT` in `.env` is per-machine. Leave unset for the
+in-repo default (`<repo>/data/cas/`); set to a path on a fast / large
+volume if you'd rather host CAS bytes elsewhere. See the comments in
+`.env.example` for the conventions used on the Mac dev box vs Linux.
+
 ## Build & Run
 
 Uses uv with PEP 621 pyproject.toml. Python 3.12+.
