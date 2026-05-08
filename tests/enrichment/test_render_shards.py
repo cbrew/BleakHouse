@@ -109,7 +109,18 @@ def test_render_shards_carry_audio_bytes():
             assert len(s.audio) > 0
 
 
-def test_write_shards_produces_files_and_manifest(tmp_path: Path):
+def test_write_shards_writes_no_working_tree_mp3s(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """write_shards must NOT leave mp3 files under audio/shards/<profile>/.
+
+    Bytes go straight from pydub into a tempfile, then via cas.put into the
+    local CAS. The working tree only sees shards.json after this commit.
+    """
+    cas_root = tmp_path / "cas"
+    cas_root.mkdir()
+    monkeypatch.setenv("BLEAKHOUSE_CAS_ROOT", str(cas_root))
+
     episode = _mk_episode()
     profile = get_profile("classic", classic_model_id="gemini-2.5-flash-preview-tts")
 
@@ -135,16 +146,21 @@ def test_write_shards_produces_files_and_manifest(tmp_path: Path):
     assert manifest["episode_title"] == "Test Episode"
     assert len(manifest["shards"]) == 4
 
-    # Shard files written, named in manifest order
+    # NO mp3 files in the working tree — neither under shards/<profile>/
+    # nor as a legacy single-mp3 — and no leftover tempfiles either.
     shard_dir = audio_dir / "shards" / "classic"
-    for shard_meta in manifest["shards"]:
-        shard_path = shard_dir / shard_meta["file"]
-        assert shard_path.exists(), f"missing shard: {shard_path}"
-        assert shard_path.stat().st_size > 0
-
-    # No legacy single-mp3 or audio/manifest.json must appear
+    if shard_dir.exists():
+        leftover = sorted(shard_dir.iterdir())
+        assert not leftover, f"working tree should be clean, found: {leftover}"
     assert not (audio_dir / "podcast.mp3").exists()
     assert not (audio_dir / "manifest.json").exists()
+
+    # Bytes are in CAS, addressable by the manifest's md5s.
+    for shard_meta in manifest["shards"]:
+        md5 = shard_meta["md5"]
+        cas_blob = cas_root / "files" / "md5" / md5[:2] / md5[2:]
+        assert cas_blob.is_file()
+        assert cas_blob.stat().st_size > 0
 
 
 def test_write_shards_filenames_are_zero_padded_and_ordered(tmp_path: Path):
@@ -220,9 +236,19 @@ def test_break_shard_has_no_text_metadata(tmp_path: Path):
     assert "utterances" not in b or b["utterances"] is None
 
 
-def test_each_shard_carries_its_md5(tmp_path: Path):
-    """shards.json carries each shard's md5 so the webapp can resolve to R2."""
+def test_each_shard_carries_its_md5(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """shards.json carries each shard's md5 so the webapp can resolve via CAS.
+
+    Bytes live in the local CAS (no working-tree mp3); the md5 in
+    shards.json must match the bytes in <CAS_ROOT>.
+    """
     import hashlib
+
+    cas_root = tmp_path / "cas"
+    cas_root.mkdir()
+    monkeypatch.setenv("BLEAKHOUSE_CAS_ROOT", str(cas_root))
 
     episode = _mk_episode()
     profile = get_profile("classic", classic_model_id="gemini-2.5-flash-preview-tts")
@@ -237,12 +263,12 @@ def test_each_shard_carries_its_md5(tmp_path: Path):
         shards, episode, audio_dir=audio_dir, profile_name="classic", bitrate="64k"
     )
 
-    shard_dir = audio_dir / "shards" / "classic"
     for shard_meta in manifest["shards"]:
-        on_disk = (shard_dir / shard_meta["file"]).read_bytes()
+        md5 = shard_meta["md5"]
+        cas_blob = cas_root / "files" / "md5" / md5[:2] / md5[2:]
+        on_disk = cas_blob.read_bytes()
         expected_md5 = hashlib.md5(on_disk).hexdigest()
-        assert shard_meta["md5"] == expected_md5, \
-            f"shards.json md5 must match the actual mp3 bytes for {shard_meta['file']}"
+        assert md5 == expected_md5
 
 
 def test_no_timings_in_manifest(tmp_path: Path):
@@ -310,27 +336,8 @@ def test_write_shards_puts_bytes_into_cas(
         shards, episode, audio_dir=audio_dir, profile_name="classic", bitrate="64k"
     )
 
-    shard_dir = audio_dir / "shards" / "classic"
     for shard_meta in manifest["shards"]:
         md5 = shard_meta["md5"]
         cas_blob = cas_root / "files" / "md5" / md5[:2] / md5[2:]
         assert cas_blob.is_file(), f"no CAS blob for {shard_meta['file']} (md5={md5})"
-        assert cas_blob.read_bytes() == (shard_dir / shard_meta["file"]).read_bytes()
-
-
-@pytest.mark.parametrize("profile_name", ["classic"])
-def test_writes_under_profile_subdir(tmp_path: Path, profile_name: str):
-    """Different profiles get separate shard dirs so renders don't collide."""
-    episode = _mk_episode()
-    profile = get_profile(profile_name, classic_model_id="gemini-2.5-flash-preview-tts")
-
-    with patch("enrichment.render_audio.render_turn", return_value=_short_audio(500)):
-        shards = render_episode_to_shards(
-            episode, client=None, profile=profile, concurrency=1  # type: ignore[arg-type]
-        )
-
-    audio_dir = tmp_path / "audio"
-    write_shards(shards, episode, audio_dir=audio_dir,
-                 profile_name=profile_name, bitrate="64k")
-
-    assert (audio_dir / "shards" / profile_name).is_dir()
+        assert cas_blob.stat().st_size > 0

@@ -331,19 +331,21 @@ def write_shards(
     profile_name: str,
     bitrate: str = "192k",
 ) -> dict:
-    """Write shards to <audio_dir>/shards/<profile>/<NNNN>.mp3 and shards.json.
+    """Render shards into the local CAS; write the shards.json index.
+
+    Each shard is exported via pydub to a tempfile, content-addressed via
+    cas.store.put (which copies the bytes into <CAS_ROOT>/files/md5/...),
+    then the tempfile is unlinked. The working tree never sees an mp3 —
+    bytes live exactly once locally (in CAS) and are served by the webapp
+    via cas.store.local_path / cas.store.url.
 
     Returns the manifest dict (which is also written to disk as shards.json).
     The manifest carries shard order and per-turn text but NO time offsets —
     that's the whole point of the shard architecture.
     """
-    shard_dir = audio_dir / "shards" / profile_name
-    shard_dir.mkdir(parents=True, exist_ok=True)
-    # Clear stale shards from a previous render so the dir matches the
-    # new manifest exactly. Content-addressed serving means stale files
-    # wouldn't be played, but they bloat dvc tracking.
-    for stale in shard_dir.glob("*.mp3"):
-        stale.unlink()
+    import tempfile
+
+    audio_dir.mkdir(parents=True, exist_ok=True)
 
     experts: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -357,14 +359,18 @@ def write_shards(
     shard_meta: list[dict] = []
     for idx, shard in enumerate(shards):
         filename = f"{idx:04d}.mp3"
-        path = shard_dir / filename
-        shard.audio.export(str(path), format="mp3", bitrate=bitrate)
-        # cas.put hashes the file and copies bytes into the local CAS
-        # (idempotent — repeat renders produce the same md5 → same blob
-        # → no rewrite). The working-tree mp3 stays where pydub wrote
-        # it; CAS holds an additional content-addressed copy. Push to
-        # R2 is a separate operator step (see scripts/cas_migrate.py).
-        md5 = cas_store.put(path)
+        # Export to a tempfile in the OS temp dir, cas.put it, delete the
+        # tempfile. Atomic (cas.put renames into place); idempotent (a
+        # repeat render of identical bytes is a no-op in CAS).
+        with tempfile.NamedTemporaryFile(
+            prefix=".render-", suffix=".mp3", delete=False
+        ) as tmp_f:
+            tmp = Path(tmp_f.name)
+        try:
+            shard.audio.export(str(tmp), format="mp3", bitrate=bitrate)
+            md5 = cas_store.put(tmp)
+        finally:
+            tmp.unlink(missing_ok=True)
 
         entry: dict = {
             "file": filename,

@@ -20,10 +20,16 @@ data/novels/*/*.html
 data/tts_models/
 
 # Rendered audio — GitHub warns at 50MB; large MP3s stay local-only.
-# Shared audio lives on the external PODCAST_AUDIO_DIR volume.
+# Bytes live in the local CAS (data/cas/) and on R2.
 data/runs/**/audio/*.mp3
 data/runs/**/audio/*.wav
 data/runs/**/audio/*.m4a
+data/runs/**/audio/shards/**/*.mp3
+
+# Local content-addressed store. Populated by enrichment/render_audio.py
+# (per-shard cas.put) and scripts/cas_absorb_working_tree.py (one-shot
+# migration). Bytes are addressed by md5; canonical copy lives on R2.
+data/cas/
 
 # Per-run human-readable reports — pure derived output of
 # webapp/build_report.py from phase3_episode.json + manifest.json.
