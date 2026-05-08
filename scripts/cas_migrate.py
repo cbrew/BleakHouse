@@ -32,8 +32,17 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from dotenv import load_dotenv
 
 from cas import store
+
+# Load .env so R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_ENDPOINT_URL
+# are available to cas.store.{has_remote, push, pull}. Phase A
+# (inventory) and Phase D (manifests) don't need R2 creds; Phase B
+# (verify) and Phase C (populate) do. Loaded unconditionally so a
+# misconfigured .env fails loud at the call site rather than silently
+# falling through.
+load_dotenv()
 
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent

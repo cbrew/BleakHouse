@@ -20,7 +20,14 @@ import json
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from cas import store as cas_store
+
+# cas_store.put doesn't touch R2, but loading .env here is cheap and
+# keeps this script callable in a context that might want to chain
+# into cas_store.push later.
+load_dotenv()
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RUNS_DIR = REPO_ROOT / "data" / "runs"
