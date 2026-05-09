@@ -175,6 +175,13 @@ NOVELS: dict[str, NovelConfig] = {
         start_marker="Mrs. Dalloway said she would buy",
         end_marker="Minor punctuation errors",
     ),
+    "wuthering_heights": NovelConfig(
+        key="wuthering_heights",
+        title="Wuthering Heights",
+        author="Emily Brontë",
+        html_filename="pg768-images.html",
+        gutenberg_id=768,
+    ),
 }
 
 

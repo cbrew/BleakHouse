@@ -395,6 +395,39 @@ NOVEL_CONFIGS: dict[str, NovelPromptConfig] = {
             "Include characters referenced indirectly."
         ),
     ),
+    "wuthering_heights": NovelPromptConfig(
+        title="Wuthering Heights",
+        author="Emily Brontë",
+        year="1847",
+        narration_note=(
+            "*Wuthering Heights* uses a layered, embedded narration. Lockwood, "
+            "a newcomer outsider, frames the story through his diary; most of "
+            "the narrative is told to him by Nelly Dean, the housekeeper, "
+            "who recounts events spanning two generations of the Earnshaws "
+            "and Lintons. Embedded narrators (Isabella's letter, Cathy "
+            "Linton's account, Heathcliff's outbursts) interrupt Nelly. The "
+            "narration is unreliable in places — Nelly is a participant with "
+            "her own loyalties and blind spots, and Lockwood is a comic "
+            "outsider who misreads almost everything."
+        ),
+        theme_examples=(
+            "'love', 'revenge', 'class', 'property', 'inheritance', 'haunting', "
+            "'generations', 'moors', 'wildness', 'civilisation', 'violence', "
+            "'race', 'foundling', 'marriage', 'death', 'doubling', 'nature'"
+        ),
+        character_note=(
+            "Use canonical names. Disambiguate the two Catherines: the mother "
+            "is 'Catherine Earnshaw' (or 'Catherine Linton' after marriage); "
+            "the daughter is 'Cathy Linton' (or 'young Catherine'). 'Heathcliff' "
+            "has no other name. Use 'Hindley Earnshaw' not 'Hindley', "
+            "'Hareton Earnshaw' not 'Hareton', 'Edgar Linton' not 'Edgar', "
+            "'Isabella Linton' not 'Isabella', 'Linton Heathcliff' for the son "
+            "(distinct from his father Heathcliff and his uncle Edgar Linton), "
+            "'Nelly Dean' or 'Ellen Dean', 'Mr Lockwood' for the framing "
+            "narrator, 'Joseph' for the servant. Include characters referenced "
+            "indirectly."
+        ),
+    ),
 }
 
 
@@ -552,6 +585,17 @@ def get_novel_arcs(novel_key: str | None = None) -> list[tuple[str, str, int, st
             ("Peter Walsh's return and the road not taken",
              "Peter Walsh", 4,
              "prov_character_development", "not_none", 2),
+        ],
+        "wuthering_heights": [
+            ("Catherine and Heathcliff's destructive bond",
+             "Catherine Earnshaw", 6,
+             "prov_character_development", "not_none", 3),
+            ("Heathcliff's revenge through property and marriage",
+             "Heathcliff", 5,
+             "prov_plot_advancement", "not_none", 3),
+            ("The second generation's reconciliation",
+             "Cathy Linton", 4,
+             "prov_thematic_depth", "not_none", 2),
         ],
     }
     return arcs.get(novel_key, [])
