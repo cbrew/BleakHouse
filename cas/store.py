@@ -11,8 +11,10 @@ import shutil
 import tempfile
 from pathlib import Path
 
-import boto3
-from botocore.exceptions import ClientError
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import boto3
 
 # Repo root is two levels up from this file (cas/store.py).
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -92,13 +94,14 @@ def _bucket() -> str:
     return os.environ.get("BLEAKHOUSE_R2_BUCKET", "not-in-our-time")
 
 
-def _r2_client() -> boto3.client:  # type: ignore[name-defined]
+def _r2_client():  # type: ignore[no-untyped-def]
     """Construct a fresh boto3 S3 client.
 
     Required env vars: R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY.
     Optional env var: R2_ENDPOINT_URL (omit for moto/test use).
     Raises KeyError on missing required var.
     """
+    import boto3
     kwargs: dict[str, object] = {
         "aws_access_key_id": os.environ["R2_ACCESS_KEY_ID"],
         "aws_secret_access_key": os.environ["R2_SECRET_ACCESS_KEY"],
@@ -116,6 +119,7 @@ def _r2_key(md5: str) -> str:
 
 def has_remote(md5: str) -> bool:
     """True if R2 has the blob (HEAD check)."""
+    from botocore.exceptions import ClientError
     try:
         _r2_client().head_object(Bucket=_bucket(), Key=_r2_key(md5))
     except ClientError as exc:
@@ -148,6 +152,7 @@ def pull(md5: str) -> Path:
     dest = _cas_path_for(md5)
     if dest.is_file():
         return dest
+    from botocore.exceptions import ClientError
     dest.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         dir=dest.parent, prefix=".pull-", suffix=".tmp", delete=False

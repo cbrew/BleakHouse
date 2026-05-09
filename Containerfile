@@ -23,22 +23,24 @@ ENV BLEAKHOUSE_DB_READONLY=1
 
 # Application code.
 COPY webapp/ webapp/
+COPY cas/ cas/
 COPY enrichment/__init__.py enrichment/__init__.py
 COPY enrichment/axes.py enrichment/axes.py
 COPY enrichment/params.py enrichment/params.py
 COPY enrichment/expdb/ enrichment/expdb/
 COPY scripts/generate_runs_yaml.py scripts/generate_runs_yaml.py
 
-# Pipeline declarations + dvc.lock (the webapp parses dvc.lock at
-# startup to build its mp3 → R2 URL map for audio redirects).
-COPY params.yaml runs.yaml dvc.yaml dvc.lock ./
+# params.yaml is read at import time by enrichment/params.py and
+# enrichment/axes.py (generator definitions). runs.yaml is the
+# canonical run list. dvc.yaml/dvc.lock retired in BleakHouse-zmlw.
+COPY params.yaml runs.yaml ./
 
-# Poster + static assets.
+# Poster + static assets. (poster/screenshots/ no longer in tree;
+# poster_print.html screenshot tags will render as broken images.)
 COPY poster/poster_print.html poster/
 COPY poster/poster_provenance.js poster/
 COPY poster/TheOhioStateUniversity-Scarlet-Vert-RGBHEX.jpg poster/
 COPY poster/lexisplusailogo.png poster/
-COPY poster/screenshots/ poster/screenshots/
 
 # Bake the dvc-pulled non-audio data/runs/ tree at build time.
 # scripts/deploy_demo.sh creates this tarball with `tar -ch` (dereference
