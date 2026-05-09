@@ -77,6 +77,31 @@ CANONICAL_PIPELINES: tuple[str, ...] = (
     PIPELINE_TRANSPORT, PIPELINE_EMBEDDING, PIPELINE_NO_PASSAGES, PIPELINE_RAG,
 )
 
+# Grounding bucket vocabulary. Each pipeline either grounds the discussion
+# in retrieved passages or doesn't; the player's grounding selector groups
+# pipelines into these two buckets so the user can compare grounded vs
+# ungrounded podcasts of the same novel/panel.
+GROUNDING_PASSAGES: str = "passages"
+GROUNDING_NONE: str = "nop"
+
+_PIPELINE_GROUNDING: dict[str, str] = {
+    PIPELINE_TRANSPORT: GROUNDING_PASSAGES,
+    PIPELINE_EMBEDDING: GROUNDING_PASSAGES,
+    PIPELINE_RAG: GROUNDING_PASSAGES,
+    PIPELINE_NO_PASSAGES: GROUNDING_NONE,
+}
+
+
+def pipeline_grounding(pipeline: str) -> str:
+    """Bucket a canonical pipeline value into a grounding key.
+
+    Single source of truth for pipeline → grounding bucketing; the webapp
+    ships this per run so the player doesn't have to reverse-engineer
+    grounding from a free-text condition string.
+    """
+    canon = canonicalize_value("pipeline", pipeline)
+    return _PIPELINE_GROUNDING[canon]
+
 
 @dataclass(frozen=True)
 class Panel:

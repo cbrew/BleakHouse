@@ -118,6 +118,16 @@ def get_git_sha() -> str:
 GIT_SHA = get_git_sha()
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.globals["v"] = GIT_SHA
+# Axis vocabulary visible to every template. Currently just the grounding
+# labels — JS reads window.AXES.grounding_labels[run.grounding] to display
+# the right copy in the grounding selector. Extend here (not in player.js)
+# when adding new axis-derived UX strings.
+templates.env.globals["axis_context"] = {
+    "grounding_labels": {
+        axes.GROUNDING_PASSAGES: "With passage grounding",
+        axes.GROUNDING_NONE: "No passage grounding",
+    },
+}
 
 # Audio lives at data/runs/<run>/audio/. Bytes are served from R2
 # via 302 redirect; the local working-tree mp3 files (if present)
@@ -173,8 +183,12 @@ _PANEL_LABELS: dict[str, str] = {
 }
 
 
-def _classify_run(run_dir: Path) -> tuple[str, str, bool, str]:
-    """Return (condition, panel, hostprep, generator) from config.json['axes'].
+def _classify_run(run_dir: Path) -> tuple[str, str, str, bool, str]:
+    """Return (pipeline, condition, panel, hostprep, generator) from
+    config.json['axes'].
+
+    pipeline is the canonical key (e.g. axes.PIPELINE_TRANSPORT);
+    condition is the human-readable label ("transport", "no passages", ...).
 
     Post-migration this is a plain lookup — no dir-name string matching.
     Legacy dirs (under _archive/) with no axes block fall back to
@@ -197,12 +211,12 @@ def _classify_run(run_dir: Path) -> tuple[str, str, bool, str]:
         except ValueError:
             # config.json missing AND dir name not parseable. Don't infer
             # axes from the dir-name shape; surface 'unknown' honestly.
-            return "unknown", "unknown", False, ""
+            return "unknown", "unknown", "unknown", False, ""
 
     pipeline_canon = axes.canonicalize_value("pipeline", run_axes.pipeline)
     condition = _PIPELINE_LABELS.get(pipeline_canon) or pipeline_canon
     panel = _PANEL_LABELS.get(run_axes.panel) or run_axes.panel
-    return condition, panel, run_axes.hostprep, run_axes.generator
+    return pipeline_canon, condition, panel, run_axes.hostprep, run_axes.generator
 
 
 def _load_json(path: Path) -> dict | list | None:
@@ -1049,7 +1063,14 @@ def _summarize_run_dir(run_dir: Path) -> dict:
     title = (manifest or episode or {}).get("title", name)
     novel = title.replace(": A Literary Discussion", "")
     base_name, version = _parse_version(name)
-    condition, panel, hostprep, _generator = _classify_run(run_dir)
+    pipeline, condition, panel, hostprep, _generator = _classify_run(run_dir)
+    # Grounding bucket. Single source of truth lives in axes.pipeline_grounding;
+    # shipped per run so player.js doesn't have to reverse-lookup against the
+    # human-readable condition string.
+    try:
+        grounding = axes.pipeline_grounding(pipeline)
+    except (KeyError, ValueError):
+        grounding = axes.GROUNDING_PASSAGES  # safe default for unknown pipelines
     # has_audio is true if any playable render exists (Gemini classic
     # OR a profile render like Qwen). Driven by the same discovery
     # rule as _available_versions so the matrix and player agree.
@@ -1064,7 +1085,9 @@ def _summarize_run_dir(run_dir: Path) -> dict:
         "novel": novel,
         "base_name": base_name,
         "version": version,
+        "pipeline": pipeline,
         "condition": condition,
+        "grounding": grounding,
         "panel": panel,
         "hostprep": hostprep,
         "passage_source": (manifest or {}).get("passage_source", "unknown"),
@@ -1378,7 +1401,9 @@ def _build_run_lists_from_db() -> dict:
             "version": s["version"],
             "title": s["title"],
             "novel": s["novel"],
+            "pipeline": s["pipeline"],
             "condition": s["condition"],
+            "grounding": s["grounding"],
             "panel": s["panel"],
             "hostprep": s["hostprep"],
             "passage_source": s["passage_source"],

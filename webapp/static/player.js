@@ -115,12 +115,13 @@ async function init() {
 
 // ── Selector helpers ──
 
-function groundingKey(condition) {
-    return (condition === "no passages") ? "nop" : "passages";
-}
-
+// Grounding bucketing is computed server-side (axes.pipeline_grounding) and
+// shipped on each run as `r.grounding`. Display labels for the bucket keys
+// come from window.AXES.grounding_labels, injected by the player template.
+// JS holds no axis vocabulary of its own.
 function groundingLabel(gk) {
-    return gk === "nop" ? "No passage grounding" : "With passage grounding";
+    const labels = (window.AXES && window.AXES.grounding_labels) || {};
+    return labels[gk] || gk;
 }
 
 function formatPanelLabel(panelField) {
@@ -169,7 +170,7 @@ function onPanelChange() {
     const prevGrounding = groundingSelect.value;
 
     // Populate grounding for this panel
-    const groundings = [...new Set(panelRuns.map(r => groundingKey(r.condition)))];
+    const groundings = [...new Set(panelRuns.map(r => r.grounding))];
     groundingSelect.innerHTML = "";
     for (const gk of groundings) {
         const opt = document.createElement("option");
@@ -188,7 +189,7 @@ function onGroundingChange(panelRuns) {
     const grounding = groundingSelect.value;
     const prevHostprep = hostprepSelect.value;
 
-    const groundedRuns = panelRuns.filter(r => groundingKey(r.condition) === grounding);
+    const groundedRuns = panelRuns.filter(r => r.grounding === grounding);
     const hostpreps = [...new Set(groundedRuns.map(r => r.hostprep))].sort();
 
     hostprepSelect.innerHTML = "";
@@ -210,7 +211,7 @@ function onHostprepChange(groundedRuns) {
         const panel = panelSelect.value;
         const grounding = groundingSelect.value;
         groundedRuns = currentRuns.filter(r =>
-            r.panel === panel && groundingKey(r.condition) === grounding
+            r.panel === panel && r.grounding === grounding
         );
     }
     const wantPrep = hostprepSelect.value === "prep";
