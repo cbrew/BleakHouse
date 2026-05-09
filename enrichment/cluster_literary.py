@@ -1,13 +1,8 @@
-"""Cluster passages by their literary enrichment profile and measure
-embedding-enrichment alignment.
+"""Cluster passages by their literary enrichment profile.
 
-Experiment 1: HDBSCAN clustering on a 24-dimensional feature matrix built
-from plot_function (one-hot), emotional_register (multi-hot), and 7 prov_*
+HDBSCAN clustering on a 24-dimensional feature matrix built from
+plot_function (one-hot), emotional_register (multi-hot), and 7 prov_*
 ordinal fields.
-
-Experiment 2: For each prov_* field, measure silhouette score of its
-none/weak/strong partition in embedding space to see which enrichment
-dimensions the text embeddings already capture.
 
 Usage:
     uv run python -m enrichment.cluster_literary
@@ -22,7 +17,6 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-import lancedb
 import matplotlib.pyplot as plt
 import numpy as np
 import umap  # pyright: ignore[reportMissingImports]
@@ -43,8 +37,6 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path("data")
 REPORTS_DIR = Path("reports")
 INPUT_PATH = DATA_DIR / "passages_enriched.json"
-DB_PATH = DATA_DIR / "bleak_house_vectors"
-TABLE_NAME = "passages"
 OUTPUT_PATH = DATA_DIR / "clusters_literary.json"
 
 PLOT_FUNCTIONS = [
@@ -300,76 +292,6 @@ def experiment_1_clustering(
     logger.info("Saved cluster visualization to %s", plot_path)
 
 
-def experiment_2_alignment(
-    passages: list[dict],
-) -> None:
-    """Measure how well each prov_* enrichment field aligns with
-    the embedding space by computing silhouette scores of the
-    none/weak/strong partition in embedding space.
-    """
-    logger.info("\n=== Experiment 2: Embedding-Enrichment Alignment ===")
-
-    # Build a passage_id -> enrichment lookup
-    enr_by_id: dict[str, dict] = {}
-    for p in passages:
-        if p.get("enrichment"):
-            enr_by_id[p["passage_id"]] = p["enrichment"]
-
-    # Load embeddings from LanceDB
-    logger.info("Loading embeddings from LanceDB at %s", DB_PATH)
-    db = lancedb.connect(str(DB_PATH))
-    table = db.open_table(TABLE_NAME)
-    df = table.to_pandas()
-    logger.info("Loaded %d embedded passages", len(df))
-
-    # Align: only passages present in both
-    common_ids = set(enr_by_id.keys()) & set(df["passage_id"].tolist())
-    logger.info("Passages in common (enriched + embedded): %d", len(common_ids))
-    if len(common_ids) < 100:
-        logger.warning("Too few common passages for meaningful alignment analysis")
-        return
-
-    # Build aligned arrays
-    df_aligned = df[df["passage_id"].isin(common_ids)].copy()
-    df_aligned = df_aligned.drop_duplicates(subset="passage_id")
-    vectors = np.stack(df_aligned["vector"].to_list())
-    aligned_ids: list[str] = df_aligned["passage_id"].tolist()
-
-    logger.info(
-        "\n%-30s  %10s  %s",
-        "Field", "Silhouette", "Interpretation",
-    )
-    logger.info("-" * 75)
-
-    for field in PROV_FIELDS:
-        # Partition by field value
-        labels_list: list[int] = []
-        for pid in aligned_ids:
-            val = enr_by_id[pid].get(field, "none")
-            labels_list.append(ORDINAL_MAP.get(val, 0))
-
-        labels_arr = np.array(labels_list)
-        n_unique = len(set(labels_arr))
-
-        if n_unique < 2:
-            logger.info("%-30s  %10s  %s", field, "N/A", "single class -- skipped")
-            continue
-
-        sil = silhouette_score(vectors, labels_arr, metric="cosine")
-
-        if sil > 0.15:
-            interp = "well captured by embeddings"
-        elif sil > 0.05:
-            interp = "partially captured"
-        elif sil > 0.0:
-            interp = "weakly captured"
-        else:
-            interp = "orthogonal to embeddings"
-
-        short_name = field.replace("prov_", "")
-        logger.info("%-30s  %10.3f  %s", short_name, sil, interp)
-
-
 def main() -> None:
     import argparse
 
@@ -405,7 +327,6 @@ def main() -> None:
     logger.info("Loaded %d passages with enrichment from %s", len(passages), input_path)
 
     experiment_1_clustering(passages, timestamp)
-    experiment_2_alignment(passages)
 
     logger.info("\nDone.")
 
