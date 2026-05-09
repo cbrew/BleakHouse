@@ -159,7 +159,7 @@ def all_recommended_runs() -> list[str]:
 
     out: list[str] = []
     for r in matrix_rows():
-        if r["pipeline"] != "trn" or not r["hostprep"]:
+        if r["pipeline"] != axes.PIPELINE_TRANSPORT or not r["hostprep"]:
             continue
         if not r.get("ref_tools"):
             continue

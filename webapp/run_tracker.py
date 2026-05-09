@@ -20,6 +20,8 @@ import argparse
 import json
 import re
 from collections import defaultdict
+
+from enrichment import axes  # pyright: ignore[reportMissingImports]
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -54,8 +56,14 @@ REACTIVE = re.compile(
 #
 # Panels: literary, alternatives, interdisciplinary — matches the legacy
 #   "A / B / Inter" ordering from the pre-migration CONDITIONS tuple.
-DEFAULT_PIPELINE_ORDER: tuple[str, ...] = ("trn", "emb", "nop")
-PIPELINE_ORDER_WITH_RAG: tuple[str, ...] = ("trn", "emb", "nop", "rag")
+DEFAULT_PIPELINE_ORDER: tuple[str, ...] = (
+    axes.PIPELINE_TRANSPORT,
+    axes.PIPELINE_EMBEDDING,
+    axes.PIPELINE_NO_PASSAGES,
+)
+PIPELINE_ORDER_WITH_RAG: tuple[str, ...] = (
+    *DEFAULT_PIPELINE_ORDER, axes.PIPELINE_RAG,
+)
 PANEL_ORDER: tuple[str, ...] = ("literary", "alternatives", "interdisciplinary")
 PANEL_SHORT: dict[str, str] = {
     "literary": "Lit",
@@ -64,10 +72,10 @@ PANEL_SHORT: dict[str, str] = {
 }
 HOSTPREP_ORDER: tuple[bool, ...] = (False, True)
 PIPELINE_DISPLAY: dict[str, str] = {
-    "trn": "Transport",
-    "emb": "Embedding (curated)",
-    "nop": "No-passages",
-    "rag": "RAG (plain)",
+    axes.PIPELINE_TRANSPORT: "Transport",
+    axes.PIPELINE_EMBEDDING: "Embedding (curated)",
+    axes.PIPELINE_NO_PASSAGES: "No-passages",
+    axes.PIPELINE_RAG: "RAG (plain)",
 }
 
 

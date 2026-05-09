@@ -25,14 +25,16 @@ from webapp.db import db_conn  # pyright: ignore[reportMissingImports]
 logger = logging.getLogger(__name__)
 
 # Pipeline preference ordering. trn and transport are aliases for the same
-# min-cost-flow pipeline; both rank top. rag is a secondary embedding-based
-# variant; lump with emb. Lower number = more preferred.
+# Per-pipeline preference for picking which run to surface as the canonical
+# panel card on the consumer site. transport (min-cost flow) is the primary
+# product. embedding/rag are secondary variants and lump together. no_passages
+# is a fallback. Pipeline names come from enrichment.axes module constants;
+# the order/grouping here is webapp display policy.
 _PIPELINE_RANK: dict[str, int] = {
-    "trn": 0,
-    "transport": 0,
-    "emb": 1,
-    "rag": 1,
-    "nop": 2,
+    axes.PIPELINE_TRANSPORT: 0,
+    axes.PIPELINE_EMBEDDING: 1,
+    axes.PIPELINE_RAG: 1,
+    axes.PIPELINE_NO_PASSAGES: 2,
 }
 
 # Visual ordering for cards within a novel. Used by the API/template, not
@@ -44,11 +46,12 @@ _PANEL_ORDER: dict[str, int] = {
     "interdisciplinary": 2,
 }
 
-# `episode.novel` is mostly the short key ("bh", "dd") but sometimes the
-# id form ("oliver_twist", "mrs_dalloway"). Build a lookup that accepts either.
+# Post-canonicalization (BleakHouse-g3hj/0wn7), episode.novel is always the
+# canonical id form ("bleak_house", "wuthering_heights"). The short-key
+# fallback survives for any caller still passing a "bh"-shaped key.
 _NOVEL_BY_ANY: dict[str, axes.Novel] = {
-    **{n.key: n for n in axes.NOVELS},
     **{n.id: n for n in axes.NOVELS},
+    **{n.key: n for n in axes.NOVELS},
 }
 
 

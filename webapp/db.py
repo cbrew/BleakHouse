@@ -22,7 +22,7 @@ Usage:
     with db_conn() as conn:
         rows = conn.execute(
             "SELECT id, novel, panel FROM episode WHERE pipeline = ?",
-            ("trn",),
+            ("transport",),
         ).fetchall()
         # rows is list[sqlite3.Row]; access by name or index
 

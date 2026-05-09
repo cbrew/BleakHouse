@@ -157,12 +157,14 @@ def _parse_version(run_name: str) -> tuple[str, str]:
     return run_name, "v1.0"
 
 
-# Human-readable labels for the display layer.
+# Human-readable labels for the display layer. Keys are canonical pipeline
+# values; callers should canonicalize incoming short codes ('trn' etc.) via
+# axes.canonicalize_value before lookup.
 _PIPELINE_LABELS: dict[str, str] = {
-    "trn": "transport",
-    "emb": "embedding",
-    "nop": "no passages",
-    "rag": "RAG",
+    axes.PIPELINE_TRANSPORT: "transport",
+    axes.PIPELINE_EMBEDDING: "embedding",
+    axes.PIPELINE_NO_PASSAGES: "no passages",
+    axes.PIPELINE_RAG: "RAG",
 }
 _PANEL_LABELS: dict[str, str] = {
     "literary": "Panel A (Hartley / Blackstone / Woodcourt)",
@@ -193,9 +195,12 @@ def _classify_run(run_dir: Path) -> tuple[str, str, bool, str]:
         try:
             run_axes = axes.parse_run_dir_name(run_dir.name)
         except ValueError:
-            return "unknown", "unknown", "_hostprep" in run_dir.name, ""
+            # config.json missing AND dir name not parseable. Don't infer
+            # axes from the dir-name shape; surface 'unknown' honestly.
+            return "unknown", "unknown", False, ""
 
-    condition = _PIPELINE_LABELS.get(run_axes.pipeline) or run_axes.pipeline
+    pipeline_canon = axes.canonicalize_value("pipeline", run_axes.pipeline)
+    condition = _PIPELINE_LABELS.get(pipeline_canon) or pipeline_canon
     panel = _PANEL_LABELS.get(run_axes.panel) or run_axes.panel
     return condition, panel, run_axes.hostprep, run_axes.generator
 
@@ -507,12 +512,6 @@ async def submit_feedback(request: Request):
 @app.get("/api/novels")
 async def list_novels():
     return await RUN_INDEX.get_novels()
-
-
-@app.get("/api/all-runs")
-async def list_all_runs():
-    """List ALL runs with scripts, grouped by novel. Includes audio state."""
-    return await RUN_INDEX.get_all_runs()
 
 
 _PROFILE_RE = re.compile(r"^[a-z0-9_]+$")
@@ -858,7 +857,14 @@ TRACKER_NOVELS = [
 ]
 
 # Matrix axes: pipelines × panels × hostprep.
-TRACKER_PIPELINES: tuple[str, ...] = ("trn", "emb", "nop")
+# Pipelines surfaced in the scholar tracker matrix (webapp display policy).
+# Excludes PIPELINE_RAG — an experimental embedding variant we don't promote
+# on the curated grid.
+TRACKER_PIPELINES: tuple[str, ...] = (
+    axes.PIPELINE_TRANSPORT,
+    axes.PIPELINE_EMBEDDING,
+    axes.PIPELINE_NO_PASSAGES,
+)
 TRACKER_PANELS: tuple[str, ...] = ("literary", "alternatives", "interdisciplinary")
 TRACKER_PANEL_SHORT: dict[str, str] = {
     "literary": "Lit",
@@ -1277,7 +1283,7 @@ def _build_tracker_matrix_from_db() -> dict:
     # tools enabled (ref_tools=1, where the reading list lives) for the default
     # generator. matrix_rows() already keeps the freshest per coordinate, so we
     # just filter and re-key.
-    PANEL_SCRIPT_NOVELS = ("bh", "hest")
+    PANEL_SCRIPT_NOVELS = ("bleak_house", "hester")
     PANEL_DB_TO_DISPLAY = {
         "literary": "literary",
         "interdisciplinary": "interdisciplinary",
@@ -1287,7 +1293,7 @@ def _build_tracker_matrix_from_db() -> dict:
     for r in db_rows:
         if r["novel"] not in PANEL_SCRIPT_NOVELS:
             continue
-        if r["pipeline"] != "trn" or not r["hostprep"]:
+        if r["pipeline"] != axes.PIPELINE_TRANSPORT or not r["hostprep"]:
             continue
         if r["generator"] != axes.DEFAULT_GENERATOR:
             continue
@@ -1296,7 +1302,7 @@ def _build_tracker_matrix_from_db() -> dict:
         panel_display = PANEL_DB_TO_DISPLAY.get(r["panel"])
         if panel_display is None:
             continue
-        novel_label = axes.NOVEL_BY_KEY[r["novel"]].title
+        novel_label = axes.NOVEL_BY_ID[r["novel"]].title
         cell = _cell_for(r["run_id"])
         panel_scripts.append({
             "novel": novel_label,
@@ -1313,7 +1319,7 @@ def _build_tracker_matrix_from_db() -> dict:
             "has_reading_list": cell.get("has_reading_list", False),
             "reading": cell.get("reading", {}),
             "name": r["run_id"],
-            "condition": cell.get("condition", "transport"),
+            "condition": cell.get("condition", axes.PIPELINE_TRANSPORT),
             "hostprep": cell.get("hostprep", False),
         })
 
@@ -1342,28 +1348,29 @@ def _build_tracker_matrix_from_db() -> dict:
 
 
 def _build_run_lists_from_db() -> dict:
-    """Build the /api/novels and /api/all-runs response payloads from the
-    DB-enumerated run list. Per-run details (title, experts, audio state)
-    still come from each run_dir's manifest/episode JSON.
+    """Build the /api/novels response payload from the DB-enumerated run
+    list. Per-run details (title, experts, audio state) still come from
+    each run_dir's manifest/episode JSON.
 
-    Returns {"novels": ..., "all_runs": ...} matching the shape that the
-    filesystem snapshot used.
+    Returns {"novels": {...}}. The companion all_runs branch was retired
+    with /api/all-runs in BleakHouse-0wn7 (zero callers).
     """
     from webapp.db_views import all_episode_rows  # pyright: ignore[reportMissingImports]
 
     runs_dir = DATA_DIR / "runs"
     novels: dict[str, list[dict]] = {}
-    all_runs: dict[str, list[dict]] = {}
     for r in all_episode_rows():
         run_id = r["run_id"]
         rd = runs_dir / run_id
         if not rd.exists():
             continue
         s = _summarize_run_dir(rd)
-        # Surface every run with a script + a report; the player UI
-        # branches on `has_audio` to offer either "Listen" or
-        # "Read the report".
-        if not (s["title"] and s["has_episode"] and s["has_report"]):
+        # Surface every run with a script. The has_report filter was
+        # dropped 2026-05-09 (BleakHouse-0wn7): report.html stopped being
+        # tracked in commit 298bdbcf, so the filter emptied /api/novels.
+        # The downstream UI uses has_audio / has_report on the row to
+        # branch between Listen / Read links.
+        if not (s["title"] and s["has_episode"]):
             continue
         novels.setdefault(s["novel"], []).append({
             "run_id": s["run_id"],
@@ -1380,18 +1387,7 @@ def _build_run_lists_from_db() -> dict:
             "has_audio": s["has_audio"],
             "has_host_prep": s["has_host_prep"],
         })
-        all_runs.setdefault(s["novel"], []).append({
-            "run_id": s["run_id"],
-            "title": s["title"],
-            "novel": s["novel"],
-            "condition": s["condition"],
-            "panel": s["panel"],
-            "hostprep": s["hostprep"],
-            "experts": s["experts"],
-            "has_audio": s["has_audio"],
-            "has_report": s["has_report"],
-        })
-    return {"novels": novels, "all_runs": all_runs}
+    return {"novels": novels}
 
 
 def _build_versions_data_from_db() -> dict:
@@ -1416,7 +1412,7 @@ def _build_versions_data_from_db() -> dict:
     runs_dir = DATA_DIR / "runs"
     cards: list[dict] = []
     for r in matrix_rows():
-        if r["pipeline"] != "trn" or not r["hostprep"]:
+        if r["pipeline"] != axes.PIPELINE_TRANSPORT or not r["hostprep"]:
             continue
         if not r.get("ref_tools"):
             continue
@@ -1429,7 +1425,7 @@ def _build_versions_data_from_db() -> dict:
         if not rd.exists():
             continue
         s = _summarize_run_dir(rd)
-        novel_meta = axes.NOVEL_BY_KEY.get(r["novel"])
+        novel_meta = axes.NOVEL_BY_ID.get(r["novel"])
         teaser = _load_json(rd / "phase3_teaser.json") if (rd / "phase3_teaser.json").exists() else None
         cards.append({
             "run_id": r["run_id"],
@@ -1544,13 +1540,10 @@ class RunIndexCache:
             await task
         elif self._run_lists_is_stale():
             await self._ensure_run_lists_refresh_started()
-        return self._run_lists or {"novels": {}, "all_runs": {}}
+        return self._run_lists or {"novels": {}}
 
     async def get_novels(self) -> dict[str, list[dict]]:
         return (await self._get_run_lists())["novels"]
-
-    async def get_all_runs(self) -> dict[str, list[dict]]:
-        return (await self._get_run_lists())["all_runs"]
 
     async def get_matrix(self) -> dict:
         if self._matrix is None:

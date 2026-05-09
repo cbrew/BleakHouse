@@ -63,6 +63,20 @@ NOVEL_BY_ID: dict[str, Novel] = {n.id: n for n in NOVELS}
 
 PIPELINES: frozenset[str] = frozenset({"trn", "emb", "nop", "rag"})
 
+# Canonical pipeline value strings. Single source of truth — every other
+# module imports these names rather than hardcoding the literals. PIPELINES
+# (the short-code frozenset above) and the axis-store registry both build
+# on these, and the legacy short codes ('trn' / 'emb' / 'nop') are mapped
+# back here via Axis(pipeline).aliases.
+PIPELINE_TRANSPORT: str = "transport"
+PIPELINE_EMBEDDING: str = "embedding"
+PIPELINE_NO_PASSAGES: str = "no_passages"
+PIPELINE_RAG: str = "rag"
+
+CANONICAL_PIPELINES: tuple[str, ...] = (
+    PIPELINE_TRANSPORT, PIPELINE_EMBEDDING, PIPELINE_NO_PASSAGES, PIPELINE_RAG,
+)
+
 
 @dataclass(frozen=True)
 class Panel:
@@ -287,7 +301,7 @@ AXES: tuple[Axis, ...] = (
     ),
     Axis(
         name="pipeline",
-        canonical_values=frozenset({"transport", "embedding", "no_passages", "rag"}),
+        canonical_values=frozenset(CANONICAL_PIPELINES),
         aliases={"trn": "transport", "emb": "embedding", "nop": "no_passages"},
     ),
     Axis(
