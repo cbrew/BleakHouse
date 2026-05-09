@@ -165,3 +165,105 @@ def test_scan_hostprep_run_is_idempotent(tmp_path: Path, tmp_db_path: Path) -> N
     assert len(eps) == 1
     assert len(s.list_hostprep_for_episode(eps[0].id)) == 1
     assert len(s.list_evaluations_for_hostprep(sv.hostprep_version_id)) == 1
+
+
+def _make_shards_run_dir(tmp: Path) -> Path:
+    """A shards-mode run: empty audio_variants, but audio/shards.json on disk."""
+    rd = tmp / "wh_trn_literary_short"
+    (rd / "audio").mkdir(parents=True)
+    (rd / "run_manifest.json").write_text(json.dumps({
+        "schema_version": 1, "run_id": "wh_trn_literary_short",
+        "axes": {"novel": "wuthering_heights", "pipeline": "transport",
+                  "panel": "literary", "hostprep": True,
+                  "generator": "anthropic_sonnet_4_6", "length": "short"},
+        "stages": {}, "audio_variants": [],
+        "generated_at": "2026-05-09T01:36:55Z", "dvc_lock_sha": "x",
+    }))
+    (rd / "phase3_episode.json").write_text(json.dumps({
+        "segments": [{"turns": [
+            {"speaker": "Host", "utterances": [{"text": "hi"}]},
+        ]}],
+    }))
+    (rd / "audio" / "shards.json").write_text(json.dumps({
+        "schema_version": 1, "profile": "trevelyan_v2",
+        "episode_title": "Wuthering Heights",
+        "experts": [{"name": "Eleanor Hartley", "role": "novelist"}],
+        "shards": [
+            {"file": "0000.mp3", "md5": "deadbeef", "kind": "turn",
+             "segment_index": 0, "turn_index": 0,
+             "speaker": "Host", "role": "host", "utterances": []},
+        ],
+    }))
+    return rd
+
+
+def test_scan_shards_mode_creates_audio_artifact(tmp_path: Path, tmp_db_path: Path) -> None:
+    """A run with audio/shards.json but empty audio_variants must still
+    produce an audio_artifact row, otherwise the consumer JOIN drops it."""
+    rd = _make_shards_run_dir(tmp_path)
+    s = Store(tmp_db_path)
+    s.init_schema()
+
+    out = scan_run_dir(s, rd)
+    assert len(out["audio_artifact_ids"]) == 1
+
+    audio = s.list_audio_for_script(out["script_version_id"])
+    assert len(audio) == 1
+    assert audio[0].name == "shards_trevelyan_v2.json"
+    assert audio[0].path.endswith("audio/shards.json")
+
+
+def test_scan_shards_mode_is_idempotent(tmp_path: Path, tmp_db_path: Path) -> None:
+    rd = _make_shards_run_dir(tmp_path)
+    s = Store(tmp_db_path)
+    s.init_schema()
+    a = scan_run_dir(s, rd)
+    b = scan_run_dir(s, rd)
+    assert a["audio_artifact_ids"] == b["audio_artifact_ids"]
+    assert len(s.list_audio_for_script(a["script_version_id"])) == 1
+
+
+def test_scan_shards_mode_with_total_duration(tmp_path: Path, tmp_db_path: Path) -> None:
+    """If shards.json carries total_duration_ms, surface it as duration_s."""
+    rd = _make_shards_run_dir(tmp_path)
+    shards_path = rd / "audio" / "shards.json"
+    shards = json.loads(shards_path.read_text())
+    shards["total_duration_ms"] = 5_169_120
+    shards_path.write_text(json.dumps(shards))
+
+    s = Store(tmp_db_path)
+    s.init_schema()
+    out = scan_run_dir(s, rd)
+    audio = s.list_audio_for_script(out["script_version_id"])
+    assert audio[0].duration_s == 5169.12
+
+
+def test_scan_legacy_mp3_without_audio_variants(tmp_path: Path, tmp_db_path: Path) -> None:
+    """audio/podcast.mp3 + audio/manifest.json on disk but empty
+    audio_variants — fall back to disk discovery."""
+    rd = tmp_path / "legacy_run"
+    (rd / "audio").mkdir(parents=True)
+    (rd / "run_manifest.json").write_text(json.dumps({
+        "schema_version": 1, "run_id": "legacy_run",
+        "axes": {"novel": "bh", "pipeline": "trn", "panel": "literary",
+                  "hostprep": False, "generator": "anthropic_sonnet_4_6"},
+        "stages": {}, "audio_variants": [],
+        "generated_at": "2026-04-25T10:00:00Z", "dvc_lock_sha": "x",
+    }))
+    (rd / "phase3_episode.json").write_text(json.dumps({
+        "segments": [{"turns": [
+            {"speaker": "Host", "utterances": [{"text": "hi"}]},
+        ]}],
+    }))
+    (rd / "audio" / "podcast.mp3").write_bytes(b"fake mp3 bytes")
+    (rd / "audio" / "manifest.json").write_text(json.dumps({
+        "title": "Legacy", "experts": [], "segments": [],
+        "total_duration_ms": 1_234_000,
+    }))
+
+    s = Store(tmp_db_path)
+    s.init_schema()
+    out = scan_run_dir(s, rd)
+    audio = s.list_audio_for_script(out["script_version_id"])
+    assert len(audio) == 1
+    assert audio[0].name == "podcast.mp3"

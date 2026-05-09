@@ -45,6 +45,27 @@ def _read_audio_duration(run_dir: Path, manifest_rel: str | None) -> float | Non
     return m.get("episode_audio_seconds") or m.get("total_duration_s")
 
 
+# Shards.json carries `profile` but no engine string. Map profile → engine
+# so shards-mode runs (no audio_variants entry in run_manifest.json) get a
+# tts_config row with the right engine. Keep in sync with
+# enrichment/tts_profiles/.
+_SHARDS_PROFILE_ENGINE = {
+    "classic": "gemini-2.5-flash-preview-tts",
+    "trevelyan_v2": "gemini-3.1-flash-tts-preview",
+}
+
+
+def _shards_duration_s(shards: dict) -> float | None:
+    """Best-effort duration extraction from a shards.json payload."""
+    total_ms = shards.get("total_duration_ms")
+    if isinstance(total_ms, (int, float)) and total_ms:
+        return float(total_ms) / 1000.0
+    per_shard = [s.get("duration_ms") for s in shards.get("shards", [])]
+    if per_shard and all(isinstance(d, (int, float)) for d in per_shard):
+        return sum(per_shard) / 1000.0
+    return None
+
+
 def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
     """Idempotently insert rows for one run dir. Returns the resulting row IDs."""
     run_manifest_path = run_dir / "run_manifest.json"
@@ -161,6 +182,7 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
     # Audio variants → tts_config + audio_artifact rows.
     audio_ids: list[int] = []
     existing_audio = {a.name: a for a in store.list_audio_for_script(sid)}
+    rendered_paths: set[str] = set()  # repo-relative audio paths covered below
     for variant in rm.get("audio_variants", []):
         engine = variant.get("engine", "unknown")
         profile = variant.get("name")  # "classic", "trevelyan_v2", ...
@@ -171,6 +193,8 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
         duration_s = _read_audio_duration(run_dir, manifest_rel) if manifest_rel else None
         audio_file = variant.get("audio_file") or ""
         name = Path(audio_file).name or f"podcast_{profile or 'default'}.mp3"
+        if audio_file:
+            rendered_paths.add(audio_file)
         if name in existing_audio:
             audio_ids.append(existing_audio[name].id)
             continue
@@ -178,6 +202,62 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
             script_version_id=sid, tts_config_id=cfg_id, name=name,
             path=audio_file, dvc_hash=variant.get("hash"),
             duration_s=duration_s, audio_manifest_path=manifest_rel,
+        )
+        audio_ids.append(aid)
+
+    # Fallback: shards-mode runs whose run_manifest.json has no
+    # audio_variants entry (post-CAS-migration generate_run_manifest.py
+    # leaves audio_variants=[] for runs not in dvc.lock). Read
+    # audio/shards.json directly so the run still gets an audio_artifact
+    # row and downstream JOINs (webapp consumer query, /listen/...) work.
+    shards_path = run_dir / "audio" / "shards.json"
+    if shards_path.exists():
+        try:
+            shards = json.loads(shards_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            shards = None
+        if isinstance(shards, dict) and shards.get("shards"):
+            profile = shards.get("profile") or "default"
+            engine = _SHARDS_PROFILE_ENGINE.get(profile, f"shards-{profile}")
+            shards_rel = f"data/runs/{run_dir.name}/audio/shards.json"
+            name = f"shards_{profile}.json"
+            if name not in existing_audio and shards_rel not in rendered_paths:
+                cfg_id = store.upsert_tts_config(
+                    engine=engine, profile=profile,
+                    voice_ref_ver=None, config={},
+                )
+                aid = store.create_audio_artifact(
+                    script_version_id=sid, tts_config_id=cfg_id, name=name,
+                    path=shards_rel, dvc_hash=None,
+                    duration_s=_shards_duration_s(shards),
+                    audio_manifest_path=shards_rel,
+                )
+                audio_ids.append(aid)
+            elif name in existing_audio:
+                audio_ids.append(existing_audio[name].id)
+
+    # Fallback: legacy single-mp3 runs whose audio_variants list is empty
+    # but audio/podcast.mp3 + audio/manifest.json exist on disk.
+    legacy_mp3 = run_dir / "audio" / "podcast.mp3"
+    legacy_manifest = run_dir / "audio" / "manifest.json"
+    legacy_mp3_rel = f"data/runs/{run_dir.name}/audio/podcast.mp3"
+    if (legacy_mp3.exists()
+            and "podcast.mp3" not in existing_audio
+            and legacy_mp3_rel not in rendered_paths):
+        manifest_rel = (
+            f"data/runs/{run_dir.name}/audio/manifest.json"
+            if legacy_manifest.exists() else None
+        )
+        cfg_id = store.upsert_tts_config(
+            engine="unknown", profile="classic",
+            voice_ref_ver=None, config={},
+        )
+        aid = store.create_audio_artifact(
+            script_version_id=sid, tts_config_id=cfg_id, name="podcast.mp3",
+            path=legacy_mp3_rel, dvc_hash=None,
+            duration_s=_read_audio_duration(run_dir, manifest_rel)
+                if manifest_rel else None,
+            audio_manifest_path=manifest_rel,
         )
         audio_ids.append(aid)
 
