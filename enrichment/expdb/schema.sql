@@ -10,6 +10,7 @@
 --                 target). Short variants live in <run>_short/ sibling dirs.
 CREATE TABLE episode (
     id           INTEGER PRIMARY KEY,
+    opaque_id    TEXT UNIQUE,
     novel        TEXT NOT NULL,
     panel        TEXT NOT NULL,
     pipeline     TEXT NOT NULL,
@@ -21,6 +22,25 @@ CREATE TABLE episode (
     created_at   REAL NOT NULL,
     UNIQUE(novel, panel, pipeline, hostprep, generator, ref_tools, length)
 );
+
+-- Axis registry. Names mirror enrichment.axes.AXES. Adding a new axis is a
+-- one-place edit in axes.py + a backfill that calls AxisStore.set_axes()
+-- for existing episodes; no schema migration needed.
+CREATE TABLE axis (
+    name TEXT PRIMARY KEY
+);
+
+-- Inverted-index source: (episode_id, axis_name) → canonical value.
+-- One row per (episode, axis). Reverse lookup (axis,value → episodes) is
+-- powered by idx_episode_axis_value.
+CREATE TABLE episode_axis (
+    episode_id INTEGER NOT NULL REFERENCES episode(id) ON DELETE CASCADE,
+    axis_name  TEXT NOT NULL REFERENCES axis(name),
+    value      TEXT NOT NULL,
+    PRIMARY KEY (episode_id, axis_name)
+);
+
+CREATE INDEX idx_episode_axis_value ON episode_axis(axis_name, value);
 
 -- Host preparation: per-(segment, expert) Haiku interviews +
 -- per-segment Sonnet briefs. Inputs to script generation when

@@ -65,10 +65,13 @@ def scan_run_dir(store: Store, run_dir: Path) -> dict[str, Any]:
     # is only produced when --reference-tools is on at hostprep time.
     ref_tools = (run_dir / "phase2_5_reading_list.json").exists()
 
+    # upsert_episode populates episode_axis via AxisStore (canonicalizing
+    # 'trn' → 'transport' etc.) — no separate set_axes call needed.
     episode_id = store.upsert_episode(
         novel=axes["novel"], panel=axes["panel"], pipeline=axes["pipeline"],
         hostprep=bool(axes.get("hostprep", False)), generator=generator,
         ref_tools=ref_tools, label=label,
+        length=axes.get("length", "long"),
     )
 
     # Idempotent hostprep_version: one per hostprep run dir.

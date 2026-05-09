@@ -251,6 +251,95 @@ def run_dir_name(
     return "_".join(parts)
 
 
+# ---------------------------------------------------------------------------
+# Axis registry — used by the inverted-index axis store (BleakHouse-g3hj).
+#
+# `RunAxes` is the *generation-time* tuple: a fixed shape that the pipeline
+# code cares about. The registry below is the *queryable* shape: a flat list
+# of (axis_name, canonical_values, aliases) triples that the axis store uses
+# to drive arbitrary axis queries without baking column names into SQL.
+#
+# Adding a new axis is meant to be a one-place edit: append an Axis to AXES
+# and (if it carries non-text data) extend canonicalize_value below.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Axis:
+    name: str
+    canonical_values: frozenset[str]
+    aliases: dict[str, str]  # input form → canonical form (for legacy data)
+
+
+def _bool_aliases() -> dict[str, str]:
+    return {
+        "0": "false", "1": "true",
+        "False": "false", "True": "true",
+        "false": "false", "true": "true",
+    }
+
+
+AXES: tuple[Axis, ...] = (
+    Axis(
+        name="novel",
+        canonical_values=NOVEL_IDS,
+        aliases={n.key: n.id for n in NOVELS},
+    ),
+    Axis(
+        name="pipeline",
+        canonical_values=frozenset({"transport", "embedding", "no_passages", "rag"}),
+        aliases={"trn": "transport", "emb": "embedding", "nop": "no_passages"},
+    ),
+    Axis(
+        name="panel",
+        canonical_values=PANELS,
+        aliases={},
+    ),
+    Axis(
+        name="hostprep",
+        canonical_values=frozenset({"true", "false"}),
+        aliases=_bool_aliases(),
+    ),
+    Axis(
+        name="ref_tools",
+        canonical_values=frozenset({"true", "false"}),
+        aliases=_bool_aliases(),
+    ),
+    Axis(
+        name="generator",
+        canonical_values=GENERATORS,
+        aliases={},
+    ),
+    Axis(
+        name="length",
+        canonical_values=LENGTHS,
+        aliases={},
+    ),
+)
+
+AXIS_BY_NAME: dict[str, Axis] = {a.name: a for a in AXES}
+
+
+def canonicalize_value(axis_name: str, value: object) -> str:
+    """Map any input shape (short code, bool, int, alt spelling) to the
+    canonical string value used by the axis store. Raises ValueError on
+    unknown axes or values that resolve outside canonical_values."""
+    axis = AXIS_BY_NAME.get(axis_name)
+    if axis is None:
+        raise ValueError(f"unknown axis {axis_name!r}")
+    if isinstance(value, bool):
+        s = "true" if value else "false"
+    else:
+        s = str(value)
+    canonical = axis.aliases.get(s, s)
+    if canonical not in axis.canonical_values:
+        raise ValueError(
+            f"axis {axis_name!r}: value {value!r} (canonical {canonical!r}) "
+            f"is not in canonical_values"
+        )
+    return canonical
+
+
 def parse_run_dir_name(name: str) -> RunAxes:
     """Invert `run_dir_name` — raise `ValueError` on any unknown token.
 

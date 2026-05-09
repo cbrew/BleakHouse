@@ -16,7 +16,9 @@ def test_init_schema_creates_all_tables(tmp_db_path: Path) -> None:
     names = {r[0] for r in rows}
     assert {"episode", "hostprep_version", "script_version", "generation_run",
             "tts_config", "audio_artifact", "evaluation",
-            "regeneration_request"} <= names
+            "regeneration_request",
+            # v7: axis store
+            "axis", "episode_axis"} <= names
 
 
 def test_init_schema_sets_user_version(tmp_db_path: Path) -> None:

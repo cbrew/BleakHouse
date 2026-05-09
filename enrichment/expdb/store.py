@@ -21,7 +21,7 @@ from .models import (
 # TTSConfig is imported for re-export — callers may want the row dataclass.
 _ = TTSConfig
 
-EXPECTED_USER_VERSION = 6
+EXPECTED_USER_VERSION = 7
 
 # v4→v5: introduce run_cost table for per-stage cost rollups
 # (BleakHouse-ybbn / Option B). Pure additive — no existing data
@@ -52,6 +52,120 @@ CREATE INDEX IF NOT EXISTS idx_run_cost_label ON run_cost(run_label);
 CREATE INDEX IF NOT EXISTS idx_run_cost_stage ON run_cost(stage);
 CREATE INDEX IF NOT EXISTS idx_run_cost_genrun ON run_cost(generation_run_id);
 """
+
+# v6→v7: opaque IDs + generic axis store (BleakHouse-g3hj).
+#
+# Adds episode.opaque_id (UUIDv7, populated for every existing row) and
+# the (axis, episode_axis) table pair that backs the inverted-index
+# query API in enrichment/axis_store.py. The episode-column model
+# stays — we don't break any existing reader — but the axis store
+# becomes the canonical query path; column reads are scheduled to be
+# retired in BleakHouse-0wn7.
+#
+# Backfill canonicalizes legacy axis values (e.g. pipeline 'trn' →
+# 'transport', novel 'bh' → 'bleak_house') as it copies into
+# episode_axis, so reverse-index queries stop missing rows on
+# representation drift.
+_V6_TO_V7_SQL_PRE = """
+PRAGMA foreign_keys = OFF;
+
+CREATE TABLE episode_v7 (
+    id           INTEGER PRIMARY KEY,
+    opaque_id    TEXT UNIQUE,
+    novel        TEXT NOT NULL,
+    panel        TEXT NOT NULL,
+    pipeline     TEXT NOT NULL,
+    hostprep     INTEGER NOT NULL,
+    generator    TEXT NOT NULL,
+    ref_tools    INTEGER NOT NULL,
+    length       TEXT NOT NULL DEFAULT 'long',
+    label        TEXT NOT NULL,
+    created_at   REAL NOT NULL,
+    UNIQUE(novel, panel, pipeline, hostprep, generator, ref_tools, length)
+);
+
+INSERT INTO episode_v7 (id, opaque_id, novel, panel, pipeline, hostprep,
+                        generator, ref_tools, length, label, created_at)
+    SELECT id, NULL, novel, panel, pipeline, hostprep,
+           generator, ref_tools, length, label, created_at
+    FROM episode;
+
+DROP TABLE episode;
+ALTER TABLE episode_v7 RENAME TO episode;
+
+CREATE TABLE axis (
+    name TEXT PRIMARY KEY
+);
+
+CREATE TABLE episode_axis (
+    episode_id INTEGER NOT NULL REFERENCES episode(id) ON DELETE CASCADE,
+    axis_name  TEXT NOT NULL REFERENCES axis(name),
+    value      TEXT NOT NULL,
+    PRIMARY KEY (episode_id, axis_name)
+);
+
+CREATE INDEX idx_episode_axis_value ON episode_axis(axis_name, value);
+
+PRAGMA foreign_keys = ON;
+"""
+
+
+def _apply_v6_to_v7(conn: sqlite3.Connection) -> None:
+    """Run the v6→v7 schema migration end-to-end.
+
+    Pure SQL handles the table swap and new tables. Python handles UUIDv7
+    generation (stdlib uuid lacks v7 through 3.13) and canonicalization of
+    existing axis values into the new episode_axis rows."""
+    # Lazy import — axis_store and axes pull in enrichment package machinery
+    # we don't want to load on every Store() construction.
+    from enrichment.axes import AXES, canonicalize_value
+    from enrichment.axis_store import uuid7
+
+    conn.executescript(_V6_TO_V7_SQL_PRE)
+
+    # Backfill opaque_ids
+    rows = conn.execute("SELECT id FROM episode").fetchall()
+    for row in rows:
+        conn.execute(
+            "UPDATE episode SET opaque_id=? WHERE id=?",
+            (uuid7(), int(row["id"])),
+        )
+
+    # Declare axes
+    for axis in AXES:
+        conn.execute("INSERT OR IGNORE INTO axis(name) VALUES(?)", (axis.name,))
+
+    # Backfill episode_axis from the existing column-shaped data.
+    # Canonicalize on the way in so 'trn' becomes 'transport' etc.
+    eps = conn.execute(
+        "SELECT id, novel, panel, pipeline, hostprep, generator, ref_tools, "
+        "length FROM episode"
+    ).fetchall()
+    inserts: list[tuple[int, str, str]] = []
+    for ep in eps:
+        for axis_name, raw in (
+            ("novel", ep["novel"]),
+            ("panel", ep["panel"]),
+            ("pipeline", ep["pipeline"]),
+            ("hostprep", bool(ep["hostprep"])),
+            ("ref_tools", bool(ep["ref_tools"])),
+            ("generator", ep["generator"]),
+            ("length", ep["length"]),
+        ):
+            try:
+                value = canonicalize_value(axis_name, raw)
+            except ValueError:
+                # Legacy data outside canonical_values — store as-is.
+                # Webapp queries will miss it; that's fine, surfacing
+                # legacy junk is the point.
+                value = str(raw)
+            inserts.append((int(ep["id"]), axis_name, value))
+    conn.executemany(
+        "INSERT INTO episode_axis(episode_id, axis_name, value) "
+        "VALUES(?,?,?)",
+        inserts,
+    )
+
 
 # v5→v6: add `length` axis to episode (long|short).
 #
@@ -141,10 +255,15 @@ class Store:
                 # Pure additive delta — apply in place, no rescan needed.
                 c.executescript(_V4_TO_V5_SQL)
                 current = 5
-            if current == 5 and EXPECTED_USER_VERSION == 6:
-                # Adds `length` column + extends UNIQUE constraint via
-                # table swap. All existing rows are length='long'.
+            if current == 5:
+                # v5→v6: add `length` column + extend UNIQUE constraint
+                # via table swap. All existing rows are length='long'.
                 c.executescript(_V5_TO_V6_SQL)
+                current = 6
+            if current == 6 and EXPECTED_USER_VERSION == 7:
+                # v6→v7: opaque IDs + generic axis store. Mixed
+                # SQL/Python (UUIDv7 generation + canonicalization).
+                _apply_v6_to_v7(c)
                 c.execute(f"PRAGMA user_version = {EXPECTED_USER_VERSION}")
                 return
             if current == EXPECTED_USER_VERSION:
@@ -160,6 +279,9 @@ class Store:
     def upsert_episode(self, *, novel: str, panel: str, pipeline: str,
                        hostprep: bool, generator: str, ref_tools: bool,
                        label: str, length: str = "long") -> int:
+        # Lazy imports — axis_store / axes pull in package-level machinery.
+        from enrichment.axis_store import AxisStore, uuid7
+
         with self._conn() as c:
             row = c.execute(
                 "SELECT id FROM episode WHERE novel=? AND panel=? AND pipeline=? "
@@ -168,15 +290,27 @@ class Store:
                  int(ref_tools), length),
             ).fetchone()
             if row is not None:
-                return int(row["id"])
-            cur = c.execute(
-                "INSERT INTO episode(novel, panel, pipeline, hostprep, generator, "
-                "ref_tools, length, label, created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-                (novel, panel, pipeline, int(hostprep), generator,
-                 int(ref_tools), length, label, time.time()),
-            )
-            assert cur.lastrowid is not None
-            return int(cur.lastrowid)
+                episode_id = int(row["id"])
+            else:
+                cur = c.execute(
+                    "INSERT INTO episode(opaque_id, novel, panel, pipeline, hostprep, "
+                    "generator, ref_tools, length, label, created_at) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    (uuid7(), novel, panel, pipeline, int(hostprep), generator,
+                     int(ref_tools), length, label, time.time()),
+                )
+                assert cur.lastrowid is not None
+                episode_id = int(cur.lastrowid)
+
+        # Mirror into the inverted-index store. Done outside the connection
+        # block above so AxisStore opens its own connection (it canonicalizes
+        # values on insert — 'trn' → 'transport' etc.).
+        AxisStore(self.path).set_axes(episode_id, {
+            "novel": novel, "panel": panel, "pipeline": pipeline,
+            "hostprep": hostprep, "ref_tools": ref_tools,
+            "generator": generator, "length": length,
+        })
+        return episode_id
 
     def get_episode(self, episode_id: int) -> Episode | None:
         with self._conn() as c:
