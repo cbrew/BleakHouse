@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Not In Our Time — Host Preparation{% endblock %}
+{% block content %}
+<h1>Host Preparation: From Monologue to Dialogue</h1>
+<p class="subtitle">How pre-interviews and question planning transform generated discussions</p>
+<p style="color:var(--text-dim);font-size:0.85em;">Part 4 of the <a href="/blog">Not In Our Time</a> series</p>
+
+<p>Without host preparation, the system produces expert monologues. Each panelist delivers a mini-lecture about the passages assigned to their segment. The host asks approximately one question per segment. The experts rarely respond to each other.</p>
+
+<p>With host preparation, the mean rises to ~11 questions per segment. Experts build on each other's points, push back, and reference each other's pre-interview claims. The discussions sound like conversations.</p>
+
+<p>The effect is uniform across all 15 novels. This is the key finding: the transformation from monologue to dialogue is <em>architectural</em>, not content-dependent.</p>
+
+<h2>Phase 2.5a: Pre-interviews</h2>
+
+<p>For each expert&times;segment pair, Claude Haiku conducts a short interview. With 3 experts and 7 segments, that's 21 Haiku calls per run. The <a href="/prompts">interview prompt</a> asks four questions:</p>
+
+<ol>
+<li>What strikes this expert most about the passages?</li>
+<li>Which passage would they most want to quote aloud, and why?</li>
+<li>Where might they disagree with the other experts?</li>
+<li>What is their single most provocative claim?</li>
+</ol>
+
+<p>The output is a structured PreInterviewResponse: key points, potential quotes, disagreement angles, and a strongest take. These are now saved to <code>phase2_5_interviews.json</code> and visible in every hostprep <a href="/report/bh_trn_interdisciplinary_hostprep">report</a>.</p>
+
+<p>A concrete example — Elena Volkov's pre-interview for the opening segment of the interdisciplinary panel:</p>
+
+<blockquote>
+<strong>Strongest take:</strong> Bleak House is a novel about how beauty, narrative elegance, and formal complexity can become instruments of institutional power — they seduce us into accepting the unacceptable.<br><br>
+<strong>Disagreement:</strong> Rebecca may emphasise social realism, but I want to push on <em>how</em> he exposes it: through aestheticisation that can actually reconcile readers to the very horrors he's depicting. The fog is gorgeous. That's the problem.
+</blockquote>
+
+<h2>Phase 2.5b: Question planning</h2>
+
+<p>For each segment, Claude Sonnet reads all three experts' pre-interviews and plans 3–5 targeted questions. The <a href="/prompts">planning prompt</a> asks for questions that:</p>
+
+<ul>
+<li>Draw out each expert's strongest take</li>
+<li>Set up productive disagreements</li>
+<li>Create cross-engagement moments</li>
+<li>Target specific passages for quotation</li>
+<li>Keep the energy "pub with smart friends, not conference panel"</li>
+</ul>
+
+<p>The output is a HostBrief per segment: questions (with target expert, intent, and follow-up suggestions), steering notes, and cross-engagement targets.</p>
+
+<p>Example steering note:</p>
+<blockquote>
+This segment should feel like three people who've each found a completely different novel inside the same book. Let Rebecca's astrophysics frame land first — it's the most unexpected and will make the audience lean in. Elena should come in third because her political thesis works best when there's already something to push against.
+</blockquote>
+
+<h2>The retry story</h2>
+
+<p>During the 180-run matrix generation, one run (Hard Times, no-passages, hostprep) failed because a transient Anthropic API 500 error killed a pre-interview call. The <code>run_pre_interview</code> function had no retry logic — unlike <code>generate_podcast</code>, which retries 3 times.</p>
+
+<p>We added the same 3-attempt retry pattern. This is the kind of robustness issue that only surfaces at scale: 21 Haiku calls per run &times; 90 hostprep runs = 1,890 pre-interview calls. A 0.1% API error rate hits you twice.</p>
+
+<h2>What the data shows</h2>
+
+<table>
+<tr><th>Measure</th><th>Without HP</th><th>With HP</th></tr>
+<tr><td>Questions/segment</td><td>~1</td><td>~11</td></tr>
+<tr><td>Words/episode</td><td>~8,300</td><td>~12,500</td></tr>
+<tr><td>Ratio range across 15 novels</td><td colspan="2">5.3&times; (Our Mutual Friend) to 14.1&times; (Cranford)</td></tr>
+</table>
+
+<p>Host prep does <strong>not</strong> affect quote verification. Nop+hostprep verification is 25.5% vs nop without at 28.2%. Scaffolding changes dynamics but not accuracy. You can't interview your way out of not having read the book.</p>
+
+<img src="/static/img/host_prep_detail.png" alt="Host preparation detail" style="max-width:100%; border-radius:8px; margin:1em 0;">
+
+<p style="color:var(--text-dim);font-size:0.85em;margin-top:2em;">Next: <a href="/blog/audio">Making It Sound Right: Structured Output for TTS</a></p>
+{% endblock %}

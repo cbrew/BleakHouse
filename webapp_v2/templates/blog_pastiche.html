@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Not In Our Time — Pastiche, Not Hallucination{% endblock %}
+{% block content %}
+<h1>Pastiche, Not Hallucination</h1>
+<p class="subtitle">What LLMs do when they haven't read the book</p>
+<p style="color:var(--text-dim);font-size:0.85em;">Part 6 of the <a href="/blog">Not In Our Time</a> series</p>
+
+<p>The no-passages condition removes all textual grounding. The LLM must discuss the novel from prior knowledge alone — quote it, analyse it, argue about it, without being given any text to work from. This is the computational equivalent of the seminar participant who didn't do the reading.</p>
+
+<p>What happens is not random. It is graduated, vocabulary-preserving, and measurable.</p>
+
+<h2>The five-tier spectrum</h2>
+
+<p>We match every quote utterance against the full enriched passage corpus using a sliding 5-word window:</p>
+
+<ul>
+<li><strong style="color:#6fdc6f;">Verified</strong> (&ge;60% match): genuine quotation from the novel</li>
+<li><strong style="color:#e8d44d;">Paraphrase</strong> (30–59%): recognisable but altered</li>
+<li><strong style="color:#e8a44d;">Distant echo</strong> (10–29%): loosest thematic connection</li>
+<li><strong style="color:#e87070;">No clear source</strong> (1–9%): nearest passage shown for context</li>
+<li><strong style="color:#fff;background:#e94560;padding:0 4px;border-radius:2px;">Invented</strong> (0%): no 5-word window matches any passage</li>
+</ul>
+
+<p>For invented quotes, a <strong>vocabulary autopsy</strong> reports how many of the quote's individual words appear anywhere in the novel, and which distinctive words are absent.</p>
+
+<h2>The knowledge gradient</h2>
+
+<img src="/static/img/knowledge_gradient.png" alt="Knowledge gradient scatter plot" style="max-width:100%; border-radius:8px; margin:1em 0;">
+
+<p>Verification rates range from 57% (Middlemarch) to 0% (Hester, No Name). The gradient correlates with a composite measure of critical-cultural prominence — Goodreads ratings, Wikipedia article length, study guide presence — at r&nbsp;=&nbsp;0.72.</p>
+
+<p>All 15 novels are on Project Gutenberg and plausibly in the training data. The raw text is there. What varies is the volume of <em>secondary discussion</em> — study guides, academic papers, Wikipedia articles — that quotes and re-quotes specific passages. Carlini et al. showed that memorisation grows with data duplication. The relevant duplication isn't the Gutenberg source (which appears once) but the analytical apparatus that surrounds canonical texts.</p>
+
+<h2>Within-author evidence</h2>
+
+<img src="/static/img/within_author.png" alt="Within-author gradients" style="max-width:100%; border-radius:8px; margin:1em 0;">
+
+<p>The gradient persists within authors, controlling for prose style. Among Dickens's four novels: Bleak House (53%) &gt; David Copperfield (44%) &gt; Hard Times (39%) &gt; Our Mutual Friend (29%). Same author, same prose style, different cultural prominence, different quote fidelity.</p>
+
+<p>The Gaskell pair is genuinely anomalous: Cranford (33%) dramatically outperforms North and South (2%) despite N&amp;S having more study guides. N&amp;S's modern Goodreads popularity is likely inflated by the 2004 BBC adaptation, which generates discussion of the <em>adaptation</em> without reinforcing the <em>novel's</em> specific passages.</p>
+
+<h2>The vocabulary autopsy</h2>
+
+<p>Of 726 invented quotes:</p>
+<ul>
+<li><strong>82%</strong> draw 90–100% of their words from the novel's vocabulary</li>
+<li>Mean overlap: <strong>95.1%</strong></li>
+<li>Minimum: 67%</li>
+</ul>
+
+<p>Examples:</p>
+
+<blockquote>
+<strong>"I am very weak, but I shall begin the world."</strong><br>
+Every word in Bleak House. Sentence does not exist. Classic Dickensian pastiche.
+</blockquote>
+
+<blockquote>
+<strong>"Both the long-locked up proprietors, each claiming the right to let the other go to ruin."</strong><br>
+93% of words in novel. One absent word: "proprietors". Legal satire pastiche.
+</blockquote>
+
+<blockquote>
+<strong>"I don't know nothink."</strong><br>
+80% of words in novel. Jo's characteristic speech — the LLM remembers the dialect but reconstructs the phrasing.
+</blockquote>
+
+<p>The LLM writes <em>in the style of</em> the novel rather than <em>from</em> it. In literary terms, this is pastiche — imitation of an author's manner without direct quotation. The graduated nature makes it measurable: confabulation rate functions as an unintended instrument for measuring LLM literary knowledge.</p>
+
+<p>This is probably the closest thing we have to a worthwhile academic finding. The direct comparison between grounded and ungrounded generation across 15 novels — including several that have received very little modern critical attention — shows precisely what happens when an LLM is left to its own devices with texts it barely knows.</p>
+
+<p style="color:var(--text-dim);font-size:0.85em;margin-top:2em;">Next: <a href="/blog/friends">What If I Put My Friends in the Podcast?</a></p>
+{% endblock %}

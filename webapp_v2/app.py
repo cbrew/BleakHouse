@@ -229,6 +229,51 @@ def tab_arcs(request: Request, novel_id: str, panel: str):
     })
 
 
+# ── Static pages (Phase F) ───────────────────────────────────────────
+
+_STATIC_PAGES = ("about", "help", "references", "research", "prompts")
+
+
+@app.get("/about", response_class=HTMLResponse)
+def static_about(request: Request):
+    return templates.TemplateResponse(request, "about.html")
+
+
+@app.get("/help", response_class=HTMLResponse)
+def static_help(request: Request):
+    return templates.TemplateResponse(request, "help.html")
+
+
+@app.get("/references", response_class=HTMLResponse)
+def static_references(request: Request):
+    return templates.TemplateResponse(request, "references.html")
+
+
+@app.get("/research", response_class=HTMLResponse)
+def static_research(request: Request):
+    return templates.TemplateResponse(request, "research.html")
+
+
+@app.get("/prompts", response_class=HTMLResponse)
+def static_prompts(request: Request):
+    return templates.TemplateResponse(request, "prompts.html")
+
+
+@app.get("/blog", response_class=HTMLResponse)
+def blog_index(request: Request):
+    return templates.TemplateResponse(request, "blog_index.html")
+
+
+@app.get("/blog/{post_id}", response_class=HTMLResponse)
+def blog_post(request: Request, post_id: str):
+    if ".." in post_id or "/" in post_id:
+        raise HTTPException(400, "Invalid path")
+    template_name = f"blog_{post_id}.html"
+    if not (TEMPLATES_DIR / template_name).exists():
+        raise HTTPException(404, f"Blog post not found: {post_id!r}")
+    return templates.TemplateResponse(request, template_name)
+
+
 @app.get(
     "/listen/{novel_id}/{panel}/reading-list", response_class=HTMLResponse,
 )

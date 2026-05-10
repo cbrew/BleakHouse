@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Not In Our Time — Min-Cost Flow vs Embeddings{% endblock %}
+{% block content %}
+<h1>Min-Cost Flow vs Embeddings</h1>
+<p class="subtitle">Two ways to read a novel — and why they converge</p>
+<p style="color:var(--text-dim);font-size:0.85em;">Part 3 of the <a href="/blog">Not In Our Time</a> series</p>
+
+<p>The core question: given a novel with thousands of enriched passages and an expert panel with specific analytical interests, which passages should we select for discussion?</p>
+
+<p>We implement two fundamentally different answers and then compare what happens.</p>
+
+<h2>Transport: min-cost network flow</h2>
+
+<p>Each expert declares a <em>demand profile</em> over the seven provision dimensions. Eleanor Hartley (literary critic) wants narrative_technique and character_development. James Blackstone (social historian) wants social_critique. Caroline Woodcourt (close reader) wants character_development and thematic_depth.</p>
+
+<p>Each passage has a <em>supply</em>: the provision dimensions the enrichment schema rated as "strong" or "weak". A strong match costs 1; a weak match costs 3. Every passage also has a connection to a null sink at a cost equal to its interest score — so interesting passages are expensive to discard.</p>
+
+<p>Google's OR-Tools SimpleMinCostFlow solver finds the optimal assignment. Budget: up to 60 passages, 8–25 per expert. Solve time: under 100 milliseconds. LLM tokens: zero.</p>
+
+<p>The result is a <em>synoptic</em> reading: 59 passages from 28 chapters on average. Because the demand is multi-dimensional — each expert needs passages from several different dimensions — the solver draws from across the novel. No single chapter supplies all seven dimensions, so coverage must be broad.</p>
+
+<h2>Embedding: contextual retrieval</h2>
+
+<p>Following Anthropic's <a href="https://www.anthropic.com/news/contextual-retrieval">Contextual Retrieval</a> approach, each passage is embedded with context from its surrounding chapter. Each expert's profile description is also embedded. Candidate passages are retrieved by cosine similarity to each expert's embedding.</p>
+
+<p>A pool of ~100 candidates is then curated by Claude Sonnet, which selects the 32 most discussion-worthy passages. This costs ~15K Sonnet tokens and ~10 seconds.</p>
+
+<p>The result is an <em>analytical</em> reading: 32 passages from 20 chapters. Because retrieval is similarity-driven, passages cluster around each expert's dominant theme. A social historian's profile embeds close to passages about institutional critique; the retrieved candidates are topically concentrated.</p>
+
+<h2>The provision-dimension comparison</h2>
+
+<img src="/static/img/selection_paths.png" alt="Three selection conditions" style="max-width:100%; border-radius:8px; margin:1em 0;">
+
+<table>
+<tr><th>Dimension</th><th>Transport</th><th>Embedding</th><th>&Delta;</th></tr>
+<tr><td>character_development</td><td>83.5%</td><td>75.2%</td><td>+8.3</td></tr>
+<tr><td>plot_advancement</td><td>42.6%</td><td>32.5%</td><td>+10.2</td></tr>
+<tr><td>thematic_depth</td><td>84.0%</td><td>90.9%</td><td>&minus;6.9</td></tr>
+<tr><td>social_critique</td><td>50.6%</td><td>64.0%</td><td>&minus;13.4</td></tr>
+<tr><td>humor_entertainment</td><td>28.7%</td><td>24.4%</td><td>+4.3</td></tr>
+<tr><td>narrative_technique</td><td>90.1%</td><td>92.5%</td><td>&minus;2.4</td></tr>
+</table>
+
+<p>Transport over-selects character and plot (breadth). Embedding over-selects social critique and thematic depth (depth). These are recognisable scholarly strategies — the seminar leader who assigns the whole novel versus the one who curates a dossier.</p>
+
+<h2>Is the difference systematic?</h2>
+
+<p>Yes, but with a caveat. The passage counts (60 budget vs 32 target) are design parameters. You could set them equal. But the <em>qualitative</em> character — multi-dimensional optimisation producing breadth, similarity retrieval producing depth — would persist at any matched budget. Transport distributes across dimensions; embedding concentrates within themes. This is inherent to the algorithms.</p>
+
+<h2>The convergence</h2>
+
+<p>Despite a Jaccard similarity of just 0.057 (fewer than 6% of passages shared), the resulting discussions are nearly identical in character. Expert airtime is stable to &pm;2% across all 15 novels and both methods.</p>
+
+<p>This is the framework dominance finding: the interpretive framework — embodied in the expert personas — determines what gets said, regardless of which passages are selected. The reading strategy matters far less than the reader.</p>
+
+<p>A caveat: framework dominance is realised through a pipeline that privileges expert identity at every stage. Whether it reflects a deep property of interpretive discourse or the pipeline's engineering is an open question.</p>
+
+<h2>When to use which</h2>
+
+<p><strong>Transport</strong> when you want: inspectability (every selection is a cost), manipulability (change demands, see different passages), editorial exploration (dozens of configs in seconds), zero API cost.</p>
+
+<p><strong>Embedding</strong> when you want: semantic relevance without pre-defined dimensions, to test whether similarity-based retrieval produces different discussions (answer: it doesn't, much), or to benchmark against the RAG standard.</p>
+
+<p><strong>Both</strong> when you want: the convergence finding itself — evidence that the framework dominates.</p>
+
+<p style="color:var(--text-dim);font-size:0.85em;margin-top:2em;">Next: <a href="/blog/hostprep">Host Preparation: From Monologue to Dialogue</a></p>
+{% endblock %}
