@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ novel.title }} — {{ panel.display }}{% endblock %}
+{% block content %}
+
+<p class="back-link"><a href="/">&larr; Back to all episodes</a></p>
+
+<header class="episode-header">
+    <h1 class="episode-title"><em>{{ novel.title }}</em></h1>
+    <p class="episode-meta">
+        <span class="meta-author">{{ novel.author }}, {{ novel.year }}</span>
+        <span class="meta-panel">{{ panel.display }}</span>
+    </p>
+</header>
+
+{# Transcript: every turn is rendered server-side. data-segment-idx /
+   data-turn-idx pair (loop.index0 within each list) is the (segment,
+   turn) coordinate that audio/shards.json keys on; Phase C wires
+   click-to-seek by reading those attributes. #}
+<article class="transcript" data-run-id="{{ run_id }}">
+{% for segment in episode.segments %}
+    <section class="transcript-segment" data-segment-idx="{{ loop.index0 }}">
+        {% set seg_idx = loop.index0 %}
+        {% if segment.title %}
+        <h2 class="segment-title">{{ segment.title }}</h2>
+        {% endif %}
+        {% for turn in segment.turns %}
+        <div class="turn turn-{{ turn.role }}"
+             data-segment-idx="{{ seg_idx }}"
+             data-turn-idx="{{ loop.index0 }}">
+            <p class="turn-speaker">{{ turn.speaker }}</p>
+            {% for utt in turn.utterances %}
+            <p class="utterance{% if utt.is_quote %} utterance-quote{% endif %}"
+               {% if utt.passage_ref %}data-passage-ref="{{ utt.passage_ref }}"{% endif %}>
+                {{ utt.text }}
+                {% if utt.passage_ref %}
+                <span class="passage-ref">[{{ utt.passage_ref }}]</span>
+                {% endif %}
+            </p>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </section>
+{% endfor %}
+</article>
+
+{% endblock %}

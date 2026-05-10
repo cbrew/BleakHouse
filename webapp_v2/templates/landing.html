@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Not In Our Time — Literary Discussions{% endblock %}
+{% block content %}
+
+<h1>Not In Our Time</h1>
+<p class="subtitle">Three voices, one novel. Pick an episode and listen.</p>
+
+{% if not episodes %}
+<p>No episodes are available yet.</p>
+{% endif %}
+
+<div class="card-grid">
+{% for ep in episodes %}
+    <article class="card">
+        <h2 class="card-novel">{{ ep.novel_title }}</h2>
+        <p class="card-author">{{ ep.author }}, {{ ep.year }}</p>
+        <p class="card-panel">{{ ep.panel | replace('_', ' ') | title }} panel</p>
+        <a class="card-listen" href="/listen/{{ ep.novel_id }}/{{ ep.panel }}">Listen &rarr;</a>
+    </article>
+{% endfor %}
+</div>
+
+{% endblock %}

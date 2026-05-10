@@ -53,9 +53,37 @@ def _write_run(
     )
     (rd / "phase1_assignments.json").write_text("[]\n")
     (rd / "phase2_plan.json").write_text("{}\n")
-    (rd / "phase3_episode.json").write_text(
-        json.dumps({"segments": [{"turns": []}]}) + "\n"
-    )
+    # Realistic-shaped phase3_episode: one segment, two turns, three
+    # utterances total. Enough to exercise the transcript template's
+    # nested loops and data-segment-idx / data-turn-idx attributes.
+    (rd / "phase3_episode.json").write_text(json.dumps({
+        "title": f"{run_id} title",
+        "segments": [{
+            "title": f"{novel}/{panel} opening",
+            "segment_type": "opening",
+            "turns": [
+                {
+                    "speaker": "Host",
+                    "role": "host",
+                    "utterances": [{
+                        "text": f"Welcome to {novel}.",
+                        "is_quote": False,
+                        "passage_ref": "",
+                    }],
+                },
+                {
+                    "speaker": "Eleanor Hartley",
+                    "role": "novelist_and_craft_teacher",
+                    "utterances": [
+                        {"text": "A craft observation.",
+                         "is_quote": False, "passage_ref": "c1:p3"},
+                        {"text": "And a quoted line.",
+                         "is_quote": True, "passage_ref": "c1:p3"},
+                    ],
+                },
+            ],
+        }],
+    }, indent=2) + "\n")
     if ref_tools:
         (rd / "phase2_5_reading_list.json").write_text("{}\n")
     if has_audio:
