@@ -167,8 +167,8 @@ a:hover { color: var(--accent); }
 }
 
 .episode-header {
-    margin-bottom: 2em;
-    padding-bottom: 1.2em;
+    margin-bottom: 1.2em;
+    padding-bottom: 1em;
     border-bottom: 1px solid var(--surface-alt);
 }
 .episode-title {
@@ -187,6 +187,358 @@ a:hover { color: var(--accent); }
 .meta-panel {
     color: var(--accent);
     font-weight: 600;
+}
+
+/* --- tab nav (sits between episode header and tab content) --- */
+.tab-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin: 0 0 2em;
+    border-bottom: 2px solid var(--surface-alt);
+    overflow-x: auto;
+}
+.tab {
+    padding: 0.7em 1.1em;
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.9em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    white-space: nowrap;
+    transition: color 0.15s, border-bottom-color 0.15s;
+}
+.tab:hover {
+    color: var(--accent);
+}
+.tab-active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+.tab-active:hover {
+    color: var(--accent);
+}
+
+.tab-empty {
+    color: var(--text-dim);
+    font-style: italic;
+    margin: 2em 0;
+}
+
+/* --- Expert Profiles tab --- */
+.profiles-intro,
+.arcs-intro,
+.reading-intro,
+.interviews-intro {
+    color: var(--text-dim);
+    font-size: 1em;
+    line-height: 1.6;
+    margin: 0 0 2em;
+    max-width: 50ch;
+}
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: 1.5em;
+}
+.profile-card {
+    background: var(--surface);
+    border: 1px solid var(--surface-alt);
+    border-radius: 8px;
+    padding: 1.5em 1.6em 1.4em;
+    border-top: 3px solid var(--accent);
+}
+.profile-name {
+    font-size: 1.25em;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 0.2em;
+    font-style: italic;
+}
+.profile-role {
+    color: var(--accent);
+    font-size: 0.78em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 1em;
+}
+.profile-description {
+    color: var(--text);
+    line-height: 1.65;
+    font-size: 0.95em;
+}
+
+/* --- Character Arcs tab --- */
+.arc-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: 1.2em;
+}
+.arc-card {
+    background: var(--surface);
+    border: 1px solid var(--surface-alt);
+    border-left: 3px solid var(--quote-border);
+    border-radius: 0 4px 4px 0;
+    padding: 1em 1.2em;
+}
+.arc-name {
+    font-size: 1.05em;
+    font-weight: 600;
+    margin: 0 0 0.2em;
+    color: var(--text);
+    font-style: italic;
+}
+.arc-character {
+    color: var(--text-dim);
+    font-size: 0.85em;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* --- Reading List tab --- */
+.reading-list {
+    list-style: none;
+    counter-reset: reading;
+    padding: 0;
+    margin: 0;
+}
+.reading-item {
+    counter-increment: reading;
+    padding: 1.5em 0 1.2em 3em;
+    border-bottom: 1px solid var(--surface-alt);
+    position: relative;
+}
+.reading-item:first-child { padding-top: 0; }
+.reading-item:last-child { border-bottom: none; }
+.reading-item::before {
+    content: counter(reading, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 1.6em;
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 1em;
+    font-weight: 600;
+    line-height: 1;
+}
+.reading-item:first-child::before { top: 0.1em; }
+.reading-title {
+    font-size: 1.15em;
+    font-weight: 600;
+    margin: 0 0 0.2em;
+    font-style: italic;
+    color: var(--text);
+}
+.reading-byline {
+    color: var(--text-dim);
+    font-size: 0.9em;
+    margin: 0 0 0.6em;
+}
+.reading-description {
+    color: var(--text);
+    line-height: 1.6;
+    margin: 0 0 0.4em;
+}
+.reading-link {
+    margin: 0;
+    font-size: 0.85em;
+}
+.reading-link a {
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    word-break: break-all;
+}
+
+/* --- Expert Interviews tab --- */
+.interview-segment {
+    margin: 2em 0;
+    padding: 1.4em 1.6em;
+    background: var(--surface);
+    border: 1px solid var(--surface-alt);
+    border-radius: 6px;
+}
+.interview-segment-title {
+    font-size: 1.2em;
+    font-weight: 600;
+    margin: 0 0 1.2em;
+    padding-bottom: 0.6em;
+    border-bottom: 1px solid var(--surface-alt);
+    color: var(--text);
+    font-style: italic;
+}
+.interview-experts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: 1.5em;
+}
+.interview-expert {
+    border-left: 2px solid var(--accent);
+    padding-left: 1em;
+}
+.interview-expert-name {
+    font-size: 1em;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 0 0 0.8em;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.78em;
+}
+.interview-take {
+    background: var(--quote-bg);
+    border-left: 2px solid var(--quote-border);
+    padding: 0.6em 0.9em;
+    margin: 0 0 0.9em;
+    border-radius: 0 3px 3px 0;
+}
+.interview-take-label,
+.interview-section-label {
+    font-size: 0.7em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin: 0 0 0.3em;
+}
+.interview-take-body {
+    margin: 0;
+    font-style: italic;
+    color: var(--text);
+    line-height: 1.5;
+    font-size: 0.92em;
+}
+.interview-section { margin: 0 0 1em; }
+.interview-list,
+.interview-quotes,
+.interview-refs,
+.interview-questions {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.interview-list li,
+.interview-quotes li,
+.interview-refs li,
+.interview-questions li {
+    margin: 0 0 0.6em;
+    padding-left: 1em;
+    position: relative;
+    color: var(--text);
+    font-size: 0.92em;
+    line-height: 1.55;
+}
+.interview-list li::before,
+.interview-refs li::before,
+.interview-questions li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.6em;
+    width: 0.5em;
+    height: 1px;
+    background: var(--quote-border);
+}
+.interview-quotes li::before {
+    content: "“";
+    position: absolute;
+    left: 0;
+    top: -0.1em;
+    color: var(--quote-border);
+    font-size: 1.4em;
+}
+.interview-refs .ref-title {
+    font-style: italic;
+    color: var(--text);
+}
+.interview-refs .ref-authors {
+    color: var(--text-dim);
+    font-size: 0.9em;
+    margin-left: 0.4em;
+}
+.interview-refs .ref-year {
+    color: var(--text-dim);
+    font-size: 0.85em;
+}
+.interview-questions .question-target {
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    font-size: 0.8em;
+    letter-spacing: 0.04em;
+}
+.interview-fallback-note {
+    color: var(--text-dim);
+    font-size: 0.85em;
+    font-style: italic;
+    margin: 0 0 0.8em;
+}
+
+.references-catalogue {
+    margin: 3em 0 1em;
+    padding-top: 2em;
+    border-top: 2px solid var(--surface-alt);
+}
+.references-catalogue-title {
+    font-size: 1.2em;
+    font-weight: 600;
+    margin: 0 0 0.4em;
+}
+.references-intro {
+    color: var(--text-dim);
+    font-size: 0.95em;
+    margin: 0 0 1.5em;
+}
+.references-list {
+    counter-reset: refnum;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+.reference-item {
+    counter-increment: refnum;
+    padding: 1em 0 1em 2.5em;
+    border-bottom: 1px dashed var(--surface-alt);
+    position: relative;
+}
+.reference-item:last-child { border-bottom: none; }
+.reference-item::before {
+    content: counter(refnum);
+    position: absolute;
+    left: 0;
+    top: 1.1em;
+    color: var(--text-dim);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 0.85em;
+}
+.reference-line .ref-title {
+    font-weight: 600;
+    font-style: italic;
+}
+.reference-line .ref-authors,
+.reference-line .ref-year,
+.reference-line .ref-publisher {
+    color: var(--text-dim);
+    font-size: 0.9em;
+    margin-left: 0.4em;
+}
+.reference-description {
+    color: var(--text);
+    font-size: 0.92em;
+    line-height: 1.55;
+    margin: 0.4em 0;
+}
+.reference-link {
+    margin: 0.3em 0 0;
+    font-size: 0.82em;
+}
+.reference-link a {
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    word-break: break-all;
 }
 
 /* --- player bar (sticky, sits between header and transcript) --- */

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Expert Profiles — {{ novel.title }}{% endblock %}
+{% block content %}
+
+{% set active = 'profiles' %}
+{% include "partials/episode_header.html" %}
+
+{% if not experts %}
+<p class="tab-empty">No expert profiles captured for this panel.</p>
+{% else %}
+
+<p class="profiles-intro">{{ experts | length }} experts gather around this novel.
+Each brings a method and a way of reading.</p>
+
+<div class="profile-grid">
+{% for expert in experts %}
+    <article class="profile-card">
+        <h2 class="profile-name">{{ expert.name }}</h2>
+        <p class="profile-role">{{ expert.role | replace('_', ' ') | title }}</p>
+        <div class="profile-description">{{ expert.description }}</div>
+    </article>
+{% endfor %}
+</div>
+
+{% endif %}
+
+{% endblock %}

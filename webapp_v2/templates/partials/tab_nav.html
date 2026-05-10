@@ -1,0 +1,24 @@
+{# Five-tab nav, included by every per-episode page.
+
+   Active tab is passed as `active` ∈
+   {script, interviews, profiles, arcs, reading_list}.
+   `novel_id` (canonical novel id) and `panel_id` (panel id string)
+   come from the host route's context — NOT the Novel/Panel dataclass
+   instances those routes also pass for display. #}
+<nav class="tab-nav" role="tablist" aria-label="Episode sections">
+    <a class="tab{% if active == 'script' %} tab-active{% endif %}"
+       href="/listen/{{ novel_id }}/{{ panel_id }}"
+       {% if active == 'script' %}aria-current="page"{% endif %}>Script</a>
+    <a class="tab{% if active == 'interviews' %} tab-active{% endif %}"
+       href="/listen/{{ novel_id }}/{{ panel_id }}/interviews"
+       {% if active == 'interviews' %}aria-current="page"{% endif %}>Expert Interviews</a>
+    <a class="tab{% if active == 'profiles' %} tab-active{% endif %}"
+       href="/listen/{{ novel_id }}/{{ panel_id }}/profiles"
+       {% if active == 'profiles' %}aria-current="page"{% endif %}>Expert Profiles</a>
+    <a class="tab{% if active == 'arcs' %} tab-active{% endif %}"
+       href="/listen/{{ novel_id }}/{{ panel_id }}/arcs"
+       {% if active == 'arcs' %}aria-current="page"{% endif %}>Character Arcs</a>
+    <a class="tab{% if active == 'reading_list' %} tab-active{% endif %}"
+       href="/listen/{{ novel_id }}/{{ panel_id }}/reading-list"
+       {% if active == 'reading_list' %}aria-current="page"{% endif %}>Reading List</a>
+</nav>

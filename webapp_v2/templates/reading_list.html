@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Reading List — {{ novel.title }}{% endblock %}
+{% block content %}
+
+{% set active = 'reading_list' %}
+{% include "partials/episode_header.html" %}
+
+{% if not recommended %}
+<p class="tab-empty">No curated reading list for this episode yet.</p>
+{% else %}
+
+<p class="reading-intro">If you want to keep going after the conversation,
+start here. Five works picked for the curious listener.</p>
+
+<ol class="reading-list">
+{% for item in recommended %}
+    <li class="reading-item">
+        <p class="reading-title">{{ item.title }}</p>
+        <p class="reading-byline">
+            {% if item.authors %}{{ item.authors | join(', ') }}{% endif %}
+            {% if item.year %} &middot; {{ item.year }}{% endif %}
+            {% if item.publisher %} &middot; {{ item.publisher }}{% endif %}
+        </p>
+        {% if item.description %}
+        <p class="reading-description">{{ item.description }}</p>
+        {% endif %}
+        {% if item.url or item.doi %}
+        <p class="reading-link">
+            {% if item.doi %}<a href="https://doi.org/{{ item.doi }}">doi.org/{{ item.doi }}</a>{% elif item.url %}<a href="{{ item.url }}">{{ item.url }}</a>{% endif %}
+        </p>
+        {% endif %}
+    </li>
+{% endfor %}
+</ol>
+
+{% endif %}
+
+{% endblock %}

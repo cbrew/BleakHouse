@@ -162,3 +162,31 @@ def test_audio_shards_manifest_reachable(live_server: str) -> None:
         data = json.loads(resp.read())
     assert data["shards"]
     assert all(s.get("url", "").startswith("https://") for s in data["shards"])
+
+
+def test_tab_navigation_switches_pages(live_server: str, browser) -> None:
+    """Click each tab in turn; verify the right tab gets aria-current
+    and the URL changes accordingly."""
+    page = browser.new_page()
+    try:
+        page.goto(f"{live_server}/listen/wuthering_heights/literary")
+        # Script tab is the default landing.
+        active = page.locator(".tab[aria-current='page']")
+        assert active.text_content() == "Script"
+
+        for label, suffix in (
+            ("Expert Interviews", "/interviews"),
+            ("Expert Profiles",   "/profiles"),
+            ("Character Arcs",    "/arcs"),
+            ("Reading List",      "/reading-list"),
+            ("Script",            ""),
+        ):
+            page.locator(f'.tab:has-text("{label}")').first.click()
+            page.wait_for_url(
+                f"**/listen/wuthering_heights/literary{suffix}",
+                timeout=5_000,
+            )
+            active = page.locator(".tab[aria-current='page']")
+            assert active.text_content() == label
+    finally:
+        page.close()

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Character Arcs — {{ novel.title }}{% endblock %}
+{% block content %}
+
+{% set active = 'arcs' %}
+{% include "partials/episode_header.html" %}
+
+{% if not arcs %}
+<p class="tab-empty">No character arcs curated for this novel.</p>
+{% else %}
+
+<p class="arcs-intro">The conversation keeps returning to these threads —
+hand-picked arcs the panel was asked to track across the novel.</p>
+
+<div class="arc-list">
+{% for arc in arcs %}
+    <article class="arc-card">
+        <h2 class="arc-name">{{ arc.name }}</h2>
+        <p class="arc-character">{{ arc.character }}</p>
+    </article>
+{% endfor %}
+</div>
+
+{% endif %}
+
+{% endblock %}

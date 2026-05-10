@@ -53,8 +53,60 @@ def landing(request: Request):
     )
 
 
-@app.get("/listen/{novel_id}/{panel}", response_class=HTMLResponse)
-def listen(request: Request, novel_id: str, panel: str):
+def _normalize_references(reading: object) -> tuple[list[dict], dict[str, dict]]:
+    """Reconcile the three reading-list schemas (CLAUDE.md):
+
+    - New: top-level `entries` list, each item has tag/title/authors/...
+    - Legacy: top-level `verified`/`unverified` lists with raw_text +
+      openalex_* fields; no tags.
+    - Hybrid: both shapes coexist.
+
+    Returns (references, refs_by_tag). Legacy verified entries are
+    flattened into the new shape and deduped by (title, year). Tags
+    only exist for new-schema rows; the legacy fall-through is by
+    string-match on the raw citation in the template.
+    """
+    if not isinstance(reading, dict):
+        return [], {}
+    entries = reading.get("entries")
+    if isinstance(entries, list) and entries:
+        out = [r for r in entries if isinstance(r, dict)]
+    else:
+        # Legacy: synthesize entries from verified.
+        verified = reading.get("verified") or []
+        seen: set[tuple[str, object]] = set()
+        out = []
+        for r in verified:
+            if not isinstance(r, dict):
+                continue
+            title = r.get("openalex_title") or r.get("raw_text", "")
+            year = r.get("openalex_year")
+            key = (title, year)
+            if not title or key in seen:
+                continue
+            seen.add(key)
+            out.append({
+                "tag": "",
+                "title": title,
+                "authors": r.get("openalex_authors") or [],
+                "year": year,
+                "publisher": "",
+                "description": (
+                    r.get("raw_text", "")
+                    if r.get("openalex_title") else ""
+                ),
+                "doi": r.get("openalex_doi") or "",
+                "url": "",
+            })
+    refs_by_tag = {
+        r["tag"]: r for r in out
+        if isinstance(r.get("tag"), str) and r["tag"]
+    }
+    return out, refs_by_tag
+
+
+def _resolve_episode(novel_id: str, panel: str):
+    """Resolve (novel_id, panel) → (Episode, Novel, Panel) or raise 404."""
     ep = canonical_run_for(novel_id, panel)
     if ep is None:
         raise HTTPException(
@@ -64,6 +116,12 @@ def listen(request: Request, novel_id: str, panel: str):
     panel_meta = PANEL_BY_ID.get(ep.panel)
     if novel is None or panel_meta is None:
         raise HTTPException(404, "Unknown novel or panel")
+    return ep, novel, panel_meta
+
+
+@app.get("/listen/{novel_id}/{panel}", response_class=HTMLResponse)
+def listen(request: Request, novel_id: str, panel: str):
+    ep, novel, panel_meta = _resolve_episode(novel_id, panel)
     episode = content_db.read_run_artifact(ep.run_id, "phase3_episode")
     if not isinstance(episode, dict):
         raise HTTPException(
@@ -72,8 +130,121 @@ def listen(request: Request, novel_id: str, panel: str):
     return templates.TemplateResponse(request, "listen.html", {
         "novel": novel,
         "panel": panel_meta,
+        "novel_id": novel_id,
+        "panel_id": panel,
         "run_id": ep.run_id,
         "episode": episode,
+    })
+
+
+@app.get(
+    "/listen/{novel_id}/{panel}/interviews", response_class=HTMLResponse,
+)
+def tab_interviews(request: Request, novel_id: str, panel: str):
+    ep, novel, panel_meta = _resolve_episode(novel_id, panel)
+    interviews = content_db.read_run_artifact(ep.run_id, "phase2_5_interviews")
+    briefs = content_db.read_run_artifact(ep.run_id, "phase2_5_host_briefs")
+    reading = content_db.read_run_artifact(ep.run_id, "phase2_5_reading_list")
+    references, refs_by_tag = _normalize_references(reading)
+    # Pull segment titles from phase3_episode so the interviews/briefs
+    # arrays (positional) get human-readable headers. Falls back to
+    # the segment_name on the brief if the episode is missing.
+    episode = content_db.read_run_artifact(ep.run_id, "phase3_episode") or {}
+    segment_titles: list[str] = [
+        s.get("title", "") for s in episode.get("segments", [])
+    ] if isinstance(episode, dict) else []
+
+    interviews_segs = interviews if isinstance(interviews, list) else []
+    briefs_segs = briefs if isinstance(briefs, list) else []
+    n_segs = max(
+        len(interviews_segs),
+        len(briefs_segs),
+        len(segment_titles),
+    )
+    rows = []
+    for i in range(n_segs):
+        title = (
+            segment_titles[i] if i < len(segment_titles)
+            else (briefs_segs[i].get("segment_name")
+                  if i < len(briefs_segs)
+                  and isinstance(briefs_segs[i], dict) else f"Segment {i + 1}")
+        )
+        experts = (
+            interviews_segs[i] if i < len(interviews_segs)
+            and isinstance(interviews_segs[i], list) else []
+        )
+        questions = (
+            briefs_segs[i].get("questions", [])
+            if i < len(briefs_segs) and isinstance(briefs_segs[i], dict)
+            else []
+        )
+        rows.append({
+            "title": title,
+            "experts": experts,
+            "questions": questions,
+        })
+    return templates.TemplateResponse(request, "interviews.html", {
+        "novel": novel,
+        "panel": panel_meta,
+        "novel_id": novel_id,
+        "panel_id": panel,
+        "run_id": ep.run_id,
+        "rows": rows,
+        "references": references,
+        "refs_by_tag": refs_by_tag,
+        "has_interviews": bool(interviews_segs),
+        "has_briefs": bool(briefs_segs),
+    })
+
+
+@app.get(
+    "/listen/{novel_id}/{panel}/profiles", response_class=HTMLResponse,
+)
+def tab_profiles(request: Request, novel_id: str, panel: str):
+    _ep, novel, panel_meta = _resolve_episode(novel_id, panel)
+    panel_payload = content_db.read_panel_artifact(panel)
+    experts = (
+        panel_payload.get("experts", [])
+        if isinstance(panel_payload, dict) else []
+    )
+    return templates.TemplateResponse(request, "profiles.html", {
+        "novel": novel,
+        "panel": panel_meta,
+        "novel_id": novel_id,
+        "panel_id": panel,
+        "experts": experts,
+    })
+
+
+@app.get("/listen/{novel_id}/{panel}/arcs", response_class=HTMLResponse)
+def tab_arcs(request: Request, novel_id: str, panel: str):
+    _ep, novel, panel_meta = _resolve_episode(novel_id, panel)
+    arcs = content_db.read_novel_artifact(novel.id, "arcs")
+    return templates.TemplateResponse(request, "arcs.html", {
+        "novel": novel,
+        "panel": panel_meta,
+        "novel_id": novel_id,
+        "panel_id": panel,
+        "arcs": arcs if isinstance(arcs, list) else [],
+    })
+
+
+@app.get(
+    "/listen/{novel_id}/{panel}/reading-list", response_class=HTMLResponse,
+)
+def tab_reading_list(request: Request, novel_id: str, panel: str):
+    ep, novel, panel_meta = _resolve_episode(novel_id, panel)
+    reading = content_db.read_run_artifact(ep.run_id, "phase2_5_reading_list")
+    recommended = (
+        reading.get("recommended", [])
+        if isinstance(reading, dict) else []
+    )
+    return templates.TemplateResponse(request, "reading_list.html", {
+        "novel": novel,
+        "panel": panel_meta,
+        "novel_id": novel_id,
+        "panel_id": panel,
+        "recommended": recommended,
     })
 
 

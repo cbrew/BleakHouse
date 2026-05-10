@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Expert Interviews — {{ novel.title }}{% endblock %}
+{% block content %}
+
+{% set active = 'interviews' %}
+{% include "partials/episode_header.html" %}
+
+{% if not has_interviews and not has_briefs %}
+<p class="tab-empty">No interview material captured for this episode.</p>
+{% else %}
+
+<div class="interviews-intro">
+    <p>Before recording, each expert prepared their thoughts on every segment.
+    These are their notes — the sharp observations, the angles they planned
+    to push, the references they brought.</p>
+</div>
+
+{% for row in rows %}
+<section class="interview-segment">
+    <h2 class="interview-segment-title">{{ row.title }}</h2>
+
+    {% if row.experts %}
+    <div class="interview-experts">
+        {% for expert in row.experts %}
+        <article class="interview-expert">
+            <h3 class="interview-expert-name">{{ expert.expert_name }}</h3>
+
+            {% if expert.strongest_take %}
+            <div class="interview-take">
+                <p class="interview-take-label">Strongest take</p>
+                <p class="interview-take-body">{{ expert.strongest_take }}</p>
+            </div>
+            {% endif %}
+
+            {% if expert.key_points %}
+            <div class="interview-section">
+                <p class="interview-section-label">Key points</p>
+                <ul class="interview-list">
+                    {% for kp in expert.key_points %}
+                    <li>{{ kp }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if expert.potential_quotes %}
+            <div class="interview-section">
+                <p class="interview-section-label">Quotes brought along</p>
+                <ul class="interview-quotes">
+                    {% for q in expert.potential_quotes %}
+                    <li><em>“{{ q }}”</em></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if expert.proposed_references %}
+            <div class="interview-section">
+                <p class="interview-section-label">References cited</p>
+                <ul class="interview-refs">
+                    {% for r in expert.proposed_references %}
+                        {% set ref = refs_by_tag.get(r) %}
+                        {% if ref %}
+                        <li>
+                            <span class="ref-title">{{ ref.title }}</span>
+                            {% if ref.authors %}
+                            <span class="ref-authors">{{ ref.authors | join(', ') }}</span>
+                            {% endif %}
+                            {% if ref.year %}<span class="ref-year">({{ ref.year }})</span>{% endif %}
+                        </li>
+                        {% else %}
+                        {# Legacy schema or unknown tag: render verbatim. #}
+                        <li><span class="ref-raw">{{ r }}</span></li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+    {% elif row.questions %}
+    {# No interviews captured — show host briefs as fallback. #}
+    <div class="interview-fallback">
+        <p class="interview-fallback-note">No expert interviews captured for this run; showing the host's prepared questions instead.</p>
+        <ul class="interview-questions">
+            {% for q in row.questions %}
+            <li>
+                <span class="question-target">{{ q.target_expert }}:</span>
+                <span class="question-text">{{ q.question }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</section>
+{% endfor %}
+
+{% if references %}
+<section class="references-catalogue">
+    <h2 class="references-catalogue-title">Full reference catalogue</h2>
+    <p class="references-intro">All scholarly references brought into the conversation by the experts ({{ references | length }} works).</p>
+    <ol class="references-list">
+        {% for ref in references %}
+        <li class="reference-item" id="{{ ref.tag }}">
+            <p class="reference-line">
+                <span class="ref-title">{{ ref.title }}</span>
+                {% if ref.authors %}<span class="ref-authors">{{ ref.authors | join(', ') }}</span>{% endif %}
+                {% if ref.year %}<span class="ref-year">({{ ref.year }})</span>{% endif %}
+                {% if ref.publisher %}<span class="ref-publisher">{{ ref.publisher }}</span>{% endif %}
+            </p>
+            {% if ref.description %}
+            <p class="reference-description">{{ ref.description }}</p>
+            {% endif %}
+            {% if ref.url or ref.doi %}
+            <p class="reference-link">
+                {% if ref.doi %}<a href="https://doi.org/{{ ref.doi }}">doi.org/{{ ref.doi }}</a>{% elif ref.url %}<a href="{{ ref.url }}">{{ ref.url }}</a>{% endif %}
+            </p>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ol>
+</section>
+{% endif %}
+
+{% endif %}
+
+{% endblock %}
