@@ -1,0 +1,28 @@
+app = 'bleakhouse-niot'
+primary_region = 'iad'
+
+[build]
+  dockerfile = 'Containerfile_v2'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+# Architecture (bake-at-build):
+# - data/content.db (~360 MB) is built locally by
+#   scripts/build_content_db.py and COPYed into the image.
+# - Audio mp3s stay in Cloudflare R2; webapp_v2 emits R2 public URLs
+#   from /audio/<run>/shards.json via cas.store.url(md5) and the
+#   client fetches bytes directly from R2.
+# - Container has no R2 secrets and no volume.
+#
+# v2 sits alongside v1 (app: bleakhouse-demo). Soak on this app's
+# *.fly.dev domain; when ready, flip the apex DNS.
+
+[[vm]]
+  memory = '1024mb'
+  cpu_kind = 'shared'
+  cpus = 1

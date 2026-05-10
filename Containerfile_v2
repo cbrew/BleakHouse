@@ -1,0 +1,53 @@
+# Containerfile for the v2 consumer webapp.
+#
+# Slimmer than the v1 image: no data/runs/ tarball, no DVC, no
+# Anthropic/OpenAI SDKs. The image bakes data/content.db (built
+# locally via scripts/build_content_db.py) and reads from it
+# read-only at runtime. Audio mp3s stay in Cloudflare R2 — webapp_v2
+# emits R2 public URLs from cas.store.url(md5) and the client fetches
+# bytes directly. The container has no R2 secrets.
+
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Minimal runtime deps. pyyaml is needed only because enrichment/axes.py
+# loads params.yaml at import time for generator metadata (used
+# transitively by the panel artifact build, not by request handlers).
+RUN pip install --no-cache-dir \
+    'fastapi>=0.115' \
+    'uvicorn[standard]>=0.32' \
+    'jinja2>=3.1' \
+    'pydantic>=2.10' \
+    'pyyaml>=6.0'
+
+ENV PYTHONPATH=/app
+# Avoid bytecode churn in the read-only layers.
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Application code.
+COPY webapp_v2/ webapp_v2/
+
+# Minimal enrichment subset webapp_v2 imports at runtime
+# (NOVEL_BY_ID, PANEL_BY_ID via enrichment.axes). axes.py loads
+# params.yaml transitively.
+COPY enrichment/__init__.py enrichment/__init__.py
+COPY enrichment/axes.py enrichment/axes.py
+COPY enrichment/params.py enrichment/params.py
+COPY params.yaml ./
+
+# cas.store.url(md5) — pure-Python URL builder; no boto3 path needed
+# at runtime (push/pull/has_remote import boto3 lazily and v2 never
+# calls them).
+COPY cas/__init__.py cas/__init__.py
+COPY cas/store.py cas/store.py
+COPY cas/paths.py cas/paths.py
+
+# content.db is the entire data source. Built locally by
+# scripts/build_content_db.py and copied in at image build time.
+# ~360 MB; checksum-stable rebuilds are fine because the bake is
+# explicit (scripts/deploy_v2.sh runs build then deploy).
+COPY data/content.db /app/data/content.db
+
+EXPOSE 8080
+CMD ["uvicorn", "webapp_v2.app:app", "--host", "0.0.0.0", "--port", "8080"]
