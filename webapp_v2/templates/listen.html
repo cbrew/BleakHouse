@@ -45,9 +45,17 @@
                {% if utt.passage_ref %}data-passage-ref="{{ utt.passage_ref }}"{% endif %}>
                 {{ utt.text }}
                 {% if utt.passage_ref %}
-                <span class="passage-ref">[{{ utt.passage_ref }}]</span>
+                {# Reveal trigger. htmx fetches the partial; the toggle
+                   helper in player.js prevents the fetch and clears
+                   the slot when it's already populated. #}
+                <button type="button"
+                        class="passage-ref"
+                        hx-get="/reveal/{{ run_id }}/{{ utt.passage_ref }}"
+                        hx-target="next .reveal-slot"
+                        hx-swap="innerHTML">[{{ utt.passage_ref }}]</button>
                 {% endif %}
             </p>
+            {% if utt.passage_ref %}<div class="reveal-slot"></div>{% endif %}
             {% endfor %}
         </div>
         {% endfor %}

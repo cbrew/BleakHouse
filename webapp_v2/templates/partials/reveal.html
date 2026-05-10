@@ -1,0 +1,38 @@
+{# Passage reveal fragment.
+
+   Returned by GET /reveal/<run_id>/<passage_ref> as an htmx swap into
+   the .reveal-slot adjacent to the clicked passage-ref button. No
+   <html>/<body> wrapping — fragment-only.
+
+   Source data: passages_contextual.json (preferred — has the LLM
+   context-prefix string) or passages_enriched.json (fallback for
+   novels lacking contextual). Both files have identical shape;
+   `enrichment` is the pre-computed literary metadata.
+#}
+<div class="reveal" data-passage-ref="{{ passage.passage_id }}">
+    <blockquote class="reveal-passage">{{ passage.text }}</blockquote>
+    {% if passage.context %}
+    <p class="reveal-context"><strong>Context:</strong> {{ passage.context }}</p>
+    {% endif %}
+    <dl class="reveal-meta">
+        {% if passage.chapter_title %}
+        <dt>Chapter</dt><dd>{{ passage.chapter_title }}</dd>
+        {% endif %}
+        {% if enrichment.characters_present %}
+        <dt>Characters</dt>
+        <dd>{{ enrichment.characters_present | join(', ') }}</dd>
+        {% endif %}
+        {% if enrichment.themes %}
+        <dt>Themes</dt><dd>{{ enrichment.themes | join(', ') }}</dd>
+        {% endif %}
+        {% if enrichment.emotional_register %}
+        <dt>Register</dt><dd>{{ enrichment.emotional_register }}</dd>
+        {% endif %}
+        {% if enrichment.plot_function %}
+        <dt>Plot function</dt><dd>{{ enrichment.plot_function }}</dd>
+        {% endif %}
+        {% if enrichment.narrator %}
+        <dt>Narrator</dt><dd>{{ enrichment.narrator }}</dd>
+        {% endif %}
+    </dl>
+</div>

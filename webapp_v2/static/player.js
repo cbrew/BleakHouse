@@ -169,3 +169,26 @@
         localStorage.setItem(SPEED_KEY, String(speedIdx));
     }
 })();
+
+// ── Passage reveal toggle (Phase D) ──
+//
+// Each passage-ref button has hx-get pointing at /reveal/<run>/<ref>
+// and hx-target="next .reveal-slot". On first click, htmx fetches the
+// fragment and fills the slot. On second click, this listener
+// preempts htmx's request and clears the slot — turning the
+// fetch-once button into a toggle.
+//
+// Uses htmx:beforeRequest so we cancel cleanly via evt.preventDefault
+// without racing htmx's own click handler.
+document.addEventListener("htmx:beforeRequest", (evt) => {
+    const btn = evt.detail.elt;
+    if (!btn || !btn.matches || !btn.matches("button.passage-ref")) return;
+    const utt = btn.closest(".utterance");
+    const slot = utt && utt.nextElementSibling;
+    if (!slot || !slot.classList.contains("reveal-slot")) return;
+    if (slot.children.length > 0) {
+        evt.preventDefault();
+        slot.innerHTML = "";
+    }
+});
+

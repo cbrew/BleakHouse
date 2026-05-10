@@ -75,3 +75,37 @@ def listen(request: Request, novel_id: str, panel: str):
         "run_id": ep.run_id,
         "episode": episode,
     })
+
+
+@app.get("/reveal/{run_id}/{passage_ref}", response_class=HTMLResponse)
+def reveal(request: Request, run_id: str, passage_ref: str):
+    """Render the passage-reveal fragment for an htmx swap.
+
+    Reads passages_contextual when available (it carries the
+    LLM-generated context strings); falls back to passages_enriched
+    (BH and Room With a View only have that — context is null).
+    """
+    run = content_db.get_run_index(run_id)
+    if run is None:
+        raise HTTPException(404, f"Unknown run {run_id!r}")
+    passages = content_db.read_novel_artifact(run.novel, "passages_contextual")
+    if passages is None:
+        passages = content_db.read_novel_artifact(run.novel, "passages_enriched")
+    if not isinstance(passages, list):
+        raise HTTPException(404, f"No passages for novel {run.novel!r}")
+    passage = next(
+        (p for p in passages
+         if isinstance(p, dict) and p.get("passage_id") == passage_ref),
+        None,
+    )
+    if passage is None:
+        raise HTTPException(
+            404, f"Passage {passage_ref!r} not found in {run.novel}",
+        )
+    enrichment = passage.get("enrichment") or {}
+    if not isinstance(enrichment, dict):
+        enrichment = {}
+    return templates.TemplateResponse(request, "partials/reveal.html", {
+        "passage": passage,
+        "enrichment": enrichment,
+    })
