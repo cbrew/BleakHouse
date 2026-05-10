@@ -30,7 +30,10 @@ def fake_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
     rd = runs / "synth_run_a"
     rd.mkdir()
-    (rd / "config.json").write_text('{"axes": {"novel": "synth"}}\n')
+    (rd / "config.json").write_text(
+        '{"axes": {"novel": "synth", "pipeline": "transport", '
+        '"panel": "literary"}}\n'
+    )
     (rd / "phase0_segments.json").write_text(
         json.dumps([{"name": "Opening", "segment_type": "opening"}], indent=2) + "\n"
     )
@@ -68,7 +71,9 @@ def test_build_then_verify_round_trips(fake_tree: Path, tmp_path: Path) -> None:
     result = bcd.verify(db)
     assert result["mismatches"] == [], result["mismatches"]
     assert result["missing_on_disk"] == []
-    assert result["checked"] == out["run_artifacts"] + out["novel_artifacts"]
+    assert result["checked"] == (
+        out["run_artifacts"] + out["novel_artifacts"] + out["panel_artifacts"]
+    )
 
 
 def test_verify_detects_drift(fake_tree: Path, tmp_path: Path) -> None:
@@ -94,3 +99,54 @@ def test_build_is_idempotent(fake_tree: Path, tmp_path: Path) -> None:
         n_novel = conn.execute("SELECT COUNT(*) FROM novel_artifact").fetchone()[0]
     assert n_run == 6
     assert n_novel == 4
+
+
+def test_panel_artifacts_round_trip(fake_tree: Path, tmp_path: Path) -> None:
+    """Panel rows come from Python source; verify must regenerate
+    byte-identical and pass."""
+    db = tmp_path / "content.db"
+    out = bcd.build(db)
+    assert out["panel_artifacts"] >= 3  # literary / alternatives / interdisciplinary
+
+    with sqlite3.connect(db) as conn:
+        ids = {r[0] for r in conn.execute("SELECT panel_id FROM panel_artifact")}
+    assert ids == {"literary", "alternatives", "interdisciplinary"}
+
+    # Round-trip should be clean (panels regenerate from Python).
+    result = bcd.verify(db)
+    assert result["mismatches"] == [], result["mismatches"]
+
+
+def test_run_index_built_from_run_artifacts(fake_tree: Path, tmp_path: Path) -> None:
+    """run_index is derived: one row per run_artifact config row, with
+    has_audio reflecting shards_index presence."""
+    db = tmp_path / "content.db"
+    out = bcd.build(db)
+    assert out["run_index_rows"] == 1  # the one synthetic run
+
+    with sqlite3.connect(db) as conn:
+        row = conn.execute(
+            "SELECT run_id, novel, has_audio FROM run_index"
+        ).fetchone()
+    assert row[0] == "synth_run_a"
+    assert row[1] == "synth"
+    # The fixture has no shards.json, so has_audio must be 0.
+    assert row[2] == 0
+
+
+def test_run_index_rebuild_clears_stale_rows(
+    fake_tree: Path, tmp_path: Path,
+) -> None:
+    """run_index is rebuilt from current run_artifact rows on every
+    build — not append-only. Confirm by directly clearing run_artifact
+    and calling the rebuilder; new rows must reflect the cleared state."""
+    db = tmp_path / "content.db"
+    bcd.build(db)
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM run_index").fetchone()[0] == 1
+        conn.execute("DELETE FROM run_artifact WHERE run_id='synth_run_a'")
+        # Rebuild only the index — bypasses build()'s re-import-from-disk
+        # which would re-upsert the run_artifact row from the fixture tree.
+        bcd._rebuild_run_index(conn, 0.0)
+        conn.commit()
+        assert conn.execute("SELECT COUNT(*) FROM run_index").fetchone()[0] == 0

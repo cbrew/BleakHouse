@@ -70,6 +70,50 @@ NOVEL_KINDS: dict[str, str] = {
 ARCS_KIND = "arcs"
 
 
+def _python_panels() -> dict[str, dict]:
+    """Pull every panel's persona metadata out of Python source.
+
+    Source: enrichment.axes.PANELS_TUPLE (panel id + display + expert
+    names) joined with podcast_types.{DEFAULT_PERSONAS, ALTERNATIVE_PERSONAS}
+    keyed by name. Skips voice_policy / speaking_style — those are TTS
+    internals, not consumer-facing data. v2 will read this table directly
+    instead of importing the Python dicts.
+    """
+    from enrichment.axes import PANELS_TUPLE  # type: ignore[import]
+    from enrichment.podcast_types import (  # type: ignore[import]
+        ALTERNATIVE_PERSONAS,
+        DEFAULT_PERSONAS,
+    )
+
+    by_name = {p.name: p for p in DEFAULT_PERSONAS}
+    by_name.update({p.name: p for p in ALTERNATIVE_PERSONAS.values()})
+
+    out: dict[str, dict] = {}
+    for panel in PANELS_TUPLE:
+        experts = []
+        for ename in panel.experts:
+            persona = by_name.get(ename)
+            if persona is None:
+                # A panel referencing a name with no persona is a config
+                # bug worth surfacing loudly rather than silently skipping.
+                raise KeyError(
+                    f"Panel {panel.id!r} references expert {ename!r} "
+                    f"with no matching ExpertPersona"
+                )
+            experts.append({
+                "name": persona.name,
+                "role": persona.role,
+                "description": persona.description,
+                "script_description": persona.script_description,
+            })
+        out[panel.id] = {
+            "id": panel.id,
+            "display": panel.display,
+            "experts": experts,
+        }
+    return out
+
+
 def _python_arcs() -> dict[str, list[dict]]:
     """Pull every novel's arcs out of Python source into JSON-shaped dicts.
 
@@ -102,7 +146,7 @@ def _python_arcs() -> dict[str, list[dict]]:
 
 SCHEMA_SQL = """
 PRAGMA journal_mode = WAL;
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;
 
 CREATE TABLE IF NOT EXISTS run_artifact (
     run_id      TEXT NOT NULL,
@@ -123,6 +167,40 @@ CREATE TABLE IF NOT EXISTS novel_artifact (
     imported_at REAL NOT NULL,
     PRIMARY KEY (novel, kind)
 ) STRICT, WITHOUT ROWID;
+
+-- Per-panel persona metadata (name, role, descriptions).
+-- Source-of-truth target: replaces the Python ALTERNATIVE_PERSONAS /
+-- DEFAULT_PERSONAS dicts. Built from Python at content.db build time;
+-- readers will migrate to this table separately.
+CREATE TABLE IF NOT EXISTS panel_artifact (
+    panel_id    TEXT NOT NULL PRIMARY KEY,
+    payload     TEXT NOT NULL,
+    md5         TEXT NOT NULL,
+    bytes       INTEGER NOT NULL,
+    imported_at REAL NOT NULL
+) STRICT, WITHOUT ROWID;
+
+-- Derived index: one row per run, axis values pulled from config.json
+-- (canonicalised) and audio presence joined from shards_index /
+-- audio_assets. Rebuilt on every build_content_db.py run; no precious
+-- data, just a query convenience.
+CREATE TABLE IF NOT EXISTS run_index (
+    run_id      TEXT NOT NULL PRIMARY KEY,
+    novel       TEXT NOT NULL,
+    panel       TEXT NOT NULL,
+    pipeline    TEXT NOT NULL,
+    length      TEXT NOT NULL,
+    hostprep    INTEGER NOT NULL,
+    ref_tools   INTEGER NOT NULL,
+    generator   TEXT NOT NULL,
+    has_audio   INTEGER NOT NULL,
+    rebuilt_at  REAL NOT NULL
+) STRICT, WITHOUT ROWID;
+
+CREATE INDEX IF NOT EXISTS idx_run_index_novel_panel
+    ON run_index(novel, panel);
+CREATE INDEX IF NOT EXISTS idx_run_index_has_audio
+    ON run_index(has_audio);
 """
 
 
@@ -140,6 +218,100 @@ def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
 
 
+def _extract_axes(config_payload: str) -> dict | None:
+    """Pull axis values from a config.json payload, canonicalising on the way.
+
+    Two on-disk shapes coexist: nested ('axes' block) and flat (axes at
+    root, retrofit runs only). Returns None when the required fields are
+    missing — caller decides whether to skip or default.
+    """
+    import json as _json
+    from enrichment.axes import canonicalize_value, panel_for_experts  # type: ignore
+
+    try:
+        cfg = _json.loads(config_payload)
+    except _json.JSONDecodeError:
+        return None
+    if not isinstance(cfg, dict):
+        return None
+
+    nested = cfg.get("axes")
+    block: dict = nested if isinstance(nested, dict) else cfg
+    novel = block.get("novel")
+    pipeline = block.get("pipeline")
+    if not novel or not pipeline:
+        return None
+
+    panel = block.get("panel")
+    if not panel:
+        # Retrofit runs sometimes lack a panel field — infer from experts.
+        experts = cfg.get("experts") or block.get("experts") or []
+        names: list[str] = [
+            e["name"] for e in experts
+            if isinstance(e, dict) and isinstance(e.get("name"), str)
+        ]
+        panel = panel_for_experts(names) or "unknown"
+
+    def canon(name: str, raw: object, default: str) -> str:
+        try:
+            return canonicalize_value(name, raw)
+        except (ValueError, KeyError):
+            return default
+
+    return {
+        "novel":     canon("novel", novel, str(novel)),
+        "pipeline":  canon("pipeline", pipeline, str(pipeline)),
+        "panel":     str(panel),
+        "length":    str(block.get("length") or "long"),
+        "hostprep":  bool(block.get("hostprep", False)),
+        "generator": str(block.get("generator") or "unknown"),
+    }
+
+
+def _rebuild_run_index(conn: sqlite3.Connection, now: float) -> int:
+    """Wipe and rebuild run_index from current run_artifact rows.
+
+    has_audio = shards_index row present. ref_tools = phase2_5_reading_list
+    row present (matches the legacy expdb scan rule). Skips rows whose
+    config payload doesn't yield novel + pipeline.
+    """
+    conn.execute("DELETE FROM run_index")
+
+    # Pre-compute kind-presence sets for cheap joins.
+    has_shards: set[str] = {
+        r[0] for r in conn.execute(
+            "SELECT run_id FROM run_artifact WHERE kind='shards_index'"
+        )
+    }
+    has_reading_list: set[str] = {
+        r[0] for r in conn.execute(
+            "SELECT run_id FROM run_artifact "
+            "WHERE kind='phase2_5_reading_list'"
+        )
+    }
+
+    n = 0
+    for row in conn.execute(
+        "SELECT run_id, payload FROM run_artifact WHERE kind='config'"
+    ):
+        run_id, payload = row[0], row[1]
+        axes = _extract_axes(payload)
+        if axes is None:
+            continue
+        conn.execute(
+            "INSERT INTO run_index"
+            "(run_id, novel, panel, pipeline, length, hostprep,"
+            " ref_tools, generator, has_audio, rebuilt_at)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?)",
+            (run_id, axes["novel"], axes["panel"], axes["pipeline"],
+             axes["length"], int(axes["hostprep"]),
+             int(run_id in has_reading_list), axes["generator"],
+             int(run_id in has_shards), now),
+        )
+        n += 1
+    return n
+
+
 def build(db_path: Path) -> dict:
     """Import every precious artifact into content.db.
 
@@ -151,6 +323,7 @@ def build(db_path: Path) -> dict:
 
     n_run = 0
     n_novel = 0
+    n_panel = 0
     skipped: list[str] = []
     now = time.time()
 
@@ -225,6 +398,28 @@ def build(db_path: Path) -> dict:
             )
             n_novel += 1
 
+        # Per-panel persona metadata, Python-sourced. Same byte-stability
+        # property as arcs.
+        for panel_id, panel_payload in _python_panels().items():
+            text = json.dumps(panel_payload, indent=2, ensure_ascii=False) + "\n"
+            conn.execute(
+                "INSERT INTO panel_artifact"
+                "(panel_id, payload, md5, bytes, imported_at)"
+                " VALUES(?,?,?,?,?)"
+                " ON CONFLICT(panel_id) DO UPDATE SET"
+                "   payload=excluded.payload,"
+                "   md5=excluded.md5,"
+                "   bytes=excluded.bytes,"
+                "   imported_at=excluded.imported_at",
+                (panel_id, text, _md5(text),
+                 len(text.encode("utf-8")), now),
+            )
+            n_panel += 1
+
+        # Derived index. Built last so all the run_artifact rows we need
+        # to join on are in place.
+        n_index = _rebuild_run_index(conn, now)
+
         conn.execute("COMMIT")
     except Exception:
         conn.execute("ROLLBACK")
@@ -232,7 +427,13 @@ def build(db_path: Path) -> dict:
     finally:
         conn.close()
 
-    return {"run_artifacts": n_run, "novel_artifacts": n_novel, "skipped": skipped}
+    return {
+        "run_artifacts": n_run,
+        "novel_artifacts": n_novel,
+        "panel_artifacts": n_panel,
+        "run_index_rows": n_index,
+        "skipped": skipped,
+    }
 
 
 def verify(db_path: Path) -> dict:
@@ -261,7 +462,7 @@ def verify(db_path: Path) -> dict:
             mismatches.append(f"{row['run_id']}/{row['kind']}: stored md5 wrong")
         n_checked += 1
 
-    # Cache the regenerated arcs payload — Python source, not disk.
+    # Cache the regenerated arcs / panel payloads — Python source, not disk.
     import json
     arcs_expected = {
         novel: json.dumps(arcs, indent=2, ensure_ascii=False) + "\n"
@@ -295,6 +496,28 @@ def verify(db_path: Path) -> dict:
         elif _md5(row["payload"]) != row["md5"]:
             mismatches.append(f"{row['novel']}/{row['kind']}: stored md5 wrong")
         n_checked += 1
+
+    # Panel artifacts: regenerate from Python source, compare byte-for-byte.
+    panels_expected = {
+        pid: json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+        for pid, payload in _python_panels().items()
+    }
+    for row in conn.execute("SELECT panel_id, payload, md5 FROM panel_artifact"):
+        expected = panels_expected.get(row["panel_id"])
+        if expected is None:
+            mismatches.append(f"panel/{row['panel_id']}: in DB but not in Python source")
+            continue
+        if expected != row["payload"]:
+            mismatches.append(f"panel/{row['panel_id']}: payload differs from Python source")
+        elif _md5(row["payload"]) != row["md5"]:
+            mismatches.append(f"panel/{row['panel_id']}: stored md5 wrong")
+        n_checked += 1
+    # Catch panels declared in Python that didn't make it into the DB.
+    for pid in panels_expected:
+        if not conn.execute(
+            "SELECT 1 FROM panel_artifact WHERE panel_id=?", (pid,)
+        ).fetchone():
+            mismatches.append(f"panel/{pid}: in Python source but not in DB")
 
     conn.close()
     return {
@@ -333,6 +556,8 @@ def main() -> int:
     out = build(args.db)
     print(f"run_artifacts:   {out['run_artifacts']}")
     print(f"novel_artifacts: {out['novel_artifacts']}")
+    print(f"panel_artifacts: {out['panel_artifacts']}")
+    print(f"run_index_rows:  {out['run_index_rows']}")
     if out["skipped"]:
         print(f"skipped ({len(out['skipped'])}):")
         for s in out["skipped"][:20]:
