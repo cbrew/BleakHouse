@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 
 from enrichment.axes import NOVEL_BY_ID, PANEL_BY_ID  # type: ignore[import]
 from webapp_v2 import content as content_db
+from webapp_v2.audio import router as audio_router
 from webapp_v2.selection import canonical_run_for, list_canonical_episodes
 
 WEBAPP_DIR = Path(__file__).resolve().parent
@@ -24,6 +25,7 @@ STATIC_DIR = WEBAPP_DIR / "static"
 app = FastAPI(title="Not In Our Time (v2)")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.include_router(audio_router)
 
 
 @app.get("/", response_class=HTMLResponse)

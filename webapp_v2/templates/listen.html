@@ -12,10 +12,22 @@
     </p>
 </header>
 
+{# Custom audio controls. Audio bytes come from R2 via the urls
+   embedded in /audio/<run_id>/shards.json. #}
+<div class="player-bar" role="region" aria-label="Audio player">
+    <button id="player-play" class="player-btn" type="button" aria-label="Play or pause">Play</button>
+    <button id="player-speed" class="player-btn player-btn-secondary" type="button" aria-label="Playback speed">1×</button>
+    <div class="player-progress-track" aria-hidden="true">
+        <div class="player-progress-fill" id="player-progress"></div>
+    </div>
+    <span id="player-counter" class="player-counter">Loading…</span>
+</div>
+<audio id="player-audio" preload="metadata"></audio>
+
 {# Transcript: every turn is rendered server-side. data-segment-idx /
    data-turn-idx pair (loop.index0 within each list) is the (segment,
-   turn) coordinate that audio/shards.json keys on; Phase C wires
-   click-to-seek by reading those attributes. #}
+   turn) coordinate that audio/shards.json keys on; the player JS
+   wires click-to-seek by reading those attributes. #}
 <article class="transcript" data-run-id="{{ run_id }}">
 {% for segment in episode.segments %}
     <section class="transcript-segment" data-segment-idx="{{ loop.index0 }}">
@@ -42,5 +54,7 @@
     </section>
 {% endfor %}
 </article>
+
+<script src="/static/player.js"></script>
 
 {% endblock %}

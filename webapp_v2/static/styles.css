@@ -189,6 +189,70 @@ a:hover { color: var(--accent); }
     font-weight: 600;
 }
 
+/* --- player bar (sticky, sits between header and transcript) --- */
+.player-bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--surface);
+    border: 1px solid var(--surface-alt);
+    border-radius: 8px;
+    padding: 0.7em 1em;
+    margin: 0 0 1.5em;
+    display: flex;
+    align-items: center;
+    gap: 0.8em;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+.player-btn {
+    appearance: none;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-size: 0.9em;
+    font-weight: 600;
+    padding: 0.4em 1em;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    min-width: 4em;
+}
+.player-btn:hover {
+    background: #8a1818;
+    border-color: #8a1818;
+}
+.player-btn-secondary {
+    background: var(--surface);
+    color: var(--accent);
+    min-width: 3.5em;
+}
+.player-btn-secondary:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+}
+.player-progress-track {
+    flex: 1;
+    height: 6px;
+    background: var(--surface-alt);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 4em;
+}
+.player-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.1s linear;
+}
+.player-counter {
+    font-size: 0.85em;
+    color: var(--text-dim);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
 /* --- transcript --- */
 .transcript-segment {
     margin: 2.5em 0;
@@ -206,6 +270,7 @@ a:hover { color: var(--accent); }
     padding: 0.6em 1em 0.8em;
     border-left: 3px solid var(--surface-alt);
     border-radius: 0 4px 4px 0;
+    cursor: pointer;
     transition: border-color 0.15s, background 0.15s;
 }
 .turn:hover {
@@ -214,6 +279,11 @@ a:hover { color: var(--accent); }
 }
 .turn-host {
     border-left-color: var(--accent);
+}
+.turn-current {
+    background: var(--accent-soft);
+    border-left-color: var(--accent);
+    border-left-width: 5px;
 }
 .turn-speaker {
     color: var(--accent);
