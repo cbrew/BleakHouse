@@ -144,6 +144,10 @@
 
     function wireTurnClicks() {
         transcript.addEventListener("click", (e) => {
+            // Don't seek when the user is operating a control inside
+            // the turn (passage handle, future controls). The handle's
+            // own click handler is htmx; we just want seek to ignore it.
+            if (e.target.closest(".passage-handle, .reveal")) return;
             const turnEl = e.target.closest(".turn[data-segment-idx][data-turn-idx]");
             if (!turnEl) return;
             const segIdx  = parseInt(turnEl.dataset.segmentIdx, 10);
@@ -170,25 +174,43 @@
     }
 })();
 
-// ── Passage reveal toggle (Phase D) ──
+// ── Passage reveal: per-turn handle, single-open semantics ──
 //
-// Each passage-ref button has hx-get pointing at /reveal/<run>/<ref>
-// and hx-target="next .reveal-slot". On first click, htmx fetches the
-// fragment and fills the slot. On second click, this listener
-// preempts htmx's request and clears the slot — turning the
-// fetch-once button into a toggle.
+// One .passage-handle per turn (next to the speaker name) with
+// hx-get pointing at /reveal/<run>/<seg>/<turn>. htmx swaps the
+// fragment into the turn's .reveal-slot. This handler:
 //
-// Uses htmx:beforeRequest so we cancel cleanly via evt.preventDefault
-// without racing htmx's own click handler.
+//   - On second click of the SAME handle: cancels the fetch and
+//     clears that slot. (Toggle close.)
+//   - On click of a DIFFERENT handle: clears every other open slot
+//     before letting htmx populate this one. (Single-open.)
+//   - Visual state: the active handle gets .passage-handle-open.
+//
+// Runs at htmx:beforeRequest so the cancel happens cleanly without
+// racing htmx's own click handler.
 document.addEventListener("htmx:beforeRequest", (evt) => {
     const btn = evt.detail.elt;
-    if (!btn || !btn.matches || !btn.matches("button.passage-ref")) return;
-    const utt = btn.closest(".utterance");
-    const slot = utt && utt.nextElementSibling;
-    if (!slot || !slot.classList.contains("reveal-slot")) return;
+    if (!btn || !btn.matches || !btn.matches(".passage-handle")) return;
+    const turn = btn.closest(".turn");
+    const slot = turn && turn.querySelector(":scope > .reveal-slot");
+    if (!slot) return;
+
     if (slot.children.length > 0) {
+        // Toggle close — preempt the fetch.
         evt.preventDefault();
         slot.innerHTML = "";
+        btn.classList.remove("passage-handle-open");
+        return;
     }
+
+    // Single-open: clear every other slot + handle state before
+    // letting this fetch proceed.
+    document.querySelectorAll(".reveal-slot").forEach((s) => {
+        if (s !== slot) s.innerHTML = "";
+    });
+    document.querySelectorAll(".passage-handle-open").forEach((h) => {
+        h.classList.remove("passage-handle-open");
+    });
+    btn.classList.add("passage-handle-open");
 });
 

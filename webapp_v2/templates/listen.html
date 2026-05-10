@@ -36,27 +36,39 @@
         <h2 class="segment-title">{{ segment.title }}</h2>
         {% endif %}
         {% for turn in segment.turns %}
+        {% set turn_idx = loop.index0 %}
+        {# Deduped passage refs for this turn (in occurrence order).
+           One handle per turn — never per utterance. #}
+        {% set refs = turn.utterances | selectattr('passage_ref') | map(attribute='passage_ref') | list | unique | list %}
         <div class="turn turn-{{ turn.role }}"
              data-segment-idx="{{ seg_idx }}"
-             data-turn-idx="{{ loop.index0 }}">
-            <p class="turn-speaker">{{ turn.speaker }}</p>
-            {% for utt in turn.utterances %}
-            <p class="utterance{% if utt.is_quote %} utterance-quote{% endif %}"
-               {% if utt.passage_ref %}data-passage-ref="{{ utt.passage_ref }}"{% endif %}>
-                {{ utt.text }}
-                {% if utt.passage_ref %}
-                {# Reveal trigger. htmx fetches the partial; the toggle
-                   helper in player.js prevents the fetch and clears
-                   the slot when it's already populated. #}
+             data-turn-idx="{{ turn_idx }}">
+            <div class="turn-head">
+                <span class="turn-speaker">{{ turn.speaker }}</span>
+                {% if refs %}
+                {# Single reveal handle. htmx fetches the multi-passage
+                   fragment for this turn into the slot below; the
+                   toggle helper in player.js enforces single-open-at-
+                   a-time. Slot id is unique per turn so hx-target
+                   resolves cleanly without selector gymnastics. #}
+                {% set slot_id = 'reveal-slot-%d-%d' % (seg_idx, turn_idx) %}
                 <button type="button"
-                        class="passage-ref"
-                        hx-get="/reveal/{{ run_id }}/{{ utt.passage_ref }}"
-                        hx-target="next .reveal-slot"
-                        hx-swap="innerHTML">[{{ utt.passage_ref }}]</button>
+                        class="passage-handle"
+                        hx-get="/reveal/{{ run_id }}/{{ seg_idx }}/{{ turn_idx }}"
+                        hx-target="#{{ slot_id }}"
+                        hx-swap="innerHTML"
+                        aria-label="Show source {{ 'passage' if refs|length == 1 else 'passages' }}">
+                    <span class="passage-handle-glyph" aria-hidden="true">⚓</span>
+                    <span class="passage-handle-label">{{ refs|length }} {{ 'passage' if refs|length == 1 else 'passages' }}</span>
+                </button>
                 {% endif %}
-            </p>
-            {% if utt.passage_ref %}<div class="reveal-slot"></div>{% endif %}
+            </div>
+            <div class="turn-body">
+            {% for utt in turn.utterances %}
+                <span class="utterance{% if utt.is_quote %} utterance-quote{% endif %}">{{ utt.text }}</span>{% if not loop.last %} {% endif %}
             {% endfor %}
+            </div>
+            {% if refs %}<div class="reveal-slot" id="reveal-slot-{{ seg_idx }}-{{ turn_idx }}"></div>{% endif %}
         </div>
         {% endfor %}
     </section>

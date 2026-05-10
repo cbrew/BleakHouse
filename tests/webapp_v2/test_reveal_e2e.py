@@ -1,17 +1,18 @@
-"""End-to-end Playwright test for passage reveals.
+"""End-to-end Playwright test for turn-level passage reveals.
 
 Spins up real uvicorn against the real content.db, drives Chromium
 through the WH literary listen page, and verifies:
-  1. clicking a passage-ref button populates the adjacent .reveal-slot
-     via htmx,
-  2. clicking the same button again clears the slot (toggle helper),
-  3. the audio shards manifest is reachable.
 
-Browser-only behaviours (htmx swaps, the click-toggle JS in player.js)
-can't be exercised by TestClient; this protects them.
+  1. clicking a passage handle populates the turn's reveal slot via
+     htmx, and the handle gains .passage-handle-open;
+  2. clicking the same handle again clears the slot (toggle close);
+  3. clicking a *different* turn's handle while one is open closes
+     the first and opens the second (single-open semantics);
+  4. the audio shards manifest is reachable.
 
-Marked slow; ~3-5s per run including browser launch. Skipped if
-playwright browsers aren't installed.
+Browser-only behaviours (htmx swaps, the click-toggle JS) can't be
+exercised by TestClient; this protects them. ~3-5s including browser
+launch. Skipped if playwright browsers aren't installed.
 """
 from __future__ import annotations
 
@@ -42,11 +43,7 @@ def _free_port() -> int:
 
 @pytest.fixture(scope="module")
 def live_server() -> Iterator[str]:
-    """uvicorn against the real content.db, on a random port, on a
-    background thread. Module-scoped so the browser is launched once
-    per file."""
     from webapp_v2.app import app
-
     port = _free_port()
     config = uvicorn.Config(
         app, host="127.0.0.1", port=port,
@@ -80,49 +77,83 @@ def browser():
         br.close()
 
 
-def test_reveal_opens_and_closes_on_click(live_server: str, browser) -> None:
-    """Click a passage-ref button → htmx fills the adjacent slot.
-    Click it again → toggle helper clears it."""
+def test_handle_opens_and_closes_on_repeat_click(
+    live_server: str, browser,
+) -> None:
     page = browser.new_page()
     try:
         page.goto(f"{live_server}/listen/wuthering_heights/literary")
-        # htmx is loaded with `defer`; wait for it to attach.
-        page.wait_for_function("() => typeof window.htmx !== 'undefined'",
-                               timeout=10_000)
-
-        ref = page.locator("button.passage-ref").first
-        ref.wait_for()
-        slot = page.locator("button.passage-ref").first.locator(
-            "xpath=../following-sibling::div[contains(@class,'reveal-slot')][1]"
+        page.wait_for_function(
+            "() => typeof window.htmx !== 'undefined'", timeout=10_000,
         )
 
-        # Initially empty.
+        handle = page.locator(".passage-handle").first
+        handle.wait_for()
+        # The handle's own hx-target tells us the slot's id.
+        slot_selector = handle.get_attribute("hx-target")
+        assert slot_selector and slot_selector.startswith("#reveal-slot-")
+        slot = page.locator(slot_selector)
+
         assert slot.inner_html().strip() == ""
+        assert "passage-handle-open" not in (handle.get_attribute("class") or "")
 
-        # First click → htmx fetches and fills.
-        ref.click()
-        page.wait_for_selector(".reveal-slot .reveal", timeout=5_000)
-        first_html = slot.inner_html()
-        assert "reveal-passage" in first_html
+        # First click → fills slot, handle goes open.
+        handle.click()
+        page.wait_for_selector(f"{slot_selector} .reveal", timeout=5_000)
+        assert "reveal-passage-card" in slot.inner_html()
+        assert "passage-handle-open" in (handle.get_attribute("class") or "")
 
-        # Second click → toggle clears it.
-        ref.click()
+        # Second click → clears slot, handle goes resting.
+        handle.click()
         page.wait_for_function(
-            "() => document.querySelector('.reveal-slot').children.length === 0",
+            "() => document.querySelector('.passage-handle.passage-handle-open') === null",
             timeout=2_000,
         )
         assert slot.inner_html().strip() == ""
+    finally:
+        page.close()
 
-        # Third click re-opens (proves toggle didn't break the fetch).
-        ref.click()
+
+def test_single_open_semantics(live_server: str, browser) -> None:
+    """Opening turn B's reveal while turn A's is open must close A."""
+    page = browser.new_page()
+    try:
+        page.goto(f"{live_server}/listen/wuthering_heights/literary")
+        page.wait_for_function(
+            "() => typeof window.htmx !== 'undefined'", timeout=10_000,
+        )
+
+        handles = page.locator(".passage-handle")
+        assert handles.count() >= 2, "need >=2 turns with passages"
+        a = handles.nth(0)
+        b = handles.nth(1)
+
+        a.click()
         page.wait_for_selector(".reveal-slot .reveal", timeout=5_000)
-        assert "reveal-passage" in slot.inner_html()
+        assert "passage-handle-open" in (a.get_attribute("class") or "")
+
+        b.click()
+        # Wait for B's slot to fill AND for A's open class to drop.
+        page.wait_for_function(
+            """() => {
+                const opens = document.querySelectorAll('.passage-handle-open');
+                return opens.length === 1;
+            }""",
+            timeout=5_000,
+        )
+        a_classes = a.get_attribute("class") or ""
+        b_classes = b.get_attribute("class") or ""
+        assert "passage-handle-open" not in a_classes
+        assert "passage-handle-open" in b_classes
+
+        # Exactly one open reveal in the document.
+        revealed = page.locator(".reveal-slot .reveal")
+        assert revealed.count() == 1
     finally:
         page.close()
 
 
 def test_audio_shards_manifest_reachable(live_server: str) -> None:
-    """Sanity: the player's data source returns valid JSON with R2 urls."""
     import urllib.request
     import json
     with urllib.request.urlopen(

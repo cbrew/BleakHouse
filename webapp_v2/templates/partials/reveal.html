@@ -1,38 +1,41 @@
-{# Passage reveal fragment.
+{# Turn-level passage reveal fragment.
 
-   Returned by GET /reveal/<run_id>/<passage_ref> as an htmx swap into
-   the .reveal-slot adjacent to the clicked passage-ref button. No
+   Returned by GET /reveal/<run_id>/<segment_idx>/<turn_idx> as an
+   htmx swap into the .reveal-slot at the end of the turn. No
    <html>/<body> wrapping — fragment-only.
 
-   Source data: passages_contextual.json (preferred — has the LLM
-   context-prefix string) or passages_enriched.json (fallback for
-   novels lacking contextual). Both files have identical shape;
-   `enrichment` is the pre-computed literary metadata.
+   Each entry in `panel` is {passage, enrichment}. Multiple passages
+   stack vertically inside one .reveal panel, separated by hairline
+   rules. Single open-at-a-time semantics enforced client-side.
 #}
-<div class="reveal" data-passage-ref="{{ passage.passage_id }}">
-    <blockquote class="reveal-passage">{{ passage.text }}</blockquote>
-    {% if passage.context %}
-    <p class="reveal-context"><strong>Context:</strong> {{ passage.context }}</p>
-    {% endif %}
-    <dl class="reveal-meta">
-        {% if passage.chapter_title %}
-        <dt>Chapter</dt><dd>{{ passage.chapter_title }}</dd>
+<div class="reveal">
+{% for entry in panel %}
+    {% set p = entry.passage %}
+    {% set e = entry.enrichment %}
+    <div class="reveal-passage-card{% if not loop.first %} reveal-passage-card-stacked{% endif %}">
+        <div class="reveal-card-head">
+            <span class="reveal-card-ref">{{ p.passage_id }}</span>
+            {% if p.chapter_title %}
+            <span class="reveal-card-chapter">{{ p.chapter_title }}</span>
+            {% endif %}
+        </div>
+        <blockquote class="reveal-passage">{{ p.text }}</blockquote>
+        {% if p.context %}
+        <p class="reveal-context">{{ p.context }}</p>
         {% endif %}
-        {% if enrichment.characters_present %}
-        <dt>Characters</dt>
-        <dd>{{ enrichment.characters_present | join(', ') }}</dd>
+        {% if e.characters_present or e.themes or e.emotional_register %}
+        <div class="reveal-chips">
+            {% for c in (e.characters_present or []) %}
+            <span class="chip chip-character">{{ c }}</span>
+            {% endfor %}
+            {% for t in (e.themes or []) %}
+            <span class="chip chip-theme">{{ t }}</span>
+            {% endfor %}
+            {% if e.emotional_register %}
+            <span class="chip chip-register">{{ e.emotional_register }}</span>
+            {% endif %}
+        </div>
         {% endif %}
-        {% if enrichment.themes %}
-        <dt>Themes</dt><dd>{{ enrichment.themes | join(', ') }}</dd>
-        {% endif %}
-        {% if enrichment.emotional_register %}
-        <dt>Register</dt><dd>{{ enrichment.emotional_register }}</dd>
-        {% endif %}
-        {% if enrichment.plot_function %}
-        <dt>Plot function</dt><dd>{{ enrichment.plot_function }}</dd>
-        {% endif %}
-        {% if enrichment.narrator %}
-        <dt>Narrator</dt><dd>{{ enrichment.narrator }}</dd>
-        {% endif %}
-    </dl>
+    </div>
+{% endfor %}
 </div>

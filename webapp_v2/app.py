@@ -77,35 +77,69 @@ def listen(request: Request, novel_id: str, panel: str):
     })
 
 
-@app.get("/reveal/{run_id}/{passage_ref}", response_class=HTMLResponse)
-def reveal(request: Request, run_id: str, passage_ref: str):
-    """Render the passage-reveal fragment for an htmx swap.
+@app.get(
+    "/reveal/{run_id}/{segment_idx}/{turn_idx}",
+    response_class=HTMLResponse,
+)
+def reveal(request: Request, run_id: str, segment_idx: int, turn_idx: int):
+    """Render a turn's passage-reveal fragment for an htmx swap.
 
-    Reads passages_contextual when available (it carries the
-    LLM-generated context strings); falls back to passages_enriched
-    (BH and Room With a View only have that — context is null).
+    A turn may reference multiple passages (deduped, in occurrence
+    order); one panel renders all of them stacked. Single-handle-per-
+    turn matches v1's UX — keeps the conversation flow intact.
+
+    Reads passages_contextual when present (LLM context-prefix
+    strings); falls back to passages_enriched (BH and Room With a
+    View only have that — context is null on those passages).
     """
     run = content_db.get_run_index(run_id)
     if run is None:
         raise HTTPException(404, f"Unknown run {run_id!r}")
-    passages = content_db.read_novel_artifact(run.novel, "passages_contextual")
-    if passages is None:
-        passages = content_db.read_novel_artifact(run.novel, "passages_enriched")
-    if not isinstance(passages, list):
+    episode = content_db.read_run_artifact(run_id, "phase3_episode")
+    if not isinstance(episode, dict):
+        raise HTTPException(404, f"No episode for run {run_id!r}")
+
+    segments = episode.get("segments") or []
+    if segment_idx < 0 or segment_idx >= len(segments):
+        raise HTTPException(404, f"Segment {segment_idx} out of range")
+    turns = segments[segment_idx].get("turns") or []
+    if turn_idx < 0 or turn_idx >= len(turns):
+        raise HTTPException(404, f"Turn {turn_idx} out of range")
+
+    # Deduped, occurrence-ordered passage refs in this turn.
+    seen: set[str] = set()
+    refs: list[str] = []
+    for utt in turns[turn_idx].get("utterances", []):
+        ref = utt.get("passage_ref") if isinstance(utt, dict) else None
+        if ref and ref not in seen:
+            seen.add(ref)
+            refs.append(ref)
+    if not refs:
+        raise HTTPException(404, "Turn has no passage references")
+
+    # Index passages by id once per request.
+    passage_list = content_db.read_novel_artifact(run.novel, "passages_contextual")
+    if passage_list is None:
+        passage_list = content_db.read_novel_artifact(run.novel, "passages_enriched")
+    if not isinstance(passage_list, list):
         raise HTTPException(404, f"No passages for novel {run.novel!r}")
-    passage = next(
-        (p for p in passages
-         if isinstance(p, dict) and p.get("passage_id") == passage_ref),
-        None,
-    )
-    if passage is None:
-        raise HTTPException(
-            404, f"Passage {passage_ref!r} not found in {run.novel}",
-        )
-    enrichment = passage.get("enrichment") or {}
-    if not isinstance(enrichment, dict):
-        enrichment = {}
+    by_id: dict[str, dict] = {
+        p["passage_id"]: p
+        for p in passage_list
+        if isinstance(p, dict) and isinstance(p.get("passage_id"), str)
+    }
+    panel: list[dict] = []
+    for ref in refs:
+        p = by_id.get(ref)
+        if p is None:
+            continue
+        panel.append({
+            "passage": p,
+            "enrichment": p.get("enrichment") if isinstance(p.get("enrichment"), dict) else {},
+        })
+    if not panel:
+        raise HTTPException(404, "No passages found for refs in this turn")
+
     return templates.TemplateResponse(request, "partials/reveal.html", {
-        "passage": passage,
-        "enrichment": enrichment,
+        "panel": panel,
     })
