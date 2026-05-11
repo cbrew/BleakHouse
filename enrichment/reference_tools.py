@@ -10,8 +10,12 @@ Three tools:
   - search_openalex(query)              tagged academic candidates
   - search_wikipedia(query)             tagged Wikipedia article candidates
   - read_wikipedia_article(ref_tag)     drills into an article, extracts
-                                        its bibliography items via Haiku,
-                                        registers each as a tagged record
+                                        every cite-template from the
+                                        canonical Parsoid HTML via
+                                        mwparserfromhtml, then runs each
+                                        through the verification cascade
+                                        from enrichment.reference_verify
+                                        before registering it
 
 The audience flag (general/scholarly) is deterministic from publisher
 and citation count.
@@ -19,19 +23,24 @@ and citation count.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+import urllib.parse
+from urllib.parse import unquote, urlparse
+
 import anthropic
 import requests
 from anthropic.types import ToolUnionParam
-from urllib.parse import unquote, urlparse
 
 from enrichment.timing import Recorder, time_model, time_tool
+
+# time_model is unused after BleakHouse-hgws (Haiku extraction retired);
+# keep the import for any future model timing within this module.
+_ = time_model
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +63,14 @@ class CitationRecord:
     `tag` is a stable identifier the model uses to refer to this record.
     All other fields are populated from the originating API response or
     from a Wikipedia article's bibliography.
+
+    Resolution status (added BleakHouse-hgws): for citations that pass
+    through the verification cascade, `resolution_status` is either
+    'resolved' (a verified URL landed in `url`) or 'unresolved' (the
+    cascade ran but couldn't find a verifiable URL — the textual
+    metadata is still real, just no working link). `attempted` lists
+    the cascade strategies that ran HTTP calls. None means the record
+    didn't go through verification (e.g., legacy OpenAlex search hits).
     """
 
     tag: str
@@ -69,6 +86,11 @@ class CitationRecord:
     source: str = ""              # 'openalex' | 'wikipedia_article' | 'wikipedia_further_reading'
     parent_tag: str | None = None # for further_reading items: the article they came from
     audience: Literal["general", "scholarly"] = "scholarly"
+    resolution_status: str | None = None  # 'resolved' | 'unresolved' | None (not verified)
+    resolution_source: str | None = None  # which cascade strategy resolved it (or None)
+    attempted: list[str] = field(default_factory=list)
+    resolution_reason: str | None = None  # 'no_match' when unresolved
+    raw_text: str = ""            # original cite-template text or pre-resolve URL — for unresolved-comment rendering
 
 
 class CitationRegistry:
@@ -99,8 +121,14 @@ class CitationRegistry:
         cited_by: int | None = None,
         doi: str | None = None,
         parent_tag: str | None = None,
+        resolution_status: str | None = None,
+        resolution_source: str | None = None,
+        attempted: list[str] | None = None,
+        resolution_reason: str | None = None,
+        raw_text: str = "",
     ) -> str:
-        """Register a record, return its tag. Dedups by URL."""
+        """Register a record, return its tag. Dedups by URL (non-empty
+        only; unresolved records with url='' each get their own tag)."""
         if url and url in self._tag_by_url:
             return self._tag_by_url[url]
         tag = f"ref-{self._next}"
@@ -121,6 +149,11 @@ class CitationRegistry:
             audience=audience(
                 {"type": type, "publisher": publisher, "cited_by": cited_by}
             ),
+            resolution_status=resolution_status,
+            resolution_source=resolution_source,
+            attempted=attempted or [],
+            resolution_reason=resolution_reason,
+            raw_text=raw_text,
         )
         self._by_tag[tag] = record
         if url:
@@ -412,80 +445,6 @@ def execute_search_wikipedia(
     return "\n".join(lines)
 
 
-def wikipedia_full_extract(
-    title: str, recorder: Recorder | None = None,
-) -> str:
-    """Fetch the full plain-text body of a Wikipedia article (not just intro)."""
-    if not title.strip():
-        return ""
-    with time_tool(recorder, "http_wikipedia_full", title):
-        try:
-            resp = requests.get(
-                "https://en.wikipedia.org/w/api.php",
-                params={
-                    "action": "query",
-                    "titles": title,
-                    "prop": "extracts",
-                    "explaintext": "1",
-                    "format": "json",
-                    "redirects": "1",
-                },
-                headers={"User-Agent": _USER_AGENT},
-                timeout=_TIMEOUT,
-            )
-            resp.raise_for_status()
-        except Exception as exc:
-            logger.warning("Wikipedia full extract failed for %r: %s", title, exc)
-            return ""
-    pages = (resp.json().get("query") or {}).get("pages") or {}
-    for p in pages.values():
-        if p.get("extract"):
-            return p["extract"]
-    return ""
-
-
-_BIB_SECTION_RE = re.compile(
-    r"^==\s*("
-    r"Further reading|Bibliography|Selected works|"
-    r"References|Sources|Works cited|Works|Selected publications"
-    r")\s*==\s*$",
-    re.MULTILINE | re.IGNORECASE,
-)
-_SECTION_HEADER_RE = re.compile(r"^==\s*[^=]+\s*==\s*$", re.MULTILINE)
-
-
-def _split_article_body_and_bib(full: str) -> tuple[str, str]:
-    """Return (body, bibliography) — body is everything BEFORE the first
-    bibliography-style section header, bibliography is the concatenation of
-    every such section. Either may be empty if not found."""
-    matches = list(_BIB_SECTION_RE.finditer(full))
-    if not matches:
-        return full, ""
-    body = full[:matches[0].start()]
-    bib_sections: list[str] = []
-    for m in matches:
-        next_hdr = _SECTION_HEADER_RE.search(full, m.end())
-        end = next_hdr.start() if next_hdr else len(full)
-        bib_sections.append(full[m.start():end])
-    return body, "\n\n".join(bib_sections)
-
-
-def _slice_wikipedia_for_haiku(
-    full: str, intro_chars: int = 4000, bib_chars: int = 8000
-) -> str:
-    """Return intro + bibliography sections, capped, for compact Haiku
-    enrichment prompts (used to extract structured bibliography items)."""
-    if len(full) <= intro_chars + bib_chars:
-        return full
-    body, bib = _split_article_body_and_bib(full)
-    intro = body[:intro_chars]
-    if not bib:
-        return intro
-    return intro + "\n\n[…]\n\n" + bib[:bib_chars]
-
-
-
-
 def _wikipedia_title_from_url(url: str) -> str:
     parsed = urlparse(url)
     if "wikipedia.org" not in parsed.netloc:
@@ -494,65 +453,276 @@ def _wikipedia_title_from_url(url: str) -> str:
     return unquote(last).replace("_", " ")
 
 
-_WIKI_ENRICH_PROMPT = """\
-You have a Wikipedia article body. Extract up to 5 further-reading items
-the article itself cites. These usually live in 'Further reading',
-'Bibliography', 'References', 'Selected works', or similar sections.
-Skip generic web links and Wikipedia-internal cross-references.
+# ---------------------------------------------------------------------------
+# Wikipedia HTML fetch + cite-template extraction (BleakHouse-hgws)
+# ---------------------------------------------------------------------------
+#
+# The pre-hgws code fetched plain text via the Action API and asked
+# Haiku to re-discover citation structure from prose. That conflated
+# extraction (mechanical, deterministic) with research-grade
+# inference (expensive, lossy) and synthesised non-clickable
+# wiki-fr: URLs.
+#
+# The new path:
+#   1. Fetch canonical Parsoid HTML from the REST API
+#      (/api/rest_v1/page/html/<title>). Citation templates are
+#      rendered with data-mw attributes preserving the original
+#      parameters.
+#   2. Parse with mwparserfromhtml. Walk all cite-templates
+#      ({{cite book}}, {{cite journal}}, {{cite news}},
+#      {{citation}}, etc.) in the article. We deliberately do NOT
+#      scope to Further-reading/Bibliography sections — the
+#      Holdsworth example ('Charles Dickens as a Legal Historian')
+#      is an inline citation in Bleak House but a real scholarly
+#      reference with a working archive.org URL. Section-scoping
+#      would have missed it.
+#   3. Each cite-template yields a normalised candidate (title,
+#      authors, year, publisher, isbn, doi, url, raw text). The
+#      verification cascade then HEAD-checks any URL/DOI/ISBN and
+#      registers the record with resolution_status='resolved' or
+#      'unresolved'.
 
-Output ONE JSON object only, no prose, no code fences:
 
-{
-  "further_reading": [
-    {"title": "...", "author": "..." | null, "year": <int|null>, "publisher": "..." | null},
-    ...
-  ]
-}
+def _fetch_wikipedia_html(
+    title: str, recorder: Recorder | None = None,
+) -> str:
+    """Fetch the canonical Parsoid HTML of a Wikipedia article.
 
-If there are no further-reading items, return an empty list.
-"""
+    Uses the REST API endpoint /api/rest_v1/page/html/<title>, which
+    returns rendered HTML with stable data-mw attributes that
+    mwparserfromhtml is built to parse. Returns '' on any failure.
+    """
+    if not title.strip():
+        return ""
+    encoded = urllib.parse.quote(title.replace(" ", "_"), safe="")
+    url = f"https://en.wikipedia.org/api/rest_v1/page/html/{encoded}"
+    with time_tool(recorder, "http_wikipedia_html", title):
+        try:
+            resp = requests.get(
+                url,
+                headers={"User-Agent": _USER_AGENT},
+                timeout=_TIMEOUT,
+            )
+            resp.raise_for_status()
+            return resp.text
+        except Exception as exc:
+            logger.warning(
+                "Wikipedia HTML fetch failed for %r: %s", title, exc,
+            )
+            return ""
 
-_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+_CITE_TARGETS: frozenset[str] = frozenset({
+    "cite book", "cite journal", "cite news", "cite web",
+    "cite encyclopedia", "cite thesis", "cite report", "cite magazine",
+    "citation",
+})
+
+_WIKITEXT_LINK_RE = re.compile(r"\[\[(?:[^\]|]*\|)?([^\]]*)\]\]")
+_WIKITEXT_EXTLINK_RE = re.compile(r"\[[^\s\]]+\s+([^\]]+)\]")
+_WIKITEXT_BOLD_RE = re.compile(r"'''([^']+)'''")
+_WIKITEXT_ITALIC_RE = re.compile(r"''([^']+)''")
 
 
-def _parse_enrich(text: str) -> list[dict[str, Any]]:
-    """Parse Haiku's bibliography-extraction JSON. Returns list of items."""
-    m = _OBJ_RE.search(text)
-    if not m:
+def _strip_wikitext(s: str) -> str:
+    """Strip basic wikitext markup from a cite-template parameter value."""
+    if not s:
+        return ""
+    s = _WIKITEXT_LINK_RE.sub(r"\1", s)
+    s = _WIKITEXT_EXTLINK_RE.sub(r"\1", s)
+    s = _WIKITEXT_BOLD_RE.sub(r"\1", s)
+    s = _WIKITEXT_ITALIC_RE.sub(r"\1", s)
+    return s.strip()
+
+
+def _param(params: dict[str, Any], key: str) -> str:
+    """Read a cite-template parameter value, stripping wikitext markup.
+    Returns '' if absent or non-string."""
+    v = params.get(key)
+    if isinstance(v, dict):
+        v = v.get("wt", "")
+    if not isinstance(v, str):
+        return ""
+    return _strip_wikitext(v)
+
+
+def _extract_authors(params: dict[str, Any]) -> list[str]:
+    """Pull authors from a cite-template's parameters.
+
+    Handles the three conventions:
+      - author=Name or authors=Name1; Name2
+      - last=Foo, first=Bar (single author)
+      - last1=Foo, first1=Bar, last2=Baz, first2=Qux (numbered)
+    Deduplicates while preserving order.
+    """
+    out: list[str] = []
+
+    single = _param(params, "author")
+    if single:
+        out.append(single)
+
+    multi = _param(params, "authors")
+    if multi:
+        for part in re.split(r"\s*(?:;| and )\s*", multi):
+            part = part.strip()
+            if part:
+                out.append(part)
+
+    # last/first compound. Try un-numbered first, then 1..N.
+    last = _param(params, "last")
+    first = _param(params, "first")
+    if last or first:
+        name = " ".join(p for p in (first, last) if p)
+        if name:
+            out.append(name)
+    i = 1
+    while True:
+        ln = _param(params, f"last{i}")
+        fn = _param(params, f"first{i}")
+        if not ln and not fn:
+            break
+        name = " ".join(p for p in (fn, ln) if p)
+        if name:
+            out.append(name)
+        i += 1
+        if i > 30:  # sanity cap
+            break
+
+    seen: set[str] = set()
+    result: list[str] = []
+    for a in out:
+        if a and a not in seen:
+            seen.add(a)
+            result.append(a)
+    return result
+
+
+def _extract_year(s: str) -> int | None:
+    """Extract a 4-digit year from a cite-template date/year value.
+
+    Matches 1500-2039 with a leading word boundary; uses a negative
+    digit-lookahead instead of a trailing word boundary so trailing
+    letters ('1850s') still let the year match.
+    """
+    if not s:
+        return None
+    m = re.search(r"\b(1[5-9]\d\d|20[0-3]\d)(?!\d)", s)
+    return int(m.group(1)) if m else None
+
+
+def _normalize_isbn(s: str) -> str:
+    """Strip hyphens, spaces, dots; keep digits and X. Returns the
+    canonical 10- or 13-digit ISBN, or '' if not a recognisable form."""
+    if not s:
+        return ""
+    digits = re.sub(r"[^\dXx]", "", s).upper()
+    return digits if len(digits) in (10, 13) else ""
+
+
+@dataclass(frozen=True)
+class _CiteCandidate:
+    """A single cite-template extracted from a Wikipedia article."""
+    title: str
+    authors: list[str]
+    year: int | None
+    publisher: str
+    url: str           # explicit URL from |url=, post-wikitext-strip
+    doi: str
+    isbn: str
+    cite_kind: str     # e.g. 'cite book', 'cite journal'
+    raw_text: str      # for the unresolved-comment rendering
+
+
+def _extract_cite_templates(html: str) -> list[_CiteCandidate]:
+    """Walk every cite-template in a Wikipedia HTML page and return
+    normalised candidates. No section-scoping — see module docstring."""
+    if not html:
         return []
-    try:
-        data = json.loads(m.group(0))
-    except json.JSONDecodeError:
-        return []
-    raw = data.get("further_reading") or []
-    items: list[dict[str, Any]] = []
-    for it in raw:
-        if not isinstance(it, dict):
-            continue
-        title = str(it.get("title") or "").strip()
-        if not title:
-            continue
-        items.append({
-            "title": title,
-            "author": (str(it["author"]).strip() if it.get("author") else None),
-            "year": it.get("year") if isinstance(it.get("year"), int) else None,
-            "publisher": (str(it["publisher"]).strip() if it.get("publisher") else None),
-        })
-    return items[:5]
+    # Lazy import: mwparserfromhtml pulls in beautifulsoup4 + a parser;
+    # the rest of reference_tools doesn't need it.
+    from mwparserfromhtml import Article
+
+    art = Article(html)
+    templates = art.wikistew.get_templates()
+    out: list[_CiteCandidate] = []
+    for _tid, t in templates.items():
+        for part in t.get("parts", []):
+            if not isinstance(part, dict):
+                continue
+            tpl = part.get("template")
+            if not isinstance(tpl, dict):
+                continue
+            target = tpl.get("target", {})
+            kind = (target.get("wt") or "").strip().lower()
+            if kind not in _CITE_TARGETS:
+                continue
+            params = tpl.get("params", {}) or {}
+            if not isinstance(params, dict):
+                continue
+            title = _param(params, "title") or _param(params, "chapter")
+            if not title:
+                continue
+            year = (
+                _extract_year(_param(params, "year"))
+                or _extract_year(_param(params, "date"))
+                or _extract_year(_param(params, "orig-year"))
+            )
+            doi = _param(params, "doi")
+            isbn = _normalize_isbn(_param(params, "isbn"))
+            url = _param(params, "url")
+            # If the URL is itself wikitext-link-ish (rare), it would
+            # have been collapsed by _strip_wikitext already.
+            out.append(_CiteCandidate(
+                title=title,
+                authors=_extract_authors(params),
+                year=year,
+                publisher=_param(params, "publisher"),
+                url=url,
+                doi=doi,
+                isbn=isbn,
+                cite_kind=kind,
+                raw_text=_render_cite_raw(kind, params),
+            ))
+    return out
 
 
-_ENRICH_MODEL = "claude-haiku-4-5-20251001"
+def _render_cite_raw(kind: str, params: dict[str, Any]) -> str:
+    """Reassemble a compact human-readable form of a cite-template,
+    suitable for the raw_text field of unresolved records (so the
+    HTML comment in ticket 7cgk's renderer can include the full
+    structured form)."""
+    bits = [f"{{{{{kind}"]
+    for k, v in params.items():
+        wt = ""
+        if isinstance(v, dict):
+            wt = (v.get("wt") or "").strip().replace("\n", " ")
+        elif isinstance(v, str):
+            wt = v.strip().replace("\n", " ")
+        if wt:
+            bits.append(f"|{k}={wt[:200]}")
+    bits.append("}}")
+    return " ".join(bits)
 
 
 def execute_read_wikipedia_article(
     ref_tag: str,
     registry: CitationRegistry,
-    client: anthropic.Anthropic,
     recorder: Recorder | None = None,
+    verifier: "Any | None" = None,
 ) -> str:
-    """Fetch an article's full body, extract its bibliography via Haiku,
-    register each extracted item as a tagged record. Returns text for
-    the LLM listing the new tags and a short body summary."""
+    """Fetch an article's Parsoid HTML, extract every cite-template,
+    verify each via the reference_verify cascade, and register each
+    as a tagged record (resolved or unresolved).
+
+    The previous version asked Haiku to re-discover citation structure
+    from rendered prose and minted synthetic 'wiki-fr:' URLs that
+    weren't navigable. This version reads structured citation fields
+    directly from the rendered HTML's data-mw attributes — no LLM
+    call, no synthetic URLs, every recorded URL HEAD-verified.
+
+    `verifier` is injected for tests; production uses the module-level
+    shared verifier from enrichment.reference_verify.
+    """
     record = registry.get(ref_tag)
     if record is None:
         return f"No record for tag {ref_tag!r} — search Wikipedia first."
@@ -563,78 +733,117 @@ def execute_read_wikipedia_article(
         )
 
     title = _wikipedia_title_from_url(record.url) or record.title
-    full = wikipedia_full_extract(title, recorder)
-    if not full:
-        return f"Could not fetch full body for {title!r}."
+    html = _fetch_wikipedia_html(title, recorder)
+    if not html:
+        return f"Could not fetch HTML for {title!r}."
 
-    body_slice = _slice_wikipedia_for_haiku(full)
-    try:
-        msg = time_model(
-            recorder, f"wiki_enrich:{title[:60]}",
-            lambda: client.messages.create(
-                model=_ENRICH_MODEL,
-                max_tokens=800,
-                system=_WIKI_ENRICH_PROMPT,
-                messages=[{
-                    "role": "user",
-                    "content": (
-                        f"Wikipedia article '{title}':\n\n{body_slice}"
-                    ),
-                }],
-            ),
-        )
-    except Exception as exc:
-        logger.warning("Wikipedia enrich Haiku call failed for %r: %s",
-                       title, exc)
-        return f"Body fetched for {title!r}, but bibliography extraction failed: {exc}"
+    candidates = _extract_cite_templates(html)
 
-    text = "".join(
-        getattr(b, "text", "")
-        for b in msg.content
-        if getattr(b, "type", None) == "text"
-    )
-    items = _parse_enrich(text)
+    # Lazy import + default verifier. `verifier` is duck-typed —
+    # anything with a `.resolve(CandidateReference) -> ResolverResult`
+    # is accepted, so tests can pass a stand-in.
+    from enrichment.reference_verify import CandidateReference, resolve
+    resolve_fn = resolve if verifier is None else verifier.resolve
 
     new_tags: list[str] = []
-    for it in items:
-        # Synthesise a stable URL: either an author-and-title-keyed string,
-        # or fall back to the article URL (so dedup still works per-article).
-        synth_url = (
-            f"wiki-fr:{record.url}#{it['title'].lower().replace(' ', '_')}"
+    for cand in candidates:
+        # The verification cascade's raw_url branch handles real URLs;
+        # an ISBN we construct an openlibrary URL for (cascade verifies
+        # via HEAD); DOI handled in its own branch. We pass everything
+        # we have so the cascade picks the best one.
+        raw_url = cand.url
+        if not raw_url and cand.isbn:
+            raw_url = f"https://openlibrary.org/isbn/{cand.isbn}"
+        ref = CandidateReference(
+            title=cand.title,
+            authors=tuple(cand.authors),
+            year=cand.year,
+            publisher=cand.publisher or None,
+            raw_url=raw_url,
+            doi=cand.doi,
         )
-        desc = f"Listed in the bibliography of the Wikipedia article on {title}."
-        if it.get("publisher"):
-            desc += f" Publisher: {it['publisher']}."
-        tag = registry.register(
-            title=it["title"],
-            authors=[it["author"]] if it.get("author") else [],
-            year=it.get("year"),
-            type="wikipedia_further_reading",
-            publisher=it.get("publisher"),
-            description=desc,
-            url=synth_url,
-            source="wikipedia_further_reading",
-            parent_tag=ref_tag,
-        )
+        result = resolve_fn(ref)
+
+        if result.resolved:
+            tag = registry.register(
+                title=cand.title,
+                authors=cand.authors,
+                year=cand.year,
+                type=cand.cite_kind,
+                publisher=cand.publisher or None,
+                description=(
+                    f"Cited in the Wikipedia article on {title}."
+                ),
+                url=result.url or "",
+                doi=cand.doi or None,
+                source="wikipedia_further_reading",
+                parent_tag=ref_tag,
+                resolution_status="resolved",
+                resolution_source=result.source,
+                attempted=list(result.attempted),
+                raw_text=cand.raw_text,
+            )
+        else:
+            tag = registry.register(
+                title=cand.title,
+                authors=cand.authors,
+                year=cand.year,
+                type=cand.cite_kind,
+                publisher=cand.publisher or None,
+                description=(
+                    f"Cited in the Wikipedia article on {title}; "
+                    f"no resolvable URL found."
+                ),
+                url="",
+                doi=cand.doi or None,
+                source="wikipedia_further_reading",
+                parent_tag=ref_tag,
+                resolution_status="unresolved",
+                resolution_source=None,
+                attempted=list(result.attempted),
+                resolution_reason=result.reason,
+                raw_text=cand.raw_text,
+            )
         new_tags.append(tag)
 
-    # Compose the tool result. The expert (Sonnet) sees the full article
-    # — that's the primary value of read_wikipedia_article — plus the
-    # newly-tagged bibliography items as separate citable candidates.
+    # LLM-facing summary: the article body (plaintext) + each
+    # newly-tagged candidate on its own line. Only resolved candidates
+    # are encouraged for citation; unresolved ones still get a tag so
+    # the registry is the single source of truth, but the prose marks
+    # them clearly.
+    try:
+        from mwparserfromhtml import Article as _MWArticle
+        # get_plaintext yields paragraph-sized chunks
+        plaintext = "\n".join(str(p) for p in _MWArticle(html).get_plaintext())
+    except Exception:
+        plaintext = ""
+
     lines = [
         f"=== Wikipedia article: {title} ({ref_tag}) ===",
         "",
-        full,
+        plaintext,
         "",
     ]
     if new_tags:
-        lines.append(f"=== Further-reading items mined from {title!r}'s bibliography ===")
-        for tag, it in zip(new_tags, items):
-            author = it.get("author") or "—"
-            year = it.get("year") or "—"
-            lines.append(f"  [{tag}] {author}. {it['title']} ({year}).")
+        lines.append(
+            f"=== Citations mined from {title!r} "
+            f"({len(new_tags)} total) ==="
+        )
+        for tag, cand in zip(new_tags, candidates):
+            rec = registry.get(tag)
+            if rec is None:
+                continue
+            author = ", ".join(cand.authors) if cand.authors else "—"
+            year_s = str(cand.year) if cand.year else "—"
+            status_marker = (
+                "" if rec.resolution_status == "resolved"
+                else " [unresolved — no verified URL]"
+            )
+            lines.append(
+                f"  [{tag}] {author}. {cand.title} ({year_s}).{status_marker}"
+            )
     else:
-        lines.append("(No structured bibliography items found in this article.)")
+        lines.append("(No cite-templates found in this article.)")
     return "\n".join(lines)
 
 
@@ -668,7 +877,12 @@ def dispatch_tool(
             tool_input.get("query", ""), registry, recorder=recorder,
         )
     if tool_name == "read_wikipedia_article":
+        # `client` is no longer used by read_wikipedia_article (the
+        # Haiku extraction was retired in BleakHouse-hgws; the new
+        # path reads structured cite-template fields from the
+        # rendered HTML via mwparserfromhtml).
+        _ = client
         return execute_read_wikipedia_article(
-            tool_input.get("ref_tag", ""), registry, client, recorder,
+            tool_input.get("ref_tag", ""), registry, recorder,
         )
     return f"Unknown tool: {tool_name}"
