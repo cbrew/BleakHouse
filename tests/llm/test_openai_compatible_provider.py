@@ -253,3 +253,54 @@ def test_generate_handles_empty_choices() -> None:
     provider = OpenAICompatibleProvider(client=client)
     result = provider.generate(_spec(), _req())
     assert result.text == ""
+
+
+def test_provider_loads_dotenv_on_real_client_construction(
+    monkeypatch,
+) -> None:
+    """The provider's lazy real-client path calls load_dotenv() before
+    reading env vars, so callers don't have to remember to invoke
+    load_dotenv themselves.
+
+    Verified by replacing dotenv.load_dotenv with a stub that sets a
+    sentinel env var, then constructing a provider with no injected
+    client and confirming the OpenAI SDK receives the sentinel key.
+    """
+    monkeypatch.delenv("DEEPINFRA_API_KEY", raising=False)
+
+    # Replace dotenv.load_dotenv with our own that injects a sentinel
+    # value into os.environ. This proves the provider IS calling
+    # load_dotenv() before its env-var read, regardless of whether a
+    # real .env file exists.
+    import os as _os
+    import dotenv
+    load_dotenv_called = {"count": 0}
+
+    def fake_load_dotenv(*_args: Any, **_kw: Any) -> bool:
+        load_dotenv_called["count"] += 1
+        _os.environ["DEEPINFRA_API_KEY"] = "sentinel-from-fake-load-dotenv"
+        return True
+
+    monkeypatch.setattr(dotenv, "load_dotenv", fake_load_dotenv)
+
+    captured: dict[str, Any] = {}
+
+    class _FakeOpenAI:
+        def __init__(self, *, api_key: str | None, base_url: str | None) -> None:
+            captured["api_key"] = api_key
+            captured["base_url"] = base_url
+
+        @property
+        def chat(self) -> Any:
+            return None  # never called
+
+    import openai
+    monkeypatch.setattr(openai, "OpenAI", _FakeOpenAI)
+
+    provider = OpenAICompatibleProvider()  # no injected client
+    spec = _spec(hosting="deepinfra")
+    provider._client_for(spec)  # pyright: ignore[reportPrivateUsage]
+
+    assert load_dotenv_called["count"] >= 1, "load_dotenv should be called"
+    assert captured["api_key"] == "sentinel-from-fake-load-dotenv"
+    assert captured["base_url"] == "https://api.deepinfra.com/v1/openai"

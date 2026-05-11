@@ -49,7 +49,15 @@ class AnthropicProvider:
         else:
             # Lazy real-client construction so unit tests that
             # never call generate(...) don't require ANTHROPIC_API_KEY.
+            #
+            # load_dotenv() is called defensively here: the BleakHouse
+            # convention is that callers (run_pipeline.py, test_single.py,
+            # etc.) call load_dotenv() at startup, but a fresh caller of
+            # the seam may not. load_dotenv() is idempotent and won't
+            # override env vars already set, so this is safe.
+            from dotenv import load_dotenv
             import anthropic
+            load_dotenv()
             self._client = anthropic.Anthropic(
                 api_key=os.environ.get("ANTHROPIC_API_KEY"),
             )

@@ -101,6 +101,13 @@ class OpenAICompatibleProvider:
         if self._injected_client is not None:
             return self._injected_client
 
+        # load_dotenv() is called defensively here: the BleakHouse
+        # convention is that callers (run_pipeline.py etc.) call it at
+        # startup, but a fresh caller of the seam may not. Idempotent;
+        # won't override env vars already set.
+        from dotenv import load_dotenv
+        load_dotenv()
+
         api_key_env = _API_KEY_ENV.get(spec.hosting)
         api_key = os.environ.get(api_key_env) if api_key_env else None
         cache_key = (spec.base_url, api_key)
