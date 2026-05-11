@@ -75,10 +75,61 @@ calls due to cold-start + idle time.
 | A10 24GB | $1.10 | — | ~$1.10 | ~$0.33 |
 | RTX 4090 24GB | — | $1.10 | — | — |
 
-**Ops complexity ranking** (1 = managed, 5 = full self-host):
-- Modal: 2. Python-decorator deployment; vLLM-on-Modal recipes exist; OpenAI-compatible endpoint via FastAPI wrapper. Cold start dominated by model load (~30-60s for 70B-class from disk).
-- Runpod: 2-3. Serverless workers with vLLM template; faster per-request cold start than from-scratch Modal; less idiomatic Python deployment.
-- GKE: 5. GPU operator, vLLM/SGLang containerization, autoscaling, GPU node pools, IAM, networking. Highest control but real ops investment.
+**Ops complexity ranking** (revised after closer look at Modal/Runpod auth + deployment model; 1 = hand over a key and call, 5 = full self-host):
+
+- **Hosted-API providers (Cerebras, Together, Fireworks, Groq, DeepInfra serverless)**: **1**. Single `API_KEY` env var; call their endpoint; done.
+- **DeepInfra dedicated GPU**: **2**. Same auth model as serverless but you manage a dedicated GPU instance (per-minute billing, autoscale config) via their console.
+- **Modal**: **3**. Not just hand-over-a-key. You write a Python file (`@modal.web_server(port=8000)` wrapping vLLM's OpenAI-compatible server), `modal deploy`, get back a `*.modal.run` URL. You own the inference container image + model-weight caching via Modal Volumes + cold-start tuning. Auth is two-part token (`token_id` + `token_secret`) set up via `modal token new` (interactive browser flow → stored in `~/.modal.toml`) OR `MODAL_TOKEN_ID` + `MODAL_TOKEN_SECRET` env vars for CI. The runtime call to BleakHouse only needs the `*.modal.run` URL — no per-call auth unless you add Modal Secrets gating.
+- **Runpod**: **3**. Similar shape to Modal: deploy a serverless endpoint (vLLM template available), get a URL, configure that as `base_url`. Less idiomatic Python-first DX than Modal; web console for setup. Auth via Runpod API key.
+- **GKE**: **5**. GPU operator, vLLM/SGLang containerization, autoscaling, GPU node pools, IAM, networking, log aggregation, Workload Identity, billing alerts. Highest control but real ops investment.
+
+**Deployment workflow for Modal-hosted Gemma 4 26B (concrete sketch)**:
+
+```python
+# infra/modal/vllm_gemma4_26b.py
+import modal
+
+app = modal.App("vllm-gemma4-26b")
+image = (
+    modal.Image.debian_slim()
+    .pip_install("vllm==<pinned>", "huggingface_hub")
+)
+volume = modal.Volume.from_name("hf-cache", create_if_missing=True)
+
+@app.cls(
+    image=image,
+    gpu="H100",                       # single H100 80GB
+    volumes={"/cache": volume},
+    container_idle_timeout=300,       # 5-min keep-warm after last request
+    timeout=3600,
+)
+class GemmaServer:
+    @modal.enter()
+    def load(self):
+        # vLLM loads weights from /cache (or downloads on first run)
+        import vllm
+        self.engine = vllm.LLM(
+            model="google/gemma-4-26b-it",  # HF model id; exact name TBD
+            download_dir="/cache",
+            max_model_len=8192,
+        )
+
+    @modal.web_server(port=8000, startup_timeout=120)
+    def serve(self):
+        # vLLM speaks OpenAI's API natively
+        import subprocess
+        subprocess.Popen([
+            "python", "-m", "vllm.entrypoints.openai.api_server",
+            "--model", "google/gemma-4-26b-it",
+            "--download-dir", "/cache",
+            "--host", "0.0.0.0",
+            "--port", "8000",
+        ])
+```
+
+Deploy with `modal deploy infra/modal/vllm_gemma4_26b.py`; the URL
+that comes back goes into `enrichment/llm/settings.py` as the
+`base_url` for the `generate_podcast` task.
 
 **Custom-weights / fine-tune feasibility (the long-term lever)**:
 - Modal / Runpod / GKE: yes by construction — you deploy your own weights.
@@ -136,19 +187,87 @@ schema-strict output reliability. VERIFY at Stage 2.
 
 ### Tier L — prose generation (short format) (generate_podcast)
 
-**Recommended: Gemma 4 26B MoE [VERIFY availability]** — user's
-preferred candidate; Apache 2.0; MoE architecture gives 70B-class
-quality at smaller inference cost. If not available hosted, deploy
-on Modal or Runpod (24GB + VRAM per active expert).
+**Recommended: Gemma 4 26B (MoE per user; VERIFY architecture)** —
+user's preferred candidate; Apache 2.0 (Gemma 4 family); if MoE,
+the active-parameter count per token is much smaller than 26B
+total, giving 70B-class quality at smaller inference cost. Availability
+across hosted providers VERIFY — Together hosts Gemma 4 31B (dense)
+at $0.20/$0.50, not the 26B MoE; the 26B MoE variant likely requires
+self-hosting on Modal/Runpod with weights from HF.
 
-Alternates to benchmark:
+**Cost reassessment for Gemma 4 26B on Modal (revised from the
+optimistic $0.55/M earlier — that assumed sustained utilization,
+which BleakHouse does not have)**:
+
+The true $/M-tokens for self-hosted depends heavily on usage
+pattern. Three scenarios:
+
+| Scenario | GPU-time per M tokens | Cost per M tokens (H100 $3.95/h) | Notes |
+|---|---|---|---|
+| Sustained utilization (continuous request stream, batch>8) | ~500s active GPU time | **~$0.55** | Best case; assumes ~2000 tok/s sustained throughput; ignores cold-start |
+| Daily batch render (10 episodes × ~10k output tokens back-to-back) | ~125s including cold-start + warmdown | **~$1.40** | Realistic for BleakHouse's pattern if renders are grouped |
+| Sporadic (a few requests/day spaced apart) | ~650s per million actually generated (cold-start dominates) | **~$10-15** | Worst case; pays for cold-start each time the container spins back up |
+
+BleakHouse's actual prose-generation pattern is closer to Scenario B
+(daily-batch renders triggered when episodes are produced). Realistic
+working estimate: **$1.50-3/M tokens** for self-hosted Gemma 4 26B
+on Modal H100.
+
+Cheaper-GPU options for the same model (Stage 2 should verify
+quality holds):
+- **A100 80GB ($2.50/h on Modal)** — fits 26B fp16 weights (~52GB)
+  with tight headroom for KV cache. ~$0.95-1.90/M in Scenario B.
+- **L40S 48GB ($1.95/h on Modal)** — fp16 doesn't fit; would need
+  4-bit / 8-bit quantization. ~$0.75-1.50/M if quality holds at
+  quant.
+
+**Cost comparison across the prose-tier shortlist** (using
+Scenario B for self-hosted, blended I/O assuming prose-heavy
+~80% output):
+
+| Candidate | Hosted/self | $/M blended | Notes |
+|---|---|---:|---|
+| Gemma 4 26B MoE on Modal H100 (scenario B) | self | ~$1.50-3 | Non-API constraint cleared; fine-tune path open |
+| Gemma 4 26B MoE on Modal A100 80GB | self | ~$1-2 | If A100 throughput holds for MoE |
+| Gemma 4 26B 4-bit on Modal L40S | self | ~$0.75-1.50 | Quality at 4-bit VERIFY |
+| Gemma 4 31B (dense) on Together | hosted | ~$0.44 | Same family, hosted is cheaper for our pattern |
+| DeepSeek-V3.2 on DeepInfra | hosted | ~$0.36 | 160k context; cheapest credible prose option |
+| Llama 3.3 70B Turbo on DeepInfra | hosted | ~$0.28 | Quantized — schema-strict reliability VERIFY |
+| Qwen 3 235B A22B FP8 on Together | hosted | ~$0.52 | Largest model; cheap output rate |
+| Anthropic Sonnet 4.6 (no batch) | hosted | ~$12 | Current baseline |
+| Anthropic Sonnet 4.6 (batch) | hosted | ~$6 | If we used Batch on prose |
+
+**Implication**: for BleakHouse's usage pattern, hosted Gemma 4 31B
+on Together ($0.44/M) or DeepSeek-V3.2 on DeepInfra ($0.36/M) is
+materially cheaper than self-hosted Gemma 4 26B. The non-API
+benefit of self-hosting only justifies the ~3-5x cost premium if:
+
+- Quality of Gemma 4 26B MoE is meaningfully better than Gemma 4
+  31B dense on the prose fixture (Stage 2 question), OR
+- Fine-tune-enablement is load-bearing for the project's roadmap
+  (currently low-priority per the user note), OR
+- Sustained utilization can be achieved by batching all prose work
+  into a single keep-warm window per day.
+
+The non-API constraint (Principle 6 of the plan) says we need at
+least ONE non-API option in the shortlist. It does NOT require
+prose specifically to be self-hosted. If hosted Gemma 4 31B wins
+on prose, the non-API constraint can be satisfied by routing
+`passage_enrichment` (the batch task) to self-hosted instead —
+volume + cost-predictability are stronger drivers there than for
+prose.
+
+Alternates to benchmark (all hosted):
+- **Gemma 4 31B on Together** ($0.20 / $0.50). Same family as
+  Gemma 4 26B; dense vs MoE; should be the head-to-head reference.
 - DeepSeek-V3.2 on DeepInfra ($0.26 / $0.38) — 160k context, top
   open-weight prose model class.
 - Qwen 3 235B A22B FP8 on Together ($0.20 / $0.60) — large model,
   cheap output rate.
 
-Anthropic Sonnet 4.6 ($3 / $15) stays as the baseline to beat by
-≥45% blinded preference, NOT to match.
+Anthropic Sonnet 4.6 ($3 / $15 no-batch; $1.50 / $7.50 with Batch)
+stays as the baseline to beat by ≥45% blinded preference on the
+short-podcast fixture, NOT to match.
 
 ### Tier W — wildcard fine-tune-ready
 
@@ -159,14 +278,44 @@ without renting H100s.
 
 ### Non-API self-hosted option (Principle 6)
 
-**Candidate: Modal-hosted Qwen 2.5-72B-Instruct or Gemma 4 26B**.
-Modal pricing on H100 (~$4/hr) at ~2000 tok/s sustained gives
-~$0.55 per million tokens — competitive with hosted prices, and
-clears the API-independence + fine-tune-enablement goals.
+The non-API constraint says the shortlist must include at least one
+self-hosted candidate. It does NOT require any specific task to be
+self-hosted by default. The economics of self-hosted vs hosted is
+sensitive to usage pattern:
 
-For sustained-volume tasks (passage_enrichment / passage_contexts):
-self-hosted wins if average GPU utilization stays >40%. Otherwise
-hosted is cheaper.
+- **Self-hosted wins** when GPU utilization is sustained (continuous
+  request stream, batch>8). Realistic break-even vs hosted Llama 3.3
+  70B Turbo on DeepInfra is roughly 40-60% sustained utilization.
+- **Hosted wins** for sporadic or daily-batch patterns (cold-start
+  cost amortizes poorly over small workloads).
+
+For BleakHouse specifically, the most plausible self-hosted-default
+candidate is **passage_enrichment** rather than `generate_podcast`,
+because:
+
+- Volume: passage_enrichment processes thousands of passages per
+  novel; per-novel-onboarding it runs in big batches.
+- Cost discipline: at hosted prices, even cheap providers cost
+  meaningful real dollars for the full pipeline. Self-hosted gives
+  fixed cost regardless of token volume.
+- Quality tolerance: passage_enrichment is a structured task
+  (schema validation gates it); modest quality differences across
+  candidates are tolerable.
+
+For `generate_podcast` (prose, short format), the cost reassessment
+above suggests hosted is materially cheaper for BleakHouse's daily-
+batch render pattern. Self-hosted Gemma 4 26B may still win on
+quality (Stage 2 question), but it's no longer the obvious choice.
+
+Concrete proposal for the non-API option:
+
+**Modal-hosted Qwen 2.5-72B-Instruct (or similar mid-class model)
+for passage_enrichment**, sized for a single daily batch run per
+novel. Run cost: ~$2-4 per novel-onboarding batch (~10M tokens
+generated over ~30-60 min wall time). Compared to DeepInfra hosted
+Qwen 2.5-72B at $0.36/$0.40 ($0.36 per M = $3.60 for 10M), self-
+hosted is roughly the same cost but with API-independence + a
+clean fine-tune path.
 
 ---
 
@@ -178,8 +327,18 @@ the shortlist. Concrete proposal:
 **Candidates (4)**:
 1. Llama 3.1 8B on DeepInfra (Tier S).
 2. Qwen 2.5-72B-Instruct on DeepInfra (Tier M).
-3. Gemma 4 26B on Modal (Tier L + non-API self-hosted, two birds).
-4. Phi-4 14B on Modal (Tier W).
+3a. Gemma 4 26B on Modal (Tier L self-hosted; head-to-head vs 3b).
+3b. Gemma 4 31B (dense) on Together (Tier L hosted; head-to-head vs 3a).
+4. Qwen 2.5-72B on Modal (non-API option for passage_enrichment;
+   reuses the Modal infra from candidate 3a). Also serves Phi-4 14B
+   wildcard if there's appetite — fold the fine-tune-wildcard
+   benchmark into the same Modal account if the budget allows.
+
+Tier L now benchmarks self-hosted vs hosted of the same model family
+explicitly (3a vs 3b). If hosted Gemma 4 31B dense matches or beats
+the self-hosted 26B MoE on quality at substantially lower cost, the
+prose default is hosted; the non-API constraint is satisfied by the
+passage_enrichment routing (candidate 4).
 
 **Fixtures**:
 - Small structured: 10 listener_pick-shape inputs sampled from existing reading lists. Compare to Haiku-baseline picks.
@@ -228,7 +387,8 @@ Provisionally, the survey points toward:
 
 - **Default routing for small tasks**: Llama 3.1 8B on DeepInfra (cheap, fast, capable enough).
 - **Default routing for mid batch tasks**: Qwen 2.5-72B on DeepInfra; Anthropic-Batch-Haiku as opt-in when volume + cost-discipline wins.
-- **Default routing for prose (short)**: Gemma 4 26B on Modal (self-hosted) — clears Principle 6's non-API constraint AND the short-podcast prose direction.
+- **Default routing for prose (short)**: head-to-head between Gemma 4 26B on Modal (self-hosted) and Gemma 4 31B on Together (hosted, same family, ~3-5x cheaper for our usage pattern). Decision made by Stage 2 quality data, not by Stage 1's cost inference alone.
 - **Default routing for legacy prose (long, opt-in only)**: Anthropic Sonnet 4.6.
+- **Non-API constraint** (Principle 6) most naturally satisfied by routing `passage_enrichment` (the high-volume batch task) to self-hosted on Modal; prose may stay hosted if quality data supports it.
 
 This is a Stage 1 inference, not a decision. Stage 2 results revise.
