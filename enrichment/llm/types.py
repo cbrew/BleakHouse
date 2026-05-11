@@ -1,0 +1,96 @@
+"""Provider-neutral LLM call types.
+
+Per the migration plan (Principle 1: per-task config, Principle 3:
+schema as contract, Principle 5: explicit auditable manifest), the
+seam types carry enough metadata that any LLM-backed artifact can
+record provider/model/hosting/tokens/cost/execution_mode without
+the call site touching provider-specific code.
+
+Provider implementations consume GenerationRequest and produce
+GenerationResult. They never see Pydantic model classes — only
+JSON Schema dicts.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+
+@dataclass(frozen=True)
+class ModelSpec:
+    """A (provider, model, endpoint) triple resolved from a task name.
+
+    `hosting` is the substrate identity used for cost telemetry —
+    e.g. 'anthropic', 'deepinfra', 'together', 'novita', 'modal',
+    'runpod', 'gke'. It distinguishes 'same model on different
+    infra' for the cost-per-task-per-hosting manifest field.
+    """
+
+    provider: str            # "anthropic" | "openai_compatible"
+    model: str
+    hosting: str
+    base_url: str | None = None
+
+
+@dataclass(frozen=True)
+class ProviderCapabilities:
+    """Per-provider capability flags.
+
+    BleakHouse-5b7m (closed): the seam doesn't pretend providers
+    have uniform structured-output support. Each provider declares
+    what it can do; settings resolution fails loudly at
+    configuration time when a task requests a capability the
+    configured provider lacks.
+    """
+
+    json_schema_constrained: bool
+    json_schema_strict: bool          # OpenAI 'strict' semantics; not all providers honor
+    tool_use: bool
+    native_batch: bool
+    context_window: int
+
+
+@dataclass(frozen=True)
+class GenerationRequest:
+    """A task-level LLM call request.
+
+    `task` identifies the logical operation (passage_enrichment,
+    listener_pick, etc.). The settings layer maps task → ModelSpec.
+
+    `json_schema` is the JSON Schema dict (typically
+    `MyPydanticModel.model_json_schema()`) — NOT a Pydantic model
+    class. Keep Pydantic in the caller.
+    """
+
+    task: str
+    system: str | None
+    user: str
+    max_tokens: int
+    json_schema: dict[str, Any] | None = None
+    temperature: float | None = None
+
+
+@dataclass(frozen=True)
+class GenerationResult:
+    """Outcome of a single LLM generation.
+
+    `text` is the model's output (raw text or JSON-as-string;
+    callers validate with their own Pydantic models if applicable).
+
+    The remaining fields populate the manifest's cost-telemetry
+    record per Principle 5 of the migration plan.
+
+    `head_verified` is not present here — that's for the reference-
+    verification seam. This seam's per-call audit lives in the
+    fields below.
+    """
+
+    text: str
+    provider: str
+    model: str
+    hosting: str
+    input_tokens: int | None
+    output_tokens: int | None
+    estimated_cost_usd: float | None
+    execution_mode: str = "one_shot"   # "one_shot" | "native_batch" | "portable_batch"
+    raw: Any | None = field(default=None, repr=False)  # provider-native response for debugging

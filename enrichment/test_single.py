@@ -2,21 +2,26 @@
 
 Run this before submitting a batch to validate schema, prompt, and parsing.
 
+Migrated to the provider-neutral seam (BleakHouse-4thc / Phase 1 of
+the Anthropic-optionality migration). Behavior preserved: default
+task routing for 'passage_enrichment' points at the same Claude
+Haiku model and uses Anthropic structured-output configuration via
+the seam.
+
 Usage: uv run python -m enrichment.test_single [--chapter c1]
 """
 
 import argparse
 import json
 import logging
-import os
 from pathlib import Path
 
-import anthropic
 from dotenv import load_dotenv
 
+from enrichment.llm import GenerationRequest, generate
 from enrichment.prompt import ENRICHMENT_SYSTEM_PROMPT
 from enrichment.schemas import ChapterEnrichmentResult
-from enrichment.submit_passages_enriched import MODEL, format_chapter_text
+from enrichment.submit_passages_enriched import format_chapter_text
 
 TOKENS_PER_PARAGRAPH = 350
 
@@ -39,7 +44,6 @@ def main() -> None:
     args = parser.parse_args()
 
     load_dotenv()
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     raw = json.loads(PASSAGES_PATH.read_text())
     passages = [p for p in raw if p["chapter_id"] == args.chapter]
@@ -57,25 +61,30 @@ def main() -> None:
     max_tokens = min(len(passages) * TOKENS_PER_PARAGRAPH, 8192)
     logger.info("Using max_tokens=%d", max_tokens)
 
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=max_tokens,
-        output_config={"format": {"type": "json_schema", "schema": schema}},
+    result = generate(GenerationRequest(
+        task="passage_enrichment",
         system=ENRICHMENT_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
+        user=user_message,
+        max_tokens=max_tokens,
+        json_schema=schema,
+    ))
+
+    logger.info(
+        "provider=%s model=%s hosting=%s input_tokens=%s output_tokens=%s cost=%s",
+        result.provider, result.model, result.hosting,
+        result.input_tokens, result.output_tokens,
+        f"${result.estimated_cost_usd:.4f}" if result.estimated_cost_usd else "unknown",
     )
 
-    block = response.content[0]
-    assert block.type == "text"
-    result = ChapterEnrichmentResult.model_validate_json(block.text)
+    enriched = ChapterEnrichmentResult.model_validate_json(result.text)
 
     logger.info(
         "OK: %d enrichments for chapter %s (expected %d)",
-        len(result.enrichments),
-        result.chapter_id,
+        len(enriched.enrichments),
+        enriched.chapter_id,
         len(passages),
     )
-    for e in result.enrichments:
+    for e in enriched.enrichments:
         en = e.enrichment
         logger.info(
             "  p%d: score=%d narrator=%s plot=%s — %s",
