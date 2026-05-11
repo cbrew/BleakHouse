@@ -69,8 +69,33 @@ _TASK_DEFAULTS: dict[str, ModelSpec] = {
         hosting="anthropic",
     ),
 
-    # Phase 2.5: reading-list winnowing.
+    # Phase 2.5: listener-pick winnowing (host_prep._select_listener_recommendations).
+    # Used by enrichment.host_prep.filter_reading_list_recommended +
+    # scripts/rewinnow_recommended.py (BleakHouse-sz5m).
+    "listener_pick": ModelSpec(
+        provider="anthropic",
+        model="claude-haiku-4-5-20251001",
+        hosting="anthropic",
+    ),
+
+    # Phase 2.5: reading-list winnowing — same Haiku call shape as
+    # listener_pick, kept as a separate task name so per-task routing
+    # can diverge.
     "reading_list_winnow": ModelSpec(
+        provider="anthropic",
+        model="claude-haiku-4-5-20251001",
+        hosting="anthropic",
+    ),
+
+    # Phase 2.5: reference-tools winnowing (reference_tools.py:444).
+    "reference_tools_winnow": ModelSpec(
+        provider="anthropic",
+        model="claude-haiku-4-5-20251001",
+        hosting="anthropic",
+    ),
+
+    # Quote verification — runs during interview-quote pass.
+    "quote_verification": ModelSpec(
         provider="anthropic",
         model="claude-haiku-4-5-20251001",
         hosting="anthropic",
