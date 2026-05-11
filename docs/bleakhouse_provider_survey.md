@@ -267,6 +267,22 @@ that comes back goes into `enrichment/llm/settings.py` as the
 | Phi-4 (Microsoft) | MIT | Fully permissive |
 | Yi-1.5 (01.AI) | Apache 2.0 | Fully permissive |
 | Aya 23 (Cohere) | CC-BY-NC | **Non-commercial only** — flag |
+| Nemotron family (NVIDIA) | NVIDIA Open Model License (NOML) | Commercial use + fine-tuning + redistribution allowed, but with caveats — see below |
+
+### NVIDIA Open Model License caveats (vs Apache 2.0)
+
+Materially more restrictive than Apache 2.0 in several non-obvious ways:
+
+- **Unilateral amendment.** NVIDIA may update the license at any time; you either comply with the new terms or cease use. No grandfather clause. For long-running production projects this is a real stability risk.
+- **No patent grant.** Apache 2.0 includes an explicit patent grant; NOML does not. If NVIDIA ever asserted a patent claim against a Nemotron user, the license offers no defense.
+- **Guardrail-circumvention trap.** Disabling any safety mechanism without "substantially similar Guardrail" auto-terminates the license. Only relevant if we fine-tune.
+- **Trustworthy AI compliance.** Separately-maintained NVIDIA document; external dependency that can change without notice.
+- **Litigation termination.** Filing any patent or copyright suit against NVIDIA terminates the license, even on unrelated matters.
+- **Indemnity asymmetry.** Licensee indemnifies NVIDIA for third-party claims; no reciprocal obligation.
+- **Attribution required.** "Licensed by NVIDIA Corporation under the NVIDIA Open Model License" in a Notice file when redistributing.
+- **Output ownership.** We own outputs; this is fine and matches Apache 2.0.
+
+Net: acceptable for **hosted-API inference use** (no redistribution, no fine-tuning, content within any reasonable Trustworthy AI interpretation — BleakHouse's literary podcasts qualify). Strictly worse than Apache 2.0 for fine-tuning or long-horizon production commitments. If a Nemotron candidate ties an Apache 2.0 alternative on quality, prefer the Apache 2.0 option for cleaner long-term posture.
 
 ---
 
@@ -286,9 +302,14 @@ Three credible hosted candidates as of 2026-05-11:
    context; multilingual (en/es/fr/de/it/ja); trained on NVIDIA's
    instruction-following + structured-outputs RL datasets (the
    training mix explicitly targets our task shape). Also hosted on
-   NVIDIA NIM → 2-host portability. NVIDIA Open Model License
-   ("license:other"); permissive for commercial + fine-tuning.
-   Strong fit on training-data alignment with our use case.
+   NVIDIA NIM → 2-host portability. Licensed under the **NVIDIA
+   Open Model License (NOML)** — commercial use OK, but strictly
+   worse than Apache 2.0 for long-horizon use (unilateral
+   amendment, no patent grant, guardrail-circumvention trap if we
+   ever fine-tune; see the License Caveats section above). Strong
+   fit on training-data alignment with our use case; license is
+   acceptable for hosted-API inference today but adds a stability
+   risk if NVIDIA tightens terms later.
 
 2. **Llama 3.1 8B on DeepInfra** — $0.02/$0.05/M; 8B params;
    broadest multi-host portability (Together, DeepInfra,
@@ -309,6 +330,11 @@ are:
 - **Multi-host portability**: Llama 3.1 8B wins by a wide margin.
 - **Provider consolidation**: all three are on DeepInfra; single
   API-key story works regardless of pick.
+- **License posture**: Llama (Meta Community) and Gemma 3 (Gemma
+  Terms of Use) are both well-understood; Nemotron's NOML is
+  strictly worse than Apache 2.0 (see License Caveats above). If
+  Stage 2 quality is close, the license preference tilts away from
+  Nemotron.
 
 Stage 2 directly compares all three on a 20-input fixture
 sampled from existing reading lists. Lowest-stakes Tier in the
