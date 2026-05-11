@@ -51,6 +51,15 @@ from enrichment.llm.types import GenerationRequest, GenerationResult, ModelSpec
 # Hosting → env-var-name for the API key. Override-friendly: an
 # operator that wants to share one key across hostings sets the
 # specific env var to the shared key.
+#
+# Modal is intentionally NOT in this map: a deployed Modal vLLM
+# endpoint at *.modal.run takes no auth header by default, and
+# Modal's own credentials (token_id + token_secret) are for
+# `modal deploy`, not for calls to the deployed endpoint. Modal-
+# hosted specs flow through the provider with api_key=None, which
+# the OpenAI SDK accepts. If a Modal endpoint is gated via Modal
+# Secrets, the operator wires the auth header manually outside
+# this seam.
 _API_KEY_ENV: dict[str, str] = {
     "deepinfra": "DEEPINFRA_API_KEY",
     "together": "TOGETHER_API_KEY",
@@ -60,9 +69,9 @@ _API_KEY_ENV: dict[str, str] = {
     "nvidia": "NVIDIA_API_KEY",
     "novita": "NOVITA_API_KEY",
     "featherless": "FEATHERLESS_API_KEY",
-    # Self-hosted endpoints don't usually require auth, but some
-    # deployments do. Env vars exist so operators can wire them up.
-    "modal": "MODAL_VLLM_API_KEY",
+    # Self-hosted endpoints typically do need auth at request time
+    # (Runpod hands you an API key with the deploy; GKE depends on
+    # how you set up ingress). Modal is the exception — see above.
     "runpod": "RUNPOD_VLLM_API_KEY",
     "gke": "GKE_VLLM_API_KEY",
 }
