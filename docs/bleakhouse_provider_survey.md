@@ -38,12 +38,71 @@ driver. A 3-5x cost ratio between hosted and self-hosted resolves
 to ~$50/year in absolute terms. The decision drivers, in order:
 
 1. Quality (still primary per the rubric).
-2. API independence (Principle 6 of the plan; the non-API
-   constraint is now about sovereignty / future-optionality, not
-   economics).
+2. **Lock-in resistance** (corrected interpretation of Principle 6
+   after user feedback 2026-05-11; see "What 'non-API' really
+   means" below).
 3. Fine-tune enablement (low priority but real).
 4. Operational simplicity (zero maintenance for hosted; deploy +
    monitor for Modal).
+
+### What "non-API" really means
+
+The plan's Principle 6 was phrased "non-API option required" and I
+initially read this as "use self-hosted infrastructure." User
+correction: **the constraint is non-lock-in, not literally
+non-API**. The mechanism for non-lock-in is portability across
+providers, not necessarily self-hosting.
+
+Open-weight models with broad hosted availability give us portability
+without paying the ops cost of self-hosting:
+
+- If the model is open-weight (Apache 2.0 Gemma 4, Apache 2.0 Qwen,
+  Meta Community Llama, Apache 2.0 gpt-oss), any vLLM-compatible
+  host can serve it. The model itself is portable.
+- If the API surface is OpenAI-compatible (standard `response_format`,
+  `tools`, etc.), switching providers is a config change, not a
+  code change.
+- Multi-host availability means we can multi-source the same model.
+  If DeepInfra changes prices, we move to Together. If Together
+  withdraws Gemma 4 31B, we use Fireworks or self-host on Modal.
+- Self-hosting on Modal stays as a documented fallback path we
+  *could* pivot to, but we don't pay the ongoing cost of running
+  it.
+
+**Reasonable assumption** (per user): Gemma 4 will be available
+serverless at several sizes and from multiple providers; similarly
+Qwen and Llama. The open-weight catalogue is broadening fast.
+
+What still constitutes lock-in:
+- **Closed-weight providers** (Anthropic, OpenAI GPT, Cohere
+  Command): can't multi-source, can't self-host, fully dependent
+  on the vendor.
+- **Single-provider proprietary catalogue**: Cerebras's
+  withdrawal of llama3.1-8b and qwen-3-235b on 2026-05-27 is a
+  textbook case — narrow catalogue + single vendor = forced
+  migration.
+
+What does NOT constitute lock-in:
+- Using a hosted provider as the runtime default, as long as the
+  same model (or a comparable open-weight peer) is available
+  elsewhere via OpenAI-compatible API.
+
+### Model-portability ranking (within the open-weight families)
+
+Higher rank = more hosts currently serve it = lower lock-in risk:
+
+| Model family | Host availability |
+|---|---|
+| Llama 3.x | Together, DeepInfra, Fireworks, Groq, many more. **Highest portability.** |
+| Qwen 2.5 / 3.x | Together, DeepInfra, Fireworks, Groq. Broad. |
+| DeepSeek-V3.x | Together, DeepInfra, others. Broad. |
+| gpt-oss-120b / 20b | Cerebras, Groq, Fireworks. Decent. |
+| Gemma 4 | Together (31B); DeepInfra serves Gemma 3 27B but not yet 4. Likely to broaden but newer. |
+| Phi-4 | Limited hosted footprint; mostly self-hosted right now. |
+| Mistral / Mixtral | Together, DeepInfra, Fireworks. Broad. |
+
+For routing decisions, prefer the higher-portability rows when
+quality is comparable.
 
 The earlier cost-reassessment (Scenario A/B/C breakdown) is
 preserved below for reference but is no longer the centre of the
@@ -321,46 +380,40 @@ LoRA-tunable, well-regarded for instruction following at small size.
 This is the candidate that gives BleakHouse a clean fine-tune path
 without renting H100s.
 
-### Non-API self-hosted option (Principle 6)
+### Lock-in mitigation (corrected interpretation of Principle 6)
 
-The non-API constraint says the shortlist must include at least one
-self-hosted candidate. It does NOT require any specific task to be
-self-hosted by default. The economics of self-hosted vs hosted is
-sensitive to usage pattern:
+Earlier drafts of this section read Principle 6 as "at least one
+default must be self-hosted." Per user correction: the constraint
+is **non-lock-in via portability**, not literally self-hosted.
 
-- **Self-hosted wins** when GPU utilization is sustained (continuous
-  request stream, batch>8). Realistic break-even vs hosted Llama 3.3
-  70B Turbo on DeepInfra is roughly 40-60% sustained utilization.
-- **Hosted wins** for sporadic or daily-batch patterns (cold-start
-  cost amortizes poorly over small workloads).
+Lock-in mitigation strategy adopted by this survey:
 
-For BleakHouse specifically, the most plausible self-hosted-default
-candidate is **passage_enrichment** rather than `generate_podcast`,
-because:
+1. **Choose open-weight models** for all defaults. The model itself
+   is portable across any vLLM-compatible host.
+2. **Choose models with broad multi-host availability** when quality
+   is comparable. Llama 3.x > Qwen 2.5 > DeepSeek-V3 > Gemma 4
+   (Gemma 4 is newer; portability will broaden).
+3. **Use OpenAI-compatible APIs** uniformly. Switching providers is
+   a config change (`base_url`, `api_key`), not a code change.
+4. **Document an alternate provider per task** in
+   `enrichment/llm/settings.py`. Operators flip with one env var
+   when DeepInfra changes prices or Together drops a model.
+5. **Keep Modal self-hosting as a documented fallback path**, not a
+   primary default. The vLLM-on-Modal recipe earlier in this doc
+   stays as an operational dry-run we could execute when needed.
 
-- Volume: passage_enrichment processes thousands of passages per
-  novel; per-novel-onboarding it runs in big batches.
-- Cost discipline: at hosted prices, even cheap providers cost
-  meaningful real dollars for the full pipeline. Self-hosted gives
-  fixed cost regardless of token volume.
-- Quality tolerance: passage_enrichment is a structured task
-  (schema validation gates it); modest quality differences across
-  candidates are tolerable.
+What this strategy doesn't pay for:
+- Ongoing Modal app maintenance (the ~$50/year of hosted-API spend
+  it would replace isn't enough to justify the ops cost).
+- Pre-emptive fine-tuning before there's a project-driven reason to
+  do it.
 
-For `generate_podcast` (prose, short format), the cost reassessment
-above suggests hosted is materially cheaper for BleakHouse's daily-
-batch render pattern. Self-hosted Gemma 4 26B may still win on
-quality (Stage 2 question), but it's no longer the obvious choice.
-
-Concrete proposal for the non-API option:
-
-**Modal-hosted Qwen 2.5-72B-Instruct (or similar mid-class model)
-for passage_enrichment**, sized for a single daily batch run per
-novel. Run cost: ~$2-4 per novel-onboarding batch (~10M tokens
-generated over ~30-60 min wall time). Compared to DeepInfra hosted
-Qwen 2.5-72B at $0.36/$0.40 ($0.36 per M = $3.60 for 10M), self-
-hosted is roughly the same cost but with API-independence + a
-clean fine-tune path.
+What this strategy pays for:
+- Same provider-config seam BleakHouse needs anyway for
+  experimentation across hosted candidates.
+- A Modal recipe in the tree, exercised once during Stage 2 (see
+  Stage 2 plan below), so the fallback path is known-working when
+  needed.
 
 ---
 
@@ -369,21 +422,37 @@ clean fine-tune path.
 Per the o3ir spec, Stage 2 = live benchmark on 3-4 candidates from
 the shortlist. Concrete proposal:
 
-**Candidates (4)**:
-1. Llama 3.1 8B on DeepInfra (Tier S).
-2. Qwen 2.5-72B-Instruct on DeepInfra (Tier M).
-3a. Gemma 4 26B on Modal (Tier L self-hosted; head-to-head vs 3b).
-3b. Gemma 4 31B (dense) on Together (Tier L hosted; head-to-head vs 3a).
-4. Qwen 2.5-72B on Modal (non-API option for passage_enrichment;
-   reuses the Modal infra from candidate 3a). Also serves Phi-4 14B
-   wildcard if there's appetite — fold the fine-tune-wildcard
-   benchmark into the same Modal account if the budget allows.
+**Candidates (4 hosted + 1 fallback-rehearsal)**:
 
-Tier L now benchmarks self-hosted vs hosted of the same model family
-explicitly (3a vs 3b). If hosted Gemma 4 31B dense matches or beats
-the self-hosted 26B MoE on quality at substantially lower cost, the
-prose default is hosted; the non-API constraint is satisfied by the
-passage_enrichment routing (candidate 4).
+1. **Llama 3.1 8B on DeepInfra** (Tier S). Cheap; broad portability;
+   high-frequency small-structured tasks.
+2. **Qwen 2.5-72B-Instruct on DeepInfra** (Tier M). Apache 2.0;
+   broad portability; passage_enrichment + mid-structured tasks.
+   Stage 2 compares schema validity + content fidelity to current
+   Anthropic Haiku baseline.
+3. **Gemma 4 31B on Together** (Tier L hosted). Apache 2.0; same
+   family as user-preferred Gemma 4 26B MoE but dense + currently
+   available hosted. Stage 2 measures blinded preference vs
+   Sonnet-on-short.
+4. **DeepSeek-V3.2 on DeepInfra** (Tier L alternate). DeepSeek
+   License; 160k context. Head-to-head with Gemma 4 31B on the
+   same short-prose fixture. Pick winner of (3) vs (4) as default.
+
+**Fallback rehearsal** (not a Stage 2 quality data-point; an
+operational dry-run):
+
+5. **Qwen 2.5-72B-Instruct deployed on Modal H100**, exercising the
+   vLLM-on-Modal recipe end-to-end once during Stage 2. Goal: prove
+   the fallback path is operational and document any deployment
+   gotchas. Do NOT use this as a quality-comparison point; do NOT
+   make it a default. It's there so when a hosted provider does
+   eventually do something we don't like, we have a known-working
+   migration path.
+
+If Stage 2 turns up a surprise — e.g. Llama 3.3 70B Turbo on
+DeepInfra clears the prose floor at $0.28/M blended — fold it into
+the candidate list at decision time rather than expanding Stage 2
+itself.
 
 **Fixtures**:
 - Small structured: 10 listener_pick-shape inputs sampled from existing reading lists. Compare to Haiku-baseline picks.
@@ -397,15 +466,14 @@ passage_enrichment routing (candidate 4).
 - Quality verdict 1-5 vs baseline
 
 **Cost estimate for Stage 2 itself**:
-- Hosted candidates: ~$1-3 in total API calls.
-- Modal candidates: ~$5-10 in GPU-minutes including model load.
-- Anthropic baseline calls: ~$2-5 on Haiku + Sonnet for comparisons.
-- Total: under $20.
+- Hosted candidates (4 candidates × 3 task classes × small fixtures): ~$2-5 in total API calls (DeepInfra + Together + Anthropic baselines).
+- Modal fallback rehearsal: ~$3-8 in GPU-minutes including model load + cold-start.
+- Total: under $15.
 
 **Blockers**:
-- API keys for DeepInfra and Modal (Together/Fireworks/Groq optional).
-- Modal account + deployed vLLM endpoints for Gemma 4 26B and Phi-4.
-- Decision on whether to use existing `experiments/cerebras/` infra as a starting point for the survey scaffolding or build fresh.
+- API keys for DeepInfra, Together, and (existing) Anthropic.
+- Modal account + token credentials for the fallback rehearsal only.
+- Decision on whether to reuse `experiments/cerebras/` infra as a starting point for the seam scaffolding or build fresh.
 
 ---
 
@@ -428,57 +496,76 @@ empirically) but should be noted in the Stage 2 report.
 
 ## Decision context — what this survey commits us to
 
-Given the corrected usage pattern (novel-onboarding bursts +
-occasional corrections; annual LLM bill ~$20-80 regardless of
-hosting choice), cost is no longer the decision driver. Quality
-and API-independence become the primary axes.
+Given the corrected usage pattern (novel-onboarding bursts; annual
+LLM bill ~$20-80 regardless of hosting) AND the corrected
+interpretation of non-lock-in (open-weight + multi-host
+availability, not literally self-hosted), the recommendation
+simplifies considerably:
 
-Provisional routing direction (Stage 1 inference; Stage 2 revises):
+**All defaults can be hosted.** The lock-in constraint is satisfied
+by choosing open-weight models that are available from multiple
+hosted providers via OpenAI-compatible APIs. Self-hosting on Modal
+stays as a documented fallback for the day a provider changes terms
+or withdraws a model.
+
+Provisional routing direction (Stage 1 inference):
 
 - **Small tasks (listener_pick, reading_list_winnow, reference_tools,
-  quote_verification)**: hosted is the right default. Llama 3.1 8B
-  on DeepInfra. These are high-frequency low-cost calls inside the
-  pipeline; the hosted-API simplicity and reliability win at this
-  volume.
+  quote_verification)**: **Llama 3.1 8B** on DeepInfra as primary,
+  alternate at Groq, Together, Fireworks. Apache-2.0-equivalent
+  Meta Community License → portable.
 
-- **Mid batch tasks (passage_enrichment, passage_contexts)**: the
-  natural home for the **non-API self-hosted default**. Per-novel
-  burst runs for ~1-2h sustained → Modal/Runpod economics work
-  fine; fine-tune story is plausible (could LoRA-tune on the
-  passage-enrichment schema). Recommend Qwen 2.5-72B-Instruct on
-  Modal H100. Anthropic-Batch-Haiku stays as opt-in for any case
-  where its quality wins enough to matter, and the 50% batch
-  discount remains relevant for Anthropic-batch path.
+- **Mid batch tasks (passage_enrichment, passage_contexts)**:
+  **Qwen 2.5-72B-Instruct** on DeepInfra ($0.36/$0.40) as primary,
+  alternate at Together, Fireworks. Apache 2.0 → portable. Stage 2
+  benchmark validates quality vs Haiku-batch baseline. The
+  Anthropic-Batch-Haiku path stays available as opt-in (50%
+  discount may justify it on cost discipline for very large novel
+  onboardings).
 
-- **Prose generation (short format)**: hosted, almost certainly.
-  At ~2M prose tokens/year the cost differential between Modal-self-
-  hosted Gemma 4 26B and hosted Gemma 4 31B is ~$5/year total. The
-  ops overhead of maintaining a Modal vLLM endpoint for prose alone
-  isn't justified. Stage 2 head-to-head should still happen on
-  quality grounds (does MoE-26B beat dense-31B?), but the default
-  resolution is hosted unless the quality data is overwhelming.
+- **Prose generation (short format)**: between **Gemma 4 31B** (on
+  Together; same family as the user's Gemma 4 26B preference;
+  dense vs MoE; Apache 2.0) and **DeepSeek-V3.2** (on DeepInfra;
+  DeepSeek License; 160k context). Stage 2 quality head-to-head
+  decides. Both have decent multi-host availability now; both will
+  broaden. Llama 3.3 70B Turbo on DeepInfra is a wildcard at very
+  low price ($0.28/M blended) but uses quantization that may hurt
+  schema-strict output.
 
 - **Legacy prose (long format, opt-in)**: Anthropic Sonnet 4.6.
 
-- **Non-API constraint resolution (Principle 6)**: satisfied by
-  passage_enrichment routing self-hosted (it's the right fit on
-  utilization grounds, and gives us a deployable self-hosted path
-  we can fine-tune against later).
+- **Lock-in mitigation**: the seam reads `(provider, model, base_url)`
+  from settings; switching providers is a config change. Document
+  per-task an alternate provider in `enrichment/llm/settings.py`
+  so operators can flip with one env var when needed.
 
-What the survey does NOT recommend, and why:
-- Routing prose to self-hosted Modal as primary: the ops cost of
-  maintaining a separate Modal app for a workload that produces
-  ~$1-2/year of hosted-equivalent spend isn't worth it. Self-hosted
-  prose only makes sense if fine-tuning Gemma 4 26B for short-form
-  literary prose becomes a project priority — which is currently
-  low-priority per the user.
-- Routing small tasks to self-hosted: the call-frequency is too
-  high and per-call value too low for self-hosted cold-start /
-  warm-down dynamics to make sense.
+Modal self-hosting stays in the toolbox for:
+- The day a hosted provider withdraws a model we depend on.
+- A future fine-tune path (low priority but real).
+- A specific task where benchmark data shows self-hosting wins on
+  quality at a margin that justifies the ops cost.
 
-Stage 2 questions that genuinely matter under this view:
-1. Does Qwen 2.5-72B on Modal H100 produce passage_enrichment outputs that pass the quality floor vs current Anthropic Haiku?
-2. Does Gemma 4 31B (or DeepSeek-V3.2, or Llama 3.3 70B Turbo) hosted produce short-podcast prose that passes the ≥45% blinded preference floor vs Sonnet-on-short?
-3. Is Llama 3.1 8B on DeepInfra reliably good enough on the small-structured tasks to replace Haiku? (Lowest stakes; could ship on Stage 1 confidence alone.)
+But Modal is NOT a Stage 1 default. The annual ops cost of
+maintaining a Modal vLLM endpoint (image rebuilds, model-weight
+caching, occasional cold-start debugging) exceeds the $50/year of
+hosted-API spend it would replace.
+
+What the survey does NOT recommend:
+- Self-hosting on Modal as a primary default for any task.
+- Cerebras as a primary default for any task (narrow catalogue +
+  imminent withdrawal date = exactly the lock-in risk the
+  constraint exists to avoid). Cerebras can still be the opt-in
+  fast-inference path for `gpt-oss-120b` if that model wins on a
+  task; document but don't default.
+
+Stage 2 questions that matter under this view:
+1. **Qwen 2.5-72B-Instruct vs Anthropic Haiku-batch on passage_enrichment**:
+   schema validity, content fidelity, cost-per-novel-onboarding.
+2. **Gemma 4 31B vs DeepSeek-V3.2 vs Llama 3.3 70B Turbo on short-prose**:
+   blinded preference vs Sonnet-on-short, JSON-strict reliability,
+   short-format word-count discipline.
+3. **Llama 3.1 8B on listener_pick + reading_list_winnow**: set-
+   overlap with Haiku baseline. Lowest stakes; if it's even close,
+   the cost differential ($0.04/M vs $1-3/M) makes the call easy.
 
 This is a Stage 1 inference, not a decision. Stage 2 results revise.
