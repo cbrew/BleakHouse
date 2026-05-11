@@ -62,7 +62,6 @@ All call sites use `anthropic.Anthropic()` client and either `.messages.create`,
 
 | File:line | Call | Model | Status |
 |---|---|---|---|
-| `bleak_house/metrics.py:14` | `.beta.messages.count_tokens` | `claude-3-5-sonnet-20241022` | **ORPHAN** (Hamilton DAG node, not invoked by active drivers) |
 | `enrichment/test_single.py:60` | `.messages.create` | `claude-haiku-4-5-20251001` | **SCRIPT** (single-passage sanity check before batch) |
 
 ## Gemini
@@ -86,7 +85,7 @@ Neither notebook is imported by runtime code.
 
 | Provider | LIVE | SCRIPT | ORPHAN |
 |---|---|---|---|
-| Anthropic | ~12 call sites across 10 files (main pipeline, batch utilities, Phase 2.5) | 1 (`test_single.py`) | 1 (`metrics.py`) |
+| Anthropic | ~12 call sites across 10 files (main pipeline, batch utilities, Phase 2.5) | 1 (`test_single.py`) | 0 |
 | OpenAI | 2 files (`ask_question.py`, `plain_rag_podcast.py`) — both in peripheral pipelines | 2 (`demotts.py`, `experiment_transport_costs.py`) | 0 |
 | Gemini | 3 files (all TTS) | 0 | 0 |
 

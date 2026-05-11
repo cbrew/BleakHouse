@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path("data")
 OUTPUT_PATH = DATA_DIR / "passages_raw.json"
 HTML_PATH = DATA_DIR / "pg1023-images.html"
+HTML_ZIP_URL = "https://www.gutenberg.org/cache/epub/1023/pg1023-h.zip"
 
 
 def ensure_html() -> Path:
@@ -30,8 +31,6 @@ def ensure_html() -> Path:
     import zipfile
 
     import requests
-
-    from bleak_house.download import HTML_ZIP_URL
 
     logger.info("Downloading Gutenberg HTML from %s", HTML_ZIP_URL)
     r = requests.get(HTML_ZIP_URL)
