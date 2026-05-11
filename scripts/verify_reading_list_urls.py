@@ -96,7 +96,12 @@ def _entry_to_candidate(entry: dict) -> CandidateReference:
         year = None
 
     doi = (entry.get("doi") or entry.get("openalex_doi") or "").strip()
-    raw_url = (entry.get("url") or "").strip()
+    # On re-runs, prefer the preserved pre-backfill URL (raw_url) over
+    # the current url, which is the *result* of a previous cascade run.
+    # Feeding the previous result back as raw_url would short-circuit
+    # the cascade through the raw_url step and re-admit any URL that
+    # still HEAD-200s — including foreign-catalog soft-404 pages.
+    raw_url = (entry.get("raw_url") or entry.get("url") or "").strip()
     publisher = entry.get("publisher") or None
 
     return CandidateReference(

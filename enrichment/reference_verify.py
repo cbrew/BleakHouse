@@ -299,12 +299,19 @@ class ReferenceVerifier:
         if doi:
             url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
         else:
+            # No DOI: prefer the OpenAlex work page (always a valid
+            # citation surface) over primary_location.landing_page_url
+            # unless the landing page is on a trusted full-text host.
+            # Many landing pages are foreign library catalogs that
+            # soft-404 (HTTP 200 + 'record not found' body), which
+            # HEAD verification can't detect.
             primary_loc = best.get("primary_location") or {}
-            url = (
-                primary_loc.get("landing_page_url")
-                or best.get("id")
-                or ""
-            )
+            landing = primary_loc.get("landing_page_url") or ""
+            work_url = best.get("id") or ""
+            if landing and _is_trusted_landing(landing):
+                url = landing
+            else:
+                url = work_url or landing
         return url if (url and self._head_ok(url)) else None
 
     def _pick_best_openalex(
@@ -433,6 +440,34 @@ def _is_real_url(url: str) -> bool:
     """True for http(s):// URLs; False for synthetic schemes like
     'wiki-fr:' or empty strings. Case-insensitive."""
     return bool(re.match(r"^https?://", url, re.IGNORECASE))
+
+
+# Hosts whose landing pages are direct full-text or otherwise stable
+# citation targets. Anything outside this list (foreign library
+# catalogs, handle resolvers, institutional admin URLs) gets bypassed
+# in favour of the canonical OpenAlex work page.
+_TRUSTED_OPENALEX_LANDING_HOSTS = (
+    "archive.org",
+    "muse.jhu.edu",
+    "jstor.org",
+    "oapen.org",
+    "persee.fr",
+)
+
+
+def _is_trusted_landing(url: str) -> bool:
+    """True iff `url`'s host equals (or is a subdomain of) one of the
+    trusted full-text hosts."""
+    try:
+        host = (urllib.parse.urlparse(url).hostname or "").lower()
+    except ValueError:
+        return False
+    if not host:
+        return False
+    return any(
+        host == h or host.endswith("." + h)
+        for h in _TRUSTED_OPENALEX_LANDING_HOSTS
+    )
 
 
 def _normalize_text(s: str) -> str:

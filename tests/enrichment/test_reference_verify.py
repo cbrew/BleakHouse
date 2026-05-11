@@ -21,6 +21,7 @@ from enrichment.reference_verify import (
     ResolverResult,
     _author_overlaps,
     _is_real_url,
+    _is_trusted_landing,
     _normalize_doi,
     _title_similar,
 )
@@ -281,6 +282,103 @@ def test_openalex_skips_when_author_mismatch(verifier) -> None:
         authors=("Peter Ackroyd",),
     ))
     assert r.source != "openalex"
+
+
+def test_is_trusted_landing() -> None:
+    # Whitelisted full-text hosts and their subdomains
+    assert _is_trusted_landing("https://archive.org/details/x")
+    assert _is_trusted_landing("https://muse.jhu.edu/article/123")
+    assert _is_trusted_landing("https://www.jstor.org/stable/123")
+    assert _is_trusted_landing("http://www.persee.fr/doc/x")
+    # Catalog/handle hosts we want to reject
+    assert not _is_trusted_landing(
+        "http://bvbr.bib-bvb.de:8991/F?doc_number=024476258"
+    )
+    assert not _is_trusted_landing("http://ci.nii.ac.jp/ncid/BA20537484")
+    assert not _is_trusted_landing(
+        "https://bibliotheques-specialisees.paris.fr/x"
+    )
+    assert not _is_trusted_landing("http://hdl.handle.net/123/456")
+    # Edge cases
+    assert not _is_trusted_landing("")
+    assert not _is_trusted_landing("not a url")
+    # Suffix-attack guard: 'evil-archive.org' must NOT match 'archive.org'
+    assert not _is_trusted_landing("https://evil-archive.org/x")
+
+
+def _openalex_with_landing(
+    *, title, authors, year, landing_url, work_id="https://openalex.org/W123",
+):
+    return {
+        "id": work_id,
+        "display_name": title,
+        "publication_year": year,
+        "doi": None,
+        "primary_location": {"landing_page_url": landing_url},
+        "authorships": [
+            {"author": {"display_name": a}} for a in authors
+        ],
+    }
+
+
+def test_openalex_no_doi_prefers_work_url_over_untrusted_landing(verifier) -> None:
+    """The bvbr.bib-bvb.de soft-404 bug: OpenAlex returns a German
+    library catalog landing page that HEAD-200s but renders 'record
+    not found' in German. We must NOT admit the landing page; the
+    canonical openalex.org/W… work URL should win instead."""
+    v, sess = verifier
+    sess.set_get("https://api.openalex.org/works", 200, {
+        "results": [_openalex_with_landing(
+            title="Charles Dickens: A Life",
+            authors=["Claire Tomalin"],
+            year=2011,
+            landing_url=(
+                "http://bvbr.bib-bvb.de:8991/F?func=service"
+                "&doc_library=BVB01&doc_number=024476258"
+            ),
+            work_id="https://openalex.org/W2034567890",
+        )],
+    })
+    # Both URLs would HEAD-200 if visited; the fix is that the verifier
+    # must not even consider the untrusted landing.
+    sess.set_head(
+        "http://bvbr.bib-bvb.de:8991/F?func=service", 200,
+    )
+    sess.set_head("https://openalex.org/W2034567890", 200)
+
+    r = v.resolve(CandidateReference(
+        title="Charles Dickens: A Life",
+        authors=("Claire Tomalin",),
+        year=2011,
+    ))
+    assert r.resolved
+    assert r.source == "openalex"
+    assert r.url == "https://openalex.org/W2034567890"
+    # We must not have HEAD-checked the catalog URL at all.
+    assert all("bvbr.bib-bvb.de" not in u for u in sess.head_log)
+
+
+def test_openalex_no_doi_keeps_trusted_landing(verifier) -> None:
+    """Inverse of the soft-404 case: legitimate full-text on archive.org
+    SHOULD be preferred over the OpenAlex work page."""
+    v, sess = verifier
+    sess.set_get("https://api.openalex.org/works", 200, {
+        "results": [_openalex_with_landing(
+            title="Statistical Papers",
+            authors=["Welton"],
+            year=1888,
+            landing_url="http://archive.org/details/statisticalpaper00weltuoft",
+        )],
+    })
+    sess.set_head(
+        "http://archive.org/details/statisticalpaper00weltuoft", 200,
+    )
+    r = v.resolve(CandidateReference(
+        title="Statistical Papers", authors=("Welton",), year=1888,
+    ))
+    assert r.resolved
+    assert r.source == "openalex"
+    assert r.url == "http://archive.org/details/statisticalpaper00weltuoft"
 
 
 def test_openalex_year_filter(verifier) -> None:
