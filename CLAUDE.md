@@ -4,10 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-BleakHouse is a research project with two main workstreams built on **Hamilton** (dataflow orchestration) and **Burr** (state machine management):
+BleakHouse is a research project that turns Victorian novels — *Bleak House* foremost among them — into structured podcast scripts via LLM-driven literary analysis, then renders them to audio. The pipeline is a hand-rolled phase-based runner in `enrichment/run_pipeline.py` that dispatches on a `--pipeline` flag (`transport` / `no-passages` / `embedding`) and writes per-run JSON artefacts into `data/runs/<run_id>/`. A `data/content.db` (sqlite, built from those JSONs) backs the FastAPI webapp. Audio is rendered via Gemini TTS and stored in R2 through the small content-addressed store in `cas/`.
 
-1. **Literary Podcast Pipeline** (core) - Transforms Dickens' *Bleak House* into structured podcast scripts using LLM-driven literary analysis
-2. **RAG Tutorial Pipeline** (secondary) - A modular blog-ingestion and question-answering system
+Note: this codebase contains some vestigial Hamilton-decorated files (`bleak_house/`, `driver.py`, `run_download.py`) from an earlier prototype. They are not invoked by the active pipeline; `enrichment/segment.py` only borrows the `HTML_ZIP_URL` constant. Tracked as `BleakHouse-tpvd`/`-8lcb`/`-uihw` for removal. Burr is not used anywhere despite previous documentation.
 
 
 ## First-time setup (clone → working system)
@@ -144,42 +143,26 @@ Per-run audio metadata (no audio bytes in working tree):
 
 ## Architecture
 
-### Literary Podcast Pipeline (core system)
+The pipeline is plain Python — no DAG framework, no state machine library. Each phase reads JSON from `data/runs/<run_id>/` and writes JSON back; the runner in `enrichment/run_pipeline.py` orchestrates them sequentially.
 
-This is the main, most developed part of the project. The pipeline:
-1. Downloads and parses *Bleak House* from Project Gutenberg
-2. Uses an LLM to generate structured literary analysis per chapter
-3. Progressively merges chapter notes into a podcast script via a Burr state machine
+**Entry point:**
+- `enrichment/run_pipeline.py` — unified runner with `--pipeline {transport,no-passages,embedding}` dispatch and optional `--host-prep`. Replaces the earlier separate run.py/no_passages_run.py/embedding_run.py modules. The wrapper `scripts/add_novel.sh` chains download → segment → enrichment batch → contexts batch → clustering for a new novel.
 
-**Pydantic schema hierarchy** (the backbone of the system):
-- `literary_elements.py` - Base types: `KeyMoments`, `ThemesAndAnalysis`, `CharacterHighlight`, `BehindTheScenesInsight`, `CrossReferences`, `ModernRelevance`, `NarrativeStructure`, `LiteraryStyle`
-- `chapter_schema.py` - `ChapterSchema` wraps a list of literary elements (per-chapter LLM output)
-- `podcast_schema.py` - `Segment` -> `PodcastScript` (the merge target)
+**Phases (per run):**
+- Phase 0 — `enrichment/segment_novel.py` / `enrichment/segment.py`: downloads a novel from Project Gutenberg and segments it into passages.
+- Phase 1–2 — passage selection. Three dispatch strategies share schemas but differ in retrieval:
+  - `transport` — `enrichment/transport_podcast.py` uses OR-tools to assign passages to arcs under demand constraints.
+  - `embedding` — `enrichment/embedding_podcast.py` uses cosine-similarity ranking against arc embeddings.
+  - `no-passages` — bypasses passage selection; lets the host LLM speak from memory.
+- Phase 2.5 — `enrichment/run_pipeline.py:run_phase_2_5` builds the reading list (`phase2_5_reading_list.json`) via `enrichment/host_prep.py` + `enrichment/reference_tools.py` + `enrichment/reference_verify.py`.
+- Phase 3+ — rendering: `enrichment/render_audio.py` calls Gemini TTS (flash/pro) with per-speaker voice assignment, accent direction, delivery annotations, and disk-backed shard caching. Shards are stored by md5 in the CAS and pushed to R2.
 
-**Data acquisition:**
-- `download.py` - Hamilton module: fetches Gutenberg HTML zip, parses chapters via lxml xpath
-- `driver.py` - Hamilton driver that executes the download pipeline
+**Structured output:**
+The schemas that the active pipeline uses for LLM `output_config={"format": {"type": "json_schema", "schema": ...}}` calls live in `enrichment/` (e.g. arc demands, expert briefs, citation registry). The Pydantic classes in `bleak_house/` (`literary_elements.py`, `chapter_schema.py`, `podcast_schema.py`, `notes_prompt.py`, `podcast_prompt.py`) are prototype-era schemas from a Burr-driven chapter-merger that was never wired into the current runner — superseded; tracked for removal as `BleakHouse-uihw`.
 
-**LLM prompting:**
-- `notes_prompt.py` - System prompt + few-shot example for chapter -> `ChapterSchema` extraction
-- `podcast_prompt.py` - Example `Segment` and `PodcastScript` for merge prompts
-
-**Orchestration** (in `BleakHouse.ipynb`):
-- Burr state machine with actions: `obtain_chapters` -> `make_notes` -> `first_merge`/`merge` -> `end_reading`
-- `make_notes` calls OpenAI structured output to produce `ChapterSchema` per chapter
-- `first_merge` combines the first two chapters' notes into a `PodcastScript`
-- `merge` progressively folds each new chapter's notes into the running script
-- `metrics.py` - Token counting via Anthropic API (Hamilton `@config.when` dispatch)
-
-### RAG Pipeline (secondary, self-contained)
-
-A tutorial-style modular RAG app, progressively refined through v1/v2/v3 in `TwoLayer.ipynb`:
-- `actions/ingest_blog.py` - Scrapes blog HTML, chunks text with overlapping windows, embeds with OpenAI, stores in LanceDB
-- `actions/ask_question.py` - Retrieves relevant chunks from LanceDB + OpenAI/Anthropic completion
-- `two_layer_app.py` - Burr app wiring ingest and Q&A with Hamilton drivers, OpenTelemetry tracing
-
-**Text-to-speech:**
-- `enrichment/render_audio.py` - Renders structured podcast episodes to audio via Gemini TTS (flash/pro), with per-speaker voice assignment, accent direction, delivery annotations, and disk caching
+**Webapp:**
+- `webapp/app.py` — FastAPI app deployed on Fly. Reads `data/content.db` (built by `scripts/build_content_db.py` from per-run JSONs) and 302-redirects audio URLs to R2 via `cas.store.url(md5)`.
+- `webapp_v2/` — newer, cleaner-room reimplementation in progress (see `BleakHouse-tgow`); not yet the deployed app.
 
 ## Policy: No Guessing, No Unsupported Claims
 
@@ -208,12 +191,16 @@ We accept the residual risk: if a Wikipedia editor entered a wrong ISBN, we will
 
 ## Key Dependencies
 
-- **Hamilton** - Dataflow orchestration (with `@config.when` for conditional dispatch)
-- **Burr** - State machine for multi-step LLM workflows (podcast pipeline, RAG app)
-- **Pydantic** - Schema definitions for structured LLM output
-- **OpenAI / Anthropic** - LLM APIs (structured output via `beta.chat.completions.parse`)
-- **LanceDB** - Vector store for RAG pipeline
-- **lxml** - HTML parsing for Gutenberg text
+- **Anthropic / OpenAI / Google GenAI / Cerebras** — LLM APIs. Anthropic structured output via `output_config={"format": {"type": "json_schema", ...}}` (see `enrichment/test_single.py` for the canonical pattern); Gemini for TTS.
+- **Pydantic** — schema definitions for structured LLM output.
+- **FastAPI / uvicorn** — webapp serving `data/content.db`.
+- **boto3** — R2 client for CAS push/pull.
+- **mwparserfromhtml** — Wikipedia bibliography parsing (post-`BleakHouse-hgws`).
+- **OR-tools** — assignment optimisation in `transport_podcast.py`.
+- **LanceDB** — vector store for the embedding-pipeline variant.
+- **lxml** — HTML parsing for Gutenberg text.
+- **pydub** — mp3 export (needs `ffmpeg`).
+- **playwright** — used by webapp end-to-end tests.
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->

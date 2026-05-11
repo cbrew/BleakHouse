@@ -2,9 +2,12 @@
 
 Research project that turns Victorian novels — *Bleak House* foremost
 among them — into structured podcast scripts via LLM-driven literary
-analysis, then renders them to audio. Built on Hamilton (dataflow) +
-Burr (state machine) with R2-backed content-addressed storage for the
-audio bytes.
+analysis, then renders them to audio. A hand-rolled phase-based
+pipeline (`enrichment/run_pipeline.py`) drives Anthropic/Gemini/OpenAI
+structured-output calls, persists per-run artefacts as JSON in
+`data/runs/`, and rolls up into a single `data/content.db` for the
+FastAPI webapp. Audio bytes are stored in R2 via a small
+content-addressed store (`cas/`).
 
 The companion docs in [`CLAUDE.md`](./CLAUDE.md) are the deep reference
 for architecture, gotchas, and the `bd` (beads) issue-tracker workflow.
