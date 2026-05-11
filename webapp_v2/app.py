@@ -96,7 +96,16 @@ def _normalize_references(reading: object) -> tuple[list[dict], dict[str, dict]]
                     if r.get("openalex_title") else ""
                 ),
                 "doi": r.get("openalex_doi") or "",
-                "url": "",
+                # Carry verified URL + resolution fields through from
+                # the legacy row (after 7cgk backfill, legacy 'verified'
+                # entries also have these). When absent, defaults make
+                # the item unresolved which the renderer handles.
+                "url": r.get("url") or "",
+                "resolution_status": r.get("resolution_status"),
+                "resolution_source": r.get("resolution_source"),
+                "attempted": r.get("attempted") or [],
+                "resolution_reason": r.get("resolution_reason"),
+                "raw_url": r.get("raw_url") or r.get("url") or "",
             })
     refs_by_tag = {
         r["tag"]: r for r in out
@@ -117,6 +126,41 @@ def _resolve_episode(novel_id: str, panel: str):
     if novel is None or panel_meta is None:
         raise HTTPException(404, "Unknown novel or panel")
     return ep, novel, panel_meta
+
+
+def _is_resolved_url(item: dict) -> bool:
+    """Does this reading-list/reference entry carry a usable link?
+
+    Post-7cgk backfill, entries set resolution_status='resolved' or
+    'unresolved' explicitly. Fallback for older / non-backfilled
+    data: URL must be present, http(s), no synthetic 'wiki-fr:'
+    prefix.
+    """
+    status = item.get("resolution_status")
+    if status == "resolved":
+        return True
+    if status in ("unresolved", "no_title"):
+        return False
+    # status is None — defensive heuristic
+    url = (item.get("url") or "").strip()
+    if not url or "wiki-fr:" in url:
+        return False
+    return url.startswith("http://") or url.startswith("https://")
+
+
+def _split_resolved(items: list) -> tuple[list[dict], list[dict]]:
+    """Partition a list of reading-list / reference entries into
+    (visible-resolved, unresolved-for-HTML-comment)."""
+    resolved: list[dict] = []
+    unresolved: list[dict] = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        if _is_resolved_url(it):
+            resolved.append(it)
+        else:
+            unresolved.append(it)
+    return resolved, unresolved
 
 
 @app.get("/listen/{novel_id}/{panel}", response_class=HTMLResponse)
@@ -183,6 +227,7 @@ def tab_interviews(request: Request, novel_id: str, panel: str):
             "experts": experts,
             "questions": questions,
         })
+    references_resolved, references_unresolved = _split_resolved(references)
     return templates.TemplateResponse(request, "interviews.html", {
         "novel": novel,
         "panel": panel_meta,
@@ -191,6 +236,8 @@ def tab_interviews(request: Request, novel_id: str, panel: str):
         "run_id": ep.run_id,
         "rows": rows,
         "references": references,
+        "references_resolved": references_resolved,
+        "references_unresolved": references_unresolved,
         "refs_by_tag": refs_by_tag,
         "has_interviews": bool(interviews_segs),
         "has_briefs": bool(briefs_segs),
@@ -284,12 +331,16 @@ def tab_reading_list(request: Request, novel_id: str, panel: str):
         reading.get("recommended", [])
         if isinstance(reading, dict) else []
     )
+    recommended_resolved, recommended_unresolved = _split_resolved(recommended)
     return templates.TemplateResponse(request, "reading_list.html", {
         "novel": novel,
         "panel": panel_meta,
         "novel_id": novel_id,
         "panel_id": panel,
+        "run_id": ep.run_id,
         "recommended": recommended,
+        "recommended_resolved": recommended_resolved,
+        "recommended_unresolved": recommended_unresolved,
     })
 
 

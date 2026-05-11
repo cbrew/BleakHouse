@@ -1,19 +1,25 @@
 {% extends "base.html" %}
+{% from "partials/_macros.html" import unresolved_comment %}
 {% block title %}Reading List — {{ novel.title }}{% endblock %}
 {% block content %}
 
 {% set active = 'reading_list' %}
 {% include "partials/episode_header.html" %}
 
-{% if not recommended %}
+{# After BleakHouse-7cgk backfill, recommended_resolved contains
+   only items with verified URLs; unresolved items live in
+   recommended_unresolved and are emitted as HTML comments below
+   so source-viewers can see what was filtered out. #}
+{% if not recommended_resolved %}
 <p class="tab-empty">No curated reading list for this episode yet.</p>
 {% else %}
 
 <p class="reading-intro">If you want to keep going after the conversation,
-start here. Five works picked for the curious listener.</p>
+start here. {% if recommended_resolved | length == 1 %}One work{% else %}{{ recommended_resolved | length }} works{% endif %}
+picked for the curious listener.</p>
 
 <ol class="reading-list">
-{% for item in recommended %}
+{% for item in recommended_resolved %}
     <li class="reading-item">
         <p class="reading-title">{{ item.title }}</p>
         <p class="reading-byline">
@@ -34,5 +40,13 @@ start here. Five works picked for the curious listener.</p>
 </ol>
 
 {% endif %}
+
+{# Unresolved items kept in page source as HTML comments. After
+   backfill this is rare on /reading-list (the re-winnow filtered
+   most out), but stays for defence-in-depth and future-resolver
+   inspection. #}
+{% for item in recommended_unresolved %}
+{{ unresolved_comment(item, run_id) }}
+{% endfor %}
 
 {% endblock %}

@@ -1,0 +1,44 @@
+{# Shared Jinja macros for the v2 webapp.
+
+   `is_resolved(ref)`  → boolean test: does this reference carry a
+                        usable link? Backfilled entries set
+                        resolution_status='resolved' or 'unresolved'
+                        explicitly. Entries without the field (legacy
+                        / unbackfilled) get a defensive fallback:
+                        URL must be non-empty, http(s), no 'wiki-fr:'.
+
+   `unresolved_comment(ref, run_id)`  → emit a faithful HTML comment
+                        carrying every field a reader-of-source would
+                        need to identify the citation: title, authors,
+                        year, publisher, description, original URL,
+                        attempted resolution strategies, reason for
+                        no-match, and the run id. Sanitises any '--'
+                        sequences in field values (HTML comments can't
+                        contain '--').
+#}
+
+{%- macro is_resolved(ref) -%}
+{%- set status = ref.resolution_status -%}
+{%- if status == 'resolved' -%}true
+{%- elif status == 'unresolved' or status == 'no_title' -%}
+{# explicit unresolved — never visible #}
+{%- else -%}
+    {%- set u = ref.url or '' -%}
+    {%- if u and 'wiki-fr:' not in u and (u.startswith('http://') or u.startswith('https://')) -%}true{%- endif -%}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro unresolved_comment(ref, run_id) -%}
+{%- set san = '--' -%}
+<!-- unresolved citation
+     title:       {{ (ref.title or '') | replace(san, '- -') }}
+     authors:     {{ ((ref.authors or []) | join(', ')) | replace(san, '- -') }}
+     year:        {{ ref.year or '' }}
+     publisher:   {{ (ref.publisher or '') | replace(san, '- -') }}
+     description: {{ (ref.description or '') | replace(san, '- -') }}
+     raw_url:     {{ (ref.raw_url or ref.url or '') | replace(san, '- -') }}
+     attempted:   {{ ((ref.attempted or []) | join(', ')) | replace(san, '- -') }}
+     reason:      {{ (ref.resolution_reason or '') | replace(san, '- -') }}
+     run_id:      {{ run_id }}
+-->
+{%- endmacro -%}

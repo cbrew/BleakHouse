@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/_macros.html" import is_resolved, unresolved_comment %}
 {% block title %}Expert Interviews — {{ novel.title }}{% endblock %}
 {% block content %}
 
@@ -60,7 +61,7 @@
                 <ul class="interview-refs">
                     {% for r in expert.proposed_references %}
                         {% set ref = refs_by_tag.get(r) %}
-                        {% if ref %}
+                        {% if ref and is_resolved(ref) %}
                         <li>
                             <span class="ref-title">{{ ref.title }}</span>
                             {% if ref.authors %}
@@ -68,8 +69,14 @@
                             {% endif %}
                             {% if ref.year %}<span class="ref-year">({{ ref.year }})</span>{% endif %}
                         </li>
+                        {% elif ref %}
+                        {# Unresolved entry — preserve as HTML comment.
+                           Invisible to readers, full metadata in source
+                           for inspection and future resolver passes. #}
+                        {{ unresolved_comment(ref, run_id) }}
                         {% else %}
-                        {# Legacy schema or unknown tag: render verbatim. #}
+                        {# Truly orphaned tag / legacy raw string: render
+                           verbatim so the data isn't lost from the page. #}
                         <li><span class="ref-raw">{{ r }}</span></li>
                         {% endif %}
                     {% endfor %}
@@ -96,12 +103,12 @@
 </section>
 {% endfor %}
 
-{% if references %}
+{% if references_resolved %}
 <section class="references-catalogue">
     <h2 class="references-catalogue-title">Full reference catalogue</h2>
-    <p class="references-intro">All scholarly references brought into the conversation by the experts ({{ references | length }} works).</p>
+    <p class="references-intro">All scholarly references brought into the conversation by the experts ({{ references_resolved | length }} works).</p>
     <ol class="references-list">
-        {% for ref in references %}
+        {% for ref in references_resolved %}
         <li class="reference-item" id="{{ ref.tag }}">
             <p class="reference-line">
                 <span class="ref-title">{{ ref.title }}</span>
@@ -122,6 +129,14 @@
     </ol>
 </section>
 {% endif %}
+
+{# Unresolved citations: invisible to readers but preserved in
+   page source as HTML comments. Each carries the full citation
+   metadata so a source-viewer (or a future resolver pass) can
+   identify the specific work and pick it up. #}
+{% for ref in references_unresolved %}
+{{ unresolved_comment(ref, run_id) }}
+{% endfor %}
 
 {% endif %}
 

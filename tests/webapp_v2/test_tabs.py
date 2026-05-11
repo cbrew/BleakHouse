@@ -90,13 +90,19 @@ def test_arcs_shows_curated_arc_list(client: TestClient) -> None:
 
 
 def test_reading_list_shows_recommended_items(fixture_db: Path) -> None:
+    """Post-7cgk, items render visibly only if resolution_status is
+    'resolved' (or the legacy heuristic accepts a usable URL)."""
     _set_artifact(fixture_db, "bh_trn_literary_hostprep",
                   "phase2_5_reading_list", {
                       "recommended": [
                           {"title": "First Pick", "authors": ["A"],
-                           "year": 2020, "description": "desc"},
+                           "year": 2020, "description": "desc",
+                           "url": "https://example.com/first",
+                           "resolution_status": "resolved"},
                           {"title": "Second Pick", "authors": ["B"],
-                           "year": 2021, "description": "desc"},
+                           "year": 2021, "description": "desc",
+                           "url": "https://example.com/second",
+                           "resolution_status": "resolved"},
                       ],
                   })
     client = TestClient(app)
@@ -105,6 +111,47 @@ def test_reading_list_shows_recommended_items(fixture_db: Path) -> None:
     assert r.text.count('class="reading-item"') == 2
     assert "First Pick" in r.text
     assert "Second Pick" in r.text
+
+
+def test_reading_list_unresolved_items_become_html_comments(
+    fixture_db: Path,
+) -> None:
+    """Items with resolution_status='unresolved' must not render
+    visibly; they appear as HTML comments preserving metadata."""
+    _set_artifact(fixture_db, "bh_trn_literary_hostprep",
+                  "phase2_5_reading_list", {
+                      "recommended": [
+                          {"title": "Visible Resolved", "authors": ["A"],
+                           "year": 2020, "url": "https://example.com/v",
+                           "resolution_status": "resolved"},
+                          {"title": "Invisible Unresolved", "authors": ["B"],
+                           "year": 2021,
+                           "raw_url": "wiki-fr:https://en.wikipedia.org/wiki/X",
+                           "url": "",
+                           "resolution_status": "unresolved",
+                           "attempted": ["openalex", "wikipedia"],
+                           "resolution_reason": "no_match"},
+                      ],
+                  })
+    client = TestClient(app)
+    r = client.get("/listen/bleak_house/literary/reading-list")
+    assert r.status_code == 200
+    body = r.text
+    # Visible item renders as a list entry
+    assert body.count('class="reading-item"') == 1
+    assert "Visible Resolved" in body
+    # Unresolved item is in source as an HTML comment, not in
+    # visible HTML
+    import re
+    stripped = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+    assert "Invisible Unresolved" not in stripped
+    assert "wiki-fr" not in stripped
+    # Comment carries full metadata
+    assert "<!-- unresolved citation" in body
+    assert "Invisible Unresolved" in body  # in the comment
+    assert "openalex, wikipedia" in body
+    assert "no_match" in body
+    assert "wiki-fr:https://en.wikipedia.org/wiki/X" in body
 
 
 def test_arcs_empty_state(fixture_db: Path) -> None:
@@ -136,7 +183,9 @@ def test_interviews_uses_new_schema_entries(fixture_db: Path) -> None:
         "schema_version": 2,
         "entries": [
             {"tag": "ref-1", "title": "An Important Work",
-             "authors": ["Brontë"], "year": 1847, "description": "d"},
+             "authors": ["Brontë"], "year": 1847, "description": "d",
+             "url": "https://example.com/ref1",
+             "resolution_status": "resolved"},
         ],
         "recommended": [],
     })
@@ -164,7 +213,13 @@ def test_interviews_normalizes_legacy_verified(fixture_db: Path) -> None:
         "verified": [
             {"raw_text": "Aristotle, Nicomachean Ethics",
              "openalex_title": "", "openalex_authors": [],
-             "openalex_year": None, "openalex_doi": ""},
+             "openalex_year": None, "openalex_doi": "",
+             # The legacy normaliser flattens this to entries; for the
+             # visible-rendering test we mark it resolved with a real
+             # URL so it appears in the catalogue. The fallback for
+             # unresolved (HTML comment) is covered by other tests.
+             "url": "https://example.com/aristotle",
+             "resolution_status": "resolved"},
         ],
         "recommended": [],
     })
@@ -193,13 +248,16 @@ def test_interviews_dedupes_legacy_verified(fixture_db: Path) -> None:
         "verified": [
             {"raw_text": "Same Work", "openalex_title": "Same Work",
              "openalex_authors": ["A"], "openalex_year": 2020,
-             "openalex_doi": ""},
+             "openalex_doi": "", "url": "https://example.com/same",
+             "resolution_status": "resolved"},
             {"raw_text": "Same Work", "openalex_title": "Same Work",
              "openalex_authors": ["A"], "openalex_year": 2020,
-             "openalex_doi": ""},
+             "openalex_doi": "", "url": "https://example.com/same",
+             "resolution_status": "resolved"},
             {"raw_text": "Other Work", "openalex_title": "Other Work",
              "openalex_authors": [], "openalex_year": 2019,
-             "openalex_doi": ""},
+             "openalex_doi": "", "url": "https://example.com/other",
+             "resolution_status": "resolved"},
         ],
         "recommended": [],
     })
