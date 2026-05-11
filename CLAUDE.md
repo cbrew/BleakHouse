@@ -6,8 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 BleakHouse is a research project that turns Victorian novels — *Bleak House* foremost among them — into structured podcast scripts via LLM-driven literary analysis, then renders them to audio. The pipeline is a hand-rolled phase-based runner in `enrichment/run_pipeline.py` that dispatches on a `--pipeline` flag (`transport` / `no-passages` / `embedding`) and writes per-run JSON artefacts into `data/runs/<run_id>/`. A `data/content.db` (sqlite, built from those JSONs) backs the FastAPI webapp. Audio is rendered via Gemini TTS and stored in R2 through the small content-addressed store in `cas/`.
 
-Note: the `bleak_house/` package still contains five prototype-era Pydantic schemas (`literary_elements.py`, `chapter_schema.py`, `podcast_schema.py`, `notes_prompt.py`, `podcast_prompt.py`) that are not used by the active pipeline. They're scheduled for removal under `BleakHouse-uihw`; the Hamilton-decorated downloader/metrics files and their drivers were removed under `BleakHouse-8lcb`. Burr is not used anywhere despite previous documentation.
-
 
 ## First-time setup (clone → working system)
 
@@ -158,7 +156,7 @@ The pipeline is plain Python — no DAG framework, no state machine library. Eac
 - Phase 3+ — rendering: `enrichment/render_audio.py` calls Gemini TTS (flash/pro) with per-speaker voice assignment, accent direction, delivery annotations, and disk-backed shard caching. Shards are stored by md5 in the CAS and pushed to R2.
 
 **Structured output:**
-The schemas that the active pipeline uses for LLM `output_config={"format": {"type": "json_schema", "schema": ...}}` calls live in `enrichment/` (e.g. arc demands, expert briefs, citation registry). The Pydantic classes in `bleak_house/` (`literary_elements.py`, `chapter_schema.py`, `podcast_schema.py`, `notes_prompt.py`, `podcast_prompt.py`) are prototype-era schemas from a Burr-driven chapter-merger that was never wired into the current runner — superseded; tracked for removal as `BleakHouse-uihw`.
+The schemas that the active pipeline uses for LLM `output_config={"format": {"type": "json_schema", "schema": ...}}` calls live in `enrichment/` (e.g. arc demands, expert briefs, citation registry).
 
 **Webapp:**
 - `webapp/app.py` — FastAPI app deployed on Fly. Reads `data/content.db` (built by `scripts/build_content_db.py` from per-run JSONs) and 302-redirects audio URLs to R2 via `cas.store.url(md5)`.
