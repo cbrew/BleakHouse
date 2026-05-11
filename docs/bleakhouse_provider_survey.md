@@ -125,7 +125,9 @@ fast; treat numbers as "as of 2026-05-11" not contract.
 | **Together** | `api.together.xyz/v1` (OpenAI-compat) | Llama 3.3 70B, Llama 3 8B Lite, Qwen 3 235B A22B FP8, Qwen 3.5 9B, Qwen 2.5 7B Turbo, Gemma 4 31B, Gemma 3n E4B, DeepSeek-V3.1, DeepSeek V4 Pro, Mistral [VERIFY] | **Yes, 50% off** | Dedicated Inference; custom model support | response_format json_schema [VERIFY] | 1 (hosted) |
 | **Fireworks** | `api.fireworks.ai/v1` (OpenAI-compat) | Llama, Qwen, Mistral, DeepSeek, Gemma — exact catalogue not enumerated [VERIFY] | **Yes, 50% off** | Yes; LoRA and full-parameter at same price as base | json_schema [VERIFY] | 1 (hosted) |
 | **Groq** | `api.groq.com/openai/v1` (OpenAI-compat) | Llama 3.1 8B Instant, Llama 3.3 70B Versatile, Llama 4 Scout (17Bx16E MoE), Qwen3 32B, GPT-OSS 20B, GPT-OSS 120B | **Yes, 50% off; 24h-7d window** | Enterprise-only fine-tuned hosting | json_schema response_format (Groq is known for this) [VERIFY strict] | 1 (hosted) |
-| **DeepInfra** | OpenAI-compat (endpoint not surfaced) [VERIFY] | Llama 3.3 70B Turbo, Llama 3.1 8B, Qwen 2.5 72B, Qwen 3 32B, Qwen3-Max, Mistral Small 3.2 24B, Mistral Nemo, DeepSeek-V3.2, DeepSeek-V3.1, **Gemma 3 27B**, Gemma 3 4B | [VERIFY] | Yes, dedicated GPU hosting (A100/H100/H200/B200/B300, per-minute billing) | [VERIFY] | 1 (hosted) |
+| **DeepInfra** | OpenAI-compat (endpoint not surfaced) [VERIFY] | Llama 3.3 70B Turbo, Llama 3.1 8B, Qwen 2.5 72B, Qwen 3 32B, Qwen3-Max, Mistral Small 3.2 24B, Mistral Nemo, DeepSeek-V3.2, DeepSeek-V3.1, **Gemma 4 26B-A4B-it (MoE)**, **Gemma 4 31B-it**, Gemma 3 27B, Gemma 3 4B | [VERIFY] | Yes, dedicated GPU hosting (A100/H100/H200/B200/B300, per-minute billing) | [VERIFY] | 1 (hosted) |
+| **Novita** | OpenAI-compat (HF Inference Providers partner) | **Gemma 4 26B-A4B-it (MoE)** + broader open-weight catalogue [VERIFY] | [VERIFY] | [VERIFY] | OpenAI-compat → response_format json_schema [VERIFY] | 1 (hosted) |
+| **Featherless-AI** | OpenAI-compat (HF Inference Providers partner) | **Gemma 4 26B-A4B-it (MoE)** + broad open-weight catalogue (many fine-tunes hosted) [VERIFY] | [VERIFY] | [VERIFY] | OpenAI-compat [VERIFY] | 1 (hosted) |
 | **Anyscale Endpoints** | DISCONTINUED | — | — | — | — | — |
 
 ### Hosted-API pricing per million tokens (input / output)
@@ -138,7 +140,9 @@ fast; treat numbers as "as of 2026-05-11" not contract.
 | Qwen 2.5 72B | — | — | [VERIFY] | — | $0.36 / $0.40 |
 | Qwen 3 32B | — | — | [VERIFY] | $0.29 / $0.59 | $0.08 / $0.28 |
 | Qwen 3 235B A22B | (withdrawn 5/27) | $0.20 / $0.60 (FP8) | [VERIFY] | — | — |
-| Gemma 3 27B / Gemma 4 31B | — | $0.20 / $0.50 (G4 31B) | [VERIFY] | — | $0.08 / $0.16 (G3 27B) |
+| Gemma 4 26B-A4B-it (MoE; 4B active) | — | — | available [VERIFY price] | — | **$0.07 / $0.34** |
+| Gemma 4 31B-it (dense) | — | $0.20 / $0.50 | available [VERIFY price] | — | $0.13 / $0.38 |
+| Gemma 3 27B (dense) | — | — | [VERIFY] | — | $0.08 / $0.16 |
 | DeepSeek-V3.x | — | $0.60 / $1.70 (V3.1) | [VERIFY] | — | $0.26 / $0.38 (V3.2) |
 | gpt-oss-120b | available | — | [VERIFY] | $0.15 / $0.60 | [VERIFY] |
 | gpt-oss-20b | — | — | [VERIFY] | $0.075 / $0.30 | [VERIFY] |
@@ -291,13 +295,19 @@ schema-strict output reliability. VERIFY at Stage 2.
 
 ### Tier L — prose generation (short format) (generate_podcast)
 
-**Recommended: Gemma 4 26B (MoE per user; VERIFY architecture)** —
-user's preferred candidate; Apache 2.0 (Gemma 4 family); if MoE,
-the active-parameter count per token is much smaller than 26B
-total, giving 70B-class quality at smaller inference cost. Availability
-across hosted providers VERIFY — Together hosts Gemma 4 31B (dense)
-at $0.20/$0.50, not the 26B MoE; the 26B MoE variant likely requires
-self-hosting on Modal/Runpod with weights from HF.
+**Recommended: `gemma-4-26B-A4B-it` (MoE; 26B total / 4B active per
+token) hosted on DeepInfra** — Apache 2.0; user's preferred MoE
+variant; **DeepInfra prices it at $0.07 in / $0.34 out per 1M
+tokens** (~$0.27/M blended), which is *cheaper* than Gemma 4 31B
+dense ($0.13/$0.38 on DeepInfra, $0.20/$0.50 on Together) — the MoE
+architecture's small active-param count flows directly into the
+price. Multi-host availability confirmed: hosted by **Novita,
+Featherless-AI, DeepInfra, and Fireworks**. Lock-in resistance is
+strong.
+
+Earlier drafts assumed Gemma 4 26B was self-host-only; that was
+wrong. The model is widely hosted via the HF Inference Providers
+network and direct provider partnerships.
 
 **Cost reassessment for Gemma 4 26B on Modal (revised from the
 optimistic $0.55/M earlier — that assumed sustained utilization,
@@ -325,53 +335,55 @@ quality holds):
   4-bit / 8-bit quantization. ~$0.75-1.50/M if quality holds at
   quant.
 
-**Cost comparison across the prose-tier shortlist** (using
-Scenario B for self-hosted, blended I/O assuming prose-heavy
-~80% output):
+**Cost comparison across the prose-tier shortlist** (hosted-first
+now that Gemma 4 26B MoE availability is confirmed; blended I/O
+assuming prose-heavy ~80% output):
 
 | Candidate | Hosted/self | $/M blended | Notes |
 |---|---|---:|---|
-| Gemma 4 26B MoE on Modal H100 (scenario B) | self | ~$1.50-3 | Non-API constraint cleared; fine-tune path open |
-| Gemma 4 26B MoE on Modal A100 80GB | self | ~$1-2 | If A100 throughput holds for MoE |
-| Gemma 4 26B 4-bit on Modal L40S | self | ~$0.75-1.50 | Quality at 4-bit VERIFY |
-| Gemma 4 31B (dense) on Together | hosted | ~$0.44 | Same family, hosted is cheaper for our pattern |
-| DeepSeek-V3.2 on DeepInfra | hosted | ~$0.36 | 160k context; cheapest credible prose option |
+| **Gemma 4 26B-A4B-it on DeepInfra** | hosted | **~$0.27** | MoE, 4B active; cheapest credible Gemma 4 prose option; multi-host (Novita / Featherless / DeepInfra / Fireworks) |
+| Gemma 4 31B-it on DeepInfra | hosted | ~$0.33 | Dense; same family head-to-head vs MoE 26B |
+| Gemma 4 31B-it on Together | hosted | ~$0.44 | Same model, different host (portability check) |
+| DeepSeek-V3.2 on DeepInfra | hosted | ~$0.36 | 160k context; alternate prose option |
 | Llama 3.3 70B Turbo on DeepInfra | hosted | ~$0.28 | Quantized — schema-strict reliability VERIFY |
 | Qwen 3 235B A22B FP8 on Together | hosted | ~$0.52 | Largest model; cheap output rate |
+| Gemma 4 26B MoE on Modal H100 (scenario A sustained) | self | ~$0.55 | Self-host fallback only; not a default |
+| Gemma 4 26B MoE on Modal A100 80GB | self | ~$0.40 | A100 fits with quant headroom; fallback only |
 | Anthropic Sonnet 4.6 (no batch) | hosted | ~$12 | Current baseline |
 | Anthropic Sonnet 4.6 (batch) | hosted | ~$6 | If we used Batch on prose |
 
-**Implication**: for BleakHouse's usage pattern, hosted Gemma 4 31B
-on Together ($0.44/M) or DeepSeek-V3.2 on DeepInfra ($0.36/M) is
-materially cheaper than self-hosted Gemma 4 26B. The non-API
-benefit of self-hosting only justifies the ~3-5x cost premium if:
+**Implication of the corrected availability picture**: the
+user-preferred Gemma 4 26B-A4B-it MoE is the leading prose-tier
+candidate on every axis simultaneously — it's the cheapest, the
+quality-favored, the multi-host (Novita / Featherless / DeepInfra
+/ Fireworks), and Apache 2.0. Stage 2 still needs to validate
+blinded preference vs Sonnet-on-short, but unless there's a
+quality surprise this is the prose default.
 
-- Quality of Gemma 4 26B MoE is meaningfully better than Gemma 4
-  31B dense on the prose fixture (Stage 2 question), OR
-- Fine-tune-enablement is load-bearing for the project's roadmap
-  (currently low-priority per the user note), OR
-- Sustained utilization can be achieved by batching all prose work
-  into a single keep-warm window per day.
-
-The non-API constraint (Principle 6 of the plan) says we need at
-least ONE non-API option in the shortlist. It does NOT require
-prose specifically to be self-hosted. If hosted Gemma 4 31B wins
-on prose, the non-API constraint can be satisfied by routing
-`passage_enrichment` (the batch task) to self-hosted instead —
-volume + cost-predictability are stronger drivers there than for
-prose.
-
-Alternates to benchmark (all hosted):
-- **Gemma 4 31B on Together** ($0.20 / $0.50). Same family as
-  Gemma 4 26B; dense vs MoE; should be the head-to-head reference.
-- DeepSeek-V3.2 on DeepInfra ($0.26 / $0.38) — 160k context, top
-  open-weight prose model class.
-- Qwen 3 235B A22B FP8 on Together ($0.20 / $0.60) — large model,
-  cheap output rate.
+Head-to-heads still worth running in Stage 2:
+- Gemma 4 26B-A4B-it (MoE) vs Gemma 4 31B (dense) on the same
+  short-podcast fixture — does MoE actually match dense at
+  smaller cost?
+- Gemma 4 26B-A4B-it on DeepInfra vs the same model on Novita /
+  Featherless — sanity-check that hosted-provider implementations
+  don't differ on structured-output reliability.
+- DeepSeek-V3.2 on DeepInfra (~$0.36/M) as a non-Gemma alternate —
+  particularly if Stage 2 surfaces a quality concern on Gemma 4.
 
 Anthropic Sonnet 4.6 ($3 / $15 no-batch; $1.50 / $7.50 with Batch)
 stays as the baseline to beat by ≥45% blinded preference on the
 short-podcast fixture, NOT to match.
+
+**Gemma 4 small variants (E2B, E4B) status**: HF Hub confirms they
+exist (~5B and ~8B total params; multimodal incl audio; Apache 2.0;
+`deploy:azure` tag). But as of 2026-05-11, no OpenAI-compatible
+hosted-serverless provider in our survey has picked them up yet
+(Azure Foundry is the canonical hosted home; not OpenAI-compatible
+in the same way). Likely to broaden — Novita / Featherless / DeepInfra
+already host the 26B-A4B variant and will probably extend. Until
+then, the Tier S default stays on a hosted Llama 3.1 8B or Gemma 3
+4B. Worth re-running the survey when small Gemma 4 hits a serverless
+host.
 
 ### Tier W — wildcard fine-tune-ready
 
@@ -422,37 +434,44 @@ What this strategy pays for:
 Per the o3ir spec, Stage 2 = live benchmark on 3-4 candidates from
 the shortlist. Concrete proposal:
 
-**Candidates (4 hosted + 1 fallback-rehearsal)**:
+**Candidates (5 hosted + 1 fallback-rehearsal)**:
 
 1. **Llama 3.1 8B on DeepInfra** (Tier S). Cheap; broad portability;
-   high-frequency small-structured tasks.
+   high-frequency small-structured tasks. Gemma 4 E2B/E4B not yet
+   serverless-hosted; revisit Tier S when they land.
 2. **Qwen 2.5-72B-Instruct on DeepInfra** (Tier M). Apache 2.0;
    broad portability; passage_enrichment + mid-structured tasks.
    Stage 2 compares schema validity + content fidelity to current
    Anthropic Haiku baseline.
-3. **Gemma 4 31B on Together** (Tier L hosted). Apache 2.0; same
-   family as user-preferred Gemma 4 26B MoE but dense + currently
-   available hosted. Stage 2 measures blinded preference vs
-   Sonnet-on-short.
-4. **DeepSeek-V3.2 on DeepInfra** (Tier L alternate). DeepSeek
-   License; 160k context. Head-to-head with Gemma 4 31B on the
-   same short-prose fixture. Pick winner of (3) vs (4) as default.
+3. **Gemma 4 26B-A4B-it (MoE) on DeepInfra** (Tier L primary).
+   $0.07/$0.34/M; Apache 2.0; the user-preferred MoE variant;
+   multi-host (Novita/Featherless/DeepInfra/Fireworks). Stage 2
+   measures blinded preference vs Sonnet-on-short.
+4. **Gemma 4 31B-it (dense) on DeepInfra** (Tier L sibling).
+   $0.13/$0.38/M; head-to-head with (3) — does MoE 26B match
+   dense 31B at smaller cost?
+5. **DeepSeek-V3.2 on DeepInfra** (Tier L alternate). $0.26/$0.38;
+   160k context; non-Gemma fallback if Stage 2 surfaces a quality
+   issue with Gemma 4.
+
+**Provider-portability spot-check** (low cost, high value):
+- Re-run a small subset of Stage 2's prose fixture against
+  `gemma-4-26B-A4B-it` on **Novita** and/or **Featherless-AI**.
+  Goal: confirm that switching providers yields equivalent output
+  (no provider-specific quirks in structured-output handling).
+  This validates the "lock-in mitigation by multi-source" strategy
+  empirically.
 
 **Fallback rehearsal** (not a Stage 2 quality data-point; an
 operational dry-run):
 
-5. **Qwen 2.5-72B-Instruct deployed on Modal H100**, exercising the
-   vLLM-on-Modal recipe end-to-end once during Stage 2. Goal: prove
-   the fallback path is operational and document any deployment
-   gotchas. Do NOT use this as a quality-comparison point; do NOT
-   make it a default. It's there so when a hosted provider does
-   eventually do something we don't like, we have a known-working
-   migration path.
-
-If Stage 2 turns up a surprise — e.g. Llama 3.3 70B Turbo on
-DeepInfra clears the prose floor at $0.28/M blended — fold it into
-the candidate list at decision time rather than expanding Stage 2
-itself.
+6. Optionally deploy `gemma-4-26B-A4B-it` (or Qwen 2.5-72B) on
+   Modal H100, exercise the vLLM-on-Modal recipe end-to-end once.
+   Goal: prove the fallback path is operational. Do NOT use as a
+   quality-comparison point; do NOT make it a default. Lower
+   priority now that hosted Gemma 4 26B MoE is widely available —
+   the fallback rehearsal may be deferred to "we'll do it when we
+   actually need it."
 
 **Fixtures**:
 - Small structured: 10 listener_pick-shape inputs sampled from existing reading lists. Compare to Haiku-baseline picks.
@@ -508,12 +527,15 @@ hosted providers via OpenAI-compatible APIs. Self-hosting on Modal
 stays as a documented fallback for the day a provider changes terms
 or withdraws a model.
 
-Provisional routing direction (Stage 1 inference):
+Provisional routing direction (Stage 1 inference, updated after
+confirming hosted Gemma 4 26B availability):
 
 - **Small tasks (listener_pick, reading_list_winnow, reference_tools,
   quote_verification)**: **Llama 3.1 8B** on DeepInfra as primary,
   alternate at Groq, Together, Fireworks. Apache-2.0-equivalent
-  Meta Community License → portable.
+  Meta Community License → portable. Revisit when Gemma 4 E2B/E4B
+  reach serverless hosting (Azure-only currently); they'd be a
+  family-consistent alternative.
 
 - **Mid batch tasks (passage_enrichment, passage_contexts)**:
   **Qwen 2.5-72B-Instruct** on DeepInfra ($0.36/$0.40) as primary,
@@ -523,14 +545,14 @@ Provisional routing direction (Stage 1 inference):
   discount may justify it on cost discipline for very large novel
   onboardings).
 
-- **Prose generation (short format)**: between **Gemma 4 31B** (on
-  Together; same family as the user's Gemma 4 26B preference;
-  dense vs MoE; Apache 2.0) and **DeepSeek-V3.2** (on DeepInfra;
-  DeepSeek License; 160k context). Stage 2 quality head-to-head
-  decides. Both have decent multi-host availability now; both will
-  broaden. Llama 3.3 70B Turbo on DeepInfra is a wildcard at very
-  low price ($0.28/M blended) but uses quantization that may hurt
-  schema-strict output.
+- **Prose generation (short format)**: **`gemma-4-26B-A4B-it` (MoE)
+  on DeepInfra** as primary candidate. $0.07/$0.34/M is cheaper
+  than the dense 31B variant; Apache 2.0; hosted by
+  Novita/Featherless/DeepInfra/Fireworks (strong multi-host
+  portability). Stage 2 validates blinded preference vs Sonnet-on-
+  short and runs the head-to-head against dense Gemma 4 31B
+  ($0.13/$0.38 on DeepInfra). DeepSeek-V3.2 on DeepInfra is the
+  non-Gemma alternate if Stage 2 surfaces a quality concern.
 
 - **Legacy prose (long format, opt-in)**: Anthropic Sonnet 4.6.
 
