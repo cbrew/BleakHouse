@@ -96,6 +96,7 @@ def _entry_to_candidate(entry: dict) -> CandidateReference:
         year = None
 
     doi = (entry.get("doi") or entry.get("openalex_doi") or "").strip()
+    isbn = (entry.get("isbn") or "").strip()
     # On re-runs, prefer the preserved pre-backfill URL (raw_url) over
     # the current url, which is the *result* of a previous cascade run.
     # Feeding the previous result back as raw_url would short-circuit
@@ -103,6 +104,8 @@ def _entry_to_candidate(entry: dict) -> CandidateReference:
     # still HEAD-200s — including foreign-catalog soft-404 pages.
     raw_url = (entry.get("raw_url") or entry.get("url") or "").strip()
     publisher = entry.get("publisher") or None
+    # Wikipedia-sourced entries trust their DOI/ISBN per CLAUDE.md policy.
+    source_trusted = entry.get("source") == "wikipedia_further_reading"
 
     return CandidateReference(
         title=title,
@@ -111,6 +114,8 @@ def _entry_to_candidate(entry: dict) -> CandidateReference:
         publisher=publisher,
         raw_url=raw_url,
         doi=doi,
+        isbn=isbn,
+        source_trusted=source_trusted,
     )
 
 
@@ -123,6 +128,7 @@ def _apply_result(entry: dict, result: ResolverResult) -> dict:
     out["resolution_source"] = result.source
     out["attempted"] = list(result.attempted)
     out["resolution_reason"] = result.reason
+    out["head_verified"] = result.head_verified
     if "raw_url" not in out:
         out["raw_url"] = entry.get("url", "") or ""
     if result.resolved and result.url:

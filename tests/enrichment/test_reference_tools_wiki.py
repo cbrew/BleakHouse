@@ -290,12 +290,17 @@ def test_no_wiki_fr_substrings_anywhere(
         assert "wiki-fr" not in r.raw_text
 
 
-def test_isbn_only_candidate_builds_openlibrary_url(
+def test_isbn_only_candidate_passes_isbn_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When a cite-template has ISBN but no URL, the candidate's
-    raw_url is set to https://openlibrary.org/isbn/<isbn> so the
-    cascade's raw_url branch picks it up via HEAD."""
+    `isbn` field is populated and `source_trusted=True` so the
+    verifier's ISBN cascade step constructs and (per the
+    Wikipedia-trust policy) admits the openlibrary.org URL.
+    Pre-2qs0 the upstream stuffed the constructed URL into raw_url
+    and let the raw_url HEAD-check be the gate; that conflated
+    'we have a valid ISBN' with 'OpenLibrary happens to have this
+    edition'."""
     from enrichment import reference_tools as rt
 
     isbn_only_html = """<html><head>
@@ -328,4 +333,7 @@ def test_isbn_only_candidate_builds_openlibrary_url(
     )
 
     assert len(seen) == 1
-    assert seen[0].raw_url == "https://openlibrary.org/isbn/9780199535559"
+    assert seen[0].isbn == "9780199535559"
+    assert seen[0].source_trusted is True
+    # raw_url is empty: URL construction is now the verifier's job.
+    assert seen[0].raw_url == ""

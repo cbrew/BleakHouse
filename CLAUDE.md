@@ -194,6 +194,18 @@ The standard is: *check first, then speak.* If you cannot verify a claim, frame 
 
 Anthropic structured output is used in this project via `output_config={"format": {"type": "json_schema", "schema": schema}}`. See `enrichment/test_single.py` for the canonical pattern.
 
+## Policy: Wikipedia-sourced DOIs and ISBNs are authoritative
+
+When a citation entry's `source` is `wikipedia_further_reading` (i.e. it was extracted from a `{{cite book}}`/`{{cite journal}}` template in a Wikipedia article via `mwparserfromhtml`), its DOI and ISBN fields are *authoritative*. They were entered by Wikipedia editors and are part of a curated bibliography.
+
+In the verification cascade (`enrichment/reference_verify.py`):
+
+- A constructed URL from a Wikipedia-sourced DOI (`https://doi.org/<doi>`) or ISBN (`https://openlibrary.org/isbn/<isbn>`) is **admitted regardless of HEAD outcome**. The HEAD check is recorded in `ResolverResult.head_verified` for forensics, but failure is not grounds to drop the citation.
+- Rationale: HEAD failures on these endpoints have two common causes — (1) OpenLibrary doesn't have the specific edition catalogued; (2) the DOI registrar is temporarily down or rate-limiting. Neither invalidates the underlying identifier. Wikipedia's editorial process is the warrant.
+- For non-Wikipedia identifiers (e.g., a DOI surfaced by an LLM tool call without bibliographic provenance), the strict HEAD-verify rule still applies.
+
+We accept the residual risk: if a Wikipedia editor entered a wrong ISBN, we will surface it. That is the editorial system's responsibility, not ours. We will never be blamed for trusting a Wikipedia-curated identifier; we *would* be blamed for dropping a legitimate citation because a downstream resolver was flaky.
+
 ## Key Dependencies
 
 - **Hamilton** - Dataflow orchestration (with `@config.when` for conditional dispatch)

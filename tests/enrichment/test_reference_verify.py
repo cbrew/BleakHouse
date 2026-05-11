@@ -23,6 +23,7 @@ from enrichment.reference_verify import (
     _is_real_url,
     _is_trusted_landing,
     _normalize_doi,
+    _normalize_isbn,
     _title_similar,
 )
 
@@ -124,6 +125,22 @@ def test_normalize_doi_strips_prefixes() -> None:
     assert _normalize_doi("  10.1234/abc  ") == "10.1234/abc"
 
 
+def test_normalize_isbn() -> None:
+    # ISBN-13 with dashes (Tomalin's Charles Dickens: A Life)
+    assert _normalize_isbn("978-0-670-91767-9") == "9780670917679"
+    # ISBN-10 with dashes
+    assert _normalize_isbn("0-670-91767-X") == "067091767X"
+    # Already clean
+    assert _normalize_isbn("9780670917679") == "9780670917679"
+    # Embedded spaces / 'ISBN' prefix removed
+    assert _normalize_isbn("ISBN 978 0670 917679") == "9780670917679"
+    # Wrong length
+    assert _normalize_isbn("12345") == ""
+    assert _normalize_isbn("") == ""
+    # 11 chars after stripping → invalid
+    assert _normalize_isbn("12345678901") == ""
+
+
 def test_title_similar_substring_and_jaccard() -> None:
     assert _title_similar("Bleak House", "Bleak House")
     assert _title_similar(
@@ -162,6 +179,7 @@ def test_resolves_via_doi_when_head_ok(verifier) -> None:
     assert r.source == "doi"
     assert r.url == "https://doi.org/10.1234/abc"
     assert r.attempted == ("doi",)
+    assert r.head_verified is True
 
 
 def test_doi_with_full_url_prefix(verifier) -> None:
@@ -179,6 +197,35 @@ def test_invalid_doi_form_falls_through(verifier) -> None:
     r = v.resolve(CandidateReference(title="x", doi="not-a-doi"))
     assert not r.resolved  # nothing else routed
     assert "doi" not in r.attempted  # we never attempt invalid DOIs
+
+
+def test_doi_trust_admits_on_head_failure_when_source_trusted(verifier) -> None:
+    """Wikipedia-curated DOIs are authoritative. If doi.org HEAD
+    fails (rate-limit, transient outage), source_trusted=True still
+    admits the constructed URL with head_verified=False."""
+    v, sess = verifier
+    # No HEAD route — default is 404. Strict mode would fall through;
+    # trust mode admits with head_verified=False.
+    r = v.resolve(CandidateReference(
+        title="A Paper", doi="10.1234/abc", source_trusted=True,
+    ))
+    assert r.resolved
+    assert r.source == "doi"
+    assert r.url == "https://doi.org/10.1234/abc"
+    assert r.head_verified is False
+    assert r.attempted == ("doi",)
+
+
+def test_doi_strict_falls_through_on_head_failure(verifier) -> None:
+    """Untrusted DOI without HEAD-200 must fall through (legacy
+    behavior preserved for non-Wikipedia sources)."""
+    v, sess = verifier
+    r = v.resolve(CandidateReference(
+        title="x", doi="10.1234/abc", source_trusted=False,
+    ))
+    assert not r.resolved
+    assert r.source != "doi"
+    assert "doi" in r.attempted
 
 
 # ── raw_url branch ───────────────────────────────────────────────
@@ -578,3 +625,103 @@ def test_resolver_result_resolved_property() -> None:
     assert r1.resolved
     r2 = ResolverResult(url=None, source=None, attempted=("doi",), reason="no_match")
     assert not r2.resolved
+
+
+# ── ISBN branch ──────────────────────────────────────────────────
+
+
+def test_isbn_resolves_when_openlibrary_head_ok(verifier) -> None:
+    """The Tomalin case: a Wikipedia-sourced ISBN should resolve to
+    openlibrary.org/isbn/<isbn> via HEAD-200, bypassing OpenAlex
+    entirely. This is the structural answer to the bvbr soft-404 bug."""
+    v, sess = verifier
+    sess.set_head("https://openlibrary.org/isbn/9780670917679", 200)
+    r = v.resolve(CandidateReference(
+        title="Charles Dickens: A Life",
+        authors=("Claire Tomalin",),
+        year=2011,
+        isbn="978-0-670-91767-9",
+        source_trusted=True,
+    ))
+    assert r.resolved
+    assert r.source == "isbn"
+    assert r.url == "https://openlibrary.org/isbn/9780670917679"
+    assert r.head_verified is True
+    assert "isbn" in r.attempted
+    # We must not have reached OpenAlex at all.
+    assert "openalex" not in r.attempted
+
+
+def test_isbn_trust_admits_on_head_failure_when_source_trusted(verifier) -> None:
+    """OpenLibrary doesn't have every ISBN catalogued. When HEAD
+    fails (404) but the ISBN came from Wikipedia, admit with
+    head_verified=False rather than falling through to OpenAlex
+    (which gave us bvbr.bib-bvb.de last time)."""
+    v, sess = verifier
+    # No HEAD route → default 404
+    r = v.resolve(CandidateReference(
+        title="Some Obscure Book",
+        authors=("Whoever",),
+        isbn="9780670917679",
+        source_trusted=True,
+    ))
+    assert r.resolved
+    assert r.source == "isbn"
+    assert r.url == "https://openlibrary.org/isbn/9780670917679"
+    assert r.head_verified is False
+    assert r.attempted == ("isbn",)
+    # We must not have continued past the trust-admit.
+    assert "openalex" not in r.attempted
+
+
+def test_isbn_strict_falls_through_on_head_failure(verifier) -> None:
+    """Untrusted ISBN with HEAD-404 must fall through (the trust
+    policy is scoped to Wikipedia sources only)."""
+    v, sess = verifier
+    sess.set_get("https://api.openalex.org/works", 200, {"results": []})
+    sess.set_get("https://openlibrary.org/search.json", 200, {"docs": []})
+    sess.set_get("https://en.wikipedia.org/w/api.php", 200, {
+        "query": {"pages": {}},
+    })
+    r = v.resolve(CandidateReference(
+        title="x",
+        isbn="9780670917679",
+        source_trusted=False,
+    ))
+    assert not r.resolved
+    assert "isbn" in r.attempted
+    assert r.source != "isbn"
+
+
+def test_isbn_skipped_when_input_malformed(verifier) -> None:
+    """Junk ISBN (wrong length) must not produce a constructed URL.
+    The cascade should fall through to OpenAlex."""
+    v, sess = verifier
+    r = v.resolve(CandidateReference(
+        title="x",
+        isbn="123",  # too short
+        source_trusted=True,
+    ))
+    # 'isbn' must not appear in attempted because the precondition
+    # rejected the input before any HTTP call.
+    assert "isbn" not in r.attempted
+
+
+def test_isbn_step_runs_before_raw_url(verifier) -> None:
+    """Ordering check: if both ISBN and raw_url are present, ISBN
+    wins (because it's a hard identifier; raw_url could be anything,
+    including a previously-resolved bad URL on a re-run)."""
+    v, sess = verifier
+    sess.set_head("https://openlibrary.org/isbn/9780670917679", 200)
+    # raw_url would also HEAD-200 if reached, but we expect ISBN to win.
+    sess.set_head("http://bvbr.bib-bvb.de/x", 200)
+    r = v.resolve(CandidateReference(
+        title="x",
+        isbn="9780670917679",
+        raw_url="http://bvbr.bib-bvb.de/x",
+        source_trusted=True,
+    ))
+    assert r.source == "isbn"
+    assert r.url == "https://openlibrary.org/isbn/9780670917679"
+    # raw_url step must not have been attempted (precondition order).
+    assert "raw_url" not in r.attempted

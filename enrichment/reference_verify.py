@@ -74,9 +74,16 @@ class CandidateReference:
 
     Only `title` is required. The verification cascade uses everything
     else for disambiguation: authors narrow the search, year filters
-    near-matches, doi short-circuits the cascade, raw_url is HEAD-tested
-    if it's a real http(s) URL (synthetic schemes like 'wiki-fr:' are
-    rejected by `_is_real_url`).
+    near-matches, doi/isbn short-circuit the cascade, raw_url is HEAD-
+    tested if it's a real http(s) URL (synthetic schemes like 'wiki-fr:'
+    are rejected by `_is_real_url`).
+
+    `source_trusted` is True when the candidate comes from a curated
+    bibliographic source (Wikipedia cite templates). In that mode the
+    DOI and ISBN cascade steps admit their constructed URLs even when
+    HEAD fails — the identifier is the warrant, not the HEAD probe.
+    See CLAUDE.md "Policy: Wikipedia-sourced DOIs and ISBNs are
+    authoritative" for rationale.
     """
 
     title: str
@@ -85,6 +92,8 @@ class CandidateReference:
     publisher: str | None = None
     raw_url: str = ""
     doi: str = ""
+    isbn: str = ""
+    source_trusted: bool = False
 
 
 @dataclass(frozen=True)
@@ -97,12 +106,17 @@ class ResolverResult:
 
     Unresolved: `url` is None, `source` is None, `attempted` lists
     every strategy run, `reason` is 'no_match'.
+
+    `head_verified` is True if the winning URL passed a HEAD probe,
+    False if it was admitted on trust (Wikipedia-sourced identifier
+    whose HEAD probe failed), None for unresolved results.
     """
 
     url: str | None
     source: str | None
     attempted: tuple[str, ...]
     reason: str | None = None
+    head_verified: bool | None = None
 
     @property
     def resolved(self) -> bool:
@@ -134,7 +148,7 @@ class _HttpClient(Protocol):
 
 # Strategies run in this fixed order. The names also appear in
 # ResolverResult.attempted so callers can audit what was tried.
-_CASCADE = ("doi", "raw_url", "openalex", "openlibrary", "wikipedia")
+_CASCADE = ("doi", "isbn", "raw_url", "openalex", "openlibrary", "wikipedia")
 
 
 class ReferenceVerifier:
@@ -174,13 +188,22 @@ class ReferenceVerifier:
 
     @staticmethod
     def _candidate_key(ref: CandidateReference) -> str:
-        """Stable hash over the fields that determine a unique query."""
+        """Stable hash over the fields that determine a unique query.
+
+        `source_trusted` is part of the key because the same identifier
+        produces different outcomes under trust vs. strict mode (trust
+        admits on HEAD failure; strict falls through). `isbn` is part
+        of the key for the same reason — its presence changes the
+        cascade.
+        """
         parts = (
             ref.title.strip().lower(),
             "|".join(sorted(a.strip().lower() for a in ref.authors if a)),
             str(ref.year or ""),
             ref.doi.strip().lower(),
+            ref.isbn.strip().lower(),
             ref.raw_url.strip().lower(),
+            "trusted" if ref.source_trusted else "strict",
         )
         h = hashlib.sha256("\0".join(parts).encode("utf-8"))
         return h.hexdigest()[:16]
@@ -201,6 +224,7 @@ class ReferenceVerifier:
             source=d.get("source"),
             attempted=tuple(d.get("attempted") or ()),
             reason=d.get("reason"),
+            head_verified=d.get("head_verified"),
         )
 
     def _cache_put(self, key: str, result: ResolverResult) -> None:
@@ -209,6 +233,7 @@ class ReferenceVerifier:
             "source": result.source,
             "attempted": list(result.attempted),
             "reason": result.reason,
+            "head_verified": result.head_verified,
         })
         with sqlite3.connect(self._cache_path) as conn:
             conn.execute(
@@ -230,7 +255,7 @@ class ReferenceVerifier:
     def _run_cascade(self, ref: CandidateReference) -> ResolverResult:
         # `attempted` only records strategies that ran HTTP calls.
         # An input that's rejected by the strategy's own preconditions
-        # (malformed DOI, synthetic raw_url scheme) doesn't count.
+        # (malformed DOI/ISBN, synthetic raw_url scheme) doesn't count.
         attempted: list[str] = []
 
         if ref.doi:
@@ -238,30 +263,65 @@ class ReferenceVerifier:
             if re.match(r"^10\.\d+/", normalized):
                 attempted.append("doi")
                 url = f"https://doi.org/{normalized}"
-                if self._head_ok(url):
-                    return ResolverResult(url, "doi", tuple(attempted))
+                head_ok = self._head_ok(url)
+                if head_ok:
+                    return ResolverResult(
+                        url, "doi", tuple(attempted), head_verified=True,
+                    )
+                if ref.source_trusted:
+                    # Trust-admit: Wikipedia-curated DOI is authoritative
+                    # even if doi.org HEAD is flaky (rate-limit, transient
+                    # outage). See CLAUDE.md policy.
+                    return ResolverResult(
+                        url, "doi", tuple(attempted), head_verified=False,
+                    )
+
+        if ref.isbn:
+            normalized_isbn = _normalize_isbn(ref.isbn)
+            if normalized_isbn:
+                attempted.append("isbn")
+                url = f"https://openlibrary.org/isbn/{normalized_isbn}"
+                head_ok = self._head_ok(url)
+                if head_ok:
+                    return ResolverResult(
+                        url, "isbn", tuple(attempted), head_verified=True,
+                    )
+                if ref.source_trusted:
+                    # Trust-admit: OpenLibrary may not have catalogued
+                    # this specific edition, but the ISBN identifies a
+                    # real book. See CLAUDE.md policy.
+                    return ResolverResult(
+                        url, "isbn", tuple(attempted), head_verified=False,
+                    )
 
         if ref.raw_url and _is_real_url(ref.raw_url):
             attempted.append("raw_url")
             if self._head_ok(ref.raw_url):
                 return ResolverResult(
                     ref.raw_url, "raw_url", tuple(attempted),
+                    head_verified=True,
                 )
 
         attempted.append("openalex")
         url = self._search_openalex(ref)
         if url:
-            return ResolverResult(url, "openalex", tuple(attempted))
+            return ResolverResult(
+                url, "openalex", tuple(attempted), head_verified=True,
+            )
 
         attempted.append("openlibrary")
         url = self._search_openlibrary(ref)
         if url:
-            return ResolverResult(url, "openlibrary", tuple(attempted))
+            return ResolverResult(
+                url, "openlibrary", tuple(attempted), head_verified=True,
+            )
 
         attempted.append("wikipedia")
         url = self._search_wikipedia(ref)
         if url:
-            return ResolverResult(url, "wikipedia", tuple(attempted))
+            return ResolverResult(
+                url, "wikipedia", tuple(attempted), head_verified=True,
+            )
 
         return ResolverResult(None, None, tuple(attempted), "no_match")
 
@@ -434,6 +494,24 @@ def _normalize_doi(doi: str) -> str:
             doi = doi[len(prefix):]
             break
     return doi
+
+
+def _normalize_isbn(isbn: str) -> str:
+    """Strip non-alphanumerics and validate length. Returns the
+    digit-only form (with optional trailing 'X' for ISBN-10) when
+    the input has 10 or 13 alphanumeric characters; '' otherwise.
+
+    This is a structural check, not a checksum verification — we
+    accept anything that *looks* like an ISBN, including ones with
+    invalid check digits. The OpenLibrary endpoint or the upstream
+    Wikipedia citation is the authority on whether the ISBN is real.
+    """
+    if not isbn:
+        return ""
+    cleaned = re.sub(r"[^0-9Xx]", "", isbn).upper()
+    if len(cleaned) in (10, 13):
+        return cleaned
+    return ""
 
 
 def _is_real_url(url: str) -> bool:

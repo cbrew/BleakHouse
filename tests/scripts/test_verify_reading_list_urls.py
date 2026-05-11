@@ -66,3 +66,33 @@ def test_empty_raw_url_falls_back_to_url() -> None:
     }
     ref = _entry_to_candidate(entry)
     assert ref.raw_url == "https://example.com/paper"
+
+
+def test_isbn_and_source_trusted_propagate_for_wikipedia_entries() -> None:
+    """Entries from Wikipedia further-reading sections must carry
+    isbn + source_trusted=True so the cascade can use the ISBN
+    branch with the trust-admit policy (CLAUDE.md)."""
+    entry = {
+        "title": "Charles Dickens: A Life",
+        "authors": ["Claire Tomalin"],
+        "year": 2011,
+        "isbn": "9780670917679",
+        "source": "wikipedia_further_reading",
+    }
+    ref = _entry_to_candidate(entry)
+    assert ref.isbn == "9780670917679"
+    assert ref.source_trusted is True
+
+
+def test_source_trusted_false_for_non_wikipedia_entries() -> None:
+    """Non-Wikipedia entries must NOT get the trust flag. The strict
+    HEAD-verify rule still applies to OpenAlex-sourced citations,
+    LLM-tool-call citations, etc."""
+    entry = {
+        "title": "x",
+        "isbn": "9780670917679",
+        "source": "openalex",
+    }
+    ref = _entry_to_candidate(entry)
+    assert ref.isbn == "9780670917679"
+    assert ref.source_trusted is False

@@ -83,6 +83,7 @@ class CitationRecord:
     cited_by: int | None = None
     url: str = ""
     doi: str | None = None
+    isbn: str | None = None       # normalised ISBN-10/13; populated for cite-book templates (BleakHouse-2qs0)
     source: str = ""              # 'openalex' | 'wikipedia_article' | 'wikipedia_further_reading'
     parent_tag: str | None = None # for further_reading items: the article they came from
     audience: Literal["general", "scholarly"] = "scholarly"
@@ -90,6 +91,7 @@ class CitationRecord:
     resolution_source: str | None = None  # which cascade strategy resolved it (or None)
     attempted: list[str] = field(default_factory=list)
     resolution_reason: str | None = None  # 'no_match' when unresolved
+    head_verified: bool | None = None  # whether the winning URL passed HEAD; None for unresolved or pre-2qs0 records
     raw_text: str = ""            # original cite-template text or pre-resolve URL — for unresolved-comment rendering
 
 
@@ -120,11 +122,13 @@ class CitationRegistry:
         description: str | None = None,
         cited_by: int | None = None,
         doi: str | None = None,
+        isbn: str | None = None,
         parent_tag: str | None = None,
         resolution_status: str | None = None,
         resolution_source: str | None = None,
         attempted: list[str] | None = None,
         resolution_reason: str | None = None,
+        head_verified: bool | None = None,
         raw_text: str = "",
     ) -> str:
         """Register a record, return its tag. Dedups by URL (non-empty
@@ -144,6 +148,7 @@ class CitationRegistry:
             cited_by=cited_by,
             url=url,
             doi=doi,
+            isbn=isbn,
             source=source,
             parent_tag=parent_tag,
             audience=audience(
@@ -153,6 +158,7 @@ class CitationRegistry:
             resolution_source=resolution_source,
             attempted=attempted or [],
             resolution_reason=resolution_reason,
+            head_verified=head_verified,
             raw_text=raw_text,
         )
         self._by_tag[tag] = record
@@ -747,20 +753,19 @@ def execute_read_wikipedia_article(
 
     new_tags: list[str] = []
     for cand in candidates:
-        # The verification cascade's raw_url branch handles real URLs;
-        # an ISBN we construct an openlibrary URL for (cascade verifies
-        # via HEAD); DOI handled in its own branch. We pass everything
-        # we have so the cascade picks the best one.
-        raw_url = cand.url
-        if not raw_url and cand.isbn:
-            raw_url = f"https://openlibrary.org/isbn/{cand.isbn}"
+        # Pass identifiers (doi, isbn, url) explicitly to the cascade.
+        # `source_trusted=True` reflects that this candidate comes from
+        # a Wikipedia cite template — see CLAUDE.md policy on Wikipedia-
+        # sourced DOIs/ISBNs being authoritative (BleakHouse-2qs0).
         ref = CandidateReference(
             title=cand.title,
             authors=tuple(cand.authors),
             year=cand.year,
             publisher=cand.publisher or None,
-            raw_url=raw_url,
+            raw_url=cand.url,
             doi=cand.doi,
+            isbn=cand.isbn,
+            source_trusted=True,
         )
         result = resolve_fn(ref)
 
@@ -776,11 +781,13 @@ def execute_read_wikipedia_article(
                 ),
                 url=result.url or "",
                 doi=cand.doi or None,
+                isbn=cand.isbn or None,
                 source="wikipedia_further_reading",
                 parent_tag=ref_tag,
                 resolution_status="resolved",
                 resolution_source=result.source,
                 attempted=list(result.attempted),
+                head_verified=result.head_verified,
                 raw_text=cand.raw_text,
             )
         else:
@@ -796,6 +803,7 @@ def execute_read_wikipedia_article(
                 ),
                 url="",
                 doi=cand.doi or None,
+                isbn=cand.isbn or None,
                 source="wikipedia_further_reading",
                 parent_tag=ref_tag,
                 resolution_status="unresolved",
