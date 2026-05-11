@@ -4,6 +4,51 @@
 benchmark on shortlist) blocked on user decision about API key
 provisioning + budget. See "Stage 2 shortlist" + "Open work" below.
 
+**Usage pattern** (corrected 2026-05-11 after user feedback):
+
+BleakHouse is NOT a continuously-rendering service. The actual
+workload:
+
+- **New-novel onboarding** (the dominant token-volume event). Per
+  the run-data audit, a typical novel produces ~13 run dirs across
+  panel × pipeline × variant combinations (e.g. Bleak House has 26;
+  most others 13; new novels in flight have 1-2). Two panels are
+  the norm — `literary` (19 novels) and `alternatives` (15 novels)
+  — with `interdisciplinary` for 3 novels.
+- **Occasional corrections** — re-running part of a pipeline for an
+  existing novel when a bug fix lands or a quality issue surfaces.
+- **Frequency**: ~5-10 new-novel onboardings per year, plus
+  scattered corrections.
+
+Token-volume estimate per novel-onboarding:
+- `passage_enrichment` + `passage_contexts` (batch tasks, upstream
+  of panels): ~5-10M tokens (~1-2h wall time per CLAUDE.md).
+- Per-panel pipeline × ~13 runs: ~100k prose output + ~100k
+  reading-list / host-prep + ~50k structured-filtering tokens.
+- Total per novel: ~10M tokens roughly.
+
+Annual envelope: ~50-100M tokens across the whole pipeline. At
+hosted prices the total annual LLM bill is on the order of **$20-40
+per year**. At self-hosted Modal H100 prices it's **$40-80 per
+year** (a single novel-onboarding burst is ~1-2h of GPU at $3.95/h,
+plus the same fraction of overhead for corrections).
+
+**Implication**: at this volume, cost is not a meaningful decision
+driver. A 3-5x cost ratio between hosted and self-hosted resolves
+to ~$50/year in absolute terms. The decision drivers, in order:
+
+1. Quality (still primary per the rubric).
+2. API independence (Principle 6 of the plan; the non-API
+   constraint is now about sovereignty / future-optionality, not
+   economics).
+3. Fine-tune enablement (low priority but real).
+4. Operational simplicity (zero maintenance for hosted; deploy +
+   monitor for Modal).
+
+The earlier cost-reassessment (Scenario A/B/C breakdown) is
+preserved below for reference but is no longer the centre of the
+decision.
+
 **Ticket**: BleakHouse-o3ir.
 
 **Method**: Web research against canonical provider docs. Items
@@ -383,12 +428,57 @@ empirically) but should be noted in the Stage 2 report.
 
 ## Decision context — what this survey commits us to
 
-Provisionally, the survey points toward:
+Given the corrected usage pattern (novel-onboarding bursts +
+occasional corrections; annual LLM bill ~$20-80 regardless of
+hosting choice), cost is no longer the decision driver. Quality
+and API-independence become the primary axes.
 
-- **Default routing for small tasks**: Llama 3.1 8B on DeepInfra (cheap, fast, capable enough).
-- **Default routing for mid batch tasks**: Qwen 2.5-72B on DeepInfra; Anthropic-Batch-Haiku as opt-in when volume + cost-discipline wins.
-- **Default routing for prose (short)**: head-to-head between Gemma 4 26B on Modal (self-hosted) and Gemma 4 31B on Together (hosted, same family, ~3-5x cheaper for our usage pattern). Decision made by Stage 2 quality data, not by Stage 1's cost inference alone.
-- **Default routing for legacy prose (long, opt-in only)**: Anthropic Sonnet 4.6.
-- **Non-API constraint** (Principle 6) most naturally satisfied by routing `passage_enrichment` (the high-volume batch task) to self-hosted on Modal; prose may stay hosted if quality data supports it.
+Provisional routing direction (Stage 1 inference; Stage 2 revises):
+
+- **Small tasks (listener_pick, reading_list_winnow, reference_tools,
+  quote_verification)**: hosted is the right default. Llama 3.1 8B
+  on DeepInfra. These are high-frequency low-cost calls inside the
+  pipeline; the hosted-API simplicity and reliability win at this
+  volume.
+
+- **Mid batch tasks (passage_enrichment, passage_contexts)**: the
+  natural home for the **non-API self-hosted default**. Per-novel
+  burst runs for ~1-2h sustained → Modal/Runpod economics work
+  fine; fine-tune story is plausible (could LoRA-tune on the
+  passage-enrichment schema). Recommend Qwen 2.5-72B-Instruct on
+  Modal H100. Anthropic-Batch-Haiku stays as opt-in for any case
+  where its quality wins enough to matter, and the 50% batch
+  discount remains relevant for Anthropic-batch path.
+
+- **Prose generation (short format)**: hosted, almost certainly.
+  At ~2M prose tokens/year the cost differential between Modal-self-
+  hosted Gemma 4 26B and hosted Gemma 4 31B is ~$5/year total. The
+  ops overhead of maintaining a Modal vLLM endpoint for prose alone
+  isn't justified. Stage 2 head-to-head should still happen on
+  quality grounds (does MoE-26B beat dense-31B?), but the default
+  resolution is hosted unless the quality data is overwhelming.
+
+- **Legacy prose (long format, opt-in)**: Anthropic Sonnet 4.6.
+
+- **Non-API constraint resolution (Principle 6)**: satisfied by
+  passage_enrichment routing self-hosted (it's the right fit on
+  utilization grounds, and gives us a deployable self-hosted path
+  we can fine-tune against later).
+
+What the survey does NOT recommend, and why:
+- Routing prose to self-hosted Modal as primary: the ops cost of
+  maintaining a separate Modal app for a workload that produces
+  ~$1-2/year of hosted-equivalent spend isn't worth it. Self-hosted
+  prose only makes sense if fine-tuning Gemma 4 26B for short-form
+  literary prose becomes a project priority — which is currently
+  low-priority per the user.
+- Routing small tasks to self-hosted: the call-frequency is too
+  high and per-call value too low for self-hosted cold-start /
+  warm-down dynamics to make sense.
+
+Stage 2 questions that genuinely matter under this view:
+1. Does Qwen 2.5-72B on Modal H100 produce passage_enrichment outputs that pass the quality floor vs current Anthropic Haiku?
+2. Does Gemma 4 31B (or DeepSeek-V3.2, or Llama 3.3 70B Turbo) hosted produce short-podcast prose that passes the ≥45% blinded preference floor vs Sonnet-on-short?
+3. Is Llama 3.1 8B on DeepInfra reliably good enough on the small-structured tasks to replace Haiku? (Lowest stakes; could ship on Stage 1 confidence alone.)
 
 This is a Stage 1 inference, not a decision. Stage 2 results revise.
