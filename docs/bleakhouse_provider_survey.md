@@ -97,9 +97,12 @@ Higher rank = more hosts currently serve it = lower lock-in risk:
 | Qwen 2.5 / 3.x | Together, DeepInfra, Fireworks, Groq. Broad. |
 | DeepSeek-V3.x | Together, DeepInfra, others. Broad. |
 | gpt-oss-120b / 20b | Cerebras, Groq, Fireworks. Decent. |
-| Gemma 4 | Together (31B); DeepInfra serves Gemma 3 27B but not yet 4. Likely to broaden but newer. |
-| Phi-4 | Limited hosted footprint; mostly self-hosted right now. |
 | Mistral / Mixtral | Together, DeepInfra, Fireworks. Broad. |
+| Gemma 4 26B-A4B-it (MoE) / 31B-it (dense) | DeepInfra, Novita, Featherless-AI, Fireworks (26B); Together adds 31B. Good. |
+| Gemma 4 small (E2B / E4B) | Azure Foundry only. Weak (will likely broaden). |
+| Phi-4 | Limited hosted footprint; mostly self-hosted right now. |
+| Nemotron-Nano-9B-v2 | **DeepInfra ($0.04/$0.16, 128k context)** + NVIDIA NIM. Decent portability. |
+| Nemotron-3-Nano (4B / 30B-A3B-MoE) | NVIDIA NIM is the primary hosted home; Azure Foundry secondary. DeepInfra etc. not yet confirmed for the -3- generation. Verify at survey time; portability for the older Nano-9B-v2 has expanded to DeepInfra, so the newer -3- variants may follow. |
 
 For routing decisions, prefer the higher-portability rows when
 quality is comparable.
@@ -128,6 +131,8 @@ fast; treat numbers as "as of 2026-05-11" not contract.
 | **DeepInfra** | OpenAI-compat (endpoint not surfaced) [VERIFY] | Llama 3.3 70B Turbo, Llama 3.1 8B, Qwen 2.5 72B, Qwen 3 32B, Qwen3-Max, Mistral Small 3.2 24B, Mistral Nemo, DeepSeek-V3.2, DeepSeek-V3.1, **Gemma 4 26B-A4B-it (MoE)**, **Gemma 4 31B-it**, Gemma 3 27B, Gemma 3 4B | [VERIFY] | Yes, dedicated GPU hosting (A100/H100/H200/B200/B300, per-minute billing) | [VERIFY] | 1 (hosted) |
 | **Novita** | OpenAI-compat (HF Inference Providers partner) | **Gemma 4 26B-A4B-it (MoE)** + broader open-weight catalogue [VERIFY] | [VERIFY] | [VERIFY] | OpenAI-compat → response_format json_schema [VERIFY] | 1 (hosted) |
 | **Featherless-AI** | OpenAI-compat (HF Inference Providers partner) | **Gemma 4 26B-A4B-it (MoE)** + broad open-weight catalogue (many fine-tunes hosted) [VERIFY] | [VERIFY] | [VERIFY] | OpenAI-compat [VERIFY] | 1 (hosted) |
+| **NVIDIA NIM** (`integrate.api.nvidia.com/v1/chat/completions`) | OpenAI-compatible | NVIDIA Nemotron family (Nano-9B-v2, Nano-3-4B, Nano-3-30B-A3B MoE) + curated Meta/Mistral/Google/IBM catalogue | [VERIFY] | Self-host NIMs locally; managed hosted = NVIDIA-only | OpenAI-compat (response_format json_schema) [VERIFY strict] | 1 (hosted) |
+| (DeepInfra also hosts **NVIDIA-Nemotron-Nano-9B-v2** at $0.04/$0.16, 128k context — listed under DeepInfra row above) | — | — | — | — | — | — |
 | **Anyscale Endpoints** | DISCONTINUED | — | — | — | — | — |
 
 ### Hosted-API pricing per million tokens (input / output)
@@ -273,14 +278,45 @@ plan).
 
 ### Tier S — small structured (listener_pick, reading_list_winnow, reference_tools, quote_verification)
 
-**Recommended: Llama 3.1 8B on DeepInfra** — $0.02 / $0.05 per M
-tokens is the cheapest credible option; 8B is enough for tag-picking
-and JSON-output tasks. Apache-2.0-equivalent fine-tunability via
-Llama Community License.
+Three credible hosted candidates as of 2026-05-11:
 
-Runner-up: **Gemma 4 9B** [VERIFY availability across hosts] —
-Apache 2.0 (Gemma 4 specifically), small enough for consumer-GPU
-LoRA, would tee up self-hosting later.
+**Recommended head-to-head in Stage 2**:
+
+1. **NVIDIA-Nemotron-Nano-9B-v2 on DeepInfra** — $0.04/$0.16/M; 128k
+   context; multilingual (en/es/fr/de/it/ja); trained on NVIDIA's
+   instruction-following + structured-outputs RL datasets (the
+   training mix explicitly targets our task shape). Also hosted on
+   NVIDIA NIM → 2-host portability. NVIDIA Open Model License
+   ("license:other"); permissive for commercial + fine-tuning.
+   Strong fit on training-data alignment with our use case.
+
+2. **Llama 3.1 8B on DeepInfra** — $0.02/$0.05/M; 8B params;
+   broadest multi-host portability (Together, DeepInfra,
+   Fireworks, Groq, many more). Meta Community License. Safe
+   baseline.
+
+3. **Gemma 3 4B on DeepInfra** — $0.04/$0.08/M; smallest model;
+   Gemma 3 family (older Gemma Terms of Use, fine-tunable but
+   Prohibited-Use Policy applies). Family-consistent with the
+   prose-tier Gemma 4 candidate.
+
+At our token volume (~1-2M small-tier tokens/year) the price spread
+is pennies/year and not a decision driver. The decision drivers
+are:
+- **Quality on structured-output tasks**: Nemotron-Nano-9B-v2's
+  training data has a meaningful advantage. Llama 3.1 8B is well-
+  benchmarked but trained on more general data.
+- **Multi-host portability**: Llama 3.1 8B wins by a wide margin.
+- **Provider consolidation**: all three are on DeepInfra; single
+  API-key story works regardless of pick.
+
+Stage 2 directly compares all three on a 20-input fixture
+sampled from existing reading lists. Lowest-stakes Tier in the
+survey; could ship on Stage 1 confidence alone if Stage 2 is
+deferred.
+
+Future revisit trigger: when Gemma 4 E2B or E4B lands on
+serverless hosting (Azure Foundry only currently).
 
 ### Tier M — structured intermediate (design_segments, host_prep brief, passage_enrichment, passage_contexts)
 
@@ -436,9 +472,13 @@ the shortlist. Concrete proposal:
 
 **Candidates (5 hosted + 1 fallback-rehearsal)**:
 
-1. **Llama 3.1 8B on DeepInfra** (Tier S). Cheap; broad portability;
-   high-frequency small-structured tasks. Gemma 4 E2B/E4B not yet
-   serverless-hosted; revisit Tier S when they land.
+1. **Tier S head-to-head (3 candidates on DeepInfra)**: Llama 3.1
+   8B, NVIDIA-Nemotron-Nano-9B-v2, Gemma 3 4B. Compare set-overlap
+   with Haiku baseline on 20 sampled listener_pick inputs. The
+   Nemotron candidate is interesting because its training mix
+   explicitly targets structured-output tasks. Single DeepInfra
+   API key serves all three. Gemma 4 E2B/E4B not yet serverless-
+   hosted; revisit when they land.
 2. **Qwen 2.5-72B-Instruct on DeepInfra** (Tier M). Apache 2.0;
    broad portability; passage_enrichment + mid-structured tasks.
    Stage 2 compares schema validity + content fidelity to current
@@ -531,11 +571,14 @@ Provisional routing direction (Stage 1 inference, updated after
 confirming hosted Gemma 4 26B availability):
 
 - **Small tasks (listener_pick, reading_list_winnow, reference_tools,
-  quote_verification)**: **Llama 3.1 8B** on DeepInfra as primary,
-  alternate at Groq, Together, Fireworks. Apache-2.0-equivalent
-  Meta Community License → portable. Revisit when Gemma 4 E2B/E4B
-  reach serverless hosting (Azure-only currently); they'd be a
-  family-consistent alternative.
+  quote_verification)**: Stage 2 picks between three on DeepInfra —
+  Llama 3.1 8B ($0.02/$0.05, broad portability),
+  NVIDIA-Nemotron-Nano-9B-v2 ($0.04/$0.16, training data targets
+  structured outputs), and Gemma 3 4B ($0.04/$0.08, smaller).
+  Decided by quality on the 20-input fixture; price is noise at
+  our volume. Revisit when Gemma 4 E2B/E4B reach serverless
+  hosting (Azure-only currently); they'd be a family-consistent
+  alternative.
 
 - **Mid batch tasks (passage_enrichment, passage_contexts)**:
   **Qwen 2.5-72B-Instruct** on DeepInfra ($0.36/$0.40) as primary,
