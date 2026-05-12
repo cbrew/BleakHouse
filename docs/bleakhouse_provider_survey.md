@@ -656,6 +656,54 @@ Rationale:
   tasks (passage_enrichment) to open-weight, not by routing this
   small high-volume task.
 
+---
+
+## Stage 2 Tier M-Haiku results — passage_enrichment (2026-05-12)
+
+3 chapters sampled (seed=42, paragraph range 15-50): our_mutual_friend/c9 (32p), daniel_deronda/c9 (37p), daniel_deronda/c18 (42p). Baseline = Haiku's own existing enrichment in `passages_enriched.json`. Schema = `ChapterEnrichmentResult` with 17 Literal/required-string fields per paragraph.
+
+| Candidate | schema valid | coverage | literal-field agreement | total cost | wall |
+|---|---:|---:|---:|---:|---:|
+| Anthropic Haiku 4.5 (baseline) | **1.00** | 1.00 | **0.802** | $0.1724 | 210s |
+| Qwen 2.5-72B-Instruct on DeepInfra | 0.67 | 0.67 | 0.521 | $0.0106 | 2711s (45 min) |
+| Llama 3.3-70B-Instruct-Turbo on DeepInfra | **0.00** | 0.00 | n/a | $0.0082 | 960s (16 min) |
+
+### What the data shows
+
+1. **Haiku-vs-itself literal agreement is 0.80** — the noise floor for this task. Disagreement isn't error; it's stochasticity in Literal-field assignment (a paragraph that's borderline "description" vs "transition" will swing across runs).
+
+2. **Qwen 2.5-72B on DeepInfra has serious problems with this schema**:
+   - 1 of 3 chapters timed out at 30 min and returned malformed (`Request timed out` after 2 retries).
+   - On the 2 chapters that succeeded, literal-field agreement is 0.52 — **well below the 0.80 noise floor**. So the disagreements are real classification differences, not noise.
+   - Latency per chapter: 413-495s on success, 1802s on timeout. Compared to Haiku's 56-77s.
+
+3. **Llama 3.3-70B-Instruct-Turbo on DeepInfra fails schema entirely** (0/3 chapters):
+   - Returned markdown-wrapped JSON code blocks instead of a flat `ChapterEnrichmentResult`.
+   - Used wrong field names: `interest` not `interest_score`, `characters` not `characters_present`+`characters_speaking`, `provision_dimensions` as nested object instead of flat `prov_*` fields.
+   - `emotional_register` as string `"neutral"` instead of a list.
+   - `plot_function` value `"Introduction"` not in the Literal enum.
+   - This is despite the seam sending `response_format={"type":"json_schema","json_schema":{...}}`. DeepInfra's strict-flag is `False` in our capabilities table (conservative default); Llama-Turbo's quantization may also degrade schema-following.
+
+### Routing decision for passage_enrichment (input to BleakHouse-9k9n)
+
+**Keep Anthropic Haiku 4.5 for passage_enrichment.** Open-weight candidates on DeepInfra are not viable for this task at our current configuration:
+
+- Llama 3.3-70B Turbo: complete schema failure.
+- Qwen 2.5-72B: 33% failure rate, 30-min timeouts, agreement below noise floor on successful runs.
+
+Annual cost stays on Anthropic Batch (50% off Haiku = $0.50/M input + $2.50/M output). At our project volume of ~50-100M tokens/year for passage_enrichment, that's ~$50-150/year.
+
+### Follow-ups worth trying before declaring open-weight unviable for this task
+
+The result above is a verdict on *this configuration* (DeepInfra hosting + our seam's strict=False default + the dense BleakHouse schema). Worth testing whether different choices change the picture:
+
+- **Together with `strict=True`**: capabilities table flags Together as `strict=True`. Hosted Qwen 2.5-72B-Instruct on Together with the strict flag honored might fix Llama-style schema misses. File as follow-up ticket.
+- **Smaller per-call inputs**: split chapters in half (15-25 paragraphs per request); reduces output size and schema complexity per call. The production pipeline already does this for chapters >200 paragraphs; we could lower the threshold.
+- **A model with stronger structured-output capability**: DeepSeek-V3.2 or Qwen-3 (newer than 2.5).
+- **Self-hosted vLLM with `guided_json`** (Modal): vLLM's strict grammar-based decoding is more reliable than provider-level `response_format` for complex schemas. But back to the self-hosting cost question.
+
+These are improvements at the margin, not changes in conclusion. The conclusion is: passage_enrichment is harder than listener_pick on open-weight, and Haiku-on-batch is a legitimate default.
+
 ### Open questions for Tier M and Tier L
 
 The Tier S protocol generalises:
