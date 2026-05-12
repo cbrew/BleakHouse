@@ -1,8 +1,9 @@
 # BleakHouse Provider Survey
 
-**Status**: Stage 1 (desk survey) complete 2026-05-11. Stage 2 (live
-benchmark on shortlist) blocked on user decision about API key
-provisioning + budget. See "Stage 2 shortlist" + "Open work" below.
+**Status**: Stage 1 (desk survey) complete 2026-05-11. Stage 2 Tier S
+benchmark complete 2026-05-12 (BleakHouse-1aav + 7usk follow-up).
+Tier M and Tier L benchmarks pending. See "Stage 2 Tier S results"
+section below for findings.
 
 **Usage pattern** (corrected 2026-05-11 after user feedback):
 
@@ -576,6 +577,98 @@ The `[VERIFY]` items in the Stage 1 tables, especially:
 
 These don't block Stage 2 (live calls will surface most of them
 empirically) but should be noted in the Stage 2 report.
+
+---
+
+## Stage 2 Tier S results (2026-05-12)
+
+8 inputs sampled (seed=42) from real reading lists; baseline = the
+post-sz5m `recommended[]` produced by Haiku. Two metrics:
+**set_overlap_with_Haiku-baseline** (the 0rtg-spec'd floor) and
+**LLM-judge rating** on a 1-5 rubric (judge = Haiku 4.5).
+
+| Candidate | overlap_mean | judge mean | judge median | judge dist (1/2/3/4/5) | cost / 8 inputs | wall |
+|---|---:|---:|---:|---|---:|---:|
+| Anthropic Haiku 4.5 (baseline) | 0.871 | **3.50** | 4.0 | [0, 1, 2, 5, 0] | $0.0382 | 20.9s |
+| NVIDIA-Nemotron-Nano-9B-v2 on DeepInfra | 0.331 | 2.38 | 2.0 | [0, 6, 1, 1, 0] | $0.0040 | 134.3s |
+| meta-llama/Meta-Llama-3.1-8B-Instruct on DeepInfra | 0.120 | 2.00 | 2.0 | [0, 8, 0, 0, 0] | $0.0007 | 13.0s |
+| google/gemma-3-4b-it on DeepInfra | 0.142 | 2.00 | 2.0 | [0, 8, 0, 0, 0] | $0.0014 | 9.2s |
+
+### What the data actually says
+
+1. **The set-overlap floor measures conformity to Haiku, not pick
+   quality.** Haiku-against-itself only hits 0.871 — that's the noise
+   ceiling of LLM stochasticity. The 0rtg-spec'd 0.85 threshold is
+   essentially "match Haiku exactly", which only Haiku can do. The
+   floor protocol needs revision; values were starting positions per
+   the 0rtg ticket.
+
+2. **The judge rubric tells a clearer story.** All three open-weight
+   candidates concentrate at rubric value 2 ("Mostly poor picks. Too
+   many journal articles, dissertations, or items a listener can't
+   access"). Haiku concentrates at 4 ("Mostly good picks").
+
+3. **Nemotron's training-data alignment shows in the long tail.**
+   Nemotron-Nano-9B-v2 got one judgement at 4 and one at 3, more than
+   Llama (uniformly 2) or Gemma 3 4B (uniformly 2). The NSCLv1
+   license tradeoff (see License Caveats above) isn't worth a
+   ~0.4-rubric-point lift over Llama at the small-tier.
+
+4. **Cost ranking confirms Stage 1 inference.** Open-weight candidates
+   are 17-60× cheaper per call. At project volume (~1-2M small-tier
+   tokens/year) the cost gap is pennies/year.
+
+5. **Nemotron's latency is poor** (134s for 8 inputs vs 9-20s for
+   others). Reasoning models emit `reasoning_content` separately from
+   `content`; first run hit max_tokens=512 → reasoning ate the budget
+   → empty content (BleakHouse-7usk). Fixed at max_tokens=4096; cost
+   rose marginally but latency stays bad even at higher budget.
+
+### Judge methodology + bias caveat
+
+Judge = Haiku 4.5 with an absolute 1-5 rubric (see
+`enrichment/llm/eval/judge.py:_JUDGE_SYSTEM`). The candidate output's
+tags are extracted, paired with the full candidate list (so the
+judge can verify tag→entry mapping), and presented to Haiku.
+
+**Bias**: Haiku judging Haiku-picks favours Haiku-style picks.
+Mitigation: the rubric is absolute (not "compare to baseline"); the
+judge sees the picks alongside the full candidate list and rates
+against accessibility/listener-fit criteria, not against the
+baseline's specific choices. The 1.5-rubric-point gap between Haiku
+(3.5) and the open-weight candidates (2.0-2.38) is plausibly real
+even after discounting for bias — neither Llama nor Gemma 3 4B got
+ANY judge rating above 2.
+
+### Routing decision for listener_pick (input to BleakHouse-9k9n)
+
+**Keep Anthropic Haiku 4.5 as the default for listener_pick.**
+
+Rationale:
+- Quality (user's primary criterion): meaningful gap (3.50 vs
+  2.0-2.38 on a 1-5 scale; median 4 vs 2).
+- Cost (secondary): $0.04 per 8 inputs vs $0.0007-0.0040. At project
+  volume of ~1-2M small-tier tokens/year, total Haiku cost stays
+  under $5/year — not worth a quality compromise.
+- Lock-in resistance: Anthropic is closed-weight, but the seam makes
+  a future flip a one-line `settings.register_task` change. The
+  non-API constraint (Principle 6) is satisfied by routing OTHER
+  tasks (passage_enrichment) to open-weight, not by routing this
+  small high-volume task.
+
+### Open questions for Tier M and Tier L
+
+The Tier S protocol generalises:
+- Build a fixture from real pipeline data (passage_enrichment from
+  chapter inputs; prose from short-format episode prompts).
+- Run candidates via the seam (already capable).
+- Score via LLM-as-judge with task-specific rubrics — but for prose
+  the judge rubric matters much more, and Haiku-as-judge bias is
+  more serious since Haiku also generates the prose baseline.
+  Probably needs a blinded human-preference protocol per 0rtg rather
+  than LLM-as-judge.
+
+These are separate tickets when ready.
 
 ---
 
