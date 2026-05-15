@@ -516,6 +516,27 @@ Examples:
              "gpt-5-mini-derived variant produced by "
              "enrichment.collect_passages_enriched_openai.",
     )
+    # Provider-control surface (BleakHouse-otae / docs/provider_control_spec.md).
+    # The flags activate a named profile + optional per-task overrides. Call
+    # sites that have not yet migrated to the seam still hardcode their models,
+    # so today the profile's effect is recorded for provenance + reads by any
+    # seam-aware caller (eval harness, test_single). Migration of call sites
+    # to actually consume the resolved map is tracked in Subtask D.
+    parser.add_argument(
+        "--provider-profile", default=None,
+        help="Named LLM provider profile from params.yaml "
+             "(e.g. 'production', 'all_openai'). Default: the value of "
+             "params.yaml default_provider_profile.",
+    )
+    parser.add_argument(
+        "--provider-override", action="append", default=[],
+        metavar="TASK=MODEL_ID",
+        help="Per-task generator override, repeatable. Layers on top of "
+             "--provider-profile. Example: "
+             "--provider-override host_prep_brief=openai_5_4. Task names "
+             "are those in params.yaml task_models; generator IDs are those "
+             "in params.yaml generators[].id.",
+    )
 
     args = parser.parse_args()
 
@@ -532,6 +553,45 @@ Examples:
         os.environ["BLEAKHOUSE_ENRICHMENT_VARIANT"] = args.enrichment_variant
     else:
         os.environ.pop("BLEAKHOUSE_ENRICHMENT_VARIANT", None)
+
+    # Activate the LLM provider profile + per-task overrides. Parse
+    # 'task=model_id' pairs from --provider-override (repeatable). The seam
+    # resolves the active map; for_task() callers (eval harness; future
+    # migrated call sites) see the resolution. Fails loud on bad task names.
+    from enrichment.llm import settings as _llm_settings
+    provider_overrides: dict[str, str] = {}
+    for raw in args.provider_override:
+        if "=" not in raw:
+            raise SystemExit(
+                f"--provider-override must be TASK=MODEL_ID, got {raw!r}"
+            )
+        task, model_id = raw.split("=", 1)
+        provider_overrides[task.strip()] = model_id.strip()
+    _llm_settings.activate(args.provider_profile, provider_overrides)
+    logger.info(
+        "LLM provider profile: %s%s",
+        _llm_settings.active_profile_name(),
+        f" (overrides: {provider_overrides})" if provider_overrides else "",
+    )
+    # TEMPORARY (until BleakHouse-otae Subtask D lands): warn when the active
+    # profile or any override would route any call to a non-default provider.
+    # Today, call sites still hardcode their models; the resolved_per_task
+    # block in config.json records the intended routing but does NOT yet
+    # reflect what actually executed. Without this warning, an audit reading
+    # the providers block would draw wrong conclusions.
+    _resolved_now = _llm_settings.resolved_providers()
+    _non_anthropic = {
+        task: spec for task, spec in _resolved_now.items()
+        if spec.provider != "anthropic"
+    }
+    if _non_anthropic:
+        logger.warning(
+            "PROVIDER ROUTING NOT YET HONORED: profile=%s resolves these tasks "
+            "to non-Anthropic providers, but call sites still hardcode Anthropic: %s. "
+            "Resolution is recorded in config.json.providers for audit; actual "
+            "execution will not match until Subtask D of BleakHouse-otae lands.",
+            _llm_settings.active_profile_name(), sorted(_non_anthropic),
+        )
 
     # Preflight: enrichment-completeness smoke test. Catches the
     # 'data is loadable but unusable' class before any phase runs.
@@ -597,6 +657,30 @@ Examples:
         "length": args.length,
     }
 
+    # Snapshot the resolved provider routing for this run. Self-describing
+    # provenance: future readers can tell exactly which model served each
+    # task without reading params.yaml or env state. Per the spec at
+    # docs/provider_control_spec.md, resolved_per_task is the source of
+    # truth — profile + overrides are recorded only as audit metadata.
+    _resolved = _llm_settings.resolved_providers()
+    # Find the generator id (e.g. "anthropic_haiku_4_5") for each task by
+    # reverse-lookup against the registered generators so the recorded
+    # value is the stable user-facing identifier, not the api_model string.
+    _gen_id_by_api_model = {g.api_model: g.id for g in axes.GENERATORS_TUPLE}
+    providers_block = {
+        "profile": _llm_settings.active_profile_name(),
+        "overrides_at_runtime": provider_overrides,
+        "resolved_per_task": {
+            task: _gen_id_by_api_model.get(spec.model, spec.model)
+            for task, spec in _resolved.items()
+        },
+        # TEMPORARY: while Subtask D of BleakHouse-otae is pending, call sites
+        # hardcode their providers. resolved_per_task records the INTENT of
+        # the active profile + overrides; what actually ran was hardcoded
+        # per call site (mostly Anthropic). Flip to true once D lands.
+        "enforced_by_call_sites": False,
+    }
+
     # Save config
     config_data = {
         "name": args.name,
@@ -614,6 +698,7 @@ Examples:
         # rummaging through env-var or symlink state. None means the canonical
         # Anthropic-derived passages_enriched.json.
         "enrichment_variant": args.enrichment_variant,
+        "providers": providers_block,
     }
     with open(run_dir / "config.json", "w") as f:
         json.dump(config_data, f, indent=2)

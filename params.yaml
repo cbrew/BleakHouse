@@ -60,6 +60,10 @@ speakers:
 # Changing api_model or adding/removing a generator invalidates every
 # script artefact whose config.json axes.generator matches.
 generators:
+  - id: anthropic_haiku_4_5
+    api_model: claude-haiku-4-5-20251001
+    provider: anthropic
+    display: Anthropic Claude Haiku 4.5
   - id: anthropic_sonnet_4_6
     api_model: claude-sonnet-4-6
     provider: anthropic
@@ -86,3 +90,45 @@ generators:
     display: OpenAI GPT-5.4
 
 default_generator: anthropic_sonnet_4_6
+
+# -------- Provider control (BleakHouse-otae / docs/provider_control_spec.md) --------
+# task_models is the per-task default; resolved via the `production` profile.
+# Profiles override individual entries; CLI --provider-override layers on top.
+# Task names match enrichment/llm/settings.py: known_tasks().
+
+task_models:
+  passage_enrichment:               anthropic_haiku_4_5
+  passage_contexts:                 anthropic_haiku_4_5
+  design_segments:                  anthropic_haiku_4_5
+  host_prep_pre_interview:          anthropic_haiku_4_5
+  host_prep_pre_interview_structured: anthropic_haiku_4_5
+  host_prep_brief:                  anthropic_sonnet_4_6
+  listener_pick:                    anthropic_haiku_4_5
+  reading_list_winnow:              anthropic_haiku_4_5
+  reference_tools_winnow:           anthropic_haiku_4_5
+  quote_verification:               anthropic_haiku_4_5
+  generate_podcast:                 anthropic_sonnet_4_6
+  embedding_podcast_curate:         anthropic_sonnet_4_6
+
+# Named profiles. A profile lists per-task overrides; tasks NOT in the
+# profile fall back to task_models above. An empty body = "production
+# defaults" (useful as an explicit alias).
+provider_profiles:
+  production: {}
+  all_anthropic: {}      # alias for production; explicit name for run-dir clarity
+
+  all_openai:
+    passage_enrichment:               openai_5_mini
+    passage_contexts:                 openai_5_mini
+    design_segments:                  openai_5_mini
+    host_prep_pre_interview:          openai_5_mini
+    host_prep_pre_interview_structured: openai_5_mini
+    host_prep_brief:                  openai_5_4
+    listener_pick:                    openai_5_mini
+    reading_list_winnow:              openai_5_mini
+    reference_tools_winnow:           openai_5_mini
+    quote_verification:               openai_5_mini
+    generate_podcast:                 openai_5_4
+    embedding_podcast_curate:         openai_5_4
+
+default_provider_profile: production
