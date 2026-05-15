@@ -40,6 +40,16 @@ PRICING: dict[str, tuple[float, float, str]] = {
         2.75,
         "https://inference-docs.cerebras.ai/models/zai-glm-47",
     ),
+    "gpt-5-mini": (
+        0.25,
+        2.00,
+        "https://platform.openai.com/docs/pricing",
+    ),
+    "gpt-5.4": (
+        2.50,
+        15.00,
+        "https://platform.openai.com/docs/pricing",
+    ),
 }
 
 QUOTED_AT = "2026-04-22"

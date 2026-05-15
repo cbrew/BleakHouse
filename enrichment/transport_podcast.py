@@ -50,9 +50,22 @@ def _current_novel() -> str:
     return os.environ.get("BLEAKHOUSE_NOVEL") or "bleak_house"
 
 
+def _current_enrichment_variant() -> str | None:
+    """Selected enrichment-file variant for this pipeline run.
+
+    Set by run_pipeline before any reader runs. Empty string and None both
+    select the default (canonical Anthropic-derived `passages_enriched.json`).
+    Parallels the BLEAKHOUSE_NOVEL convention used for novel selection."""
+    import os
+    v = os.environ.get("BLEAKHOUSE_ENRICHMENT_VARIANT")
+    return v or None
+
+
 def _passages_file() -> Path:
     from cas import paths as cas_paths
-    return cas_paths.passages_enriched(_current_novel())
+    return cas_paths.passages_enriched(
+        _current_novel(), variant=_current_enrichment_variant(),
+    )
 
 
 def _clusters_literary_file() -> Path:

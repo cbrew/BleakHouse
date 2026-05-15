@@ -1,21 +1,28 @@
-"""Generate ALL segments of a podcast episode via Cerebras native SDK.
+"""Generate ALL segments of a podcast episode via Cerebras or OpenAI-compat SDK.
 
 Writes into a fresh canonical run directory
-`{source_axes with generator=<cerebras_*>}` containing:
+`{source_axes with generator=<id>}` containing:
   - symlinks to phase0/1/2/2_5 inputs from the source run
   - config.json (copied, axes.generator updated, generator scalar set)
   - phase3_episode.json (canonical filename, via assemble_episode)
   - phase3_generation_metrics.json (tokens/cost/latency per segment + totals)
 
 Then invokes enrichment.post_phase3.run_post_phase3 to produce
-manifest.json / report.html. The webapp discovers the run automatically
-— no more sibling phase3_cerebras_native_<model>_episode.json dumps in
-the source dir.
+manifest.json / report.html. The webapp discovers the run automatically.
+
+Provider selection: dispatches on `generator.provider` (set in params.yaml).
+Currently supports `cerebras` (via the Cerebras SDK) and `openai` (via the
+OpenAI SDK). Adding other openai-compat providers (deepinfra, together, ...)
+is a key-lookup + base_url wiring exercise — the rest of the code path is
+already OpenAI-compatible.
 
 Usage:
     uv run python -m experiments.cerebras.full_episode \\
         --source data/runs/bh_trn_literary_hostprep \\
-        --model qwen-3-235b-a22b-instruct-2507
+        --model qwen-3-235b-a22b-instruct-2507    # via cerebras
+    uv run python -m experiments.cerebras.full_episode \\
+        --source data/runs/bh_trn_literary_hostprep \\
+        --model openai_5_4                          # via openai
 """
 
 from __future__ import annotations
@@ -29,8 +36,6 @@ from pathlib import Path
 from typing import Any
 
 import llm
-from cerebras.cloud.sdk import Cerebras
-from cerebras.cloud.sdk.types.chat.chat_completion import ChatCompletionResponse
 
 from enrichment import axes
 from enrichment.generate_podcast import assemble_episode, build_messages, fix_turn_roles
@@ -157,13 +162,37 @@ def _load_personas(run_dir: Path) -> list[ExpertPersona]:
     return resolved
 
 
-def _get_key() -> str:
-    key = llm.get_key(alias="cerebras", env="CEREBRAS_API_KEY")
+def _get_key(provider: str) -> str:
+    aliases = {
+        "cerebras": ("cerebras", "CEREBRAS_API_KEY"),
+        "openai":   ("openai",   "OPENAI_API_KEY"),
+    }
+    alias, env = aliases.get(provider, (provider, f"{provider.upper()}_API_KEY"))
+    key = llm.get_key(alias=alias, env=env)
     if not key:
         raise RuntimeError(
-            "No Cerebras API key. Run `llm keys set cerebras` or export CEREBRAS_API_KEY."
+            f"No API key for provider {provider!r}. "
+            f"Run `llm keys set {alias}` or export {env}."
         )
     return key
+
+
+def _build_client(provider: str) -> Any:
+    """Construct the SDK client for the requested provider. Both clients
+    expose `chat.completions.create()` with the same call shape."""
+    if provider == "cerebras":
+        from cerebras.cloud.sdk import Cerebras
+        return Cerebras(api_key=_get_key("cerebras"))
+    if provider == "openai":
+        from openai import OpenAI
+        # timeout 1h, retries off: same posture as the seam's
+        # openai_compatible_provider — prose-tier calls can run long,
+        # and a client-side retry would multiply latency rather than
+        # help (the underlying call is non-idempotent at this scope).
+        return OpenAI(api_key=_get_key("openai"), timeout=3600.0, max_retries=0)
+    raise ValueError(
+        f"Unsupported provider {provider!r}. Known: cerebras, openai."
+    )
 
 
 def _provision_target_dir(
@@ -199,6 +228,109 @@ def _provision_target_dir(
         json.dump(cfg, f, indent=2)
 
 
+def _call_chat_completions(
+    *,
+    client: Any,
+    model: str,
+    system_msg: str,
+    user_msg: str,
+    schema: dict[str, Any],
+    max_completion_tokens: int,
+    temperature: float,
+    reasoning_effort: str | None,
+) -> tuple[str | None, int, int, int, str | None]:
+    """Cerebras (and other strict-mode-tolerant OpenAI-compat) path. Returns
+    (content_text, input_tokens, output_tokens, reasoning_tokens, finish_reason).
+    reasoning_tokens is 0 — Cerebras's usage shape doesn't itemize it."""
+    create_kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "episode_segment",
+                "strict": True,
+                "schema": schema,
+            },
+        },
+        "max_completion_tokens": max_completion_tokens,
+        "temperature": temperature,
+        "stream": False,
+    }
+    if reasoning_effort is not None:
+        create_kwargs["reasoning_effort"] = reasoning_effort
+
+    completion = client.chat.completions.create(**create_kwargs)
+    choice = completion.choices[0]
+    content = choice.message.content
+    usage = completion.usage.model_dump() if completion.usage else {}
+    in_tok = int(usage.get("prompt_tokens") or 0)
+    out_tok = int(usage.get("completion_tokens") or 0)
+    return content, in_tok, out_tok, 0, choice.finish_reason
+
+
+def _call_openai_responses(
+    *,
+    client: Any,
+    model: str,
+    system_msg: str,
+    user_msg: str,
+    schema: dict[str, Any],
+    max_output_tokens: int,
+    reasoning_effort: str,
+) -> tuple[str | None, int, int, int, str | None]:
+    """OpenAI Responses API path. Uses text.format.json_schema with strict=false
+    so we can pass the Pydantic-generated schema with $defs/$refs as-is (strict
+    mode requires inlining + all-required + no allOf, which the prose-tier
+    schema doesn't satisfy).
+
+    Note: gpt-5.4 accepts reasoning.effort in {none, low, medium, high, xhigh};
+    'minimal' is gpt-5-mini-only. Default 'low' for prose."""
+    resp = client.responses.create(
+        model=model,
+        input=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ],
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "episode_segment",
+                "schema": schema,
+                "strict": False,
+            },
+        },
+        reasoning={"effort": reasoning_effort},
+        max_output_tokens=max_output_tokens,
+    )
+
+    # Walk output items, concatenate output_text from message items. Reasoning
+    # items have no content (the hidden chain-of-thought is server-side only).
+    chunks: list[str] = []
+    for item in resp.output:
+        if getattr(item, "type", None) != "message":
+            continue
+        for c in (getattr(item, "content", None) or []):
+            if getattr(c, "type", None) in ("output_text", "text"):
+                t = getattr(c, "text", None)
+                if t:
+                    chunks.append(t)
+    content = "".join(chunks) if chunks else None
+
+    usage = resp.usage
+    in_tok = int(usage.input_tokens) if usage and usage.input_tokens else 0
+    out_tok = int(usage.output_tokens) if usage and usage.output_tokens else 0
+    reasoning_tok = 0
+    if usage and usage.output_tokens_details:
+        rt = getattr(usage.output_tokens_details, "reasoning_tokens", None)
+        if rt:
+            reasoning_tok = int(rt)
+    return content, in_tok, out_tok, reasoning_tok, resp.status
+
+
 def generate_episode(
     source_dir: Path,
     model_id: str,
@@ -208,7 +340,7 @@ def generate_episode(
     reasoning_effort: str | None = None,
     run_post_phase3_after: bool = True,
 ) -> dict[str, Any]:
-    """Generate a full episode via Cerebras, write canonical run dir + reports."""
+    """Generate a full episode via Cerebras or OpenAI Responses API."""
     _activate_novel(source_dir)
     source_axes = _load_source_axes(source_dir)
     generator = _resolve_generator(model_id)
@@ -225,6 +357,7 @@ def generate_episode(
         panel=source_axes.panel,
         hostprep=source_axes.hostprep,
         generator=generator.id,
+        length=source_axes.length,
     )
     target_dir = RUNS_DIR / target_axes.dir_name()
     _provision_target_dir(source_dir, target_dir, target_axes)
@@ -234,8 +367,14 @@ def generate_episode(
     prompt_version = _load_prompt_version(target_dir)
     personas = _load_personas(target_dir)
 
-    schema = _strictify(EpisodeSegment.model_json_schema())
-    client = Cerebras(api_key=_get_key())
+    # For Cerebras strict json_schema we need additionalProperties=false on
+    # every object. For OpenAI we call the Responses API with strict=false
+    # (the Pydantic schema with $defs/$refs is incompatible with OpenAI strict
+    # mode; non-strict accepts the schema as-is and the model still emits
+    # well-formed JSON — verified empirically on Bleak House Phase 3 prose).
+    cerebras_schema = _strictify(EpisodeSegment.model_json_schema())
+    raw_schema = EpisodeSegment.model_json_schema()  # for openai responses non-strict
+    client = _build_client(generator.provider)
 
     episode_segments: list[EpisodeSegment] = []
     segments_metrics: list[dict[str, Any]] = []
@@ -261,53 +400,43 @@ def generate_episode(
                     i + 1, len(planned), seg.template.name,
                     len(seg.assignments), generator.api_model)
 
-        create_kwargs: dict[str, Any] = {
-            "model": generator.api_model,
-            "messages": [
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": user_msg},
-            ],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "episode_segment",
-                    "strict": True,
-                    "schema": schema,
-                },
-            },
-            "max_completion_tokens": max_completion_tokens,
-            "temperature": temperature,
-            "stream": False,
-        }
-        if reasoning_effort is not None:
-            create_kwargs["reasoning_effort"] = reasoning_effort
-
         start = time.perf_counter()
-        completion = client.chat.completions.create(**create_kwargs)
-        assert isinstance(completion, ChatCompletionResponse)
+        if generator.provider == "openai":
+            content, in_tok, out_tok, reasoning_tok, finish_reason = _call_openai_responses(
+                client=client,
+                model=generator.api_model,
+                system_msg=system_msg,
+                user_msg=user_msg,
+                schema=raw_schema,
+                max_output_tokens=max_completion_tokens,
+                reasoning_effort=reasoning_effort or "low",
+            )
+        else:
+            content, in_tok, out_tok, reasoning_tok, finish_reason = _call_chat_completions(
+                client=client,
+                model=generator.api_model,
+                system_msg=system_msg,
+                user_msg=user_msg,
+                schema=cerebras_schema,
+                max_completion_tokens=max_completion_tokens,
+                temperature=temperature,
+                reasoning_effort=reasoning_effort,
+            )
         elapsed = time.perf_counter() - start
-        choice = completion.choices[0]
-        content = choice.message.content
 
-        usage = completion.usage.model_dump() if completion.usage else {}
-        in_tok = int(usage.get("prompt_tokens") or 0)
-        out_tok = int(usage.get("completion_tokens") or 0)
-        total_tok = int(usage.get("total_tokens") or (in_tok + out_tok))
+        total_tok = in_tok + out_tok
         seg_cost = cost_usd(generator.api_model, in_tok, out_tok) or 0.0
 
         episode_seg: EpisodeSegment | None = None
         validation = "failed: unknown"
-        if content is None:
-            validation = (
-                f"failed: message.content=None "
-                f"(finish_reason={choice.finish_reason})"
-            )
+        if content is None or content == "":
+            validation = f"failed: empty content (finish_reason={finish_reason})"
         else:
             try:
                 episode_seg = EpisodeSegment.model_validate(json.loads(content))
                 validation = "ok"
             except json.JSONDecodeError as e:
-                validation = f"failed: JSONDecodeError: {e} (finish_reason={choice.finish_reason})"
+                validation = f"failed: JSONDecodeError: {e} (finish_reason={finish_reason})"
             except Exception as e:
                 validation = f"failed: {e.__class__.__name__}: {e}"
 
@@ -320,11 +449,12 @@ def generate_episode(
         segments_metrics.append({
             "segment_index": i,
             "segment_name": seg.template.name,
-            "finish_reason": choice.finish_reason,
+            "finish_reason": finish_reason,
             "validation": validation,
             "elapsed_seconds": elapsed,
             "input_tokens": in_tok,
             "output_tokens": out_tok,
+            "reasoning_tokens": reasoning_tok,
             "total_tokens": total_tok,
             "tokens_per_second": out_tok / elapsed if elapsed > 0 and out_tok else None,
             "cost_usd": seg_cost,

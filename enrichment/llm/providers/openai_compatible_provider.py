@@ -61,6 +61,7 @@ from enrichment.llm.types import GenerationRequest, GenerationResult, ModelSpec
 # Secrets, the operator wires the auth header manually outside
 # this seam.
 _API_KEY_ENV: dict[str, str] = {
+    "openai": "OPENAI_API_KEY",
     "deepinfra": "DEEPINFRA_API_KEY",
     "together": "TOGETHER_API_KEY",
     "fireworks": "FIREWORKS_API_KEY",
@@ -125,8 +126,16 @@ class OpenAICompatibleProvider:
             return cached
 
         # Lazy real-client construction.
+        # timeout=3600 / max_retries=0: long structured-output calls
+        # on large open-weight models routinely exceed the SDK's
+        # 600-second default; retries are disabled so a client-side
+        # timeout fails the call once instead of stretching to
+        # ~30 minutes total (3×600s).
         from openai import OpenAI
-        client = OpenAI(api_key=api_key, base_url=spec.base_url)
+        client = OpenAI(
+            api_key=api_key, base_url=spec.base_url,
+            timeout=3600.0, max_retries=0,
+        )
         self._cache[cache_key] = client
         return client
 
@@ -146,18 +155,50 @@ class OpenAICompatibleProvider:
 
         kwargs: dict[str, Any] = {
             "model": spec.model,
-            "max_tokens": request.max_tokens,
             "messages": messages,
         }
-        if request.temperature is not None:
-            kwargs["temperature"] = request.temperature
+        # OpenAI-native API surface changed for gpt-5 family: requires
+        # `max_completion_tokens` (rejects `max_tokens` with 400) and
+        # only accepts the default temperature=1 (rejects temperature=0
+        # with 400). Third-party openai-compat providers (DeepInfra,
+        # Together, etc.) still accept the old shape. Branch on
+        # hosting. See bd memory:
+        # openai-gpt-5-family-api-surface-differs-from
+        if spec.hosting == "openai":
+            kwargs["max_completion_tokens"] = request.max_tokens
+            # Skip temperature entirely — OpenAI native gpt-5 family
+            # rejects explicit values. The default behaviour applies.
+            # reasoning_effort is the documented top-level parameter
+            # for gpt-5 family. Pass it directly when set.
+            if request.reasoning_effort is not None:
+                kwargs["reasoning_effort"] = request.reasoning_effort
+        else:
+            kwargs["max_tokens"] = request.max_tokens
+            if request.temperature is not None:
+                kwargs["temperature"] = request.temperature
+            # For third-party openai-compat providers (DeepInfra), the
+            # gpt-oss family takes reasoning_effort via extra_body.
+            # See docs/structured_output_review.html supplementary probe.
+            if request.reasoning_effort is not None:
+                kwargs.setdefault("extra_body", {})
+                kwargs["extra_body"]["reasoning_effort"] = request.reasoning_effort
         if request.json_schema is not None:
+            schema = request.json_schema
+            if request.list_field_caps:
+                # Inject maxItems into the JSON Schema for decoder-level
+                # cap enforcement. vLLM-backed providers (DeepInfra etc.)
+                # use this to prevent decode-time loops on unbounded
+                # list[Literal] fields (e.g. emotional_register emitting
+                # the same Literal value 100+ times until max_tokens).
+                schema = _apply_list_caps_to_schema(
+                    schema, request.list_field_caps,
+                )
             caps = for_hosting(spec.hosting)
             kwargs["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
-                    "name": _schema_name(request.json_schema),
-                    "schema": request.json_schema,
+                    "name": _schema_name(schema),
+                    "schema": schema,
                     "strict": caps.json_schema_strict,
                 },
             }
@@ -165,7 +206,10 @@ class OpenAICompatibleProvider:
         response = client.chat.completions.create(**kwargs)
 
         text = _extract_text(response)
-        input_tokens, output_tokens = _extract_token_counts(response)
+        (
+            input_tokens, output_tokens,
+            cache_read_tokens, provider_reported_cost,
+        ) = _extract_token_counts(response)
 
         return GenerationResult(
             text=text,
@@ -174,13 +218,55 @@ class OpenAICompatibleProvider:
             hosting=spec.hosting,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            cache_creation_input_tokens=None,  # not a concept in OAI-compat
+            cache_read_input_tokens=cache_read_tokens,
+            provider_reported_cost_usd=provider_reported_cost,
             estimated_cost_usd=cost_for(
                 "openai_compatible", spec.model,
                 input_tokens, output_tokens,
+                cache_read_input_tokens=cache_read_tokens,
+                provider_reported_cost=provider_reported_cost,
             ),
             execution_mode="one_shot",
             raw=response,
         )
+
+
+def _apply_list_caps_to_schema(
+    schema: Any, caps: dict[str, int],
+) -> Any:
+    """Walk the schema and, for each property named in `caps`, inject
+    `maxItems: N` into the property's definition. Returns a new
+    structure; input is not mutated.
+
+    Matches by property name regardless of nesting depth. Skips
+    properties that already have a maxItems (caller's existing
+    constraint wins)."""
+    if isinstance(schema, dict):
+        out: dict[str, Any] = {}
+        for k, v in schema.items():
+            if k == "properties" and isinstance(v, dict):
+                new_props: dict[str, Any] = {}
+                for prop_name, prop_def in v.items():
+                    if (prop_name in caps
+                            and isinstance(prop_def, dict)
+                            and "maxItems" not in prop_def):
+                        new_def = dict(prop_def)
+                        new_def["maxItems"] = caps[prop_name]
+                        new_props[prop_name] = _apply_list_caps_to_schema(
+                            new_def, caps,
+                        )
+                    else:
+                        new_props[prop_name] = _apply_list_caps_to_schema(
+                            prop_def, caps,
+                        )
+                out[k] = new_props
+            else:
+                out[k] = _apply_list_caps_to_schema(v, caps)
+        return out
+    if isinstance(schema, list):
+        return [_apply_list_caps_to_schema(item, caps) for item in schema]
+    return schema
 
 
 def _schema_name(schema: dict[str, Any]) -> str:
@@ -206,16 +292,53 @@ def _extract_text(response: Any) -> str:
     return ""
 
 
-def _extract_token_counts(response: Any) -> tuple[int | None, int | None]:
-    """OpenAI response → (input_tokens, output_tokens).
+def _extract_token_counts(
+    response: Any,
+) -> tuple[int | None, int | None, int | None, float | None]:
+    """OpenAI-compatible response → (input_tokens, output_tokens,
+    cache_read_input_tokens, provider_reported_cost).
 
-    OpenAI uses `prompt_tokens` / `completion_tokens` on the usage
-    object; we map them to the seam's input_/output_tokens fields.
+    OpenAI exposes `prompt_tokens` (total input), `completion_tokens`
+    (output), and `prompt_tokens_details.cached_tokens` (subset of
+    input billed at cache_read rate). All authoritative.
+
+    DeepInfra ships its own `usage.estimated_cost` field (a non-OpenAI
+    extension) which is their authoritative bill; they do NOT expose
+    cached_tokens (prompt_tokens_details is null in their responses
+    per the 2026-05-12 probe). When estimated_cost is present we
+    prefer it over recomputation.
+
+    Returns:
+        (input_tokens, output_tokens, cache_read_tokens|None,
+         provider_reported_cost_usd|None)
+
+    cache_read_tokens is None when the provider doesn't report it at
+    all (so the caller can distinguish "0 cached" from "unknown").
     """
     usage = getattr(response, "usage", None)
     if usage is None:
-        return None, None
+        return None, None, None, None
+
+    cache_read: int | None = None
+    details = getattr(usage, "prompt_tokens_details", None)
+    if details is not None:
+        # OpenAI: details.cached_tokens. DeepInfra: details is None
+        # so we never reach here for them.
+        cached = getattr(details, "cached_tokens", None)
+        if cached is not None:
+            cache_read = int(cached)
+
+    provider_reported_cost: float | None = None
+    raw_cost = getattr(usage, "estimated_cost", None)
+    if raw_cost is not None:
+        try:
+            provider_reported_cost = float(raw_cost)
+        except (TypeError, ValueError):
+            provider_reported_cost = None
+
     return (
         getattr(usage, "prompt_tokens", None),
         getattr(usage, "completion_tokens", None),
+        cache_read,
+        provider_reported_cost,
     )

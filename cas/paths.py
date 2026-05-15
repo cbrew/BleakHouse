@@ -29,8 +29,22 @@ def _novel_dir(novel: str) -> Path:
     return d
 
 
-def passages_enriched(novel: str) -> Path:
-    return _novel_dir(novel) / "passages_enriched.json"
+def passages_enriched(novel: str, variant: str | None = None) -> Path:
+    """Path to the enrichment file for `novel`.
+
+    variant=None       → passages_enriched.json (canonical Anthropic-derived)
+    variant="<suffix>" → passages_enriched.<suffix>.json (e.g. "openai_5_mini")
+
+    The variant is a literal filename suffix; the caller picks a name that
+    matches what the producer (e.g. enrichment.collect_passages_enriched_openai)
+    actually writes. We do not validate that the variant file exists; that's
+    the caller's choice (preflight checks read existence separately)."""
+    name = (
+        "passages_enriched.json"
+        if variant is None
+        else f"passages_enriched.{variant}.json"
+    )
+    return _novel_dir(novel) / name
 
 
 def clusters_literary(novel: str) -> Path:

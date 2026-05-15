@@ -68,6 +68,40 @@ class GenerationRequest:
     max_tokens: int
     json_schema: dict[str, Any] | None = None
     temperature: float | None = None
+    # Anthropic prompt caching: when True, the provider attaches a
+    # cache_control breakpoint to the system message so repeated calls
+    # with the same system prompt hit the cache. No-op for
+    # openai_compatible providers (DeepInfra etc. auto-cache by prefix).
+    cache_system: bool = False
+    # Caller-supplied list-field caps applied at request shaping
+    # time per provider. Keys are JSON Schema property names found
+    # somewhere in `json_schema` (typically under `$defs/<Model>/
+    # properties/<field>`); values are the maximum list length to
+    # enforce. The seam intentionally does NOT enforce these in
+    # Pydantic (the underlying schema stays liberal so callers can
+    # store the model's actual output, including over-cap lists,
+    # without validation failures). Each provider chooses how to
+    # apply them:
+    #   - openai_compatible providers inject `maxItems: N` into the
+    #     JSON Schema sent to the decoder. vLLM-backed providers
+    #     (DeepInfra, etc.) need this to prevent decode-time loops
+    #     on unbounded list[Literal] fields.
+    #   - AnthropicProvider injects the cap into the field's
+    #     description as "Maximum N items." (Anthropic rejects
+    #     `maxItems` outright). Best-effort prompt-level guidance.
+    # Both treatments coexist with the existing description text and
+    # the schema stripper; if a cap is unsupported by a provider's
+    # decoder it falls back to prompt-only.
+    list_field_caps: dict[str, int] | None = None
+    # Reasoning-effort knob for reasoning-class models. Documented for
+    # OpenAI gpt-5 family (accepts "minimal" | "low" | "medium" |
+    # "high"; default is medium) and for the gpt-oss family via
+    # DeepInfra (low / medium / high; passed as extra_body
+    # reasoning_effort). For structured-output extraction tasks
+    # "minimal" or "low" is decisively the right setting — see the
+    # gpt-oss probe in docs/structured_output_review.html. Ignored by
+    # providers/models that don't recognize the parameter.
+    reasoning_effort: str | None = None
 
 
 @dataclass(frozen=True)
@@ -92,5 +126,17 @@ class GenerationResult:
     input_tokens: int | None
     output_tokens: int | None
     estimated_cost_usd: float | None
+    # Cache telemetry from authoritative response fields. None when the
+    # provider's response doesn't expose this dimension (e.g. DeepInfra
+    # does not itemise cache hits in its OpenAI-compat usage shape).
+    # Anthropic: from usage.cache_creation_input_tokens / cache_read_input_tokens.
+    # OpenAI:    cache_read_input_tokens = usage.prompt_tokens_details.cached_tokens
+    #            (OpenAI auto-caches; no separate "creation" event).
+    cache_creation_input_tokens: int | None = None
+    cache_read_input_tokens: int | None = None
+    # Provider-reported cost (e.g. DeepInfra includes usage.estimated_cost
+    # which is their authoritative bill). estimated_cost_usd above
+    # prefers this when present and falls back to cost_for() computation.
+    provider_reported_cost_usd: float | None = None
     execution_mode: str = "one_shot"   # "one_shot" | "native_batch" | "portable_batch"
     raw: Any | None = field(default=None, repr=False)  # provider-native response for debugging

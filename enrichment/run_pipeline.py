@@ -63,8 +63,8 @@ PIPELINES = ["transport", "no-passages", "embedding"]
 _PREFLIGHT_EMPTY_THRESHOLD = 0.05  # ≤5% empty allowed
 
 
-def _preflight_check(novel: str) -> None:
-    """Validate passages_enriched.json before the pipeline starts.
+def _preflight_check(novel: str, variant: str | None = None) -> None:
+    """Validate the enrichment file before the pipeline starts.
 
     Catches the 'data is loadable but unusable' class — JSON parses
     fine but the fields the pipeline actually reads are empty,
@@ -81,9 +81,10 @@ def _preflight_check(novel: str) -> None:
     """
     from cas import paths as cas_paths
 
-    enriched = json.loads(cas_paths.passages_enriched(novel).read_text())
+    enr_path = cas_paths.passages_enriched(novel, variant=variant)
+    enriched = json.loads(enr_path.read_text())
     if not enriched:
-        raise RuntimeError(f"passages_enriched.json for {novel} is empty")
+        raise RuntimeError(f"{enr_path} is empty")
     bad: list[str] = []
     for p in enriched:
         text = p.get("text") or ""
@@ -506,6 +507,15 @@ Examples:
              "uses a tighter Phase 3 prompt and writes to a sibling run dir "
              "with a '_short' suffix on the name.",
     )
+    parser.add_argument(
+        "--enrichment-variant", default=None,
+        help="Pick a non-default enrichment file: "
+             "data/novels/<novel>/passages_enriched.<variant>.json. "
+             "Default (omitted) reads the canonical passages_enriched.json "
+             "(Anthropic Haiku derived). Use e.g. 'openai_5_mini' for the "
+             "gpt-5-mini-derived variant produced by "
+             "enrichment.collect_passages_enriched_openai.",
+    )
 
     args = parser.parse_args()
 
@@ -516,10 +526,16 @@ Examples:
 
     # Set novel identity
     os.environ["BLEAKHOUSE_NOVEL"] = args.novel
+    # Set enrichment variant (empty means default canonical file). Readers
+    # in transport_podcast / segment_transport pick this up from the env.
+    if args.enrichment_variant:
+        os.environ["BLEAKHOUSE_ENRICHMENT_VARIANT"] = args.enrichment_variant
+    else:
+        os.environ.pop("BLEAKHOUSE_ENRICHMENT_VARIANT", None)
 
     # Preflight: enrichment-completeness smoke test. Catches the
     # 'data is loadable but unusable' class before any phase runs.
-    _preflight_check(args.novel)
+    _preflight_check(args.novel, variant=args.enrichment_variant)
 
     # Apply the _short suffix to the run name when --length short is set.
     # This keeps existing call sites that pass --name <base> unchanged for
@@ -557,12 +573,24 @@ Examples:
 
     # Resolve axes from CLI flags so the experiments-DB scanner doesn't
     # have to reverse-engineer them from the run dir name.
-    novel_short = axes.NOVEL_BY_KEY[args.novel].id if args.novel in axes.NOVEL_BY_KEY else args.novel
+    # args.novel and args.pipeline use long forms (e.g. "oliver_twist",
+    # "transport") but the axes validation sets are short forms ("ot",
+    # "trn"). Normalize via the registries before writing.
+    novel_short = (
+        axes.NOVEL_BY_ID[args.novel].key
+        if args.novel in axes.NOVEL_BY_ID
+        else args.novel
+    )
+    # PIPELINE_LONG_TO_SHORT is the inverse of the alias map declared on the
+    # pipeline Axis (axes.py:330). Built once here; CANONICAL_PIPELINES is
+    # the long-form vocabulary.
+    _pipeline_long_to_short = {"transport": "trn", "embedding": "emb", "no_passages": "nop", "rag": "rag"}
+    pipeline_short = _pipeline_long_to_short.get(args.pipeline, args.pipeline)
     panel = panel_for_experts(e.name for e in experts) or "unknown"
     generator = "anthropic_sonnet_4_6"  # TODO: derive from --model when alt generators land
     config_axes = {
         "novel": novel_short,
-        "pipeline": args.pipeline,
+        "pipeline": pipeline_short,
         "panel": panel,
         "hostprep": args.host_prep,
         "generator": generator,
@@ -581,6 +609,11 @@ Examples:
         "host_prep": args.host_prep,
         "axes": config_axes,
         "generator": generator,
+        # Records which enrichment variant fed this run so downstream readers
+        # (e.g. expdb scan, full_episode driver) can audit provenance without
+        # rummaging through env-var or symlink state. None means the canonical
+        # Anthropic-derived passages_enriched.json.
+        "enrichment_variant": args.enrichment_variant,
     }
     with open(run_dir / "config.json", "w") as f:
         json.dump(config_data, f, indent=2)

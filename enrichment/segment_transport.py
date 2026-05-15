@@ -117,7 +117,8 @@ def build_passage_assignments(
     enr_map: dict[str, dict] = {}  # type: ignore[type-arg]
     if enrichment_data is None:
         novel = os.environ.get("BLEAKHOUSE_NOVEL", "bleak_house")
-        with open(cas_paths.passages_enriched(novel)) as f:
+        variant = os.environ.get("BLEAKHOUSE_ENRICHMENT_VARIANT") or None
+        with open(cas_paths.passages_enriched(novel, variant=variant)) as f:
             loaded: list[dict] = json.load(f)  # type: ignore[type-arg]
     else:
         loaded = enrichment_data
