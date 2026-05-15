@@ -17,10 +17,10 @@ is a key-lookup + base_url wiring exercise — the rest of the code path is
 already OpenAI-compatible.
 
 Usage:
-    uv run python -m experiments.cerebras.full_episode \\
+    uv run python -m enrichment.phase3_runner \\
         --source data/runs/bh_trn_literary_hostprep \\
         --model qwen-3-235b-a22b-instruct-2507    # via cerebras
-    uv run python -m experiments.cerebras.full_episode \\
+    uv run python -m enrichment.phase3_runner \\
         --source data/runs/bh_trn_literary_hostprep \\
         --model openai_5_4                          # via openai
 """
@@ -54,12 +54,30 @@ from enrichment.segment_transport import (
     SegmentPlan,
 )
 
-from .native_section import _strictify
-from .pricing import PRICING, cost_usd
+from enrichment.phase3_pricing import PRICING, cost_usd
+
+
+def _strictify(schema: Any) -> Any:
+    """Walk a JSON Schema dict and add `additionalProperties: false` to every
+    object. Cerebras strict json_schema mode requires this on every object;
+    OpenAI strict mode requires it too. Copied from experiments/cerebras/
+    native_section.py during the BleakHouse-99xl reorg to remove an awkward
+    enrichment/ → experiments/ import."""
+    if isinstance(schema, dict):
+        if schema.get("type") == "object" and "additionalProperties" not in schema:
+            schema["additionalProperties"] = False
+        for v in schema.values():
+            _strictify(v)
+    elif isinstance(schema, list):
+        for v in schema:
+            _strictify(v)
+    return schema
+
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+# Repo root is two levels up from enrichment/phase3_runner.py.
+BASE_DIR = Path(__file__).resolve().parent.parent
 RUNS_DIR = BASE_DIR / "data" / "runs"
 
 # Files in the source dir that the target needs as inputs. Missing files

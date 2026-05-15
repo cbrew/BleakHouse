@@ -37,7 +37,7 @@ from enrichment.segment_transport import (
     PlannedSegment,
 )
 
-from .pricing import annotate
+from enrichment.phase3_pricing import annotate
 
 load_dotenv()
 

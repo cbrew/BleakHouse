@@ -82,7 +82,9 @@ embedding adapter); not in scope for this migration.
 - `llm-cerebras>=0.1.8` — LLM plugin for Cerebras.
 - `cerebras-cloud-sdk>=1.67.0` — direct Cerebras SDK.
 
-There's also `experiments/cerebras/` with pricing.py. These deps must
+There's also `experiments/cerebras/` (genuine cerebras experiments) and
+`enrichment/phase3_pricing.py` (renamed from experiments/cerebras/pricing.py
+in BleakHouse-99xl, 2026-05-15). These deps must
 have been added for a reason. Before introducing a new
 `enrichment/llm/` package, the survey/implementation must answer:
 either (a) the new seam uses `llm` as its provider abstraction, or

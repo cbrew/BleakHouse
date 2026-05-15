@@ -37,7 +37,7 @@ from enrichment.segment_transport import (
 )
 
 from .client import DEFAULT_MODEL, call_with_schema_metrics
-from .pricing import annotate
+from enrichment.phase3_pricing import annotate
 
 logger = logging.getLogger(__name__)
 
