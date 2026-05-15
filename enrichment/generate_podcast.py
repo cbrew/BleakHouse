@@ -16,7 +16,6 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-import anthropic
 from dotenv import load_dotenv
 
 from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
@@ -29,7 +28,7 @@ from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     SegmentTemplate,
     fix_turn_roles,
 )
-from enrichment.timing import Recorder, time_model
+from enrichment.timing import Recorder
 from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]
     PassageAssignment,
     PlannedSegment,
@@ -466,8 +465,6 @@ once for context; findings and insights should dominate every turn.**
 
 def generate_segment_script(
     segment: PlannedSegment,
-    client: anthropic.Anthropic,
-    model: str,
     personas: list[ExpertPersona],
     is_first_segment: bool = False,
     prompt_version: int = 2,
@@ -477,7 +474,14 @@ def generate_segment_script(
     recorder: Recorder | None = None,
     length: str = "long",
 ) -> EpisodeSegment:
-    """Generate a multi-voice script for one segment via structured output."""
+    """Generate a multi-voice script for one segment via structured output.
+
+    Routes through the LLM seam (task='generate_podcast') so the active
+    provider profile picks the model. Note: the alt Phase 3 driver at
+    enrichment/phase3_runner.py talks to Responses API directly (for the
+    separate reasoning + output budgets); this in-pipeline path uses Chat
+    Completions via the seam.
+    """
     system_msg, user_msg = build_messages(
         segment, personas, is_first_segment, prompt_version,
         previous_segment_title=previous_segment_title,
@@ -492,33 +496,42 @@ def generate_segment_script(
         len(segment.assignments),
     )
 
+    from enrichment.llm import generate as llm_generate
+    from enrichment.llm.types import GenerationRequest
+
+    import time as _time
+    schema = EpisodeSegment.model_json_schema()
     max_attempts = 3
+    last_error: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            response = time_model(
-                recorder,
-                f"phase3 segment '{segment.template.name}'",
-                lambda: client.messages.parse(
-                    model=model,
-                    max_tokens=16384,
-                    system=system_msg,
-                    messages=[{"role": "user", "content": user_msg}],
-                    output_format=EpisodeSegment,
-                ),
-            )
-
+            _t0 = _time.monotonic()
+            result = llm_generate(GenerationRequest(
+                task="generate_podcast",
+                system=system_msg,
+                user=user_msg,
+                max_tokens=16384,
+                json_schema=schema,
+            ))
+            if recorder is not None:
+                recorder.record(
+                    kind="model",
+                    name=result.model,
+                    label=f"phase3 segment '{segment.template.name}'",
+                    duration_s=_time.monotonic() - _t0,
+                    started_at=_t0,
+                    input_tokens=result.input_tokens or 0,
+                    output_tokens=result.output_tokens or 0,
+                    cache_creation_input_tokens=result.cache_creation_input_tokens or 0,
+                    cache_read_input_tokens=result.cache_read_input_tokens or 0,
+                )
             logger.info(
-                "  Response: stop_reason=%s, input_tokens=%d, output_tokens=%d",
-                response.stop_reason,
-                response.usage.input_tokens,
-                response.usage.output_tokens,
+                "  Response: input_tokens=%d, output_tokens=%d",
+                result.input_tokens or 0, result.output_tokens or 0,
             )
-
-            assert response.parsed_output is not None, (
-                f"Structured output parsing failed for segment '{segment.template.name}'"
-            )
-            return response.parsed_output
-        except (Exception,) as e:
+            return EpisodeSegment.model_validate_json(result.text)
+        except Exception as e:  # noqa: BLE001
+            last_error = e
             if attempt < max_attempts:
                 logger.warning(
                     "  Attempt %d/%d failed for '%s': %s. Retrying...",
@@ -526,7 +539,7 @@ def generate_segment_script(
                 )
             else:
                 raise
-    raise RuntimeError("unreachable: loop must return or raise")
+    raise RuntimeError(f"unreachable: loop exhausted without raising: {last_error!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -570,7 +583,7 @@ def assemble_episode(
 def run_phase3(
     phase2_data: dict,
     phase1_data: dict,
-    model: str,
+    model: str | None,  # deprecated; routes through seam (BleakHouse-otae D6)
     personas: list[ExpertPersona],
     prompt_version: int = 2,
     host_briefs: list[HostBrief] | None = None,
@@ -601,7 +614,8 @@ def run_phase3(
         total_null_flow=phase2_data.get("total_null_flow", 0),
     )
 
-    client = anthropic.Anthropic()
+    # No direct client construction needed — generate_segment_script
+    # routes through the seam (task='generate_podcast').
     recorder = (
         Recorder(flush_path=run_dir / "phase3_timings.json")
         if run_dir is not None else None
@@ -612,7 +626,7 @@ def run_phase3(
         next_title = plan.segments[i + 1].template.name if i < len(plan.segments) - 1 else None
         brief = host_briefs[i] if host_briefs else None
         episode_seg = generate_segment_script(
-            seg, client, model, personas,
+            seg, personas,
             is_first_segment=(i == 0),
             prompt_version=prompt_version,
             previous_segment_title=prev_title,
@@ -772,9 +786,9 @@ def main() -> None:
         logger.info("Dry run — skipping LLM generation")
         return
 
-    # Phase 3: per-segment script generation
-    logger.info("Phase 3: script generation (model=%s)", args.model)
-    client = anthropic.Anthropic()
+    # Phase 3: per-segment script generation. Routes through the seam
+    # (task='generate_podcast'); --model is ignored post-otae-D6.
+    logger.info("Phase 3: script generation via seam task='generate_podcast'")
     personas = DEFAULT_PERSONAS
 
     episode_segments: list[EpisodeSegment] = []
@@ -782,7 +796,7 @@ def main() -> None:
         prev_title = plan.segments[i - 1].template.name if i > 0 else None
         next_title = plan.segments[i + 1].template.name if i < len(plan.segments) - 1 else None
         episode_seg = generate_segment_script(
-            seg, client, args.model, personas, is_first_segment=(i == 0),
+            seg, personas, is_first_segment=(i == 0),
             previous_segment_title=prev_title,
             next_segment_title=next_title,
         )

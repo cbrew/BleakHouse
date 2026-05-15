@@ -805,10 +805,12 @@ Examples:
         return
 
     # ── Phase 3: Script generation ──
-    logger.info("Phase 3: script generation (model=%s)", args.model)
+    # Routes through the seam (task='generate_podcast'). --model is a
+    # deprecated alias post-otae D6; use --provider-override generate_podcast=<id>.
+    logger.info("Phase 3: script generation via seam task='generate_podcast'")
     from enrichment.generate_podcast import run_phase3  # pyright: ignore[reportMissingImports]
     phase3 = run_phase3(
-        phase2, phase1, args.model, personas,
+        phase2, phase1, None, personas,
         prompt_version=args.prompt_version,
         host_briefs=host_briefs,
         run_dir=run_dir,
