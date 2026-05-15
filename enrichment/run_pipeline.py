@@ -824,7 +824,6 @@ Examples:
 
         post_pass_cfg = get_active_novel(args.novel)
         filter_reading_list_recommended(
-            anthropic.Anthropic(),
             run_dir / "phase2_5_reading_list.json",
             post_pass_cfg.title, post_pass_cfg.author,
         )

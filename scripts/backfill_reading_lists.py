@@ -297,7 +297,7 @@ def backfill_group(
         return
 
     recommended_tags = _select_listener_recommendations(
-        client, candidates, novel.title, novel.author, recorder=recorder,
+        candidates, novel.title, novel.author, recorder=recorder,
     )
 
     payload = _build_payload(

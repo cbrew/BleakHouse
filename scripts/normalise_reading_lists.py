@@ -164,7 +164,7 @@ def _winnow_dict_list(
             # Fall back to skipping malformed entries.
             continue
     return _select_listener_recommendations(
-        client, records, novel_title, novel_author,
+        records, novel_title, novel_author,
     )
 
 

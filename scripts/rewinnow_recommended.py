@@ -207,7 +207,7 @@ def _rewinnow_one(
         _entry_to_record(e, fallback_tag=tag) for e, tag in synthesized
     ]
     picks = _select_listener_recommendations(
-        client, candidates, title, author, recorder=None,
+        candidates, title, author, recorder=None,
     )
 
     pick_set = set(picks)

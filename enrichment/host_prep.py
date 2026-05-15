@@ -564,16 +564,17 @@ _LISTENER_PICK_TAGS_RE = re.compile(r"\{[^{}]*\"tags\"[^{}]*\}", re.DOTALL)
 
 
 def _select_listener_recommendations(
-    client: anthropic.Anthropic,
     candidates: list[CitationRecord],
     novel_title: str,
     novel_author: str,
     recorder: Recorder | None = None,
 ) -> list[str]:
-    """Haiku-based filter that shrinks the proposed-references list to a
-    listener-friendly subset. Returns a list of tags (subset of the
-    input). On parse failure or empty input, falls back to the full
-    list — better to over-show than under-show.
+    """Filter that shrinks the proposed-references list to a listener-
+    friendly subset. Returns a list of tags (subset of the input).
+    Routes through the LLM seam (task='listener_pick') so the active
+    provider profile decides the model. On parse failure or empty
+    input, falls back to the full list — better to over-show than
+    under-show.
     """
     if not candidates:
         return []
@@ -595,20 +596,30 @@ def _select_listener_recommendations(
     system = _LISTENER_PICK_SYSTEM.format(
         novel_title=novel_title, novel_author=novel_author,
     )
-    msg = time_model(
-        recorder, "listener_pick",
-        lambda: client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
-            system=system,
-            messages=[{"role": "user", "content": "\n".join(lines)}],
-        ),
-    )
-    text = "".join(
-        getattr(b, "text", "")
-        for b in msg.content
-        if getattr(b, "type", None) == "text"
-    )
+    from enrichment.llm import generate as llm_generate
+    from enrichment.llm.types import GenerationRequest
+
+    import time as _time
+    _t0 = _time.monotonic()
+    result = llm_generate(GenerationRequest(
+        task="listener_pick",
+        system=system,
+        user="\n".join(lines),
+        max_tokens=512,
+    ))
+    if recorder is not None:
+        recorder.record(
+            kind="model",
+            name=result.model,
+            label="listener_pick",
+            duration_s=_time.monotonic() - _t0,
+            started_at=_t0,
+            input_tokens=result.input_tokens or 0,
+            output_tokens=result.output_tokens or 0,
+            cache_creation_input_tokens=result.cache_creation_input_tokens or 0,
+            cache_read_input_tokens=result.cache_read_input_tokens or 0,
+        )
+    text = result.text
     m = _LISTENER_PICK_TAGS_RE.search(text)
     if m is None:
         logger.warning("listener-pick: no JSON in response, falling back to all candidates")
@@ -628,14 +639,15 @@ def _select_listener_recommendations(
 
 
 def filter_reading_list_recommended(
-    client: anthropic.Anthropic,
     reading_list_path: Path,
     novel_title: str,
     novel_author: str,
     recorder: Recorder | None = None,
 ) -> int:
     """Post-pass that shrinks `recommended[]` in a phase2_5_reading_list.json
-    to a Haiku-curated, listener-friendly subset of the proposed entries.
+    to a listener-friendly subset of the proposed entries. Routes through
+    the LLM seam (task='listener_pick') so the active provider profile
+    decides the model.
 
     Idempotent: reads the file, runs the soft filter, writes it back. The
     full proposed set stays in `entries[]` (audit trail). Returns the
@@ -650,7 +662,7 @@ def filter_reading_list_recommended(
         return 0
     candidates = [CitationRecord(**e) for e in entries_dicts]
     picks = _select_listener_recommendations(
-        client, candidates, novel_title, novel_author, recorder=recorder,
+        candidates, novel_title, novel_author, recorder=recorder,
     )
     pick_set = set(picks)
     payload["recommended"] = [e for e in entries_dicts if e.get("tag") in pick_set]
