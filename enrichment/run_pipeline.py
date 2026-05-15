@@ -187,7 +187,14 @@ def run_phase0(
             length=length,
         )
         if segment_model is not None:
-            kwargs["model"] = segment_model
+            # --segment-model is a deprecated alias post-otae-D4. The
+            # design_segments call now routes through the seam
+            # (task='design_segments'); use --provider-override
+            # design_segments=<generator_id> instead.
+            logger.warning(
+                "--segment-model is ignored after BleakHouse-otae D4; "
+                "use --provider-override design_segments=<generator_id>"
+            )
         templates = design_segments(experts, arcs, **kwargs)
         logger.info("Recorded %d phase 0 calls to %s",
                     len(recorder.events), recorder.flush_path)

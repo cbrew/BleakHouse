@@ -17,15 +17,15 @@ from dotenv import load_dotenv
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
 
-from enrichment.novel_prompts import NOVEL_CONFIGS  # noqa: I001 — single source of truth
-from enrichment.prompt import ENRICHMENT_SYSTEM_PROMPT
+from enrichment.novel_prompts import (  # noqa: I001 — single source of truth
+    NOVEL_CONFIGS,
+    build_enrichment_prompt,
+)
 from enrichment.schemas import ChapterEnrichmentResult
 
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path("data")
-PASSAGES_PATH = DATA_DIR / "passages_raw.json"
-MANIFEST_PATH = DATA_DIR / "batch_manifest.json"
 
 # Available novels — derived from novel_prompts.NOVEL_CONFIGS, the single
 # source of truth. Avoids the previous drift where adding a novel meant
@@ -47,7 +47,7 @@ def format_chapter_text(passages: list[dict]) -> str:
 
 def build_requests(
     passages_by_chapter: dict[str, list[dict]],
-    system_prompt: str = ENRICHMENT_SYSTEM_PROMPT,
+    system_prompt: str,
 ) -> list[Request]:
     """Build batch request objects, splitting large chapters."""
     schema = ChapterEnrichmentResult.model_json_schema()
@@ -110,24 +110,16 @@ def main() -> None:
         "--novel",
         type=str,
         choices=NOVEL_KEYS,
-        default=None,
+        required=True,
         help="Novel key (reads from data/novels/<key>/passages_raw.json)",
     )
     args = parser.parse_args()
 
-    # Resolve paths and prompt based on --novel flag
-    if args.novel:
-        novel_dir = DATA_DIR / "novels" / args.novel
-        passages_path = novel_dir / "passages_raw.json"
-        manifest_path = novel_dir / "batch_manifest.json"
-        from enrichment.novel_prompts import build_enrichment_prompt
-
-        system_prompt = build_enrichment_prompt(args.novel)
-        logger.info("Using novel-specific prompt for %s", args.novel)
-    else:
-        passages_path = PASSAGES_PATH
-        manifest_path = MANIFEST_PATH
-        system_prompt = ENRICHMENT_SYSTEM_PROMPT
+    novel_dir = DATA_DIR / "novels" / args.novel
+    passages_path = novel_dir / "passages_raw.json"
+    manifest_path = novel_dir / "batch_manifest.json"
+    system_prompt = build_enrichment_prompt(args.novel)
+    logger.info("Using novel-specific prompt for %s", args.novel)
 
     load_dotenv()
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
@@ -151,7 +143,7 @@ def main() -> None:
 
     manifest = {
         "batch_id": batch.id,
-        "novel": args.novel or "bleak_house",
+        "novel": args.novel,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "request_count": len(requests),
         "chapter_ids": sorted(passages_by_chapter.keys()),

@@ -18,11 +18,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import anthropic
 from pydantic import BaseModel, Field
 
 from enrichment.podcast_types import ExpertPersona, SegmentTemplate  # pyright: ignore[reportMissingImports]
-from enrichment.timing import Recorder, time_model
+from enrichment.timing import Recorder
 from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
     ArcDemand,
     ExpertProfile,
@@ -253,14 +252,15 @@ class SegmentDesignResult(BaseModel):
 def design_segments(
     experts: list[ExpertProfile],
     arcs: list[ArcDemand],
-    client: anthropic.Anthropic | None = None,
-    model: str = MODEL,
     prompt_version: int = 2,
     personas: list[ExpertPersona] | None = None,
     recorder: Recorder | None = None,
     length: str = "long",
 ) -> list[SegmentTemplate]:
     """Design segment templates for this panel configuration.
+
+    Routes through the LLM seam (task='design_segments') so the active
+    provider profile picks the model.
 
     prompt_version=1: original prompt (no supply info)
     prompt_version=2: supply-aware prompt (includes passage supply summary)
@@ -269,9 +269,6 @@ def design_segments(
     length: 'long' targets 5-8 segments / 25-35 passages / 45-60 min episodes;
     'short' targets 4-5 segments / 12-18 passages / 20-30 min episodes.
     """
-    if client is None:
-        client = anthropic.Anthropic()
-
     novel_ref = _novel_ref()
 
     if length == "short":
@@ -315,29 +312,39 @@ def design_segments(
         )
         system = SYSTEM_PROMPT_V1.format(novel_ref=novel_ref)
 
-    logger.info("Designing segments (v%d) with %s ...", prompt_version, model)
+    logger.info("Designing segments (v%d) via seam task='design_segments' ...", prompt_version)
 
-    response = time_model(
-        recorder,
-        "phase0 segment design",
-        lambda: client.messages.parse(
-            model=model,
-            max_tokens=2048,
-            system=system,
-            messages=[{"role": "user", "content": user_msg}],
-            output_format=SegmentDesignResult,
-        ),
-    )
+    from enrichment.llm import generate as llm_generate
+    from enrichment.llm.types import GenerationRequest
 
+    import time as _time
+    _t0 = _time.monotonic()
+    result = llm_generate(GenerationRequest(
+        task="design_segments",
+        system=system,
+        user=user_msg,
+        max_tokens=2048,
+        json_schema=SegmentDesignResult.model_json_schema(),
+    ))
+    if recorder is not None:
+        recorder.record(
+            kind="model",
+            name=result.model,
+            label="phase0 segment design",
+            duration_s=_time.monotonic() - _t0,
+            started_at=_t0,
+            input_tokens=result.input_tokens or 0,
+            output_tokens=result.output_tokens or 0,
+            cache_creation_input_tokens=result.cache_creation_input_tokens or 0,
+            cache_read_input_tokens=result.cache_read_input_tokens or 0,
+        )
     logger.info(
-        "  Response: stop_reason=%s, input_tokens=%d, output_tokens=%d",
-        response.stop_reason,
-        response.usage.input_tokens,
-        response.usage.output_tokens,
+        "  Response: input_tokens=%d, output_tokens=%d",
+        result.input_tokens or 0, result.output_tokens or 0,
     )
 
-    assert response.parsed_output is not None, "Structured output parsing failed for segment design"
-    templates = response.parsed_output.segments
+    parsed = SegmentDesignResult.model_validate_json(result.text)
+    templates = parsed.segments
     logger.info("Designed %d segments: %s", len(templates), [t.name for t in templates])
 
     # Validate constraints
