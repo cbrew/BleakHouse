@@ -103,16 +103,19 @@ def _build_passage_summary(assignments: list[dict]) -> str:
 
 
 def run_pre_interview(
-    client: anthropic.Anthropic,
     expert: ExpertPersona,
     other_expert_names: list[str],
     segment_name: str,
     assignments: list[dict],
     novel_title: str,
     novel_author: str,
-    model: str = "claude-haiku-4-5-20251001",
 ) -> PreInterviewResponse:
-    """Run a single pre-interview for one expert on one segment."""
+    """Run a single pre-interview for one expert on one segment.
+
+    Routes through the LLM seam (task='host_prep_pre_interview') so the
+    active provider profile picks the model. Retries 3× on Pydantic
+    validation failure — the structured-output contract is brittle.
+    """
     system = _INTERVIEW_SYSTEM.format(
         novel_title=novel_title,
         novel_author=novel_author,
@@ -125,19 +128,25 @@ def run_pre_interview(
         passage_block=_build_passage_summary(assignments),
     )
 
+    from enrichment.llm import generate as llm_generate
+    from enrichment.llm.types import GenerationRequest
+
+    schema = PreInterviewResponse.model_json_schema()
     max_attempts = 3
-    response = None
+    last_error: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            response = client.messages.parse(
-                model=model,
-                max_tokens=2048,
+            result = llm_generate(GenerationRequest(
+                task="host_prep_pre_interview",
                 system=system,
-                messages=[{"role": "user", "content": user}],
-                output_format=PreInterviewResponse,
-            )
+                user=user,
+                max_tokens=2048,
+                json_schema=schema,
+            ))
+            parsed = PreInterviewResponse.model_validate_json(result.text)
             break
         except Exception as e:
+            last_error = e
             if attempt < max_attempts:
                 logger.warning(
                     "  Pre-interview attempt %d/%d failed for %s × %s: %s. Retrying...",
@@ -145,17 +154,20 @@ def run_pre_interview(
                 )
             else:
                 raise
+    else:
+        # Defensive — loop exited without break or raise (shouldn't happen).
+        raise RuntimeError(
+            f"pre_interview exhausted retries without raising: {last_error!r}"
+        )
 
-    assert response is not None and response.parsed_output is not None
-    result = response.parsed_output
-    result.expert_name = expert.name
+    parsed.expert_name = expert.name
     logger.info(
         "  Pre-interview %s × %s: %d points, %d quotes, %d disagreements",
         expert.name, segment_name,
-        len(result.key_points), len(result.potential_quotes),
-        len(result.disagreement_angles),
+        len(parsed.key_points), len(parsed.potential_quotes),
+        len(parsed.disagreement_angles),
     )
-    return result
+    return parsed
 
 
 _INTERVIEW_TOOLS_ADDENDUM = """
@@ -338,8 +350,20 @@ def run_all_pre_interviews(
     interview_model = "claude-haiku-4-5-20251001" if use_reference_tools else model
     workers = max_workers
 
-    def _no_tools_wrapper(*args, **kwargs):
-        return run_pre_interview(*args, **kwargs), CitationRegistry(), Recorder()
+    def _no_tools_wrapper(
+        _client: Any, expert: ExpertPersona, others: list[str],
+        seg_name: str, seg_assignments: list[dict],
+        novel_title: str, novel_author: str, _model: str,
+    ) -> tuple[PreInterviewResponse, "CitationRegistry", "Recorder"]:
+        # client + model are accepted-but-ignored: run_pre_interview routes
+        # through the seam (task='host_prep_pre_interview'). The tools branch
+        # (run_pre_interview_with_tools) still uses them until D7 lands;
+        # signature parity keeps the call site simple in the meantime.
+        result = run_pre_interview(
+            expert, others, seg_name, seg_assignments,
+            novel_title, novel_author,
+        )
+        return result, CitationRegistry(), Recorder()
 
     interview_fn = (
         run_pre_interview_with_tools if use_reference_tools
