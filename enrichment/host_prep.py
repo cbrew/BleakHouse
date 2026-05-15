@@ -470,12 +470,10 @@ def _format_interviews(interviews: list[PreInterviewResponse]) -> str:
 
 
 def plan_questions(
-    client: anthropic.Anthropic,
     segment_name: str,
     interviews: list[PreInterviewResponse],
     novel_title: str,
     novel_author: str,
-    model: str = "claude-sonnet-4-6",
     verified_references: list[str] | None = None,
     recorder: Recorder | None = None,
     length: str = "long",
@@ -510,19 +508,31 @@ def plan_questions(
         for ref in verified_references:
             user += f"- {ref}\n"
 
-    response = time_model(
-        recorder, "plan_questions",
-        lambda: client.messages.parse(
-            model=model,
-            max_tokens=4096,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-            output_format=HostBrief,
-        ),
-    )
+    from enrichment.llm import generate as llm_generate
+    from enrichment.llm.types import GenerationRequest
 
-    assert response.parsed_output is not None
-    brief = response.parsed_output
+    import time as _time
+    _t0 = _time.monotonic()
+    result = llm_generate(GenerationRequest(
+        task="host_prep_brief",
+        system=system,
+        user=user,
+        max_tokens=4096,
+        json_schema=HostBrief.model_json_schema(),
+    ))
+    if recorder is not None:
+        recorder.record(
+            kind="model",
+            name=result.model,
+            label="plan_questions",
+            duration_s=_time.monotonic() - _t0,
+            started_at=_t0,
+            input_tokens=result.input_tokens or 0,
+            output_tokens=result.output_tokens or 0,
+            cache_creation_input_tokens=result.cache_creation_input_tokens or 0,
+            cache_read_input_tokens=result.cache_read_input_tokens or 0,
+        )
+    brief = HostBrief.model_validate_json(result.text)
     brief.segment_name = segment_name
     logger.info(
         "  Question plan for '%s': %d questions, %d cross-engagement targets",
@@ -852,8 +862,8 @@ def run_host_prep(
         seg_refs = refs_text_by_segment.get(seg_name)
         plan_recorder = Recorder(segment=seg_name)
         brief = plan_questions(
-            client, seg_name, interviews[si],
-            novel_title, novel_author, planning_model,
+            seg_name, interviews[si],
+            novel_title, novel_author,
             verified_references=seg_refs,
             recorder=plan_recorder,
             length=length,
