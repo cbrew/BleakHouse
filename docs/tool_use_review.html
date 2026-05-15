@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tool-use review across providers — BleakHouse 2026-05-15</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         max-width: 1200px; margin: 2em auto; padding: 0 1em; color: #222; }
+  h1, h2, h3 { color: #111; }
+  h2 { border-bottom: 1px solid #ddd; padding-bottom: 0.2em; margin-top: 2em; }
+  table { border-collapse: collapse; margin: 1em 0; width: 100%; }
+  th, td { border: 1px solid #ccc; padding: 0.4em 0.6em; vertical-align: top;
+           text-align: left; font-size: 0.92em; }
+  th { background: #f5f5f5; }
+  .meta { color: #666; font-size: 0.9em; }
+  pre { background: #f7f7f7; padding: 0.6em; overflow-x: auto;
+        font-size: 0.84em; border-left: 3px solid #aaa; }
+  code { background: #f0f0f0; padding: 0.1em 0.3em; border-radius: 2px; }
+  pre code { background: none; padding: 0; }
+  .surprise { background: #fff8d6; padding: 0.6em 1em; border-left: 4px solid #d4a017;
+              margin: 1em 0; }
+  .surprise h4 { margin: 0 0 0.4em 0; color: #6b4f00; }
+  .col-anthropic { background: #f5ede0; }
+  .col-responses { background: #e8f1f8; }
+  .col-chat { background: #ece8f8; }
+</style>
+</head>
+<body>
+
+<h1>Tool-use review across providers</h1>
+<p class="meta">
+Empirical review of tool-use semantics across Anthropic messages.create,
+OpenAI Responses API (POST /v1/responses), and OpenAI Chat Completions
+(POST /v1/chat/completions). Goal: ground the BleakHouse seam's tool-use
+abstraction in observed behaviour rather than guessed shapes.
+Sourced from a mixture of vendor docs (fetched 2026-05-15) and one-call
+pilots against gpt-5-mini and the patterns in
+<code>enrichment/host_prep.py</code> for Anthropic.
+This document underpins <a href="provider_control_spec.md">docs/provider_control_spec.md</a>
+Subtask C; it is the "C1 survey" deliverable referenced from BleakHouse-n60y.
+</p>
+
+<h2>1. Why these three APIs</h2>
+<p>
+BleakHouse host_prep currently runs an agentic tool loop against Anthropic
+Haiku (<code>messages.create(tools=ALL_TOOLS)</code>). When the
+<code>--provider-profile all_openai</code> path lands (BleakHouse-otae
+Subtask D), that loop has to run against OpenAI too. OpenAI exposes two
+distinct surfaces:
+</p>
+<ul>
+  <li><strong>Responses API</strong> (/v1/responses) — the current
+    recommended surface for gpt-5 family. Has separate reasoning + visible
+    output items. The OpenAI parallel pipeline already uses this for Phase 3
+    prose.</li>
+  <li><strong>Chat Completions</strong> (/v1/chat/completions) — the legacy
+    surface, still supported by gpt-5 family and the way openai-compat
+    providers (DeepInfra, Together, Cerebras) expose function calling.</li>
+</ul>
+<p>
+The seam needs to support both OpenAI shapes since openai-compat hostings
+don't all implement Responses. Anthropic is its own thing.
+</p>
+
+<h2>2. Three conventions side by side</h2>
+
+<h3>2.1 Tool spec format</h3>
+<table>
+<tr>
+  <th>Anthropic</th>
+  <th>OpenAI Responses</th>
+  <th>OpenAI Chat Completions</th>
+</tr>
+<tr>
+<td class="col-anthropic"><pre><code>{
+  "name": "get_weather",
+  "description": "...",
+  "input_schema": {
+    "type": "object",
+    "properties": {"city": {"type":"string"}},
+    "required": ["city"]
+  }
+}</code></pre></td>
+<td class="col-responses"><pre><code>{
+  "type": "function",
+  "name": "get_weather",
+  "description": "...",
+  "parameters": {
+    "type": "object",
+    "properties": {"city": {"type":"string"}},
+    "required": ["city"],
+    "additionalProperties": false
+  }
+}</code></pre></td>
+<td class="col-chat"><pre><code>{
+  "type": "function",
+  "function": {
+    "name": "get_weather",
+    "description": "...",
+    "parameters": {
+      "type": "object",
+      "properties": {"city": {"type":"string"}},
+      "required": ["city"]
+    }
+  }
+}</code></pre></td>
+</tr>
+</table>
+<p>Three different shapes for the same idea:</p>
+<ul>
+  <li>Anthropic uses <code>input_schema</code>; OpenAI both use <code>parameters</code>.</li>
+  <li>Responses API <strong>flattens</strong> function fields (<code>name</code>/<code>description</code> at the top level next to <code>type: "function"</code>); Chat Completions <strong>nests</strong> them under <code>function</code>.</li>
+  <li>Anthropic doesn't use a wrapping <code>type</code> field — tools are always "functions".</li>
+</ul>
+
+<h3>2.2 How tool calls appear in the response</h3>
+<table>
+<tr>
+  <th>Anthropic</th>
+  <th>OpenAI Responses</th>
+  <th>OpenAI Chat Completions</th>
+</tr>
+<tr>
+<td class="col-anthropic">
+<p>In <code>response.content</code>, blocks with <code>type == "tool_use"</code>:</p>
+<pre><code>{
+  "type": "tool_use",
+  "id": "toolu_01abc...",
+  "name": "get_weather",
+  "input": {"city": "Paris"}
+}</code></pre>
+<p>Loop signal: <code>response.stop_reason == "tool_use"</code>.</p>
+<p><code>input</code> is a parsed dict.</p>
+</td>
+<td class="col-responses">
+<p>In <code>response.output</code>, items with <code>type == "function_call"</code>:</p>
+<pre><code>{
+  "type": "function_call",
+  "id": "fc_0dbe...",
+  "call_id": "call_uwie...",
+  "name": "get_weather",
+  "arguments": "{\"city\":\"Paris\"}"
+}</code></pre>
+<p>Loop signal: presence of any <code>function_call</code> items (or absence of <code>message</code> items with <code>output_text</code>).</p>
+<p><code>arguments</code> is a <strong>JSON string</strong>; caller must <code>json.loads</code> it.</p>
+<p>The item has BOTH <code>id</code> (fc_...) and <code>call_id</code> (call_...) — distinct values. Tool results route by <code>call_id</code>.</p>
+</td>
+<td class="col-chat">
+<p>In <code>choices[0].message.tool_calls</code>:</p>
+<pre><code>{
+  "id": "call_abc...",
+  "type": "function",
+  "function": {
+    "name": "get_weather",
+    "arguments": "{\"city\":\"Paris\"}"
+  }
+}</code></pre>
+<p>Loop signal: <code>finish_reason == "tool_calls"</code>.</p>
+<p><code>arguments</code> is a JSON string.</p>
+</td>
+</tr>
+</table>
+
+<h3>2.3 How tool results are returned for the next turn</h3>
+<table>
+<tr>
+  <th>Anthropic</th>
+  <th>OpenAI Responses</th>
+  <th>OpenAI Chat Completions</th>
+</tr>
+<tr>
+<td class="col-anthropic">
+<p>Append <strong>two</strong> messages to <code>messages</code>:</p>
+<pre><code>[
+  ...prior messages...,
+  {"role":"assistant",
+   "content": response.content},   // echo back the assistant turn
+  {"role":"user",
+   "content":[
+     {"type":"tool_result",
+      "tool_use_id":"toolu_01abc...",
+      "content":"Temperature: 25C"}
+   ]}
+]</code></pre>
+<p>Multiple <code>tool_result</code> blocks may appear in one user message — that's how parallel calls are answered.</p>
+</td>
+<td class="col-responses">
+<p>Append items to the <code>input</code> list. <strong>Critical: echo the function_call back</strong> (along with any paired reasoning item) before the output:</p>
+<pre><code>[
+  ...prior input...,
+  &lt;reasoning item from prior turn&gt;,
+  &lt;function_call item from prior turn&gt;,
+  {"type":"function_call_output",
+   "call_id":"call_uwie...",
+   "output":"Temperature: 25C"}
+]</code></pre>
+<p>Match on <code>call_id</code> (NOT the function_call's top-level <code>id</code>).</p>
+</td>
+<td class="col-chat">
+<p>Append a <code>role: "tool"</code> message per call:</p>
+<pre><code>[
+  ...prior messages...,
+  {"role":"assistant",
+   "tool_calls":[ &lt;the original tool_calls&gt; ]},
+  {"role":"tool",
+   "tool_call_id":"call_abc...",
+   "content":"Temperature: 25C"}
+]</code></pre>
+<p>Match on <code>tool_call_id</code>.</p>
+</td>
+</tr>
+</table>
+
+<h2>3. Empirical surprises</h2>
+
+<div class="surprise">
+<h4>Surprise 1 — gpt-5 family function_calls must be echoed WITH their paired reasoning item</h4>
+<p>
+Documented behaviour says "append the function_call_output for each call you handle and re-send the input". Empirically, gpt-5-mini rejects the next turn with HTTP 400 if you echo the <code>function_call</code> item back without ALSO including the <code>reasoning</code> item that immediately preceded it in the prior response:
+</p>
+<pre><code>openai.BadRequestError: Error code: 400 — {'error': {'message':
+  "Item 'fc_0dbe...' of type 'function_call' was provided without
+   its required 'reasoning' item: 'rs_0dbe...'."}}</code></pre>
+<p>
+Pragmatic fix: pass <strong>all</strong> output items from the prior turn back into <code>input</code>, in order, before appending the <code>function_call_output</code>. The seam should do this transparently; callers shouldn't have to know about reasoning items.
+</p>
+<p class="meta">Pilot: <code>/tmp/pilot_responses_tool_use.py</code>, 2026-05-15, gpt-5-mini.</p>
+</div>
+
+<div class="surprise">
+<h4>Surprise 2 — arguments are a JSON string in both OpenAI APIs but a parsed dict in Anthropic</h4>
+<p>
+Anthropic's SDK pre-parses <code>tool_use.input</code> into a Python dict. Both OpenAI APIs hand back <code>arguments</code> as a JSON-encoded string; callers must <code>json.loads</code>. The seam should normalise to dict so the executor sees the same shape regardless of provider.
+</p>
+</div>
+
+<div class="surprise">
+<h4>Surprise 3 — three different identifier conventions</h4>
+<p>
+Anthropic uses <code>tool_use.id</code> (single field), matched on
+<code>tool_use_id</code> in the result. OpenAI Responses uses <strong>two</strong>
+ids: <code>id</code> (fc_...) is the item id and <code>call_id</code> (call_...)
+is what tool results route by. OpenAI Chat Completions has one field
+<code>id</code> (call_...) that doubles as the tool_call_id for results.
+</p>
+<p>The seam should expose one identifier per call (the "result routing key") to the caller and bury the provider-specific id juggling.</p>
+</div>
+
+<div class="surprise">
+<h4>Surprise 4 — parallel-call semantics differ by default</h4>
+<p>
+Anthropic and OpenAI Chat Completions both allow multiple tool_use / tool_calls in one response by default; the caller iterates them and returns matching result blocks. Responses API mirrors this — <code>response.output</code> can contain multiple <code>function_call</code> items in one turn. The <strong>parallel_tool_calls</strong> request flag (default true) gates this on the OpenAI side. The Anthropic loop in <code>host_prep.run_pre_interview_with_tools</code> already handles parallelism by iterating all <code>tool_use</code> blocks in <code>response.content</code> — the seam should do the same.
+</p>
+</div>
+
+<div class="surprise">
+<h4>Surprise 5 — loop-termination signals are all different</h4>
+<p>
+Anthropic: <code>stop_reason</code> goes from <code>"tool_use"</code> back to <code>"end_turn"</code> when done. <br/>
+OpenAI Responses: no explicit flag; check for absence of <code>function_call</code> items (or presence of a <code>message</code> item with text output). <br/>
+OpenAI Chat Completions: <code>finish_reason == "stop"</code> (vs <code>"tool_calls"</code> when more work is queued).
+</p>
+<p>The seam abstracts these into one rule: "loop until no tool calls remain in the latest response".</p>
+</div>
+
+<h2>4. Implications for the BleakHouse seam (Subtask C design notes)</h2>
+
+<p>Translated from this survey into concrete decisions for <code>enrichment/llm/</code>:</p>
+
+<table>
+<tr><th>Concern</th><th>Decision</th></tr>
+<tr>
+  <td>ToolSpec shape</td>
+  <td>One provider-neutral dataclass: <code>name</code>, <code>description</code>, <code>input_schema</code> (JSON Schema dict, matches Anthropic's existing key). Providers translate to their wire format.</td>
+</tr>
+<tr>
+  <td>Tool executor</td>
+  <td>Caller passes a <code>dict[str, Callable[[dict], str]]</code> mapping tool name → executor. The seam loops and dispatches; callers don't see the per-provider transcript shape.</td>
+</tr>
+<tr>
+  <td>Arguments</td>
+  <td>Seam normalises to a parsed dict before calling the executor; OpenAI's JSON-string is parsed inside the provider, not by the executor.</td>
+</tr>
+<tr>
+  <td>Identifier</td>
+  <td>Seam exposes one <code>call_id</code> per call (whatever the provider's "results route by" key is). Anthropic's <code>tool_use.id</code> and OpenAI's <code>call_id</code> map to it.</td>
+</tr>
+<tr>
+  <td>Transcript</td>
+  <td>The seam returns a <code>tool_transcript: list[ToolCall]</code> for audit. Each entry has name, input (dict), output (str), iteration number.</td>
+</tr>
+<tr>
+  <td>Max iterations</td>
+  <td>Default 6, configurable per request — matches the existing host_prep <code>MAX_TOOL_CALLS</code>.</td>
+</tr>
+<tr>
+  <td>Echo-back state</td>
+  <td>Hidden inside the provider implementation. For Responses, this means transparently echoing prior reasoning + function_call items. For Anthropic, echoing the prior assistant message. Callers see only "request in, final response + transcript out".</td>
+</tr>
+<tr>
+  <td>Reasoning items (Responses)</td>
+  <td>Cached transparently; not exposed to caller; not counted as caller-visible output text.</td>
+</tr>
+</table>
+
+<h2>5. Open questions deferred to C3/C4</h2>
+<ul>
+  <li>Tool-result <strong>error reporting</strong>: when the executor raises, should the seam (a) bubble the exception, (b) inject a "tool error: ..." string as the result and let the model recover, or (c) both? Anthropic's <code>tool_result</code> blocks have an <code>is_error</code> flag; OpenAI's <code>function_call_output</code> doesn't. Pick a convention.</li>
+  <li>The <code>strict</code> flag on individual function definitions (OpenAI). Today's pilots run without it; some tools may benefit. Decide whether to expose it on ToolSpec.</li>
+  <li>For openai-compat hostings (DeepInfra, Together, Cerebras) — do they honour the same Chat Completions tool-calling shape? <code>structured_output_review.html</code> already shows hosting-level divergence on json_schema; tool-use parity needs a parallel survey before we declare full coverage. Track separately.</li>
+</ul>
+
+</body>
+</html>

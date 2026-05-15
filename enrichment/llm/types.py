@@ -13,7 +13,47 @@ JSON Schema dicts.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
+
+
+@dataclass(frozen=True)
+class ToolSpec:
+    """Provider-neutral tool definition.
+
+    Three providers use three names for the schema field: Anthropic
+    `input_schema`, OpenAI Responses `parameters`, OpenAI Chat Completions
+    `function.parameters`. We pick Anthropic's name (`input_schema`) since
+    that matches the existing host_prep convention; the providers translate
+    when sending. See docs/tool_use_review.html for the wire formats.
+    """
+    name: str
+    description: str
+    input_schema: dict[str, Any]
+
+
+# A tool executor maps name → callable. The callable receives the
+# already-parsed argument dict (the seam handles JSON-string parsing for
+# OpenAI providers transparently — callers never deal with raw arguments).
+# It returns a str result; the seam wraps the result into the
+# provider-appropriate tool-result block.
+#
+# Errors should be returned as a string (e.g. "tool error: ..."). Raising
+# from the executor will bubble up and abort the loop — fine for
+# unrecoverable errors, but for model-recoverable ones (rate limit hit, no
+# results found) the string return is the path that lets the model adapt.
+ToolExecutor = Callable[[dict[str, Any]], str]
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    """One entry in a GenerationResult.tool_transcript. Records what the
+    model asked for and what the executor returned, in order of execution.
+    The seam guarantees `arguments` is a parsed dict (not a JSON string),
+    regardless of provider."""
+    name: str
+    arguments: dict[str, Any]
+    output: str
+    iteration: int  # 0-indexed loop turn the call happened on
 
 
 @dataclass(frozen=True)
@@ -102,6 +142,21 @@ class GenerationRequest:
     # gpt-oss probe in docs/structured_output_review.html. Ignored by
     # providers/models that don't recognize the parameter.
     reasoning_effort: str | None = None
+    # Tool-use support (BleakHouse-otae Subtask C). When `tools` is
+    # non-empty, the provider runs an agentic loop: model emits tool
+    # calls → seam dispatches via `tool_executors` → results returned
+    # to the model → repeat. The loop terminates when the model emits
+    # no further tool calls or `max_tool_iterations` is reached.
+    #
+    # Empirical surprises documented in docs/tool_use_review.html:
+    #   - Anthropic gives arguments as a parsed dict; OpenAI as a JSON
+    #     string. The seam normalises to dict before calling executors.
+    #   - OpenAI Responses requires the prior reasoning items to be
+    #     echoed back alongside the function_call when tool_results are
+    #     sent; the provider handles this transparently.
+    tools: tuple[ToolSpec, ...] | None = None
+    tool_executors: dict[str, ToolExecutor] | None = None
+    max_tool_iterations: int = 6
 
 
 @dataclass(frozen=True)
@@ -139,4 +194,9 @@ class GenerationResult:
     # prefers this when present and falls back to cost_for() computation.
     provider_reported_cost_usd: float | None = None
     execution_mode: str = "one_shot"   # "one_shot" | "native_batch" | "portable_batch"
+    # Per-call tool-use audit. Empty tuple when the request did not use
+    # tools or the model emitted no calls. Populated in the order the model
+    # called them across all loop iterations. Each entry records the
+    # parsed args (never the JSON-string raw) so audit is provider-neutral.
+    tool_transcript: tuple[ToolCall, ...] = ()
     raw: Any | None = field(default=None, repr=False)  # provider-native response for debugging

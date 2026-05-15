@@ -40,12 +40,18 @@ Cached clients:
 """
 from __future__ import annotations
 
+import json
 import os
 from typing import Any, Protocol
 
 from enrichment.llm.cost_table import cost_for
 from enrichment.llm.capabilities import for_hosting
-from enrichment.llm.types import GenerationRequest, GenerationResult, ModelSpec
+from enrichment.llm.types import (
+    GenerationRequest,
+    GenerationResult,
+    ModelSpec,
+    ToolCall,
+)
 
 
 # Hosting → env-var-name for the API key. Override-friendly: an
@@ -145,10 +151,28 @@ class OpenAICompatibleProvider:
         request: GenerationRequest,
     ) -> GenerationResult:
         """Run a one-shot generation and return a provider-neutral
-        GenerationResult."""
+        GenerationResult.
+
+        If request.tools is set, runs an agentic tool-use loop via Chat
+        Completions. (Responses API tool use also exists but introduces a
+        reasoning-pairing requirement for gpt-5 family that's
+        provider-specific friction; Chat Completions has the same tool
+        primitive without that quirk and works uniformly across
+        openai-compat hostings.)
+        """
+        if request.tools:
+            return self._generate_with_tools(spec, request)
+        return self._generate_one_shot(spec, request)
+
+    def _generate_one_shot(
+        self,
+        spec: ModelSpec,
+        request: GenerationRequest,
+    ) -> GenerationResult:
+        """Existing structured-output path (no tools)."""
         client = self._client_for(spec)
 
-        messages: list[dict[str, str]] = []
+        messages: list[dict[str, Any]] = []
         if request.system is not None:
             messages.append({"role": "system", "content": request.system})
         messages.append({"role": "user", "content": request.user})
@@ -229,6 +253,168 @@ class OpenAICompatibleProvider:
             ),
             execution_mode="one_shot",
             raw=response,
+        )
+
+    def _generate_with_tools(
+        self,
+        spec: ModelSpec,
+        request: GenerationRequest,
+    ) -> GenerationResult:
+        """Chat-Completions tool-use loop. Per iteration:
+          1. Send messages + tools.
+          2. If response has tool_calls → execute via tool_executors, append
+             assistant message (preserving tool_calls) + role:tool messages
+             (one per call, keyed by tool_call_id), repeat.
+          3. Else → done; accumulate text.
+
+        Match shape: docs/tool_use_review.html section 2.2 / 2.3 ("OpenAI
+        Chat Completions"). gpt-5 family takes the same Chat Completions
+        tool primitive — no Responses-API reasoning-pairing required.
+        """
+        if not request.tool_executors:
+            raise ValueError(
+                "GenerationRequest.tools set but tool_executors is empty; "
+                "the seam can't dispatch calls without executors"
+            )
+
+        client = self._client_for(spec)
+
+        tools_payload = [
+            {
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.input_schema,
+                },
+            }
+            for t in request.tools
+        ]
+
+        messages: list[dict[str, Any]] = []
+        if request.system is not None:
+            messages.append({"role": "system", "content": request.system})
+        messages.append({"role": "user", "content": request.user})
+
+        text_chunks: list[str] = []
+        transcript: list[ToolCall] = []
+        agg_input = 0
+        agg_output = 0
+        agg_cache_read = 0
+        any_cache_seen = False
+        agg_provider_cost: float | None = None
+        last_response: Any = None
+
+        for iteration in range(request.max_tool_iterations + 1):
+            kwargs: dict[str, Any] = {
+                "model": spec.model,
+                "messages": messages,
+                "tools": tools_payload,
+            }
+            if spec.hosting == "openai":
+                kwargs["max_completion_tokens"] = request.max_tokens
+                if request.reasoning_effort is not None:
+                    kwargs["reasoning_effort"] = request.reasoning_effort
+            else:
+                kwargs["max_tokens"] = request.max_tokens
+                if request.temperature is not None:
+                    kwargs["temperature"] = request.temperature
+                if request.reasoning_effort is not None:
+                    kwargs.setdefault("extra_body", {})
+                    kwargs["extra_body"]["reasoning_effort"] = (
+                        request.reasoning_effort
+                    )
+
+            response = client.chat.completions.create(**kwargs)
+            last_response = response
+
+            in_t, out_t, cr_t, prov_cost = _extract_token_counts(response)
+            if in_t is not None:
+                agg_input += in_t
+            if out_t is not None:
+                agg_output += out_t
+            if cr_t is not None:
+                any_cache_seen = True
+                agg_cache_read += cr_t
+            if prov_cost is not None:
+                agg_provider_cost = (agg_provider_cost or 0.0) + prov_cost
+
+            choice = response.choices[0]
+            message = choice.message
+            content = getattr(message, "content", None)
+            if isinstance(content, str) and content:
+                text_chunks.append(content)
+
+            tool_calls = getattr(message, "tool_calls", None) or []
+            if not tool_calls:
+                break
+
+            # Echo the assistant message back (per Chat Completions tool spec
+            # — assistant turn must precede role:tool responses to it).
+            # The SDK gives objects; we serialise to plain dicts so the next
+            # send re-validates the schema and we don't depend on SDK-version
+            # tool_call dataclass shapes.
+            assistant_msg: dict[str, Any] = {"role": "assistant"}
+            if isinstance(content, str) and content:
+                assistant_msg["content"] = content
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in tool_calls
+            ]
+            messages.append(assistant_msg)
+
+            for tc in tool_calls:
+                tool_name = tc.function.name
+                raw_args = tc.function.arguments or "{}"
+                try:
+                    parsed_args = json.loads(raw_args) if raw_args else {}
+                except json.JSONDecodeError:
+                    parsed_args = {}
+                executor = request.tool_executors.get(tool_name)
+                if executor is None:
+                    output = f"tool error: no executor registered for {tool_name!r}"
+                else:
+                    try:
+                        output = executor(parsed_args)
+                    except Exception as exc:  # noqa: BLE001
+                        output = f"tool error: {exc.__class__.__name__}: {exc}"
+                transcript.append(ToolCall(
+                    name=tool_name,
+                    arguments=dict(parsed_args) if isinstance(parsed_args, dict) else {},
+                    output=output,
+                    iteration=iteration,
+                ))
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": output,
+                })
+
+        return GenerationResult(
+            text="\n".join(text_chunks),
+            provider="openai_compatible",
+            model=spec.model,
+            hosting=spec.hosting,
+            input_tokens=agg_input or None,
+            output_tokens=agg_output or None,
+            cache_creation_input_tokens=None,
+            cache_read_input_tokens=agg_cache_read if any_cache_seen else None,
+            provider_reported_cost_usd=agg_provider_cost,
+            estimated_cost_usd=cost_for(
+                "openai_compatible", spec.model, agg_input, agg_output,
+                cache_read_input_tokens=agg_cache_read if any_cache_seen else None,
+                provider_reported_cost=agg_provider_cost,
+            ),
+            execution_mode="one_shot",
+            tool_transcript=tuple(transcript),
+            raw=last_response,
         )
 
 

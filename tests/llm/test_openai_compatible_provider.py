@@ -286,7 +286,13 @@ def test_provider_loads_dotenv_on_real_client_construction(
     captured: dict[str, Any] = {}
 
     class _FakeOpenAI:
-        def __init__(self, *, api_key: str | None, base_url: str | None) -> None:
+        def __init__(
+            self,
+            *,
+            api_key: str | None,
+            base_url: str | None,
+            **_kwargs: Any,
+        ) -> None:
             captured["api_key"] = api_key
             captured["base_url"] = base_url
 
