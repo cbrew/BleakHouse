@@ -193,9 +193,14 @@ class OpenAICompatibleProvider:
             # Skip temperature entirely — OpenAI native gpt-5 family
             # rejects explicit values. The default behaviour applies.
             # reasoning_effort is the documented top-level parameter
-            # for gpt-5 family. Pass it directly when set.
+            # for gpt-5 family. Translate per model — gpt-5-mini accepts
+            # minimal|low|medium|high; gpt-5.4 accepts none|low|medium|
+            # high|xhigh (rejects 'minimal' with HTTP 400). See
+            # docs/structured_output_review.html addendum.
             if request.reasoning_effort is not None:
-                kwargs["reasoning_effort"] = request.reasoning_effort
+                kwargs["reasoning_effort"] = _adapt_openai_reasoning_effort(
+                    spec.model, request.reasoning_effort,
+                )
         else:
             kwargs["max_tokens"] = request.max_tokens
             if request.temperature is not None:
@@ -218,6 +223,12 @@ class OpenAICompatibleProvider:
                     schema, request.list_field_caps,
                 )
             caps = for_hosting(spec.hosting)
+            if caps.json_schema_strict:
+                # OpenAI strict mode requires additionalProperties=false on
+                # every object. Pydantic doesn't emit it. Inject before
+                # sending. Same posture as the Phase 3 alt driver's
+                # _strictify (enrichment/phase3_runner.py).
+                schema = _strictify_for_openai(schema)
             kwargs["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
@@ -314,7 +325,9 @@ class OpenAICompatibleProvider:
             if spec.hosting == "openai":
                 kwargs["max_completion_tokens"] = request.max_tokens
                 if request.reasoning_effort is not None:
-                    kwargs["reasoning_effort"] = request.reasoning_effort
+                    kwargs["reasoning_effort"] = _adapt_openai_reasoning_effort(
+                        spec.model, request.reasoning_effort,
+                    )
             else:
                 kwargs["max_tokens"] = request.max_tokens
                 if request.temperature is not None:
@@ -416,6 +429,36 @@ class OpenAICompatibleProvider:
             tool_transcript=tuple(transcript),
             raw=last_response,
         )
+
+
+def _adapt_openai_reasoning_effort(model: str, effort: str) -> str:
+    """Map a requested effort to a value the specific model accepts.
+
+    gpt-5-mini accepts: minimal | low | medium | high.
+    gpt-5.4    accepts: none | low | medium | high | xhigh (rejects 'minimal').
+    For unrecognised models, pass through unchanged."""
+    if effort == "minimal" and model.startswith("gpt-5.4"):
+        return "low"
+    return effort
+
+
+def _strictify_for_openai(schema: Any) -> Any:
+    """Walk a JSON Schema dict and add `additionalProperties: false` to every
+    object. OpenAI strict json_schema mode requires this; Pydantic-generated
+    schemas omit it. Returns a new structure; input is not mutated.
+
+    Same transform as enrichment/phase3_runner.py:_strictify (duplicated
+    here to avoid a cross-package import; both copies are 12 lines)."""
+    if isinstance(schema, dict):
+        out: dict[str, Any] = {}
+        for k, v in schema.items():
+            out[k] = _strictify_for_openai(v)
+        if out.get("type") == "object" and "additionalProperties" not in out:
+            out["additionalProperties"] = False
+        return out
+    if isinstance(schema, list):
+        return [_strictify_for_openai(item) for item in schema]
+    return schema
 
 
 def _apply_list_caps_to_schema(

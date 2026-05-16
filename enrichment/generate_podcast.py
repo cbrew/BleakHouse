@@ -512,6 +512,7 @@ def generate_segment_script(
                 user=user_msg,
                 max_tokens=16384,
                 json_schema=schema,
+                reasoning_effort="minimal",
             ))
             if recorder is not None:
                 recorder.record(

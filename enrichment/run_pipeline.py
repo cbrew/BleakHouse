@@ -18,7 +18,6 @@ import logging
 import os
 from pathlib import Path
 
-import anthropic
 from dotenv import load_dotenv
 
 from enrichment import axes
@@ -373,15 +372,12 @@ def run_phases_1_2_no_passages(
 
 
 def run_phase_2_5(
-    client: anthropic.Anthropic,
     personas: list[ExpertPersona],
     phase1: dict,
     phase2: dict,
     novel_title: str,
     novel_author: str,
     run_dir: Path,
-    interview_model: str = "claude-haiku-4-5-20251001",
-    planning_model: str = "claude-sonnet-4-6",
     use_reference_tools: bool = False,
     length: str = "long",
 ) -> list[HostBrief]:
@@ -578,25 +574,6 @@ Examples:
         _llm_settings.active_profile_name(),
         f" (overrides: {provider_overrides})" if provider_overrides else "",
     )
-    # TEMPORARY (until BleakHouse-otae Subtask D lands): warn when the active
-    # profile or any override would route any call to a non-default provider.
-    # Today, call sites still hardcode their models; the resolved_per_task
-    # block in config.json records the intended routing but does NOT yet
-    # reflect what actually executed. Without this warning, an audit reading
-    # the providers block would draw wrong conclusions.
-    _resolved_now = _llm_settings.resolved_providers()
-    _non_anthropic = {
-        task: spec for task, spec in _resolved_now.items()
-        if spec.provider != "anthropic"
-    }
-    if _non_anthropic:
-        logger.warning(
-            "PROVIDER ROUTING NOT YET HONORED: profile=%s resolves these tasks "
-            "to non-Anthropic providers, but call sites still hardcode Anthropic: %s. "
-            "Resolution is recorded in config.json.providers for audit; actual "
-            "execution will not match until Subtask D of BleakHouse-otae lands.",
-            _llm_settings.active_profile_name(), sorted(_non_anthropic),
-        )
 
     # Preflight: enrichment-completeness smoke test. Catches the
     # 'data is loadable but unusable' class before any phase runs.
@@ -679,11 +656,11 @@ Examples:
             task: _gen_id_by_api_model.get(spec.model, spec.model)
             for task, spec in _resolved.items()
         },
-        # TEMPORARY: while Subtask D of BleakHouse-otae is pending, call sites
-        # hardcode their providers. resolved_per_task records the INTENT of
-        # the active profile + overrides; what actually ran was hardcoded
-        # per call site (mostly Anthropic). Flip to true once D lands.
-        "enforced_by_call_sites": False,
+        # Active pipeline call sites all route through the seam after
+        # BleakHouse-otae Subtask D landed (2026-05-15). Phase 3 alt driver
+        # (enrichment/phase3_runner.py) and the embedding pipeline curate
+        # call (BleakHouse-cp99) are documented carve-outs.
+        "enforced_by_call_sites": True,
     }
 
     # Save config
@@ -790,10 +767,8 @@ Examples:
         from enrichment.novel_prompts import get_active_novel  # pyright: ignore[reportMissingImports]
         novel_cfg = get_active_novel(args.novel)
         host_briefs = run_phase_2_5(
-            anthropic.Anthropic(), personas, phase1, phase2,
+            personas, phase1, phase2,
             novel_cfg.title, novel_cfg.author, run_dir,
-            interview_model=args.interview_model,
-            planning_model=args.model,
             use_reference_tools=args.reference_tools,
             length=args.length,
         )

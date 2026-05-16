@@ -323,8 +323,13 @@ def design_segments(
         task="design_segments",
         system=system,
         user=user_msg,
-        max_tokens=2048,
+        max_tokens=4096,
         json_schema=SegmentDesignResult.model_json_schema(),
+        # Reasoning-class models (gpt-5 family) would otherwise consume
+        # the entire token budget on internal deliberation and emit
+        # nothing visible. Structured extraction is the canonical
+        # minimal-effort use case. Anthropic ignores the field.
+        reasoning_effort="minimal",
     ))
     if recorder is not None:
         recorder.record(

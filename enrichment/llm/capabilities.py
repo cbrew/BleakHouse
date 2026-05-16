@@ -35,6 +35,26 @@ _CAPABILITIES: dict[str, ProviderCapabilities] = {
         context_window=200_000,
     ),
 
+    # OpenAI — first-party Chat Completions API. response_format
+    # json_schema is supported; strict=True is the canonical mode but
+    # demands a JSON Schema subset (every key in `required`,
+    # `additionalProperties: false` on every object, no `$defs`/`$ref`
+    # except self-recursion, no `allOf`/`anyOf`/`oneOf`). The
+    # Pydantic-generated schemas this codebase uses don't satisfy all
+    # of those, and a full strict-mode transform pipeline would lose
+    # per-field descriptions. We empirically observed (BleakHouse-pdjv,
+    # docs/structured_output_review.html addendum) that strict=False
+    # accepts the schemas as-is and gpt-5 family still emits valid JSON
+    # ~99% of the time. Tracked: re-enable strict once the seam grows
+    # a full strict-compatible schema transform.
+    "openai": ProviderCapabilities(
+        json_schema_constrained=True,
+        json_schema_strict=False,
+        tool_use=True,
+        native_batch=True,
+        context_window=128_000,
+    ),
+
     # DeepInfra — OpenAI-compatible REST. response_format json_schema
     # supported; the strict-flag behavior is per-model and not
     # universally honored, so we mark it False and let the strict

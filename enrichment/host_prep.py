@@ -139,6 +139,7 @@ def run_pre_interview(
                 user=user,
                 max_tokens=2048,
                 json_schema=schema,
+                reasoning_effort="minimal",
             ))
             parsed = PreInterviewResponse.model_validate_json(result.text)
             break
@@ -282,6 +283,7 @@ def run_pre_interview_with_tools(
         tools=tools,
         tool_executors=executors,
         max_tool_iterations=MAX_TOOL_CALLS,
+        reasoning_effort="minimal",
     ))
     if recorder is not None:
         recorder.record(
@@ -328,6 +330,7 @@ def run_pre_interview_with_tools(
         user=final_text,
         max_tokens=2048,
         json_schema=PreInterviewResponse.model_json_schema(),
+        reasoning_effort="minimal",
     ))
     if recorder is not None:
         recorder.record(
@@ -550,6 +553,7 @@ def plan_questions(
         user=user,
         max_tokens=4096,
         json_schema=HostBrief.model_json_schema(),
+        reasoning_effort="minimal",
     ))
     if recorder is not None:
         recorder.record(
@@ -671,6 +675,7 @@ def _select_listener_recommendations(
         system=system,
         user="\n".join(lines),
         max_tokens=512,
+        reasoning_effort="minimal",
     ))
     if recorder is not None:
         recorder.record(
