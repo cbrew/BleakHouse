@@ -1,10 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>BleakHouse system flow — novel to audio</title>
+{% extends "base.html" %}
+{% block title %}Not In Our Time — System flow, novel to audio{% endblock %}
+
+{% block extra_head %}
 <style>
-  :root {
+/* Generated from docs/system_flow.html by scripts/build_blog_system_flow.py.
+   Do not edit directly — re-run the build script after changing the source. */
+:root {
     --ink:        #1a1a1a;
     --ink-soft:   #555;
     --rule:       #d9d9d9;
@@ -29,72 +30,60 @@
     --artifact-ink:    #4e342e;
   }
 
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    max-width: 1100px;
-    margin: 2em auto;
-    padding: 0 1.4em;
-    color: var(--ink);
-    line-height: 1.55;
-    background: #fff;
-  }
-  h1 { font-size: 2em; margin-bottom: 0.2em; }
-  h2 { border-bottom: 1px solid var(--rule); padding-bottom: 0.3em;
-       margin-top: 2.5em; font-size: 1.4em; }
-  h3 { margin-top: 1.6em; color: var(--ink); font-size: 1.1em; }
-  p  { margin: 0.7em 0; }
-  code { background: var(--code-bg); padding: 1px 5px;
-         border-radius: 3px; font-size: 0.9em; }
-  pre { background: var(--bg); padding: 0.9em 1em; overflow-x: auto;
-        border-left: 3px solid var(--rule); font-size: 0.85em;
-        border-radius: 0 4px 4px 0; }
+  
+  
+  
+  
+  
+  
+  
 
-  .meta  { color: var(--ink-soft); font-size: 0.92em; }
-  .lede  { font-size: 1.04em; color: var(--ink); }
-  .small { font-size: 0.88em; color: var(--ink-soft); }
+  .sf-meta  { color: var(--ink-soft); font-size: 0.92em; }
+  .sf-lede  { font-size: 1.04em; color: var(--ink); }
+  .sf-small { font-size: 0.88em; color: var(--ink-soft); }
 
   /* Legend chips. */
-  .legend { display: flex; flex-wrap: wrap; gap: 0.6em; margin: 1em 0; }
-  .chip {
+  .sf-legend { display: flex; flex-wrap: wrap; gap: 0.6em; margin: 1em 0; }
+  .sf-chip {
     display: inline-flex; align-items: center; gap: 0.4em;
     padding: 4px 10px; border-radius: 999px;
     font-size: 0.82em; font-weight: 500; letter-spacing: 0.01em;
     border: 1px solid var(--rule);
   }
-  .chip-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  .chip.llm   { background: var(--llm-soft);   color: var(--llm-ink);   border-color: #f0d985; }
-  .chip.det   { background: var(--det-soft);   color: var(--det-ink);   border-color: #b6dab8; }
-  .chip.audio { background: var(--audio-soft); color: var(--audio-ink); border-color: #b3d7f3; }
-  .chip.artifact { background: var(--artifact-soft); color: var(--artifact-ink); border-color: #d3c3bd; }
-  .chip.llm   .chip-dot { background: var(--llm); }
-  .chip.det   .chip-dot { background: var(--det); }
-  .chip.audio .chip-dot { background: var(--audio); }
-  .chip.artifact .chip-dot { background: var(--artifact); }
+  .sf-chip-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .sf-chip.sf-llm   { background: var(--llm-soft);   color: var(--llm-ink);   border-color: #f0d985; }
+  .sf-chip.sf-det   { background: var(--det-soft);   color: var(--det-ink);   border-color: #b6dab8; }
+  .sf-chip.sf-audio { background: var(--audio-soft); color: var(--audio-ink); border-color: #b3d7f3; }
+  .sf-chip.sf-artifact { background: var(--artifact-soft); color: var(--artifact-ink); border-color: #d3c3bd; }
+  .sf-chip.sf-llm   .sf-chip-dot { background: var(--llm); }
+  .sf-chip.sf-det   .sf-chip-dot { background: var(--det); }
+  .sf-chip.sf-audio .sf-chip-dot { background: var(--audio); }
+  .sf-chip.sf-artifact .sf-chip-dot { background: var(--artifact); }
 
   /* ---------- Flow diagram ---------- */
 
-  .flow {
+  .sf-flow {
     display: grid;
     grid-template-columns: 1fr;
     gap: 2.4em;
     margin: 1.5em 0 2em;
   }
 
-  .zone {
+  .sf-zone {
     background: var(--bg);
     border: 1px solid var(--rule);
     border-radius: 12px;
     padding: 1.4em 1.4em 1.6em;
   }
-  .zone-title {
+  .sf-zone-title {
     font-size: 0.78em; font-weight: 600; letter-spacing: 0.1em;
     text-transform: uppercase; color: var(--ink-soft);
     margin: -0.4em 0 1.1em;
   }
-  .zone-title code { background: transparent; padding: 0; font-size: inherit;
+  .sf-zone-title code { background: transparent; padding: 0; font-size: inherit;
                      color: var(--ink-soft); }
 
-  .step, .artifact-box {
+  .sf-step, .sf-artifact-box {
     background: var(--card-bg);
     border: 1px solid var(--rule);
     border-radius: 8px;
@@ -102,31 +91,31 @@
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     display: flex; gap: 0.7em; align-items: flex-start;
   }
-  .step .tag {
+  .sf-step .sf-tag {
     flex: 0 0 auto;
     font-size: 0.66em; text-transform: uppercase;
     letter-spacing: 0.06em; font-weight: 600;
     padding: 3px 7px; border-radius: 3px; line-height: 1.4;
     margin-top: 0.15em; white-space: nowrap;
   }
-  .step .body { flex: 1 1 auto; }
-  .step .name { font-weight: 600; }
-  .step .desc { color: var(--ink-soft); font-size: 0.92em; }
-  .step.llm   { border-left: 4px solid var(--llm); }
-  .step.det   { border-left: 4px solid var(--det); }
-  .step.audio { border-left: 4px solid var(--audio); }
-  .step.llm   .tag { background: var(--llm-soft);   color: var(--llm-ink); }
-  .step.det   .tag { background: var(--det-soft);   color: var(--det-ink); }
-  .step.audio .tag { background: var(--audio-soft); color: var(--audio-ink); }
+  .sf-step .sf-body { flex: 1 1 auto; }
+  .sf-step .sf-name { font-weight: 600; }
+  .sf-step .sf-desc { color: var(--ink-soft); font-size: 0.92em; }
+  .sf-step.sf-llm   { border-left: 4px solid var(--llm); }
+  .sf-step.sf-det   { border-left: 4px solid var(--det); }
+  .sf-step.sf-audio { border-left: 4px solid var(--audio); }
+  .sf-step.sf-llm   .sf-tag { background: var(--llm-soft);   color: var(--llm-ink); }
+  .sf-step.sf-det   .sf-tag { background: var(--det-soft);   color: var(--det-ink); }
+  .sf-step.sf-audio .sf-tag { background: var(--audio-soft); color: var(--audio-ink); }
 
-  .artifact-box {
+  .sf-artifact-box {
     border-left: 4px solid var(--artifact);
     background: var(--artifact-soft);
     font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
     font-size: 0.85em;
     color: var(--artifact-ink);
   }
-  .artifact-box .tag {
+  .sf-artifact-box .sf-tag {
     flex: 0 0 auto;
     background: var(--card-bg);
     border: 1px solid #d3c3bd;
@@ -136,25 +125,25 @@
     color: var(--artifact-ink);
     margin-top: 0.15em;
   }
-  .artifact-box .name { font-weight: 500; }
+  .sf-artifact-box .sf-name { font-weight: 500; }
 
-  .arrow {
+  .sf-arrow {
     display: block; text-align: center;
     color: #b5b5b5; font-size: 1.1em; line-height: 1;
     margin: 0.35em 0;
     user-select: none;
   }
 
-  .fork {
+  .sf-fork {
     display: grid; grid-template-columns: 1fr 1fr;
     gap: 1em; align-items: start;
   }
-  @media (max-width: 720px) { .fork { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) { .sf-fork { grid-template-columns: 1fr; } }
 
-  .fork-col { display: flex; flex-direction: column; gap: 0; }
+  .sf-fork-col { display: flex; flex-direction: column; gap: 0; }
 
   /* Provider-pair pill: shown next to LLM stage names. */
-  .pp {
+  .sf-pp {
     display: inline-flex; gap: 0.35em; align-items: center;
     margin-left: 0.5em; font-size: 0.78em;
     color: var(--ink-soft);
@@ -162,68 +151,64 @@
     padding: 1px 6px; border-radius: 3px;
     white-space: nowrap;
   }
-  .pp .sep { color: #aaa; }
+  .sf-pp .sf-sep { color: #aaa; }
 
   /* ---------- Pipeline table ---------- */
 
-  table.pipeline {
+  table.sf-pipeline {
     border-collapse: collapse; width: 100%; margin: 1em 0;
     font-size: 0.92em;
   }
-  table.pipeline th, table.pipeline td {
+  table.sf-pipeline th, table.sf-pipeline td {
     border: 1px solid var(--rule); padding: 0.55em 0.7em;
     vertical-align: top; text-align: left;
   }
-  table.pipeline th { background: #f5f5f5; font-weight: 600; }
-  table.pipeline tr.llm   td:first-child { border-left: 3px solid var(--llm); }
-  table.pipeline tr.det   td:first-child { border-left: 3px solid var(--det); }
-  table.pipeline tr.audio td:first-child { border-left: 3px solid var(--audio); }
+  table.sf-pipeline th { background: #f5f5f5; font-weight: 600; }
+  table.sf-pipeline tr.sf-llm   td:first-child { border-left: 3px solid var(--llm); }
+  table.sf-pipeline tr.sf-det   td:first-child { border-left: 3px solid var(--det); }
+  table.sf-pipeline tr.sf-audio td:first-child { border-left: 3px solid var(--audio); }
 
-  blockquote {
-    border-left: 3px solid var(--rule);
-    margin: 1em 0; padding: 0.4em 1em;
-    color: var(--ink-soft); background: var(--bg);
-    border-radius: 0 4px 4px 0;
-  }
+  
 
   /* ---------- Inline two-up tier panels ---------- */
 
-  .tiers {
+  .sf-tiers {
     display: grid; grid-template-columns: 1fr 1fr;
     gap: 1em; margin: 1em 0;
   }
-  @media (max-width: 760px) { .tiers { grid-template-columns: 1fr; } }
-  .tier {
+  @media (max-width: 760px) { .sf-tiers { grid-template-columns: 1fr; } }
+  .sf-tier {
     background: var(--card-bg);
     border: 1px solid var(--rule);
     border-left: 4px solid var(--llm);
     border-radius: 8px;
     padding: 1em 1.1em;
   }
-  .tier h3 { margin-top: 0; }
-  .tier .models {
+  .sf-tier h3 { margin-top: 0; }
+  .sf-tier .sf-models {
     font-family: ui-monospace, Menlo, monospace;
     font-size: 0.85em;
     color: var(--ink-soft);
     margin-bottom: 0.7em;
   }
 </style>
-</head>
-<body>
+{% endblock %}
 
+{% block content %}
+<div class="sf-content">
 <h1>BleakHouse system flow</h1>
-<p class="meta">Novel to audio, function-focused — every component that
+<p class="sf-meta">Novel to audio, function-focused — every component that
 touches data on the way from raw novel text to a hosted audio episode,
 LLM and non-LLM alike.</p>
 
-<p class="lede">The pipeline is built around a single provider-neutral
+<p class="sf-lede">The pipeline is built around a single provider-neutral
 seam. Each LLM stage names the <em>task</em> it performs; the active
 profile in <code>params.yaml</code> chooses which provider and model
 fills that task for a given run. Anthropic and OpenAI are equal
 first-class providers — there is no implicit default below the named
 profile.</p>
 
-<p class="meta">All provider-routing happens through
+<p class="sf-meta">All provider-routing happens through
 <code>enrichment/llm/</code>. CLI surface on <code>run_pipeline.py</code>:
 <code>--provider-profile NAME</code> picks a named profile;
 <code>--provider-override TASK=GENERATOR_ID</code> layers per-task
@@ -232,281 +217,281 @@ overrides on top. The two reference profiles ship out of the box:
 <code>all_openai</code> (gpt-5-mini + gpt-5.4). Mixed profiles are a
 config edit.</p>
 
-<div class="legend">
-  <span class="chip llm">       <span class="chip-dot"></span>LLM call</span>
-  <span class="chip det">       <span class="chip-dot"></span>deterministic</span>
-  <span class="chip audio">     <span class="chip-dot"></span>audio / TTS</span>
-  <span class="chip artifact">  <span class="chip-dot"></span>on-disk artifact</span>
+<div class="sf-legend">
+  <span class="sf-chip sf-llm">       <span class="sf-chip-dot"></span>LLM call</span>
+  <span class="sf-chip sf-det">       <span class="sf-chip-dot"></span>deterministic</span>
+  <span class="sf-chip sf-audio">     <span class="sf-chip-dot"></span>audio / TTS</span>
+  <span class="sf-chip sf-artifact">  <span class="sf-chip-dot"></span>on-disk artifact</span>
 </div>
 
 <h2>The flow</h2>
 
-<section class="flow">
+<section class="sf-flow">
 
   <!-- ────────────────────────  Zone 1  ──────────────────────── -->
-  <section class="zone">
-    <div class="zone-title">One-time per novel · <code>scripts/add_novel.sh</code></div>
+  <section class="sf-zone">
+    <div class="sf-zone-title">One-time per novel · <code>scripts/add_novel.sh</code></div>
 
-    <div class="artifact-box"><span class="tag">input</span>
-      <span class="name">Gutenberg HTML</span></div>
-    <div class="arrow">↓</div>
-    <div class="step det">
-      <span class="tag">deterministic</span>
-      <div class="body">
-        <div class="name">segment_novel.py</div>
-        <div class="desc">lxml parsing; chapter detection; paragraph IDs.</div>
+    <div class="sf-artifact-box"><span class="sf-tag">input</span>
+      <span class="sf-name">Gutenberg HTML</span></div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-step sf-det">
+      <span class="sf-tag">deterministic</span>
+      <div class="sf-body">
+        <div class="sf-name">segment_novel.py</div>
+        <div class="sf-desc">lxml parsing; chapter detection; paragraph IDs.</div>
       </div>
     </div>
-    <div class="arrow">↓</div>
-    <div class="artifact-box"><span class="tag">artifact</span>
-      <span class="name">passages_raw.json</span></div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+      <span class="sf-name">passages_raw.json</span></div>
 
-    <div class="arrow">↓</div>
+    <div class="sf-arrow">↓</div>
 
-    <div class="fork">
-      <div class="fork-col">
-        <div class="step llm">
-          <span class="tag">LLM batch</span>
-          <div class="body">
-            <div class="name">Per-paragraph enrichment
-              <span class="pp">passage_enrichment <span class="sep">·</span> Haiku 4.5 <span class="sep">|</span> gpt-5-mini</span>
+    <div class="sf-fork">
+      <div class="sf-fork-col">
+        <div class="sf-step sf-llm">
+          <span class="sf-tag">LLM batch</span>
+          <div class="sf-body">
+            <div class="sf-name">Per-paragraph enrichment
+              <span class="sf-pp">passage_enrichment <span class="sf-sep">·</span> Haiku 4.5 <span class="sf-sep">|</span> gpt-5-mini</span>
             </div>
-            <div class="desc">FieldReportEnrichment per paragraph: interest, characters, narrator, themes, quotability, seven provision dimensions. Native batch (50% discount) — Anthropic Batch or OpenAI Batch via the Responses endpoint.</div>
+            <div class="sf-desc">FieldReportEnrichment per paragraph: interest, characters, narrator, themes, quotability, seven provision dimensions. Native batch (50% discount) — Anthropic Batch or OpenAI Batch via the Responses endpoint.</div>
           </div>
         </div>
-        <div class="arrow">↓</div>
-        <div class="artifact-box"><span class="tag">artifact</span>
-          <span class="name">passages_enriched[.&lt;variant&gt;].json</span></div>
+        <div class="sf-arrow">↓</div>
+        <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+          <span class="sf-name">passages_enriched[.&lt;variant&gt;].json</span></div>
       </div>
 
-      <div class="fork-col">
-        <div class="step llm">
-          <span class="tag">LLM batch</span>
-          <div class="body">
-            <div class="name">Situating context
-              <span class="pp">passage_contexts <span class="sep">·</span> Haiku 4.5 <span class="sep">|</span> gpt-5-mini</span>
+      <div class="sf-fork-col">
+        <div class="sf-step sf-llm">
+          <span class="sf-tag">LLM batch</span>
+          <div class="sf-body">
+            <div class="sf-name">Situating context
+              <span class="sf-pp">passage_contexts <span class="sf-sep">·</span> Haiku 4.5 <span class="sf-sep">|</span> gpt-5-mini</span>
             </div>
-            <div class="desc">One sentence per paragraph anchoring it in the chapter (who, where, what-just-happened). Whole-chapter prompt cached across calls.</div>
+            <div class="sf-desc">One sentence per paragraph anchoring it in the chapter (who, where, what-just-happened). Whole-chapter prompt cached across calls.</div>
           </div>
         </div>
-        <div class="arrow">↓</div>
-        <div class="artifact-box"><span class="tag">artifact</span>
-          <span class="name">passages_contextual.json</span></div>
+        <div class="sf-arrow">↓</div>
+        <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+          <span class="sf-name">passages_contextual.json</span></div>
       </div>
     </div>
 
-    <div class="arrow">↓</div>
+    <div class="sf-arrow">↓</div>
 
-    <div class="fork">
-      <div class="step det">
-        <span class="tag">deterministic</span>
-        <div class="body">
-          <div class="name">cluster_literary.py</div>
-          <div class="desc">HDBSCAN over provision-dimension vectors.</div>
+    <div class="sf-fork">
+      <div class="sf-step sf-det">
+        <span class="sf-tag">deterministic</span>
+        <div class="sf-body">
+          <div class="sf-name">cluster_literary.py</div>
+          <div class="sf-desc">HDBSCAN over provision-dimension vectors.</div>
         </div>
       </div>
-      <div class="step det">
-        <span class="tag">deterministic</span>
-        <div class="body">
-          <div class="name">cluster_characters.py</div>
-          <div class="desc">Graph clustering over character co-occurrence.</div>
+      <div class="sf-step sf-det">
+        <span class="sf-tag">deterministic</span>
+        <div class="sf-body">
+          <div class="sf-name">cluster_characters.py</div>
+          <div class="sf-desc">Graph clustering over character co-occurrence.</div>
         </div>
       </div>
     </div>
 
-    <div class="arrow">↓</div>
-    <div class="fork">
-      <div class="artifact-box"><span class="tag">artifact</span>
-        <span class="name">clusters_literary.json</span></div>
-      <div class="artifact-box"><span class="tag">artifact</span>
-        <span class="name">clusters_characters.json</span></div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-fork">
+      <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+        <span class="sf-name">clusters_literary.json</span></div>
+      <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+        <span class="sf-name">clusters_characters.json</span></div>
     </div>
 
-    <div class="arrow">↓</div>
-    <div class="step det">
-      <span class="tag">deterministic</span>
-      <div class="body">
-        <div class="name">embed_passages.py <span class="small">(embedding variant only)</span></div>
-        <div class="desc">OpenAI <code>text-embedding-3-small</code> via LanceDB's embedding registry. Indexes <em>context + text + characters + themes + summary</em> for cosine retrieval.</div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-step sf-det">
+      <span class="sf-tag">deterministic</span>
+      <div class="sf-body">
+        <div class="sf-name">embed_passages.py <span class="sf-small">(embedding variant only)</span></div>
+        <div class="sf-desc">OpenAI <code>text-embedding-3-small</code> via LanceDB's embedding registry. Indexes <em>context + text + characters + themes + summary</em> for cosine retrieval.</div>
       </div>
     </div>
   </section>
 
   <!-- ────────────────────────  Zone 2  ──────────────────────── -->
-  <section class="zone">
-    <div class="zone-title">Per run · <code>enrichment/run_pipeline.py</code></div>
+  <section class="sf-zone">
+    <div class="sf-zone-title">Per run · <code>enrichment/run_pipeline.py</code></div>
 
-    <div class="step llm">
-      <span class="tag">LLM</span>
-      <div class="body">
-        <div class="name">Phase 0 · segment design
-          <span class="pp">design_segments <span class="sep">·</span> Haiku 4.5 <span class="sep">|</span> gpt-5-mini</span>
+    <div class="sf-step sf-llm">
+      <span class="sf-tag">LLM</span>
+      <div class="sf-body">
+        <div class="sf-name">Phase 0 · segment design
+          <span class="sf-pp">design_segments <span class="sf-sep">·</span> Haiku 4.5 <span class="sf-sep">|</span> gpt-5-mini</span>
         </div>
-        <div class="desc">Propose 3–7 segment templates (name, type, min/max passages) from the panel + arc demands. The episode skeleton.</div>
+        <div class="sf-desc">Propose 3–7 segment templates (name, type, min/max passages) from the panel + arc demands. The episode skeleton.</div>
       </div>
     </div>
-    <div class="arrow">↓</div>
-    <div class="artifact-box"><span class="tag">artifact</span>
-      <span class="name">phase0_segments.json</span></div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+      <span class="sf-name">phase0_segments.json</span></div>
 
-    <div class="arrow">↓</div>
+    <div class="sf-arrow">↓</div>
 
-    <div class="step det">
-      <span class="tag">deterministic</span>
-      <div class="body">
-        <div class="name">Phase 1 + 2 · dispatch on <code>--pipeline</code></div>
-        <div class="desc">
+    <div class="sf-step sf-det">
+      <span class="sf-tag">deterministic</span>
+      <div class="sf-body">
+        <div class="sf-name">Phase 1 + 2 · dispatch on <code>--pipeline</code></div>
+        <div class="sf-desc">
           <strong>transport</strong> — OR-tools Sinkhorn matcher (supply / demand on provision dimensions).<br>
           <strong>embedding</strong> — LanceDB cosine search against per-expert query text.<br>
           <strong>no-passages</strong> — skip matching; let the host speak from memory (baseline).
         </div>
       </div>
     </div>
-    <div class="arrow">↓</div>
-    <div class="fork">
-      <div class="artifact-box"><span class="tag">artifact</span>
-        <span class="name">phase1_assignments.json</span></div>
-      <div class="artifact-box"><span class="tag">artifact</span>
-        <span class="name">phase2_plan.json</span></div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-fork">
+      <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+        <span class="sf-name">phase1_assignments.json</span></div>
+      <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+        <span class="sf-name">phase2_plan.json</span></div>
     </div>
 
-    <div class="arrow">↓</div>
-    <p class="meta" style="text-align:center; margin: -0.3em 0 0.6em;">optional · <code>--host-prep</code></p>
+    <div class="sf-arrow">↓</div>
+    <p class="sf-meta" style="text-align:center; margin: -0.3em 0 0.6em;">optional · <code>--host-prep</code></p>
 
-    <div class="step llm">
-      <span class="tag">LLM · tools</span>
-      <div class="body">
-        <div class="name">Phase 2.5a · pre-interview
-          <span class="pp">host_prep_pre_interview <span class="sep">·</span> Haiku 4.5 <span class="sep">|</span> gpt-5-mini</span>
+    <div class="sf-step sf-llm">
+      <span class="sf-tag">LLM · tools</span>
+      <div class="sf-body">
+        <div class="sf-name">Phase 2.5a · pre-interview
+          <span class="sf-pp">host_prep_pre_interview <span class="sf-sep">·</span> Haiku 4.5 <span class="sf-sep">|</span> gpt-5-mini</span>
         </div>
-        <div class="desc">Per expert × segment: agentic loop with three tools (OpenAlex search, Wikipedia search, Wikipedia read). Up to six tool turns; the only run-time outbound retrieval in the pipeline.</div>
+        <div class="sf-desc">Per expert × segment: agentic loop with three tools (OpenAlex search, Wikipedia search, Wikipedia read). Up to six tool turns; the only run-time outbound retrieval in the pipeline.</div>
       </div>
     </div>
-    <div class="arrow">↓</div>
-    <div class="step llm">
-      <span class="tag">LLM</span>
-      <div class="body">
-        <div class="name">Phase 2.5b · reading-list winnow
-          <span class="pp">listener_pick <span class="sep">·</span> Haiku 4.5 <span class="sep">|</span> gpt-5-mini</span>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-step sf-llm">
+      <span class="sf-tag">LLM</span>
+      <div class="sf-body">
+        <div class="sf-name">Phase 2.5b · reading-list winnow
+          <span class="sf-pp">listener_pick <span class="sf-sep">·</span> Haiku 4.5 <span class="sf-sep">|</span> gpt-5-mini</span>
         </div>
-        <div class="desc">Editorial cut: 20–50 candidate references down to 3–5 a general listener would actually pursue.</div>
+        <div class="sf-desc">Editorial cut: 20–50 candidate references down to 3–5 a general listener would actually pursue.</div>
       </div>
     </div>
-    <div class="arrow">↓</div>
-    <div class="step llm">
-      <span class="tag">LLM</span>
-      <div class="body">
-        <div class="name">Phase 2.5c · host brief
-          <span class="pp">host_prep_brief <span class="sep">·</span> Sonnet 4.6 <span class="sep">|</span> gpt-5.4</span>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-step sf-llm">
+      <span class="sf-tag">LLM</span>
+      <div class="sf-body">
+        <div class="sf-name">Phase 2.5c · host brief
+          <span class="sf-pp">host_prep_brief <span class="sf-sep">·</span> Sonnet 4.6 <span class="sf-sep">|</span> gpt-5.4</span>
         </div>
-        <div class="desc">Synthesises the experts' notes into the host's question plan for each segment: anticipated questions, cross-engagement opportunities, steering notes.</div>
+        <div class="sf-desc">Synthesises the experts' notes into the host's question plan for each segment: anticipated questions, cross-engagement opportunities, steering notes.</div>
       </div>
     </div>
-    <div class="arrow">↓</div>
-    <div class="fork">
-      <div class="artifact-box"><span class="tag">artifact</span>
-        <span class="name">phase2_5_interviews.json</span></div>
-      <div class="artifact-box"><span class="tag">artifact</span>
-        <span class="name">phase2_5_host_briefs.json</span></div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-fork">
+      <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+        <span class="sf-name">phase2_5_interviews.json</span></div>
+      <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+        <span class="sf-name">phase2_5_host_briefs.json</span></div>
     </div>
-    <div class="arrow">↓</div>
-    <div class="artifact-box"><span class="tag">artifact</span>
-      <span class="name">phase2_5_reading_list.json</span></div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+      <span class="sf-name">phase2_5_reading_list.json</span></div>
 
-    <div class="arrow">↓</div>
+    <div class="sf-arrow">↓</div>
 
-    <div class="step llm">
-      <span class="tag">LLM</span>
-      <div class="body">
-        <div class="name">Phase 3 · script generation, per segment
-          <span class="pp">generate_podcast <span class="sep">·</span> Sonnet 4.6 <span class="sep">|</span> gpt-5.4</span>
+    <div class="sf-step sf-llm">
+      <span class="sf-tag">LLM</span>
+      <div class="sf-body">
+        <div class="sf-name">Phase 3 · script generation, per segment
+          <span class="sf-pp">generate_podcast <span class="sf-sep">·</span> Sonnet 4.6 <span class="sf-sep">|</span> gpt-5.4</span>
         </div>
-        <div class="desc">Writes the actual dialogue. Each call emits a list of Turn objects with per-utterance TTS annotations (pause_before_ms, rate, quote_mode, emphasis_words). Alt driver <code>phase3_runner.py</code> uses the Responses API for gpt-5-family separate reasoning + output budgets.</div>
+        <div class="sf-desc">Writes the actual dialogue. Each call emits a list of Turn objects with per-utterance TTS annotations (pause_before_ms, rate, quote_mode, emphasis_words). Alt driver <code>phase3_runner.py</code> uses the Responses API for gpt-5-family separate reasoning + output budgets.</div>
       </div>
     </div>
-    <div class="arrow">↓</div>
-    <div class="artifact-box"><span class="tag">artifact</span>
-      <span class="name">phase3_episode.json</span></div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+      <span class="sf-name">phase3_episode.json</span></div>
 
-    <div class="arrow">↓</div>
+    <div class="sf-arrow">↓</div>
 
-    <div class="fork">
-      <div class="fork-col">
-        <div class="step llm">
-          <span class="tag">LLM</span>
-          <div class="body">
-            <div class="name">Phase 4a · quote verification
-              <span class="pp">quote_verification <span class="sep">·</span> Haiku 4.5 <span class="sep">|</span> gpt-5-mini</span>
+    <div class="sf-fork">
+      <div class="sf-fork-col">
+        <div class="sf-step sf-llm">
+          <span class="sf-tag">LLM</span>
+          <div class="sf-body">
+            <div class="sf-name">Phase 4a · quote verification
+              <span class="sf-pp">quote_verification <span class="sf-sep">·</span> Haiku 4.5 <span class="sf-sep">|</span> gpt-5-mini</span>
             </div>
-            <div class="desc">Per quoted passage: did the model invent it, or is it verbatim from source? Surfaced as quote badges in the webapp.</div>
+            <div class="sf-desc">Per quoted passage: did the model invent it, or is it verbatim from source? Surfaced as quote badges in the webapp.</div>
           </div>
         </div>
-        <div class="arrow">↓</div>
-        <div class="artifact-box"><span class="tag">artifact</span>
-          <span class="name">quote_verification.json</span></div>
+        <div class="sf-arrow">↓</div>
+        <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+          <span class="sf-name">quote_verification.json</span></div>
       </div>
 
-      <div class="fork-col">
-        <div class="step det">
-          <span class="tag">deterministic</span>
-          <div class="body">
-            <div class="name">Phase 4b · report + manifest</div>
-            <div class="desc">Templated rendering of report.html, report.txt, manifest.json from existing artifacts.</div>
+      <div class="sf-fork-col">
+        <div class="sf-step sf-det">
+          <span class="sf-tag">deterministic</span>
+          <div class="sf-body">
+            <div class="sf-name">Phase 4b · report + manifest</div>
+            <div class="sf-desc">Templated rendering of report.html, report.txt, manifest.json from existing artifacts.</div>
           </div>
         </div>
-        <div class="arrow">↓</div>
-        <div class="artifact-box"><span class="tag">artifact</span>
-          <span class="name">manifest.json · report.html · report.txt</span></div>
+        <div class="sf-arrow">↓</div>
+        <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+          <span class="sf-name">manifest.json · report.html · report.txt</span></div>
       </div>
     </div>
 
-    <div class="arrow">↓</div>
+    <div class="sf-arrow">↓</div>
 
-    <div class="step audio">
-      <span class="tag">TTS</span>
-      <div class="body">
-        <div class="name">Phase 4c · audio render
-          <span class="pp">render_audio <span class="sep">·</span> Gemini 2.5 Flash TTS</span>
+    <div class="sf-step sf-audio">
+      <span class="sf-tag">TTS</span>
+      <div class="sf-body">
+        <div class="sf-name">Phase 4c · audio render
+          <span class="sf-pp">render_audio <span class="sf-sep">·</span> Gemini 2.5 Flash TTS</span>
         </div>
-        <div class="desc">One call per turn. Speaker→voice from <code>params.yaml</code>; per-utterance prosody from the Phase 3 annotations. Output is per-shard MP3 at 192 kbps.</div>
+        <div class="sf-desc">One call per turn. Speaker→voice from <code>params.yaml</code>; per-utterance prosody from the Phase 3 annotations. Output is per-shard MP3 at 192 kbps.</div>
       </div>
     </div>
-    <div class="arrow">↓</div>
-    <div class="step det">
-      <span class="tag">deterministic</span>
-      <div class="body">
-        <div class="name">cas/store.py — content-addressed store</div>
-        <div class="desc">md5-hash the MP3, write to <code>data/cas/files/md5/…</code>, mirror to Cloudflare R2 via boto3. Identical shards across runs deduplicate.</div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-step sf-det">
+      <span class="sf-tag">deterministic</span>
+      <div class="sf-body">
+        <div class="sf-name">cas/store.py — content-addressed store</div>
+        <div class="sf-desc">md5-hash the MP3, write to <code>data/cas/files/md5/…</code>, mirror to Cloudflare R2 via boto3. Identical shards across runs deduplicate.</div>
       </div>
     </div>
-    <div class="arrow">↓</div>
-    <div class="artifact-box"><span class="tag">artifact</span>
-      <span class="name">audio/shards.json + per-shard MP3 (R2)</span></div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+      <span class="sf-name">audio/shards.json + per-shard MP3 (R2)</span></div>
   </section>
 
   <!-- ────────────────────────  Zone 3  ──────────────────────── -->
-  <section class="zone">
-    <div class="zone-title">Serving · <code>webapp/</code> + <code>webapp_v2/</code></div>
+  <section class="sf-zone">
+    <div class="sf-zone-title">Serving · <code>webapp/</code> + <code>webapp_v2/</code></div>
 
-    <div class="artifact-box"><span class="tag">input</span>
-      <span class="name">data/runs/*/*.json</span></div>
-    <div class="arrow">↓</div>
-    <div class="step det">
-      <span class="tag">deterministic</span>
-      <div class="body">
-        <div class="name">scripts/build_content_db.py</div>
-        <div class="desc">Snapshots every run's JSON artifacts into a queryable SQLite. Round-trip is byte-identical.</div>
+    <div class="sf-artifact-box"><span class="sf-tag">input</span>
+      <span class="sf-name">data/runs/*/*.json</span></div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-step sf-det">
+      <span class="sf-tag">deterministic</span>
+      <div class="sf-body">
+        <div class="sf-name">scripts/build_content_db.py</div>
+        <div class="sf-desc">Snapshots every run's JSON artifacts into a queryable SQLite. Round-trip is byte-identical.</div>
       </div>
     </div>
-    <div class="arrow">↓</div>
-    <div class="artifact-box"><span class="tag">artifact</span>
-      <span class="name">data/content.db</span></div>
-    <div class="arrow">↓</div>
-    <div class="step det">
-      <span class="tag">deterministic</span>
-      <div class="body">
-        <div class="name">FastAPI app — webapp/ (live) · webapp_v2/ (in progress)</div>
-        <div class="desc">Reads content.db only; 302-redirects audio URLs to R2 via <code>cas.store.url(md5)</code>. No R2 credentials in the request path.</div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-artifact-box"><span class="sf-tag">artifact</span>
+      <span class="sf-name">data/content.db</span></div>
+    <div class="sf-arrow">↓</div>
+    <div class="sf-step sf-det">
+      <span class="sf-tag">deterministic</span>
+      <div class="sf-body">
+        <div class="sf-name">FastAPI app — webapp/ (live) · webapp_v2/ (in progress)</div>
+        <div class="sf-desc">Reads content.db only; 302-redirects audio URLs to R2 via <code>cas.store.url(md5)</code>. No R2 credentials in the request path.</div>
       </div>
     </div>
   </section>
@@ -515,17 +500,17 @@ config edit.</p>
 
 <h2>Stage-by-stage detail</h2>
 
-<table class="pipeline">
+<table class="sf-pipeline">
 <tr><th>Stage</th><th>Component</th><th>Function in the system</th><th>Inputs → Outputs</th></tr>
 
-<tr class="det">
+<tr class="sf-det">
   <td><strong>Novel ingest</strong></td>
   <td><code>curl</code> from Project Gutenberg, then <code>enrichment/segment_novel.py</code></td>
   <td>Pulls the source HTML, splits it into chapters and then into paragraph-level "passages" with stable IDs (<code>c5:p17</code>). Per-novel boundary detection is hand-coded — chapter headings vary across editors; for modernist novels without chapters, splits on paragraph count with explicit start/end markers.</td>
   <td>Gutenberg HTML → <code>passages_raw.json</code></td>
 </tr>
 
-<tr class="llm">
+<tr class="sf-llm">
   <td><strong>Per-paragraph enrichment</strong></td>
   <td>Anthropic side: <code>submit_passages_enriched.py</code> + <code>collect_passages_enriched.py</code>.
       OpenAI side: <code>submit_passages_enriched_openai.py</code> + <code>collect_passages_enriched_openai.py</code>.
@@ -534,119 +519,119 @@ config edit.</p>
   <td><code>passages_raw.json</code> → <code>passages_enriched.json</code> (Anthropic-derived) <em>or</em> <code>passages_enriched.openai_5_mini.json</code> (OpenAI-derived). <code>--enrichment-variant</code> on <code>run_pipeline.py</code> selects which file a run reads.</td>
 </tr>
 
-<tr class="llm">
+<tr class="sf-llm">
   <td><strong>Situating context</strong></td>
   <td><code>submit_passage_contexts.py</code> + <code>collect_passage_contexts.py</code>. Native batch. Whole-chapter prompt cached across the N per-paragraph calls.</td>
   <td>Anthropic's "contextual retrieval" pattern: writes a one-sentence situating paragraph that grounds each passage in its chapter (who's present, where we are, what just happened). Concatenated with the raw passage before embedding. Without it, a passage like "two figures floated on the Thames" doesn't retrieve under a "Gaffer Hexam fishing for corpses" query because the proper names live only in the surrounding text.</td>
   <td><code>passages_enriched.json</code> + raw chapter text → <code>passages_contextual.json</code></td>
 </tr>
 
-<tr class="det">
+<tr class="sf-det">
   <td><strong>Passage clustering</strong></td>
   <td><code>cluster_literary.py</code> (HDBSCAN), <code>cluster_characters.py</code> (graph clustering)</td>
   <td>Groups passages similar along literary axes or sharing a recurring character set. Used by Phase 1 as supplementary structure (interchangeable slots) and by the webapp for "similar passages" displays.</td>
   <td><code>passages_enriched.json</code> → <code>clusters_*.json</code></td>
 </tr>
 
-<tr class="det">
-  <td><strong>Vector index</strong> <span class="small">(embedding variant only)</span></td>
+<tr class="sf-det">
+  <td><strong>Vector index</strong> <span class="sf-small">(embedding variant only)</span></td>
   <td><code>embed_passages.py</code> + LanceDB. OpenAI <code>text-embedding-3-small</code> via LanceDB's embedding registry.</td>
   <td>Provides cosine-similarity retrieval for the <code>--pipeline embedding</code> variant of Phase 1+2. The other two pipeline variants (<code>transport</code>, <code>no-passages</code>) don't use it.</td>
   <td><code>passages_contextual.json</code> → LanceDB table on disk</td>
 </tr>
 
-<tr class="llm">
+<tr class="sf-llm">
   <td><strong>Phase 0 · segment design</strong></td>
   <td><code>design_segments.py</code> via <code>run_pipeline.py::run_phase0</code>. Seam task <code>design_segments</code>; structured output to <code>SegmentDesignResult</code>.</td>
   <td>Decides the episode's high-level shape. Given the expert panel and arc demands, the model proposes 3–7 segment templates (name, segment_type, min/max passage count). Not yet tied to specific passages — the skeleton that Phase 1's matcher fills in. The model is performing literary instructional design: balancing pace, depth, contrast, persona coverage.</td>
   <td>experts + arc demands → <code>phase0_segments.json</code></td>
 </tr>
 
-<tr class="det">
+<tr class="sf-det">
   <td><strong>Phase 1 + 2 · transport variant</strong></td>
   <td><code>transport_podcast.py</code> + <code>segment_transport.py</code>. Sinkhorn / optimal-transport solver from OR-tools.</td>
   <td>Hard combinatorial optimization, no model in the loop. Treats segment-template demand and per-passage provision as supply on a bipartite graph; solves for the assignment that minimises unmet demand subject to segment min/max caps. Deterministic and reproducible.</td>
   <td><code>passages_enriched.json</code> + <code>phase0_segments.json</code> → <code>phase1_assignments.json</code>, <code>phase2_plan.json</code></td>
 </tr>
 
-<tr class="det">
+<tr class="sf-det">
   <td><strong>Phase 1 + 2 · embedding variant</strong></td>
   <td><code>embedding_podcast.py</code>. LanceDB cosine search.</td>
   <td>Alternative matcher: queries the LanceDB table with text formed from each expert's persona + segment template; picks top-K by cosine similarity. Useful where the "shape" of an expert is better captured semantically than by the provision-dimension vector.</td>
   <td>LanceDB + <code>phase0_segments.json</code> → same output filenames</td>
 </tr>
 
-<tr class="det">
+<tr class="sf-det">
   <td><strong>Phase 1 + 2 · no-passages variant</strong></td>
   <td><code>run_pipeline.py::run_phases_1_2_no_passages</code></td>
   <td>Skips passage grounding entirely. Template preserved; each segment carries an empty assignments list. Phase 3's prompt tells the model to "speak from memory" about the topic. Used as a baseline / ablation.</td>
   <td>same schema, empty <code>assignments</code></td>
 </tr>
 
-<tr class="llm">
+<tr class="sf-llm">
   <td><strong>Phase 2.5a · pre-interview</strong></td>
   <td><code>host_prep.py::run_pre_interview_with_tools</code>. Two-phase: seam task <code>host_prep_pre_interview</code> with tools (agentic loop) → seam task <code>host_prep_pre_interview_structured</code> (no tools) extracts the structured response.</td>
   <td>Per expert × per segment, generates the expert's private prep notes. The host doesn't see this output directly; it feeds the brief. Each expert is told their persona and the segment's passages and may look up scholarly references through search_openalex / search_wikipedia / read_wikipedia_article (up to six tool turns). The two-phase pattern keeps the loop free-form and the extraction structured. Tool-call shapes are normalised by the seam — see <code>docs/tool_use_review.html</code>.</td>
   <td>persona + segment passages → <code>PreInterviewResponse</code> + <code>CitationRegistry</code> → <code>phase2_5_interviews.json</code></td>
 </tr>
 
-<tr class="llm">
+<tr class="sf-llm">
   <td><strong>Phase 2.5b · reading-list winnow</strong></td>
   <td><code>host_prep.py::_select_listener_recommendations</code>. Seam task <code>listener_pick</code>. Free-text JSON parsed by regex, with a fall-back-to-all-candidates safety net.</td>
   <td>Editorial curation. The interview loop accumulates a registry of references (every <code>[ref-N]</code>-tagged result from the tool calls), often 20–50 candidates per (expert × segment). This call drops it to 3–5 a general podcast listener would actually pursue: accessible books, not specialist journals, not paywalled. Picks not generates.</td>
   <td>candidate list + segment context → <code>recommended[]</code> subset of <code>phase2_5_reading_list.json</code></td>
 </tr>
 
-<tr class="llm">
+<tr class="sf-llm">
   <td><strong>Phase 2.5c · host brief</strong></td>
   <td><code>host_prep.py::plan_questions</code>. Seam task <code>host_prep_brief</code>; structured output to <code>HostBrief</code>.</td>
   <td>Synthesises the host's question plan per segment from all experts' pre-interview responses. Steering notes, anticipated questions (each tagged to a target expert and intent), cross-engagement opportunities. Read by Phase 3 alongside the passages — the host's "show prep document".</td>
   <td>pre-interview responses → one <code>HostBrief</code> → <code>phase2_5_host_briefs.json</code></td>
 </tr>
 
-<tr class="llm">
+<tr class="sf-llm">
   <td><strong>Phase 3 · script generation</strong></td>
   <td><code>generate_podcast.py::generate_segment_script</code>. Seam task <code>generate_podcast</code>; structured output to <code>EpisodeSegment</code>. Alt driver <code>phase3_runner.py</code> uses the Responses API directly for gpt-5-family separate reasoning + output budgets.</td>
   <td>Writes the actual dialogue. Each call gets the segment's persona descriptions, assigned passages with full text, optional host brief, segment context (previous / next titles, first / last flag). The model emits Turn objects with speaker, text, and per-utterance TTS annotations (pause_before_ms, rate, quote_mode, emphasis_words). The annotations matter as much as the words — they're the creative-control surface for the audio stage.</td>
   <td>plan + passages + brief + personas → <code>EpisodeSegment</code> per segment → <code>phase3_episode.json</code></td>
 </tr>
 
-<tr class="det">
+<tr class="sf-det">
   <td><strong>Phase 4a · report + manifest</strong></td>
   <td><code>post_phase3.py</code>, <code>webapp/build_manifest.py</code>, <code>webapp/build_report.py</code></td>
   <td>Templated rendering: plain-text report, HTML report, manifest.json (source of truth for the webapp's experiment tracker). Reads existing JSONs only.</td>
   <td><code>phase3_episode.json</code> + run config → <code>report.txt</code>, <code>report.html</code>, <code>manifest.json</code></td>
 </tr>
 
-<tr class="llm">
+<tr class="sf-llm">
   <td><strong>Phase 4b · quote verification</strong></td>
   <td><code>precompute_quote_verification.py</code>. Seam task <code>quote_verification</code>; one call per quoted passage.</td>
   <td>Defends against hallucinated quotes. Phase 3 occasionally attributes lines to characters that don't appear in the source. This step extracts every quoted passage from <code>phase3_episode.json</code> and asks the model to verify against the actual source text. Results surfaced as "verified" / "paraphrased" / "not in source" badges in the webapp.</td>
   <td><code>phase3_episode.json</code> + source passages → <code>quote_verification.json</code></td>
 </tr>
 
-<tr class="audio">
+<tr class="sf-audio">
   <td><strong>Phase 4c · audio render</strong></td>
   <td><code>render_audio.py</code> + <code>tts_profiles/classic.py</code>. Gemini 2.5 Flash TTS by default; 3.1 Flash TTS for the <code>trevelyan_v2</code> profile.</td>
   <td>One audio shard per turn. The prompt builder turns each turn's structured representation into a TTS prompt with voice direction blocks (speaker / accent / energy / style) and per-utterance prosody hints. Speaker→voice mapping comes from <code>params.yaml:speakers.voices</code>. Output is per-utterance PCM stitched with the <code>pause_before_ms</code> silences from Phase 3.</td>
   <td><code>phase3_episode.json</code> → per-shard MP3 (192 kbps) + <code>audio/shards.json</code> (md5-keyed)</td>
 </tr>
 
-<tr class="det">
+<tr class="sf-det">
   <td><strong>Audio storage</strong></td>
   <td><code>cas/store.py</code>. Local layer hashes bytes into <code>data/cas/files/md5/&lt;prefix&gt;/&lt;rest&gt;</code>; R2 layer mirrors via boto3.</td>
   <td>Audio bytes never live in the source tree. Each shard is identified by its md5; identical shards across runs (same text + voice + model) deduplicate automatically. <code>audio/shards.json</code> stores only the md5 + per-shard metadata; the webapp constructs R2 URLs via <code>cas.store.url(md5)</code>.</td>
   <td>MP3 bytes → <code>data/cas/…</code> (local) + R2 (remote)</td>
 </tr>
 
-<tr class="det">
+<tr class="sf-det">
   <td><strong>Database build</strong></td>
   <td><code>scripts/build_content_db.py</code>. SQLite (<code>data/content.db</code>).</td>
   <td>Snapshots every run's JSON artifacts into a queryable DB for the webapp. Stores raw JSON bytes verbatim; the trust contract is "the JSON in the DB is the same JSON that lived under <code>data/runs/</code>". Re-built after any new run lands.</td>
   <td><code>data/runs/*/*.json</code> + <code>data/novels/*/character_arcs.json</code> → <code>data/content.db</code></td>
 </tr>
 
-<tr class="det">
+<tr class="sf-det">
   <td><strong>Webapp</strong></td>
   <td><code>webapp/app.py</code> (live) and <code>webapp_v2/app.py</code> (clean-room rewrite). FastAPI + Jinja.</td>
   <td>Serves the experiment tracker, the per-episode listen pages, and 302-redirects to R2 audio URLs. All reads from <code>content.db</code>; no direct filesystem reads at request time. Webapp does not carry R2 credentials — it only constructs URLs.</td>
@@ -658,10 +643,10 @@ config edit.</p>
 
 <p>The pipeline distinguishes two functional model tiers, regardless of provider. Each tier is filled by a different model in each profile:</p>
 
-<div class="tiers">
-  <div class="tier">
+<div class="sf-tiers">
+  <div class="sf-tier">
     <h3>Small-model tier — the structural workhorse</h3>
-    <div class="models">Haiku 4.5 · gpt-5-mini</div>
+    <div class="sf-models">Haiku 4.5 · gpt-5-mini</div>
     <p>High call volume, small per-call output, low cost. Used for:</p>
     <ul>
       <li><strong>Per-paragraph enrichment</strong> — produces the substrate for Phase 1's optimizer.</li>
@@ -670,18 +655,18 @@ config edit.</p>
       <li><strong>Pre-interview tool loops</strong> — agentic search + summarise per expert × segment.</li>
       <li><strong>Editorial picks</strong> — reading-list winnow and quote verification.</li>
     </ul>
-    <p class="small">None of this tier's output is read directly by a listener.</p>
+    <p class="sf-small">None of this tier's output is read directly by a listener.</p>
   </div>
 
-  <div class="tier" style="border-left-color: var(--audio);">
+  <div class="sf-tier" style="border-left-color: var(--audio);">
     <h3>Large-model tier — the writer</h3>
-    <div class="models">Sonnet 4.6 · gpt-5.4</div>
+    <div class="sf-models">Sonnet 4.6 · gpt-5.4</div>
     <p>Low call volume, large per-call output, higher cost. Used for:</p>
     <ul>
       <li><strong>Host brief</strong> (Phase 2.5c) — the question plan the script generator follows.</li>
       <li><strong>Script generation</strong> (Phase 3) — the dialogue, with per-utterance TTS annotations that shape what the listener hears.</li>
     </ul>
-    <p class="small">Output is either read aloud by the TTS stage or directly shapes what is.</p>
+    <p class="sf-small">Output is either read aloud by the TTS stage or directly shapes what is.</p>
   </div>
 </div>
 
@@ -736,7 +721,7 @@ false.</p>
   <li><strong>Embedding-pipeline curate call</strong> (<code>enrichment/embedding_podcast.py</code>): pipeline-conditional (only under <code>--pipeline embedding</code>); migration tracked separately.</li>
 </ul>
 
-<p class="meta">Full design and inventory:
+<p class="sf-meta">Full design and inventory:
 <code>docs/provider_control_spec.md</code>.
 Empirical findings on provider behaviour (gpt-5.4's <code>effort</code>
 vocabulary, strict-mode schema constraints, batch chunk-size sensitivity):
@@ -767,6 +752,5 @@ Tool-call shape differences:
   <li><strong>Cost / portability assessments</strong>: <code>docs/together_batch_assessment.md</code>, <code>docs/self_hosted_provider_assessment.md</code>.</li>
   <li><strong>Top-level project doc</strong>: <code>CLAUDE.md</code>.</li>
 </ul>
-
-</body>
-</html>
+</div>
+{% endblock %}
