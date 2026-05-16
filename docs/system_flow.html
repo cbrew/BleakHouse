@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BleakHouse system flow — novel to audio</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         max-width: 1100px; margin: 2em auto; padding: 0 1em; color: #222;
+         line-height: 1.5; }
+  h1, h2 { color: #111; }
+  h2 { border-bottom: 1px solid #ccc; padding-bottom: 0.3em; margin-top: 2em; }
+  h3 { margin-top: 1.5em; color: #333; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.93em; }
+  th, td { border: 1px solid #ccc; padding: 0.4em 0.6em; vertical-align: top; text-align: left; }
+  th { background: #f5f5f5; }
+  code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; font-size: 0.9em; }
+  pre { background: #f7f7f7; padding: 0.8em; overflow-x: auto;
+        border-left: 3px solid #aaa; font-size: 0.85em; }
+  .pipeline-row { background: #fff; }
+  .pipeline-row.llm { background: #fff8e1; }
+  .pipeline-row.non-llm { background: #e8f5e9; }
+  .pipeline-row.audio { background: #e3f2fd; }
+  .small { font-size: 0.88em; color: #555; }
+  .legend { font-size: 0.9em; }
+  .legend span { display: inline-block; padding: 2px 8px; margin-right: 6px; border-radius: 3px; }
+  .legend .llm { background: #fff8e1; }
+  .legend .non-llm { background: #e8f5e9; }
+  .legend .audio { background: #e3f2fd; }
+  blockquote { border-left: 3px solid #888; margin-left: 0; padding-left: 1em; color: #444; }
+  .meta { color: #666; font-size: 0.88em; }
+  .ascii { background: #fafafa; padding: 1em; border: 1px solid #ddd;
+           font-family: ui-monospace, monospace; font-size: 0.85em;
+           line-height: 1.3; white-space: pre; overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<h1>BleakHouse system flow</h1>
+<p class="meta">Function-focused walk through the pipeline: every component
+that touches data on the way from raw novel text to a hosted audio episode,
+LLM and non-LLM alike. The focus is "what role does this play in the system,"
+not provider/cost detail (those are covered in
+<code>docs/structured_output_review.html</code>,
+<code>docs/together_batch_assessment.md</code>,
+<code>docs/self_hosted_provider_assessment.md</code>).</p>
+
+<p class="meta"><strong>Models shown are the production default profile (Anthropic).</strong>
+Every LLM stage below routes through the provider-control seam
+(<code>enrichment/llm/</code>); the active provider profile decides which model
+serves each task. Switching to <code>--provider-profile all_openai</code> replaces
+Haiku with gpt-5-mini and Sonnet with gpt-5.4 across the pipeline, and individual
+tasks can be overridden via <code>--provider-override TASK=MODEL_ID</code>. See
+<code>docs/provider_control_spec.md</code> for the full task inventory and the
+"Provider control" section below for a summary.</p>
+
+<p class="legend"><strong>Legend:</strong>
+<span class="llm">LLM call</span>
+<span class="non-llm">non-LLM (deterministic)</span>
+<span class="audio">audio/TTS</span></p>
+
+<h2>The whole picture at a glance</h2>
+
+<div class="ascii">
+                            ┌─────────────────────────────────────────────┐
+                            │   ONE-TIME PER NOVEL (scripts/add_novel.sh) │
+                            └─────────────────────────────────────────────┘
+
+   Gutenberg HTML ─► segment_novel.py ──► passages_raw.json
+                     (lxml, deterministic)
+                                   │
+                                   ▼
+       ┌───────────────────────────┴────────────────────────────┐
+       │                                                        │
+       ▼                                                        ▼
+  submit_passages_enriched.py                          submit_passage_contexts.py
+  (Haiku batch; per-paragraph                          (Haiku batch; per-paragraph
+  structured-JSON enrichment)                          situating prose, with
+       │                                               whole-chapter prompt cache)
+       ▼                                                        ▼
+  collect_passages_enriched.py                         collect_passage_contexts.py
+       │                                                        │
+       ▼                                                        ▼
+  passages_enriched.json                                passages_contextual.json
+       │                                                        │
+       ├────────────────► cluster_literary.py ──► clusters_literary.json
+       │                  (HDBSCAN on enrichment   (groups of similar passages)
+       │                   provision dimensions)
+       │
+       └────────────────► cluster_characters.py ──► clusters_characters.json
+                          (character co-occurrence
+                           graph clustering)
+
+                            ┌─────────────────────────────────────────────┐
+                            │   PER RUN (enrichment/run_pipeline.py)      │
+                            └─────────────────────────────────────────────┘
+
+  Expert panel + arc demands ─► Phase 0 design_segments.py (Haiku)
+                                ──► phase0_segments.json (episode skeleton)
+                                                │
+                                                ▼
+                                  Phase 1+2 dispatch on --pipeline
+                                  ├─ transport: OR-tools Sinkhorn match
+                                  ├─ embedding: LanceDB cosine vs experts
+                                  └─ no-passages: skip matching
+                                                │
+                                                ▼
+                                  phase1_assignments.json + phase2_plan.json
+                                                │
+                                                ▼   (optional, --host-prep)
+                                  Phase 2.5 host_prep.py
+                                  ├─ pre-interview agentic loop (Haiku)
+                                  ├─ reading-list winnow (Haiku)
+                                  └─ host brief / question plan (Sonnet)
+                                                │
+                                                ▼
+                                  phase2_5_host_briefs.json
+                                  phase2_5_interviews.json
+                                  phase2_5_reading_list.json
+                                                │
+                                                ▼
+                                  Phase 3 generate_podcast.py (Sonnet, per segment)
+                                                │
+                                                ▼
+                                  phase3_episode.json
+                                                │
+                                                ▼
+                                  Phase 4 post-processing
+                                  ├─ post_phase3.py → report.txt
+                                  ├─ build_manifest.py → manifest.json
+                                  └─ precompute_quote_verification.py (Haiku per quote)
+                                                │
+                                                ▼
+                                  Phase 4 audio render_audio.py
+                                  (Gemini TTS, one call per turn)
+                                                │
+                                                ▼
+                                  audio/shards.json + per-shard MP3 bytes
+                                                │
+                                                ▼
+                                  cas.store: hash → upload to R2
+
+                            ┌─────────────────────────────────────────────┐
+                            │   SERVING (webapp/, webapp_v2/)             │
+                            └─────────────────────────────────────────────┘
+
+  scripts/build_content_db.py reads data/runs/*/ JSONs → data/content.db (sqlite)
+                                                │
+                                                ▼
+                                  FastAPI app reads content.db,
+                                  302-redirects audio URLs to R2
+                                  via cas.store.url(md5)
+</div>
+
+<h2>Stage-by-stage detail</h2>
+
+<table>
+<tr>
+  <th>Stage</th><th>Component</th><th>Function in system</th><th>Inputs → Outputs</th><th>LLM?</th>
+</tr>
+
+<tr class="pipeline-row non-llm">
+  <td><strong>Novel ingest</strong></td>
+  <td><code>curl</code> from Gutenberg, then <code>enrichment/segment_novel.py</code></td>
+  <td>Pulls the source HTML, splits it into chapters and then into paragraph-level "passages" with stable IDs (<code>c5:p17</code>). Hand-coded per-novel logic for boundary detection (chapter headings vary across editors); for modernist novels without chapters, splits on paragraph count with explicit start/end markers.</td>
+  <td>Gutenberg HTML → <code>passages_raw.json</code> (list of <code>{passage_id, chapter_id, chapter_title, paragraph_index, char_start, char_end, text}</code>)</td>
+  <td>—</td>
+</tr>
+
+<tr class="pipeline-row llm">
+  <td><strong>Per-paragraph literary enrichment</strong></td>
+  <td><code>enrichment/submit_passages_enriched.py</code> + <code>collect_passages_enriched.py</code> (Anthropic Batch API, Haiku 4.5, per-chapter call shape). OpenAI parallel: <code>enrichment/submit_passages_enriched_openai.py</code> + <code>collect_passages_enriched_openai.py</code> (OpenAI Batch via Responses API endpoint, gpt-5-mini, per-chapter with paragraph chunking).</td>
+  <td><strong>Tags every paragraph with the literary features the downstream selection optimizer needs.</strong> One call per chapter (or chapter-chunk for the OpenAI path) returns a <code>FieldReportEnrichment</code> per paragraph: interest score 0-5, named characters present and speaking, narrator type, plot function, emotional register, theme tags, quotability, accessibility, summary, best-quote, plus seven "provision dimensions" (character development / plot advancement / thematic depth / social critique / humor / atmosphere / narrative technique). These provision scores are <em>the substrate</em> that Phase 1's optimal-transport solver matches against each expert's per-dimension demand vector. The OpenAI variant writes to <code>passages_enriched.openai_5_mini.json</code> alongside the default file; <code>--enrichment-variant openai_5_mini</code> on <code>run_pipeline.py</code> selects it. Both Batch paths are native (50% discount) and bypass the seam — see "Carve-outs" below.</td>
+  <td><code>passages_raw.json</code> → <code>passages_enriched.json</code> (Anthropic) or <code>passages_enriched.openai_5_mini.json</code> (OpenAI)</td>
+  <td><strong>yes</strong> — default Haiku 4.5 batch; OpenAI gpt-5-mini batch as alternative</td>
+</tr>
+
+<tr class="pipeline-row llm">
+  <td><strong>Per-paragraph situating context</strong></td>
+  <td><code>enrichment/submit_passage_contexts.py</code> + <code>collect_passage_contexts.py</code>. Anthropic Batch API, Haiku 4.5, per-paragraph call shape, whole chapter as cached prompt prefix.</td>
+  <td><strong>Implements Anthropic's "Contextual Retrieval"</strong>: writes a one-sentence situating paragraph that grounds each passage in its chapter (who's present, where we are, what just happened). The output prose is concatenated with the raw passage text before being embedded by LanceDB in the <code>embedding</code>-variant pipeline. Without this, a passage like "two figures floated on the Thames" doesn't retrieve under a "Gaffer Hexam fishing for corpses" query because the proper names appear only in the surrounding text. The whole-chapter prompt prefix is shared across the N per-paragraph calls and recovered at Anthropic's cache_read rate.</td>
+  <td><code>passages_enriched.json</code> + raw chapter text → <code>passages_contextual.json</code> (per-paragraph <code>context</code> field added)</td>
+  <td><strong>yes</strong> — Haiku 4.5 batch, ~60k+ calls total, uses prompt caching</td>
+</tr>
+
+<tr class="pipeline-row non-llm">
+  <td><strong>Passage clustering</strong></td>
+  <td><code>enrichment/cluster_literary.py</code> (HDBSCAN over enrichment provision dimensions), <code>enrichment/cluster_characters.py</code> (graph clustering over per-paragraph character co-occurrence)</td>
+  <td>Groups passages that are similar along literary axes or that share a recurring character set. Used by Phase 1 as supplementary structure (passages within a cluster are interchangeable for some segment-template slots) and by the webapp for "similar passages" displays.</td>
+  <td><code>passages_enriched.json</code> → <code>clusters_literary.json</code>, <code>clusters_characters.json</code></td>
+  <td>—</td>
+</tr>
+
+<tr class="pipeline-row non-llm">
+  <td><strong>Vector indexing</strong> (embedding variant only)</td>
+  <td><code>enrichment/embed_passages.py</code> + LanceDB. Reads <code>passages_contextual.json</code>; concatenates <code>context + text + characters + themes + summary</code> for each passage and embeds with OpenAI <code>text-embedding-3-small</code> via LanceDB's embedding registry.</td>
+  <td>Provides cosine-similarity retrieval for the <code>--pipeline embedding</code> variant of Phase 1+2. The other two pipelines (<code>transport</code> and <code>no-passages</code>) don't use vectors at all. This is the <em>only</em> live OpenAI usage in the system, and it's not chat-completion — it's embeddings via the LanceDB adapter.</td>
+  <td><code>passages_contextual.json</code> → LanceDB table on disk</td>
+  <td>OpenAI embeddings (not chat completion) — only in embedding variant</td>
+</tr>
+
+<tr class="pipeline-row llm">
+  <td><strong>Phase 0: episode-segment design</strong></td>
+  <td><code>enrichment/design_segments.py</code> via <code>run_pipeline.py::run_phase0</code>. Routes through the seam (task <code>design_segments</code>); structured output via Pydantic JSON Schema.</td>
+  <td><strong>Decides the episode's high-level shape.</strong> Given the expert panel and arc demands for the run, the model proposes 3–7 segment templates (name, segment_type, min/max passage count). These are <em>not</em> tied to specific passages yet — they're the skeleton that Phase 1's matcher fills in. The model is essentially performing literary instructional design: balancing pace, depth, contrast, and persona coverage across the episode.</td>
+  <td>experts + arc demands → <code>phase0_segments.json</code> (list of <code>SegmentTemplate</code>)</td>
+  <td><strong>yes</strong> — default Haiku 4.5 (one call per run); gpt-5-mini under <code>all_openai</code></td>
+</tr>
+
+<tr class="pipeline-row non-llm">
+  <td><strong>Phase 1+2: passage matching and ordering — <code>transport</code> variant</strong></td>
+  <td><code>enrichment/transport_podcast.py</code> + <code>enrichment/segment_transport.py</code>. Sinkhorn / optimal-transport solver from OR-tools.</td>
+  <td><strong>Hard combinatorial optimization, no model in the loop.</strong> Treats segment-template demands and per-passage provision scores as supply and demand on a bipartite graph, then solves for the assignment that minimizes unmet demand subject to segment min/max passage caps. The result is a deterministic, reproducible mapping: each passage either gets a segment or doesn't, and the ordering within segments is fixed by demand-weight + chronological order in the source novel.</td>
+  <td><code>passages_enriched.json</code> + <code>phase0_segments.json</code> + expert/arc demands → <code>phase1_assignments.json</code>, <code>phase2_plan.json</code></td>
+  <td>—</td>
+</tr>
+
+<tr class="pipeline-row non-llm">
+  <td><strong>Phase 1+2 — <code>embedding</code> variant</strong></td>
+  <td><code>enrichment/embedding_podcast.py</code>. LanceDB cosine search.</td>
+  <td>Alternative matcher: queries the LanceDB table built upstream with text formed from each expert's persona + segment template; picks top-K passages by cosine similarity. Useful for runs where the "shape" of an expert is better captured semantically than by the provision-dimension vector.</td>
+  <td>LanceDB table + <code>phase0_segments.json</code> → same output filenames</td>
+  <td>OpenAI embeddings (query side) — see vector indexing row</td>
+</tr>
+
+<tr class="pipeline-row non-llm">
+  <td><strong>Phase 1+2 — <code>no-passages</code> variant</strong></td>
+  <td><code>run_pipeline.py::run_phases_1_2_no_passages</code></td>
+  <td>Skips passage grounding entirely. The episode template is preserved, but each segment carries an empty assignments list. Phase 3's prompt will tell the model to "speak from memory" about the topic. Used as a baseline / ablation to test how much the literary-features grounding actually buys at the script level.</td>
+  <td>same input → same output schema, empty <code>assignments</code> lists</td>
+  <td>—</td>
+</tr>
+
+<tr class="pipeline-row llm">
+  <td><strong>Phase 2.5a: pre-interview (per expert × per segment)</strong></td>
+  <td><code>enrichment/host_prep.py::run_pre_interview_with_tools</code>. Routes through the seam (task <code>host_prep_pre_interview</code>) with an agentic tool loop up to 6 calls (search OpenAlex / search Wikipedia / read Wikipedia article); a second seam call (task <code>host_prep_pre_interview_structured</code>) extracts the structured response.</td>
+  <td><strong>Generates the expert's private prep notes.</strong> The host doesn't see this output directly; it feeds Phase 2.5c. Each expert is told their persona and the segment's passages, and is allowed to look up scholarly references through tools. The output is a <code>PreInterviewResponse</code>: key points the expert wants to make, potential quotes from sources, points of disagreement they might raise. The tool-loop shape is unusual in this pipeline (everything else is single-turn): it lets the expert ground claims in actual citations rather than only in the model's training data. The seam abstracts provider-specific tool-call shapes — see <code>docs/tool_use_review.html</code>.</td>
+  <td>persona + segment passages → conversation transcript → structured <code>PreInterviewResponse</code> (saved into <code>phase2_5_interviews.json</code>) + <code>CitationRegistry</code></td>
+  <td><strong>yes</strong> — default Haiku 4.5 with Anthropic tool-use; gpt-5-mini with OpenAI Chat-Completions tool-calling under <code>all_openai</code>. Only when <code>--host-prep</code>.</td>
+</tr>
+
+<tr class="pipeline-row llm">
+  <td><strong>Phase 2.5b: reading-list winnowing</strong></td>
+  <td><code>enrichment/host_prep.py::_select_listener_recommendations</code> via the seam (task <code>listener_pick</code>). Free-text JSON parsed by regex with a fall-back-to-all-candidates safety net.</td>
+  <td><strong>Curates the listener-facing "for further reading" list.</strong> The agentic interview loop accumulates a registry of references (every <code>[ref-N]</code> tagged result from the tool calls), often 20-50 candidates per (expert × segment). This call drops it to a 3-5 item list a general podcast listener would actually pursue: accessible books, not specialist journals, not paywalled. The cut is editorial — selecting <em>which</em> references make it to the published reading list, not generating new ones.</td>
+  <td>candidate reference list + segment context → 3-5 selected refs</td>
+  <td><strong>yes</strong> — default Haiku 4.5; gpt-5-mini under <code>all_openai</code>. Only when <code>--host-prep</code>.</td>
+</tr>
+
+<tr class="pipeline-row llm">
+  <td><strong>Phase 2.5c: host brief (per segment)</strong></td>
+  <td><code>enrichment/host_prep.py::plan_questions</code> via the seam (task <code>host_prep_brief</code>); structured output to <code>HostBrief</code>.</td>
+  <td><strong>Synthesizes the host's question plan for the segment.</strong> Reads all the experts' pre-interview responses for this segment and produces a <code>HostBrief</code>: steering notes, anticipated questions (each tagged to a target expert and intent), cross-engagement opportunities (where one expert's claim might prompt another to push back). This is what Phase 3 sees alongside the passages — the host's "show prep document" for that segment.</td>
+  <td>pre-interview responses for one segment → one <code>HostBrief</code></td>
+  <td><strong>yes</strong> — default Sonnet 4.6; gpt-5.4 under <code>all_openai</code>. Only when <code>--host-prep</code>.</td>
+</tr>
+
+<tr class="pipeline-row llm">
+  <td><strong>Phase 3: script generation (per segment)</strong></td>
+  <td><code>enrichment/generate_podcast.py::generate_segment_script</code> via the seam (task <code>generate_podcast</code>); structured output to <code>EpisodeSegment</code>. <strong>Alt driver:</strong> <code>enrichment/phase3_runner.py</code> for cerebras / gpt-5.4 via Responses API (bypasses the seam for separate reasoning + output budgets).</td>
+  <td><strong>Writes the actual dialogue.</strong> Each call gets: the segment's persona descriptions, its assigned passages with full text, optional host brief, segment context (previous/next titles, first/last flag). The model emits a list of <code>Turn</code> objects, each with a speaker, text, and per-utterance TTS annotations (<code>pause_before_ms</code>, <code>rate</code>, <code>quote_mode</code>, <code>emphasis_words</code>). These annotations are what the audio stage will consume — the script generation step is responsible for them as a creative choice (e.g. "the host should pause for emphasis here").</td>
+  <td>segment plan + passages + (optional) host brief + personas → list of <code>EpisodeSegment</code> with <code>Turn</code>s → <code>phase3_episode.json</code></td>
+  <td><strong>yes</strong> — default Sonnet 4.6 (one call per segment); gpt-5.4 under <code>all_openai</code>, or via the alt driver with Responses API.</td>
+</tr>
+
+<tr class="pipeline-row non-llm">
+  <td><strong>Phase 4a: report + manifest</strong></td>
+  <td><code>enrichment/post_phase3.py</code>, <code>webapp/build_manifest.py</code>, <code>webapp/build_report.py</code>.</td>
+  <td>Builds the human-readable artifacts: a plain-text report of the run, an HTML report for browsing, and a <code>manifest.json</code> that's the source of truth for which segments / turns / passages exist (used by the webapp's experiment-tracker view). Reads only the existing JSON artifacts; emits new files.</td>
+  <td><code>phase3_episode.json</code> + run config → <code>report.txt</code>, <code>report.html</code>, <code>manifest.json</code></td>
+  <td>—</td>
+</tr>
+
+<tr class="pipeline-row llm">
+  <td><strong>Phase 4b: quote verification</strong></td>
+  <td><code>enrichment/precompute_quote_verification.py</code>. One Haiku call per quoted passage.</td>
+  <td><strong>Defends against hallucinated quotes.</strong> Phase 3 sometimes attributes lines to characters that don't actually appear in the source. This step extracts every quoted passage from <code>phase3_episode.json</code> and asks the model to verify, against the actual source text, whether the quote appears verbatim. Results stored as <code>quote_verification.json</code> and surfaced by the webapp so a reader can see "verified" / "paraphrased" / "not in source" badges next to each quote.</td>
+  <td><code>phase3_episode.json</code> + source passages → <code>quote_verification.json</code></td>
+  <td><strong>yes</strong> — Haiku 4.5, one call per quoted passage</td>
+</tr>
+
+<tr class="pipeline-row audio">
+  <td><strong>Phase 4c: TTS rendering (per turn)</strong></td>
+  <td><code>enrichment/render_audio.py</code> + <code>enrichment/tts_profiles/classic.py</code>. Gemini 2.5 Flash TTS by default, 3.1 Flash TTS for the alternative <code>trevelyan_v2</code> profile.</td>
+  <td><strong>Synthesises one audio shard per turn.</strong> The prompt builder turns each turn's structured representation into a TTS prompt with voice direction blocks (speaker / accent / energy / style) and per-utterance prosody hints (rate, quote-mode, emphasis). Each speaker maps to a prebuilt Gemini voice via <code>params.yaml:speakers.voices</code>. Output is per-utterance PCM, glued together with the <code>pause_before_ms</code> silences from Phase 3.</td>
+  <td><code>phase3_episode.json</code> → per-turn PCM → per-shard MP3 (192 kbps) + <code>audio/shards.json</code> (one entry per shard with content-addressed md5)</td>
+  <td>Gemini TTS</td>
+</tr>
+
+<tr class="pipeline-row non-llm">
+  <td><strong>Audio storage</strong></td>
+  <td><code>cas/store.py</code> (Content-Addressed Store). Local layer hashes bytes into <code>data/cas/files/md5/&lt;prefix&gt;/&lt;rest&gt;</code>; R2 layer mirrors them to Cloudflare R2 via boto3.</td>
+  <td>The audio bytes never live in the source tree. Each shard is identified by its md5; the same shard rendered twice (e.g. two runs that produced identical text+voice+model) deduplicates automatically. <code>audio/shards.json</code> stores only the md5 + per-shard metadata; webapp uses <code>cas.store.url(md5)</code> to construct an R2 URL when serving.</td>
+  <td>MP3 bytes → <code>data/cas/...</code> (local) and R2 (remote); shards.json carries md5s</td>
+  <td>—</td>
+</tr>
+
+<tr class="pipeline-row non-llm">
+  <td><strong>Database build</strong></td>
+  <td><code>scripts/build_content_db.py</code>. SQLite (<code>data/content.db</code>).</td>
+  <td>Snapshots the per-run JSON artifacts (manifest, phase outputs, character arcs, etc.) into a queryable database for the webapp. Stores raw JSON bytes verbatim so round-trips are byte-identical; the trust contract is "the JSON in the DB is the same JSON that lived under <code>data/runs/</code>." Re-built after any new run lands.</td>
+  <td><code>data/runs/*/*.json</code> + <code>data/novels/*/character_arcs.json</code> → <code>data/content.db</code></td>
+  <td>—</td>
+</tr>
+
+<tr class="pipeline-row non-llm">
+  <td><strong>Webapp serving</strong></td>
+  <td><code>webapp/app.py</code> (legacy live site) and <code>webapp_v2/app.py</code> (newer, cleaner reimplementation in progress). FastAPI + Jinja templates.</td>
+  <td>Serves the experiment tracker (matrix of which novel × panel × strategy has been rendered), the listen pages (per-episode transcript with seekable utterances), and the audio itself (302-redirects to R2 URLs constructed via <code>cas.store.url(md5)</code> — webapp doesn't carry R2 credentials, only the public URL pattern). All reads from <code>data/content.db</code>; no direct filesystem reads at request time.</td>
+  <td><code>content.db</code> + R2 URLs → HTML pages + audio redirects</td>
+  <td>—</td>
+</tr>
+</table>
+
+<h2>What each LLM role does for the system</h2>
+
+<p>The previous table covers <em>where</em> the calls happen. This section steps back to summarise <em>why</em> there are LLM calls at all — what each role is doing for the architecture. The names below are the production-default models; under <code>--provider-profile all_openai</code> the same roles are filled by gpt-5-mini (Haiku tier) and gpt-5.4 (Sonnet tier). The functional split is the architecture; the choice of model behind each role is configuration.</p>
+
+<h3>Haiku 4.5 (or gpt-5-mini) — the structural workhorse</h3>
+
+<p>Haiku appears in five distinct functional roles:</p>
+
+<ol>
+  <li><strong>Producing the substrate for Phase 1's optimizer</strong> (per-paragraph enrichment). The transport solver needs a vector of provision scores per passage; Haiku is what creates those vectors. Without enrichment, the matching stage has nothing to match on.</li>
+  <li><strong>Producing situating prose for retrieval</strong> (passage contexts). A paragraph is often referentially under-specified in isolation; Haiku writes the chapter-level "where we are" sentence that gets prepended before embedding. Anthropic's contextual-retrieval pattern; not a structured-output task, just free prose.</li>
+  <li><strong>Proposing the episode skeleton</strong> (Phase 0 segment design). Given the panel of experts and the arc demands, propose 3-7 segments. This is the only Haiku call where the output drives episode-level structure, not paragraph-level metadata.</li>
+  <li><strong>Running scholarly tool-loops for the host's prep</strong> (Phase 2.5 pre-interview). The expert "speaks" in a 6-turn agentic loop with search tools; Haiku is the conversation policy. This is the only LLM call in the whole system that's allowed to fetch external information at run-time.</li>
+  <li><strong>Editorial curation</strong> (reading-list winnow, quote verification). Two small tasks where the model is asked to pick or check rather than generate. Both are guarded — if the model picks badly or fails to verify, the system still produces an episode; it just has a less polished reading list or unmarked quotes.</li>
+</ol>
+
+<p>The unifying property: Haiku is used wherever the cost-per-quality trade favours small structured outputs. Volume is high (hundreds of thousands of per-paragraph calls across the corpus); per-call output is small. The pipeline doesn't ask Haiku to write anything a listener will hear.</p>
+
+<h3>Sonnet 4.6 (or gpt-5.4) — the writer</h3>
+
+<p>Sonnet is reserved for the calls whose output is consumed by a human listener (directly or via TTS):</p>
+
+<ol>
+  <li><strong>Host brief synthesis</strong> (Phase 2.5c) — the question plan the host will follow. Read by the script generator, not by listeners, but its quality directly shapes script quality.</li>
+  <li><strong>Script generation</strong> (Phase 3) — the dialogue itself. One call per segment, structured output to a Turn list with per-utterance TTS annotations. The annotations matter as much as the words: <code>pause_before_ms</code> values are creative choices the model makes about timing.</li>
+</ol>
+
+<p>The unifying property: Sonnet is used where the output is read aloud or shapes what's read aloud. Volume is low (a few segments per run); per-call output is large (~10-50k tokens of dialogue + structure).</p>
+
+<h3>Gemini TTS — the voice</h3>
+
+<p>Single role: synthesise the audio. Per-turn calls, voice mapped from <code>params.yaml</code>, prosody annotations from the Phase 3 output baked into the prompt. No text generation, no decision-making.</p>
+
+<h3>OpenAI embeddings — the original silent dependency, no longer silent</h3>
+
+<p>The <code>--pipeline embedding</code> variant of Phase 1+2 uses <code>text-embedding-3-small</code> via LanceDB's embedding-registry adapter (the other two pipeline variants don't need it). What's changed: <code>OPENAI_API_KEY</code> in the env no longer exists <em>only</em> for embeddings. The <code>all_openai</code> provider profile sends every LLM stage of the active pipeline through OpenAI's Chat Completions and Responses APIs; the embedding adapter is now just one of many OpenAI consumers in the system.</p>
+
+<h2>Provider control</h2>
+
+<p>Every interactive LLM call in the active pipeline routes through
+<code>enrichment.llm.generate(GenerationRequest(task=..., ...))</code>. The
+seam resolves <code>task</code> to a <code>ModelSpec</code> via
+<code>enrichment.llm.settings</code>, which reads its routing table from
+<code>params.yaml</code>:</p>
+
+<ul>
+  <li><code>task_models</code> — base layer mapping each task to a default generator (e.g. <code>passage_enrichment: anthropic_haiku_4_5</code>).</li>
+  <li><code>provider_profiles</code> — named overrides. <code>production</code> uses the base layer; <code>all_anthropic</code> is an alias; <code>all_openai</code> overrides every task to gpt-5-mini or gpt-5.4.</li>
+  <li><code>default_provider_profile</code> — what runs when <code>--provider-profile</code> is omitted.</li>
+</ul>
+
+<p>CLI surface on <code>run_pipeline.py</code>:</p>
+
+<pre><code>--provider-profile NAME          # default from params.yaml
+--provider-override TASK=ID      # repeatable; layers on top of the profile</code></pre>
+
+<p>Example: an all-OpenAI run with one task pinned to Anthropic Sonnet:</p>
+
+<pre><code>--provider-profile all_openai \
+--provider-override host_prep_brief=anthropic_sonnet_4_6</code></pre>
+
+<p>Each run's <code>config.json</code> records a <code>providers</code> block:
+<code>{profile, overrides_at_runtime, resolved_per_task,
+enforced_by_call_sites}</code>. <code>resolved_per_task</code> is the
+source of truth: a complete task → generator-id map of what actually
+ran. <code>enforced_by_call_sites: true</code> means every call site
+honoured the resolution; if a carve-out is added in the future it must
+flip this to false.</p>
+
+<h3>Carve-outs</h3>
+
+<p>Three stages bypass the seam by design:</p>
+
+<ul>
+  <li><strong>Native batch enrichment</strong>
+      (<code>submit_passages_enriched.py</code> /
+      <code>submit_passages_enriched_openai.py</code> +
+      <code>submit_passage_contexts.py</code>): use Anthropic Batch and
+      OpenAI Batch directly for the 50% native-batch discount. Provider
+      choice surfaces through the variant-file convention
+      (<code>passages_enriched.openai_5_mini.json</code>) and the
+      <code>--enrichment-variant</code> CLI flag. Consolidating these
+      under a seam-native batch surface is tracked as a deferable
+      follow-up.</li>
+  <li><strong>Alt Phase 3 driver</strong>
+      (<code>enrichment/phase3_runner.py</code>): drives gpt-5.4 via the
+      Responses API directly so reasoning and visible output have
+      separate token budgets — a gpt-5-family feature the seam's Chat
+      Completions path doesn't expose. The in-pipeline
+      <code>generate_podcast</code> task still routes through the seam.</li>
+  <li><strong>Embedding-pipeline curate call</strong>
+      (<code>enrichment/embedding_podcast.py</code>): pipeline-conditional
+      (only runs under <code>--pipeline embedding</code>); migration
+      tracked separately and deprioritised since the OT alternatives
+      comparison runs on <code>transport</code>.</li>
+</ul>
+
+<p>For the full design and inventory, see
+<code>docs/provider_control_spec.md</code>. For the empirical findings
+that shaped per-model defaults (gpt-5.4 rejects <code>effort=minimal</code>,
+strict-mode schema constraints, batch chunk-size sensitivity), see
+the 2026-05-15 addendum in
+<code>docs/structured_output_review.html</code>. For tool-use shape
+differences between Anthropic and OpenAI, see
+<code>docs/tool_use_review.html</code>.</p>
+
+<h2>What's <em>not</em> in this picture</h2>
+
+<ul>
+  <li><strong>No LLM evaluation in the production loop.</strong> The structured-output review (<code>docs/structured_output_review.html</code>) and the cost/portability assessments are all <em>experimental</em> — they live in <code>scripts/</code> and don't run on production data, only on probe fixtures.</li>
+  <li><strong>No LLM in Phase 4a (report/manifest).</strong> Reports and manifests are templated from existing artifacts; quote verification is a separate phase that does call the LLM.</li>
+  <li><strong>No streaming.</strong> Every LLM call in the system is request/response (or batch + poll for the two batch endpoints). No SSE, no token streaming, no progressive UI.</li>
+  <li><strong>No retrieval-augmented generation at script time.</strong> Phase 3 sees the actual passage text in its prompt; it doesn't query the LanceDB index. The vector index exists only for Phase 1+2 matching in the embedding variant.</li>
+  <li><strong>No fine-tunes.</strong> Every model is used in its stock form, prompted via system messages and structured-output schemas.</li>
+</ul>
+
+<h2>Cross-references</h2>
+
+<ul>
+  <li><strong>Per-call LLM inventory</strong> (model IDs, file:line, status):
+      <code>docs/llm_call_sites.md</code>.</li>
+  <li><strong>Pipeline phase reference</strong> (CLI flags, outputs):
+      <code>docs/pipeline.md</code>.</li>
+  <li><strong>Provider control surface and full task inventory</strong>:
+      <code>docs/provider_control_spec.md</code>.</li>
+  <li><strong>Tool-use shapes across providers</strong>:
+      <code>docs/tool_use_review.html</code>.</li>
+  <li><strong>Schema-feature support per provider</strong>:
+      <code>docs/structured_output_review.html</code>
+      (see the 2026-05-15 addendum for gpt-5 family findings).</li>
+  <li><strong>OpenAI parallel pipeline plan and findings</strong>:
+      <code>docs/openai_execution_plan.md</code>.</li>
+  <li><strong>Cost / portability assessments</strong>:
+      <code>docs/together_batch_assessment.md</code>,
+      <code>docs/self_hosted_provider_assessment.md</code>.</li>
+  <li><strong>Top-level project doc</strong>: <code>CLAUDE.md</code>.</li>
+</ul>
+
+</body>
+</html>
