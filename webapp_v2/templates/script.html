@@ -75,20 +75,52 @@
 <p class="sv-no-audio-note">No audio for this run — script-only view.</p>
 {% endif %}
 
-<article class="sv-transcript">
+<article class="sv-transcript transcript" data-run-id="{{ run_id }}">
 {% for segment in episode.segments %}
+{% set seg_idx = loop.index0 %}
 <section class="sv-segment">
   {% if segment.title %}<h2>{{ segment.title }}</h2>{% endif %}
   {% for turn in segment.turns %}
-  <div class="sv-turn sv-turn-{{ turn.role }}">
-    <div class="sv-speaker">{{ turn.speaker }}</div>
-    <div class="sv-body">
-    {% for utt in turn.utterances %}<span class="{% if utt.is_quote %}sv-utt-quote{% endif %}">{{ utt.text }}</span>{% if not loop.last %} {% endif %}{% endfor %}
+  {% set turn_idx = loop.index0 %}
+  {# Deduped passage refs for this turn (in occurrence order).
+     One handle per turn — never per utterance. Same shape as
+     listen.html, so styles.css and player.js's htmx toggle
+     handler work without modification. The audio-player IIFE
+     in player.js gracefully early-returns here because there
+     is no #player-audio element on this page. #}
+  {% set refs = turn.utterances | selectattr('passage_ref') | map(attribute='passage_ref') | list | unique | list %}
+  <div class="turn turn-{{ turn.role }} sv-turn sv-turn-{{ turn.role }}"
+       data-segment-idx="{{ seg_idx }}"
+       data-turn-idx="{{ turn_idx }}">
+    <div class="turn-head sv-speaker-row">
+      <span class="turn-speaker sv-speaker">{{ turn.speaker }}</span>
+      {% if refs %}
+      {% set slot_id = 'reveal-slot-%d-%d' % (seg_idx, turn_idx) %}
+      <button type="button"
+              class="passage-handle"
+              hx-get="/reveal/{{ run_id }}/{{ seg_idx }}/{{ turn_idx }}"
+              hx-target="#{{ slot_id }}"
+              hx-swap="innerHTML"
+              aria-label="Show source {{ 'passage' if refs|length == 1 else 'passages' }}">
+        <span class="passage-handle-glyph" aria-hidden="true">⚓</span>
+        <span class="passage-handle-label">{{ refs|length }} {{ 'passage' if refs|length == 1 else 'passages' }}</span>
+      </button>
+      {% endif %}
     </div>
+    <div class="turn-body sv-body">
+    {% for utt in turn.utterances %}<span class="utterance{% if utt.is_quote %} utterance-quote sv-utt-quote{% endif %}">{{ utt.text }}</span>{% if not loop.last %} {% endif %}{% endfor %}
+    </div>
+    {% if refs %}<div class="reveal-slot" id="reveal-slot-{{ seg_idx }}-{{ turn_idx }}"></div>{% endif %}
   </div>
   {% endfor %}
 </section>
 {% endfor %}
 </article>
+
+{# player.js: the IIFE early-returns when no #player-audio element
+   exists on this page; the htmx:beforeRequest handler at module
+   top-level (single-open-at-a-time for .passage-handle) is the only
+   piece that runs here. #}
+<script src="/static/player.js"></script>
 
 {% endblock %}
