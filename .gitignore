@@ -49,6 +49,27 @@ data/runs/**/report.txt
 # The curated, designed reference clips at data/voice_refs/ ARE tracked.
 data/voice_pools/
 
+# Scratch output from a one-off transport solver invocation
+# (enrichment/transport_podcast.py main path). Real pipeline runs
+# write their phase1_assignments.json into data/runs/<run>/, not here.
+data/transport_assignments.json
+
+# Reference-verification SQLite cache. Populated by
+# enrichment/reference_verify.py to skip redundant HEAD checks across
+# runs. Disposable; regenerates on demand.
+data/reference_verify_cache.sqlite3
+
+# Evaluation harness probe outputs. Produced by scripts/run_eval_*.py
+# and scripts/structured_output_review.py against fixtures, not by
+# the production pipeline.
+data/eval/
+
+# Backup files left behind by one-shot data migrations
+# (e.g. scripts/migrate_overcap_enrichments.py, the prior fix that
+# capped over-long list-Literal outputs). Once the migration is
+# verified, the .pre_*_migration siblings are disposable.
+data/novels/*/passages_enriched.json.pre_*_migration
+
 # Experiment ledger (regenerable from data/runs via `python -m enrichment.expdb scan`).
 data/experiments.db
 data/experiments.db-wal
