@@ -204,7 +204,7 @@ for pipeline in ["transport", "embedding"]:
         ch_counts = [len(s) for s in ch_sets]
         narr = expert_narrators[e][pipeline]
         total_narr = sum(narr.values())
-        esther_pct = narr.get("esther", 0) / total_narr * 100 if total_narr else 0
+        esther_pct = narr.get("first_person", 0) / total_narr * 100 if total_narr else 0
         omni_pct = narr.get("omniscient", 0) / total_narr * 100 if total_narr else 0
         out(f"  {e:<22s} {sum(ch_counts)/len(ch_counts):>8.1f} {min(ch_counts):>8d} {max(ch_counts):>8d} {esther_pct:>7.0f}% {omni_pct:>7.0f}%")
     out()

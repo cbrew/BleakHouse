@@ -2,7 +2,7 @@
 
 Usage:
     uv run python -m enrichment.search "What is the fog about?" [--top-k 10]
-    uv run python -m enrichment.search "Esther's childhood" --narrator esther
+    uv run python -m enrichment.search "Esther's childhood" --narrator first_person
     uv run python -m enrichment.search "Jarndyce" --chapter c1 --min-interest 3
 """
 

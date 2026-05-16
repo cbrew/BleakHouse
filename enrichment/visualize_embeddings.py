@@ -77,7 +77,7 @@ def plot_by_narrator(
 ) -> None:
     """Scatter plot colored by narrator with legend."""
     narrator_colors = {
-        "esther": "#e74c3c",
+        "first_person": "#e74c3c",
         "omniscient": "#3498db",
         "unclear": "#95a5a6",
     }

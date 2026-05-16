@@ -49,7 +49,7 @@ class ProbeQuery:
     """A retrieval probe with expected enrichment properties.
 
     Expected value semantics:
-      - str fields: exact match (e.g. narrator="esther")
+      - str fields: exact match (e.g. narrator="first_person")
       - prov_* "strong": field value must be "strong"
       - prov_* "not_none": field value must not be "none"
       - interest_score (int): minimum threshold
@@ -91,7 +91,7 @@ PROBE_QUERIES: list[ProbeQuery] = [
     ProbeQuery(
         query="Esther's feelings about her identity",
         expected={
-            "narrator": "esther",
+            "narrator": "first_person",
             "prov_character_development": "strong",
         },
         description="Esther's first-person self-reflection",
@@ -99,7 +99,7 @@ PROBE_QUERIES: list[ProbeQuery] = [
     ProbeQuery(
         query="Esther describes her friendships and affections",
         expected={
-            "narrator": "esther",
+            "narrator": "first_person",
             "emotional_register": ["tender"],
         },
         description="Esther's tender narration",
@@ -254,7 +254,7 @@ PROBE_QUERIES: list[ProbeQuery] = [
     ProbeQuery(
         query="Esther narrates a climactic scene with strong character development",
         expected={
-            "narrator": "esther",
+            "narrator": "first_person",
             "prov_character_development": "strong",
             "interest_score": 3,
         },

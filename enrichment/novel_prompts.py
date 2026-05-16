@@ -14,6 +14,27 @@ class NovelPromptConfig:
 
 
 NOVEL_CONFIGS: dict[str, NovelPromptConfig] = {
+    "bleak_house": NovelPromptConfig(
+        title="Bleak House",
+        author="Charles Dickens",
+        year="1853",
+        narration_note=(
+            "*Bleak House* uses dual narration: Esther Summerson narrates "
+            "in first person, past tense; an omniscient narrator narrates "
+            "in present tense. Chapters alternate between these voices, "
+            "with Esther chapters typically odd-numbered from Chapter 3."
+        ),
+        theme_examples=(
+            "'law', 'chancery', 'poverty', 'identity', 'class', 'family', "
+            "'duty', 'corruption', 'charity', 'illness', 'fog', "
+            "'documents', 'secrets', 'motherhood'"
+        ),
+        character_note=(
+            "Use canonical names (e.g. 'Esther Summerson' not 'Esther', "
+            "'Lady Dedlock' not 'my Lady'). Include characters referenced "
+            "indirectly."
+        ),
+    ),
     "our_mutual_friend": NovelPromptConfig(
         title="Our Mutual Friend",
         author="Charles Dickens",
@@ -601,16 +622,6 @@ def get_novel_arcs(novel_key: str | None = None) -> list[tuple[str, str, int, st
     return arcs.get(novel_key, [])
 
 
-_BLEAK_HOUSE_DEFAULT = NovelPromptConfig(
-    title="Bleak House",
-    author="Charles Dickens",
-    year="1853",
-    narration_note="",
-    theme_examples="",
-    character_note="",
-)
-
-
 def get_active_novel(novel_key: str | None = None) -> NovelPromptConfig:
     """Return the config for the specified novel.
 
@@ -638,14 +649,12 @@ def get_active_novel(novel_key: str | None = None) -> NovelPromptConfig:
             "silent generation of the wrong novel's content."
         )
 
-    if novel_key == "bleak_house":
-        return _BLEAK_HOUSE_DEFAULT
     if novel_key in NOVEL_CONFIGS:
         return NOVEL_CONFIGS[novel_key]
 
-    available = ["bleak_house"] + sorted(NOVEL_CONFIGS.keys())
     raise ValueError(
-        f"Unknown novel key '{novel_key}'. Available: {', '.join(available)}"
+        f"Unknown novel key '{novel_key}'. "
+        f"Available: {', '.join(sorted(NOVEL_CONFIGS.keys()))}"
     )
 
 

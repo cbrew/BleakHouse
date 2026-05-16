@@ -19,7 +19,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from enrichment.llm import GenerationRequest, generate
-from enrichment.prompt import ENRICHMENT_SYSTEM_PROMPT
+from enrichment.novel_prompts import NOVEL_CONFIGS, build_enrichment_prompt
 from enrichment.schemas import ChapterEnrichmentResult
 from enrichment.submit_passages_enriched import format_chapter_text
 
@@ -28,13 +28,19 @@ TOKENS_PER_PARAGRAPH = 350
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path("data")
-PASSAGES_PATH = DATA_DIR / "passages_raw.json"
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--novel",
+        type=str,
+        choices=sorted(NOVEL_CONFIGS.keys()),
+        required=True,
+        help="Novel key (reads data/novels/<key>/passages_raw.json)",
+    )
     parser.add_argument(
         "--chapter",
         type=str,
@@ -45,7 +51,8 @@ def main() -> None:
 
     load_dotenv()
 
-    raw = json.loads(PASSAGES_PATH.read_text())
+    passages_path = DATA_DIR / "novels" / args.novel / "passages_raw.json"
+    raw = json.loads(passages_path.read_text())
     passages = [p for p in raw if p["chapter_id"] == args.chapter]
     if not passages:
         logger.error("No passages found for chapter %s", args.chapter)
@@ -63,7 +70,7 @@ def main() -> None:
 
     result = generate(GenerationRequest(
         task="passage_enrichment",
-        system=ENRICHMENT_SYSTEM_PROMPT,
+        system=build_enrichment_prompt(args.novel),
         user=user_message,
         max_tokens=max_tokens,
         json_schema=schema,

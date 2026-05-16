@@ -289,8 +289,8 @@ def analyze_pair(
             try:
                 rm_ch = int(rm_passage.chapter_id.split("_")[-1])
                 ad_ch = int(ad_passage.chapter_id.split("_")[-1])
-                rm_narrator = "esther" if rm_ch % 2 == 0 else "omniscient"
-                ad_narrator = "esther" if ad_ch % 2 == 0 else "omniscient"
+                rm_narrator = "first_person" if rm_ch % 2 == 0 else "omniscient"
+                ad_narrator = "first_person" if ad_ch % 2 == 0 else "omniscient"
                 diff_narrator = rm_narrator != ad_narrator
             except (ValueError, IndexError):
                 pass

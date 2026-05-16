@@ -18,15 +18,31 @@ class FieldReportEnrichment(_StrictBase):
     interest_rationale: str = Field(
         description="One sentence explaining the interest score"
     )
+    # Numerical caps deliberately NOT enforced at schema or Pydantic
+    # level (per 2026-05-13 user direction: "make the schema liberal
+    # but add recommendations in the prompt"). Description text carries
+    # the count guidance; the model treats it as advisory. Provider
+    # constraints like JSON Schema maxItems would be the only way to
+    # decode-time enforce caps, but Anthropic rejects maxItems and the
+    # benefit on other providers is marginal vs the complexity cost.
     characters_present: list[str] = Field(
-        description="Character names mentioned or present in this paragraph"
+        description="Distinct character names mentioned or present in this "
+        "paragraph. Most paragraphs have 1-3 characters; crowded scenes "
+        "may reach 6-8 named individuals. Avoid listing functional "
+        "referents (\"bride's aunt\") or collective type-names as "
+        "separate characters. Do not list any character more than once.",
     )
     characters_speaking: list[str] = Field(
-        description="Character names who have direct speech in this paragraph"
+        description="Distinct character names who have direct speech in "
+        "this paragraph. Most paragraphs have 1-2 speakers; very rarely "
+        "more. Do not list any character more than once.",
     )
-    narrator: Literal["esther", "omniscient", "unclear"] = Field(
-        description="Which narrative voice: Esther Summerson's first-person "
-        "narration, the omniscient third-person narrator, or unclear"
+    narrator: Literal["first_person", "omniscient", "unclear"] = Field(
+        description="Which narrative voice is speaking in this paragraph. "
+        "'first_person' for any first-person narrator (named or "
+        "unnamed). 'omniscient' for any third-person omniscient "
+        "narrator. 'unclear' when the voice cannot be determined "
+        "from the paragraph."
     )
     plot_function: Literal[
         "action",
@@ -51,11 +67,16 @@ class FieldReportEnrichment(_StrictBase):
             "neutral",
         ]
     ] = Field(
-        description="Emotional tones present in this paragraph (may be multiple)"
+        description="Distinct emotional tones present in this paragraph. "
+        "Typically 1-2; up to 4 for tonally complex paragraphs. Each "
+        "tone must be different — do not repeat any register value.",
     )
     themes: list[str] = Field(
-        description="Theme tags present, e.g. 'law', 'poverty', 'identity', "
-        "'class', 'family', 'duty', 'corruption'. Use short lowercase tags."
+        description="Distinct theme tags genuinely present in this "
+        "paragraph. A typical paragraph has 2-4 themes — only the most "
+        "important. Rich paragraphs may reach 8 themes. Use short "
+        "lowercase tags drawn from this novel itself; do not import "
+        "themes from other novels. Each tag must be unique.",
     )
     quotability: Literal["none", "weak", "strong"] = Field(
         description="Does this paragraph contain memorable, quotable lines "
@@ -79,23 +100,26 @@ class FieldReportEnrichment(_StrictBase):
         description="Does this paragraph advance the story or reveal plot information?"
     )
     prov_thematic_depth: Literal["none", "weak", "strong"] = Field(
-        description="Does this paragraph engage with the novel's themes "
-        "(justice, identity, class, institutional failure)?"
+        description="Does this paragraph engage with the novel's central "
+        "themes (judge against this novel's own thematic concerns, not a "
+        "generic checklist)?"
     )
     prov_social_critique: Literal["none", "weak", "strong"] = Field(
-        description="Does this paragraph contain Dickens' commentary on "
-        "Victorian society, law, poverty, or institutions?"
+        description="Does this paragraph contain the author's commentary "
+        "on society, institutions, or class — as expressed through the "
+        "narration or the characters?"
     )
     prov_humor_entertainment: Literal["none", "weak", "strong"] = Field(
         description="Is this paragraph funny, entertaining, or dramatically engaging?"
     )
     prov_atmosphere_setting: Literal["none", "weak", "strong"] = Field(
-        description="Does this paragraph create mood, atmosphere, or vivid setting "
-        "(fog, Gothic, London, Chesney Wold)?"
+        description="Does this paragraph create mood, atmosphere, or "
+        "vivid setting?"
     )
     prov_narrative_technique: Literal["none", "weak", "strong"] = Field(
-        description="Does this paragraph demonstrate notable literary technique "
-        "(irony, foreshadowing, imagery, dual narration, symbolism)?"
+        description="Does this paragraph demonstrate notable literary "
+        "technique (irony, foreshadowing, imagery, free indirect style, "
+        "symbolism, point-of-view shift)?"
     )
 
 
