@@ -400,10 +400,8 @@ def run_phase_2_5(
         assignments_by_segment.append(seg_assignments)
 
     briefs, interviews = run_host_prep(
-        client, personas, segments_data, assignments_by_segment,
+        personas, segments_data, assignments_by_segment,
         novel_title, novel_author,
-        interview_model=interview_model,
-        planning_model=planning_model,
         use_reference_tools=use_reference_tools,
         run_dir=run_dir,
         length=length,

@@ -25,7 +25,6 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-import anthropic
 
 from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     ExpertPersona,
@@ -33,12 +32,10 @@ from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
     PreInterviewResponse,
 )
 from enrichment.reference_tools import (
-    ALL_TOOLS,
     CitationRecord,
     CitationRegistry,
-    dispatch_tool,
 )
-from enrichment.timing import Recorder, time_model
+from enrichment.timing import Recorder
 
 logger = logging.getLogger(__name__)
 
@@ -193,20 +190,29 @@ MAX_TOOL_CALLS = 6
 
 
 def run_pre_interview_with_tools(
-    client: anthropic.Anthropic,
     expert: ExpertPersona,
     other_expert_names: list[str],
     segment_name: str,
     assignments: list[dict],
     novel_title: str,
     novel_author: str,
-    model: str = "claude-haiku-4-5-20251001",
 ) -> tuple[PreInterviewResponse, CitationRegistry, Recorder]:
-    """Run a pre-interview with scholarly search tools (stable API, manual loop).
+    """Run a pre-interview with scholarly search tools through the LLM seam.
+
+    Two-phase:
+      1. Agentic tool loop (task='host_prep_pre_interview'): the model issues
+         search_openalex / search_wikipedia / read_wikipedia_article calls;
+         the seam dispatches them via executors and feeds results back.
+         Terminates when the model stops emitting tool calls or
+         MAX_TOOL_CALLS is hit. Yields accumulated text.
+      2. Structured-output extract (task='host_prep_pre_interview_structured'):
+         a no-tools call that parses the accumulated text into a
+         PreInterviewResponse, with a tag-discipline prompt that constrains
+         proposed_references to the registry's tags.
 
     Returns (response, registry, recorder) — the registry holds every
     CitationRecord referenced by tag in response.proposed_references; the
-    recorder holds per-call timing events tagged with this expert/segment.
+    recorder holds aggregated timing for the loop + the parse call.
     """
     registry = CitationRegistry()
     recorder = Recorder(expert=expert.name, segment=segment_name)
@@ -224,62 +230,85 @@ def run_pre_interview_with_tools(
         passage_block=_build_passage_summary(assignments),
     )
 
-    # Agentic tool loop (stable API, not beta)
-    messages: list = [{"role": "user", "content": user}]
-    tool_count = 0
-    all_text: list[str] = []
+    # ── Phase 1: seam-mediated tool loop ────────────────────────────
+    from enrichment.llm import generate as llm_generate
+    from enrichment.llm.types import GenerationRequest, ToolSpec
+    from enrichment.reference_tools import (
+        SEARCH_OPENALEX_TOOL,
+        SEARCH_WIKIPEDIA_TOOL,
+        READ_WIKIPEDIA_ARTICLE_TOOL,
+        execute_search_openalex,
+        execute_search_wikipedia,
+        execute_read_wikipedia_article,
+    )
 
-    for _iteration in range(MAX_TOOL_CALLS + 1):
-        response = time_model(
-            recorder, "interview_loop_turn",
-            lambda: client.messages.create(
-                model=model,
-                max_tokens=4096,
-                system=system,
-                messages=messages,
-                tools=ALL_TOOLS,
-            ),
+    # Translate Anthropic-shaped tool defs into the seam's neutral ToolSpec.
+    # Anthropic's ToolUnionParam dict already uses input_schema as the JSON
+    # Schema key (same as ToolSpec), so this is largely a re-shape.
+    def _tool_spec_from_anthropic(t: dict) -> ToolSpec:
+        return ToolSpec(
+            name=str(t["name"]),
+            description=str(t["description"]),
+            input_schema=dict(t["input_schema"]),
         )
 
-        # Collect any text from this response
-        for block in response.content:
-            if block.type == "text":
-                all_text.append(block.text)
+    tools = (
+        _tool_spec_from_anthropic(SEARCH_OPENALEX_TOOL),
+        _tool_spec_from_anthropic(SEARCH_WIKIPEDIA_TOOL),
+        _tool_spec_from_anthropic(READ_WIKIPEDIA_ARTICLE_TOOL),
+    )
 
-        if response.stop_reason != "tool_use":
-            break
+    # Per-tool executors. The seam normalises arguments to a parsed dict
+    # before calling, so these just route to the existing implementations.
+    executors = {
+        "search_openalex": lambda args: execute_search_openalex(
+            args.get("query", ""), registry, recorder=recorder,
+        ),
+        "search_wikipedia": lambda args: execute_search_wikipedia(
+            args.get("query", ""), registry, recorder=recorder,
+        ),
+        "read_wikipedia_article": lambda args: execute_read_wikipedia_article(
+            args.get("ref_tag", ""), registry, recorder,
+        ),
+    }
 
-        # Process tool calls, build tool_result blocks
-        tool_results = []
-        for block in response.content:
-            if block.type == "tool_use":
-                result_text = dispatch_tool(
-                    block.name, block.input, registry, client, recorder,
-                )
-                arg = block.input.get("query") or block.input.get("ref_tag") or ""
-                logger.info("    Tool %s(%s): %d chars",
-                            block.name, str(arg)[:40], len(result_text))
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result_text,
-                })
-                tool_count += 1
+    import time as _time
+    _t0 = _time.monotonic()
+    loop_result = llm_generate(GenerationRequest(
+        task="host_prep_pre_interview",
+        system=system,
+        user=user,
+        max_tokens=4096,
+        tools=tools,
+        tool_executors=executors,
+        max_tool_iterations=MAX_TOOL_CALLS,
+    ))
+    if recorder is not None:
+        recorder.record(
+            kind="model",
+            name=loop_result.model,
+            label="interview_loop (aggregated)",
+            duration_s=_time.monotonic() - _t0,
+            started_at=_t0,
+            input_tokens=loop_result.input_tokens or 0,
+            output_tokens=loop_result.output_tokens or 0,
+            cache_creation_input_tokens=loop_result.cache_creation_input_tokens or 0,
+            cache_read_input_tokens=loop_result.cache_read_input_tokens or 0,
+        )
+    tool_count = len(loop_result.tool_transcript)
+    for tc in loop_result.tool_transcript:
+        arg = tc.arguments.get("query") or tc.arguments.get("ref_tag") or ""
+        logger.info("    Tool %s(%s): %d chars",
+                    tc.name, str(arg)[:40], len(tc.output))
 
-        # Append assistant response + tool results to conversation
-        messages.append({"role": "assistant", "content": response.content})
-        messages.append({"role": "user", "content": tool_results})
-
-    final_text = "\n".join(all_text)
+    final_text = loop_result.text
     if not final_text.strip():
         final_text = (
             f"Expert {expert.name} was interviewed about segment '{segment_name}' "
             f"but produced no text response. Please generate a default response."
         )
 
-    # Parse into structured output with a follow-up call. Tell the parser
-    # explicitly that proposed_references must be the [ref-N] tags from
-    # the conversation, not free-text strings.
+    # ── Phase 2: structured-output extract ──────────────────────────
     available_tags = [r.tag for r in registry.all()]
     tag_hint = (
         f"Available tags issued during this interview: {available_tags}. "
@@ -287,23 +316,32 @@ def run_pre_interview_with_tools(
         if available_tags else
         "No reference tags were issued; proposed_references must be empty."
     )
-    parse_response = time_model(
-        recorder, "interview_parse",
-        lambda: client.messages.parse(
-            model=model,
-            max_tokens=2048,
-            system=(
-                "Extract the pre-interview response from this expert's analysis. "
-                "proposed_references must contain ONLY [ref-N] tags from the "
-                "tool conversation — never free-text citations. " + tag_hint
-            ),
-            messages=[{"role": "user", "content": final_text}],
-            output_format=PreInterviewResponse,
-        ),
-    )
 
-    assert parse_response.parsed_output is not None
-    result = parse_response.parsed_output
+    _t1 = _time.monotonic()
+    parse_result = llm_generate(GenerationRequest(
+        task="host_prep_pre_interview_structured",
+        system=(
+            "Extract the pre-interview response from this expert's analysis. "
+            "proposed_references must contain ONLY [ref-N] tags from the "
+            "tool conversation — never free-text citations. " + tag_hint
+        ),
+        user=final_text,
+        max_tokens=2048,
+        json_schema=PreInterviewResponse.model_json_schema(),
+    ))
+    if recorder is not None:
+        recorder.record(
+            kind="model",
+            name=parse_result.model,
+            label="interview_parse",
+            duration_s=_time.monotonic() - _t1,
+            started_at=_t1,
+            input_tokens=parse_result.input_tokens or 0,
+            output_tokens=parse_result.output_tokens or 0,
+            cache_creation_input_tokens=parse_result.cache_creation_input_tokens or 0,
+            cache_read_input_tokens=parse_result.cache_read_input_tokens or 0,
+        )
+    result = PreInterviewResponse.model_validate_json(parse_result.text)
     result.expert_name = expert.name
     # Discipline: drop any "tags" the parser invented that aren't in the registry.
     result.proposed_references = [
@@ -318,13 +356,11 @@ def run_pre_interview_with_tools(
 
 
 def run_all_pre_interviews(
-    client: anthropic.Anthropic,
     personas: list[ExpertPersona],
     segments: list[dict],
     assignments_by_segment: list[list[dict]],
     novel_title: str,
     novel_author: str,
-    model: str = "claude-haiku-4-5-20251001",
     max_workers: int = 6,
     use_reference_tools: bool = False,
     progress_path: Path | None = None,
@@ -335,6 +371,9 @@ def run_all_pre_interviews(
 ]:
     """Run pre-interviews for all expert×segment pairs in parallel.
 
+    All interviews route through the LLM seam — the active provider
+    profile decides the model (see params.yaml task_models).
+
     Returns (interviews, registries, recorders):
       interviews[seg_idx] = [response_per_expert]
       registries[seg_idx] = [registry_per_expert]    (empty in non-tools mode)
@@ -344,21 +383,13 @@ def run_all_pre_interviews(
     all_registries: list[list[CitationRegistry]] = [[] for _ in segments]
     all_recorders: list[list[Recorder]] = [[] for _ in segments]
     expert_names = [p.name for p in personas]
-
-    # Tools mode runs interviews on Haiku — the work is search-and-summarise,
-    # within Haiku's range, and ~3× cheaper than Sonnet.
-    interview_model = "claude-haiku-4-5-20251001" if use_reference_tools else model
     workers = max_workers
 
     def _no_tools_wrapper(
-        _client: Any, expert: ExpertPersona, others: list[str],
+        expert: ExpertPersona, others: list[str],
         seg_name: str, seg_assignments: list[dict],
-        novel_title: str, novel_author: str, _model: str,
+        novel_title: str, novel_author: str,
     ) -> tuple[PreInterviewResponse, "CitationRegistry", "Recorder"]:
-        # client + model are accepted-but-ignored: run_pre_interview routes
-        # through the seam (task='host_prep_pre_interview'). The tools branch
-        # (run_pre_interview_with_tools) still uses them until D7 lands;
-        # signature parity keeps the call site simple in the meantime.
         result = run_pre_interview(
             expert, others, seg_name, seg_assignments,
             novel_title, novel_author,
@@ -379,8 +410,8 @@ def run_all_pre_interviews(
                 others = [n for n in expert_names if n != expert.name]
                 fut = pool.submit(
                     interview_fn,
-                    client, expert, others, seg_name,
-                    seg_assignments, novel_title, novel_author, interview_model,
+                    expert, others, seg_name,
+                    seg_assignments, novel_title, novel_author,
                 )
                 futures[fut] = si
 
@@ -713,19 +744,19 @@ def _segment_name(seg: dict, idx: int) -> str:
 
 
 def run_host_prep(
-    client: anthropic.Anthropic,
     personas: list[ExpertPersona],
     segments: list[dict],
     assignments_by_segment: list[list[dict]],
     novel_title: str,
     novel_author: str,
-    interview_model: str = "claude-haiku-4-5-20251001",
-    planning_model: str = "claude-sonnet-4-6",
     use_reference_tools: bool = False,
     run_dir: Path | None = None,
     length: str = "long",
 ) -> tuple[list[HostBrief], list[list[PreInterviewResponse]]]:
     """Run the full Phase 2.5 pipeline: pre-interviews + question planning.
+
+    All LLM calls route through the seam — the active provider profile
+    decides the model.
 
     Returns (briefs, interviews) where interviews[seg_idx] is a list of
     PreInterviewResponse per expert.
@@ -739,8 +770,8 @@ def run_host_prep(
     # rewrites automatically — no separate plumbing per call site.
     timing = Recorder(flush_path=flush_path)
     interviews, registries, recorders = run_all_pre_interviews(
-        client, personas, segments, assignments_by_segment,
-        novel_title, novel_author, interview_model,
+        personas, segments, assignments_by_segment,
+        novel_title, novel_author,
         use_reference_tools=use_reference_tools,
         progress_path=flush_path,
     )
@@ -916,13 +947,11 @@ def main() -> None:
             seg_assignments.append(full)
         assignments_by_segment.append(seg_assignments)
 
-    client = anthropic.Anthropic()
     from enrichment.podcast_types import DEFAULT_PERSONAS  # pyright: ignore[reportMissingImports]
 
     briefs, interviews = run_host_prep(
-        client, DEFAULT_PERSONAS, segments, assignments_by_segment,
+        DEFAULT_PERSONAS, segments, assignments_by_segment,
         cfg.title, cfg.author,
-        args.interview_model, args.planning_model,
     )
 
     # Output
