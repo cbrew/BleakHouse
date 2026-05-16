@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ novel_title }} — {{ panel_display }} ({{ generator }}){% endblock %}
+
+{% block extra_head %}
+<style>
+  .sv-back   { font-size: 0.88em; margin-bottom: 0.6em; }
+  .sv-back a { color: #555; }
+  .sv-header { margin: 0.4em 0 1em; }
+  .sv-header h1 { margin-bottom: 0.1em; }
+  .sv-header .sub { color: #555; font-size: 1.02em; margin: 0.2em 0 0.6em; }
+
+  .sv-axes {
+    border-collapse: collapse; font-size: 0.88em;
+    margin: 0.4em 0 1.6em; min-width: 28em;
+  }
+  .sv-axes th, .sv-axes td {
+    border-bottom: 1px solid #eee; padding: 0.3em 0.7em 0.3em 0;
+    text-align: left; vertical-align: top;
+  }
+  .sv-axes th { color: #666; font-weight: 500; min-width: 8em; }
+  .sv-axes td code, .sv-axes td .axis-val {
+    font-family: ui-monospace, Menlo, monospace; font-size: 0.95em;
+  }
+  .sv-cta {
+    display: inline-block; padding: 0.4em 0.95em;
+    border: 1px solid #43a047; color: #1b5e20; background: #e8f5e9;
+    border-radius: 6px; text-decoration: none; font-weight: 500;
+    margin: 0.4em 0 1.2em;
+  }
+  .sv-cta:hover { background: #d2eed4; }
+  .sv-no-audio-note {
+    display: inline-block; padding: 0.35em 0.8em;
+    border: 1px solid #ddd; color: #666; background: #f8f8f8;
+    border-radius: 6px; font-size: 0.88em;
+    margin: 0.4em 0 1.2em;
+  }
+
+  /* Transcript styling — lighter than listen.html (no audio JS hooks). */
+  .sv-transcript { margin-top: 1.5em; }
+  .sv-segment    { margin: 1.8em 0; }
+  .sv-segment h2 {
+    font-size: 1.15em; margin: 0 0 0.6em;
+    border-bottom: 1px solid #eee; padding-bottom: 0.2em;
+  }
+  .sv-turn       { margin: 0.6em 0 0.8em; padding-left: 0.8em; border-left: 3px solid transparent; }
+  .sv-turn-host  { border-left-color: #1e88e5; }
+  .sv-turn-expert{ border-left-color: #8d6e63; }
+  .sv-speaker    { font-weight: 600; font-size: 0.92em; color: #234; }
+  .sv-body       { margin-top: 0.15em; line-height: 1.55; }
+  .sv-utt-quote  { font-style: italic; color: #4e342e; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<p class="sv-back"><a href="/scripts">← All scripts</a></p>
+
+<div class="sv-header">
+  <h1>{{ novel_title }}{% if novel_author %} <small style="font-weight:400;color:#777;">— {{ novel_author }}</small>{% endif %}</h1>
+  <p class="sub">{{ panel_display }} panel · <code>{{ run_id }}</code></p>
+</div>
+
+<table class="sv-axes">
+  <tr><th>generator</th><td><span class="axis-val">{{ generator }}</span></td></tr>
+  <tr><th>pipeline</th><td><span class="axis-val">{{ pipeline }}</span></td></tr>
+  <tr><th>length</th><td><span class="axis-val">{{ length }}</span></td></tr>
+  <tr><th>host-prep</th><td>{{ 'yes' if hostprep else 'no' }}</td></tr>
+  <tr><th>reference tools</th><td>{{ 'yes' if ref_tools else 'no' }}</td></tr>
+  <tr><th>audio</th><td>{{ 'rendered' if has_audio else 'not rendered (script only)' }}</td></tr>
+</table>
+
+{% if has_audio %}
+<a class="sv-cta" href="/listen/{{ novel_id }}/{{ panel_id }}?generator={{ generator }}">Listen with audio →</a>
+{% else %}
+<p class="sv-no-audio-note">No audio for this run — script-only view.</p>
+{% endif %}
+
+<article class="sv-transcript">
+{% for segment in episode.segments %}
+<section class="sv-segment">
+  {% if segment.title %}<h2>{{ segment.title }}</h2>{% endif %}
+  {% for turn in segment.turns %}
+  <div class="sv-turn sv-turn-{{ turn.role }}">
+    <div class="sv-speaker">{{ turn.speaker }}</div>
+    <div class="sv-body">
+    {% for utt in turn.utterances %}<span class="{% if utt.is_quote %}sv-utt-quote{% endif %}">{{ utt.text }}</span>{% if not loop.last %} {% endif %}{% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endfor %}
+</article>
+
+{% endblock %}

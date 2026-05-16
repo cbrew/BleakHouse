@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Not In Our Time — All scripts{% endblock %}
+
+{% block extra_head %}
+<style>
+  .sc-intro { color: #444; max-width: 56em; margin-bottom: 1.6em; }
+  .sc-filters {
+    display: flex; flex-wrap: wrap; gap: 0.5em 1em;
+    margin: 1em 0 1.4em; padding: 0.9em 1em;
+    border: 1px solid #ddd; border-radius: 8px;
+    background: #fafafa; font-size: 0.92em;
+  }
+  .sc-filters label { display: inline-flex; align-items: center; gap: 0.35em; }
+  .sc-filters select, .sc-filters input[type="text"] {
+    font: inherit; padding: 2px 6px; border-radius: 4px;
+    border: 1px solid #ccc; background: white;
+  }
+  .sc-count { margin-left: auto; color: #666; font-variant-numeric: tabular-nums; }
+  table.sc-table {
+    border-collapse: collapse; width: 100%;
+    font-size: 0.9em; margin: 1em 0;
+  }
+  table.sc-table th, table.sc-table td {
+    border-bottom: 1px solid #eee; padding: 0.45em 0.65em;
+    text-align: left; vertical-align: top;
+  }
+  table.sc-table th {
+    border-bottom: 2px solid #ccc; font-weight: 600;
+    text-align: left; background: white; position: sticky; top: 0;
+  }
+  table.sc-table tr:hover { background: #fafafa; }
+  .sc-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 0.78em; font-family: ui-monospace, Menlo, monospace;
+    background: #eef3fa; color: #234; border: 1px solid #cdd9ea;
+    white-space: nowrap;
+  }
+  .sc-tag.audio { background: #e8f5e9; color: #1b5e20; border-color: #b6dab8; }
+  .sc-tag.noaudio { background: #f2f2f2; color: #777; border-color: #ddd; }
+  .sc-tag.gen-default { background: #fff; color: #888; border-color: #ddd; }
+  a.sc-script-link { font-family: ui-monospace, Menlo, monospace; font-size: 0.88em; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<h1>All scripts</h1>
+
+<p class="sc-intro">
+  Every run we have on file — {{ runs|length }} in total. The front
+  page only shows runs that have audio rendered; this page shows
+  everything, including older and superseded runs. Each row links
+  to the transcript and metadata for that run; if audio exists, the
+  script page links onward to the audio-enabled listen view.
+</p>
+
+<div class="sc-filters">
+  <label>Novel
+    <select id="filter-novel">
+      <option value="">All</option>
+      {% for novel in runs | map(attribute='novel_title') | unique | sort %}
+      <option value="{{ novel }}">{{ novel }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Panel
+    <select id="filter-panel">
+      <option value="">All</option>
+      {% for p in runs | map(attribute='panel') | unique | sort %}
+      <option value="{{ p }}">{{ p }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Generator
+    <select id="filter-generator">
+      <option value="">All</option>
+      {% for g in runs | map(attribute='generator') | unique | sort %}
+      <option value="{{ g }}">{{ g }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Pipeline
+    <select id="filter-pipeline">
+      <option value="">All</option>
+      {% for p in runs | map(attribute='pipeline') | unique | sort %}
+      <option value="{{ p }}">{{ p }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Audio
+    <select id="filter-audio">
+      <option value="">Any</option>
+      <option value="1">Has audio</option>
+      <option value="0">No audio</option>
+    </select>
+  </label>
+  <span class="sc-count"><span id="visible-count">{{ runs|length }}</span> / {{ runs|length }}</span>
+</div>
+
+<table class="sc-table" id="scripts-table">
+<thead>
+<tr>
+  <th>Novel</th>
+  <th>Panel</th>
+  <th>Generator</th>
+  <th>Pipeline</th>
+  <th>Length</th>
+  <th>Host-prep</th>
+  <th>Refs</th>
+  <th>Audio</th>
+  <th>Run</th>
+</tr>
+</thead>
+<tbody>
+{% for r in runs %}
+<tr data-novel="{{ r.novel_title }}"
+    data-panel="{{ r.panel }}"
+    data-generator="{{ r.generator }}"
+    data-pipeline="{{ r.pipeline }}"
+    data-audio="{{ '1' if r.has_audio else '0' }}">
+  <td>{{ r.novel_title }}</td>
+  <td>{{ r.panel }}</td>
+  <td>{% if r.generator == 'anthropic_sonnet_4_6' %}
+        <span class="sc-tag gen-default" title="Default prose generator">{{ r.generator }}</span>
+      {% else %}
+        <span class="sc-tag">{{ r.generator }}</span>
+      {% endif %}</td>
+  <td>{{ r.pipeline }}</td>
+  <td>{{ r.length }}</td>
+  <td>{{ '✓' if r.hostprep else '·' }}</td>
+  <td>{{ '✓' if r.ref_tools else '·' }}</td>
+  <td>{% if r.has_audio %}
+        <span class="sc-tag audio">yes</span>
+      {% else %}
+        <span class="sc-tag noaudio">script only</span>
+      {% endif %}</td>
+  <td><a class="sc-script-link" href="/script/{{ r.run_id }}">{{ r.run_id }} →</a></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<script>
+(function () {
+  const novel    = document.getElementById('filter-novel');
+  const panel    = document.getElementById('filter-panel');
+  const gen      = document.getElementById('filter-generator');
+  const pipeline = document.getElementById('filter-pipeline');
+  const audio    = document.getElementById('filter-audio');
+  const rows     = Array.from(document.querySelectorAll('#scripts-table tbody tr'));
+  const counter  = document.getElementById('visible-count');
+
+  function apply() {
+    const nv = novel.value, pn = panel.value, gn = gen.value;
+    const pl = pipeline.value, au = audio.value;
+    let shown = 0;
+    for (const row of rows) {
+      const match =
+        (!nv || row.dataset.novel === nv) &&
+        (!pn || row.dataset.panel === pn) &&
+        (!gn || row.dataset.generator === gn) &&
+        (!pl || row.dataset.pipeline === pl) &&
+        (!au || row.dataset.audio === au);
+      row.style.display = match ? '' : 'none';
+      if (match) shown++;
+    }
+    counter.textContent = shown;
+  }
+  for (const el of [novel, panel, gen, pipeline, audio]) {
+    el.addEventListener('change', apply);
+  }
+})();
+</script>
+
+{% endblock %}

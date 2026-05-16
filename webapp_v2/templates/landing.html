@@ -1,5 +1,23 @@
 {% extends "base.html" %}
 {% block title %}Not In Our Time — Literary Discussions{% endblock %}
+
+{% block extra_head %}
+<style>
+  .card-generator-chip {
+    display: inline-block;
+    margin-top: 0.4em;
+    padding: 2px 8px;
+    font-size: 0.75em;
+    border-radius: 999px;
+    background: #eef3fa;
+    color: #234;
+    border: 1px solid #cdd9ea;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.02em;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 
 <h1>Not In Our Time</h1>
@@ -15,7 +33,12 @@
         <h2 class="card-novel">{{ ep.novel_title }}</h2>
         <p class="card-author">{{ ep.author }}, {{ ep.year }}</p>
         <p class="card-panel">{{ ep.panel | replace('_', ' ') | title }} panel</p>
-        <a class="card-listen" href="/listen/{{ ep.novel_id }}/{{ ep.panel }}">Listen &rarr;</a>
+        {% if not ep.is_default_generator %}
+        <p><span class="card-generator-chip"
+                 title="Alternative prose generator (override of the default Sonnet 4.6)">{{ ep.generator }}</span></p>
+        {% endif %}
+        <a class="card-listen"
+           href="/listen/{{ ep.novel_id }}/{{ ep.panel }}{% if not ep.is_default_generator %}?generator={{ ep.generator }}{% endif %}">Listen &rarr;</a>
     </article>
 {% endfor %}
 </div>

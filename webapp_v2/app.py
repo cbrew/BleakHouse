@@ -30,6 +30,11 @@ app.include_router(audio_router)
 
 @app.get("/", response_class=HTMLResponse)
 def landing(request: Request):
+    # One card per (novel, panel, generator) bucket with audio. When a
+    # bucket has only the default Sonnet run, the card renders without
+    # an explicit generator label; alternative generators get a chip so
+    # listeners know which provider produced the prose.
+    DEFAULT_GENERATOR = "anthropic_sonnet_4_6"
     episodes = []
     for ep in list_canonical_episodes():
         novel = NOVEL_BY_ID.get(ep.novel)
@@ -46,8 +51,16 @@ def landing(request: Request):
             "year": novel.year,
             "panel": ep.panel,
             "panel_display": panel.display,
+            "generator": ep.generator,
+            "is_default_generator": ep.generator == DEFAULT_GENERATOR,
         })
-    episodes.sort(key=lambda e: (e["novel_title"].lower(), e["panel"]))
+    # Sort: novel title, then panel, then non-default generators last so
+    # the canonical Sonnet card sits next to its alternatives.
+    episodes.sort(key=lambda e: (
+        e["novel_title"].lower(), e["panel"],
+        0 if e["is_default_generator"] else 1,
+        e["generator"],
+    ))
     return templates.TemplateResponse(
         request, "landing.html", {"episodes": episodes},
     )
@@ -114,13 +127,19 @@ def _normalize_references(reading: object) -> tuple[list[dict], dict[str, dict]]
     return out, refs_by_tag
 
 
-def _resolve_episode(novel_id: str, panel: str):
-    """Resolve (novel_id, panel) → (Episode, Novel, Panel) or raise 404."""
-    ep = canonical_run_for(novel_id, panel)
+def _resolve_episode(
+    novel_id: str, panel: str, generator: str | None = None,
+):
+    """Resolve (novel_id, panel[, generator]) → (Episode, Novel, Panel)
+    or raise 404. `generator` is optional; absent → cross-generator
+    best ranked. Present → that generator's best ranked run for the
+    (novel, panel)."""
+    ep = canonical_run_for(novel_id, panel, generator)
     if ep is None:
-        raise HTTPException(
-            404, f"No audio episode for {novel_id} / {panel}",
-        )
+        msg = f"No audio episode for {novel_id} / {panel}"
+        if generator:
+            msg += f" / generator={generator}"
+        raise HTTPException(404, msg)
     novel = NOVEL_BY_ID.get(ep.novel)
     panel_meta = PANEL_BY_ID.get(ep.panel)
     if novel is None or panel_meta is None:
@@ -164,8 +183,11 @@ def _split_resolved(items: list) -> tuple[list[dict], list[dict]]:
 
 
 @app.get("/listen/{novel_id}/{panel}", response_class=HTMLResponse)
-def listen(request: Request, novel_id: str, panel: str):
-    ep, novel, panel_meta = _resolve_episode(novel_id, panel)
+def listen(
+    request: Request, novel_id: str, panel: str,
+    generator: str | None = None,
+):
+    ep, novel, panel_meta = _resolve_episode(novel_id, panel, generator)
     episode = content_db.read_run_artifact(ep.run_id, "phase3_episode")
     if not isinstance(episode, dict):
         raise HTTPException(
@@ -177,6 +199,7 @@ def listen(request: Request, novel_id: str, panel: str):
         "novel_id": novel_id,
         "panel_id": panel,
         "run_id": ep.run_id,
+        "generator": ep.generator,
         "episode": episode,
     })
 
@@ -184,8 +207,10 @@ def listen(request: Request, novel_id: str, panel: str):
 @app.get(
     "/listen/{novel_id}/{panel}/interviews", response_class=HTMLResponse,
 )
-def tab_interviews(request: Request, novel_id: str, panel: str):
-    ep, novel, panel_meta = _resolve_episode(novel_id, panel)
+def tab_interviews(request: Request, novel_id: str, panel: str,
+    generator: str | None = None,
+):
+    ep, novel, panel_meta = _resolve_episode(novel_id, panel, generator)
     interviews = content_db.read_run_artifact(ep.run_id, "phase2_5_interviews")
     briefs = content_db.read_run_artifact(ep.run_id, "phase2_5_host_briefs")
     reading = content_db.read_run_artifact(ep.run_id, "phase2_5_reading_list")
@@ -247,8 +272,10 @@ def tab_interviews(request: Request, novel_id: str, panel: str):
 @app.get(
     "/listen/{novel_id}/{panel}/profiles", response_class=HTMLResponse,
 )
-def tab_profiles(request: Request, novel_id: str, panel: str):
-    _ep, novel, panel_meta = _resolve_episode(novel_id, panel)
+def tab_profiles(request: Request, novel_id: str, panel: str,
+    generator: str | None = None,
+):
+    _ep, novel, panel_meta = _resolve_episode(novel_id, panel, generator)
     panel_payload = content_db.read_panel_artifact(panel)
     experts = (
         panel_payload.get("experts", [])
@@ -264,8 +291,10 @@ def tab_profiles(request: Request, novel_id: str, panel: str):
 
 
 @app.get("/listen/{novel_id}/{panel}/arcs", response_class=HTMLResponse)
-def tab_arcs(request: Request, novel_id: str, panel: str):
-    _ep, novel, panel_meta = _resolve_episode(novel_id, panel)
+def tab_arcs(request: Request, novel_id: str, panel: str,
+    generator: str | None = None,
+):
+    _ep, novel, panel_meta = _resolve_episode(novel_id, panel, generator)
     arcs = content_db.read_novel_artifact(novel.id, "arcs")
     return templates.TemplateResponse(request, "arcs.html", {
         "novel": novel,
@@ -279,6 +308,81 @@ def tab_arcs(request: Request, novel_id: str, panel: str):
 # ── Static pages (Phase F) ───────────────────────────────────────────
 
 _STATIC_PAGES = ("about", "help", "references", "research", "prompts")
+
+
+@app.get("/scripts", response_class=HTMLResponse)
+def scripts_index(request: Request):
+    """All-scripts browser. Every run in run_index, audio or not,
+    canonical or superseded. Read by anyone clicking through from
+    /about ("How It Works"). The front-page audio gate doesn't apply
+    here — that's the whole point."""
+    conn = content_db._connection()
+    rows = list(conn.execute("""
+        SELECT run_id, novel, panel, pipeline, length, hostprep, ref_tools,
+               generator, has_audio
+        FROM run_index
+        ORDER BY novel, panel, generator,
+                 CASE length WHEN 'short' THEN 0 ELSE 1 END,
+                 has_audio DESC, run_id
+    """))
+    runs = []
+    for r in rows:
+        nv = NOVEL_BY_ID.get(r["novel"])
+        runs.append({
+            "run_id": r["run_id"],
+            "novel": r["novel"],
+            "novel_title": nv.title if nv else r["novel"],
+            "novel_author": nv.author if nv else "",
+            "panel": r["panel"],
+            "pipeline": r["pipeline"],
+            "length": r["length"],
+            "hostprep": bool(r["hostprep"]),
+            "ref_tools": bool(r["ref_tools"]),
+            "generator": r["generator"],
+            "has_audio": bool(r["has_audio"]),
+        })
+    return templates.TemplateResponse(request, "scripts.html", {
+        "runs": runs,
+    })
+
+
+@app.get("/script/{run_id}", response_class=HTMLResponse)
+def script_viewer(request: Request, run_id: str):
+    """Transcript-only viewer for a single run. Works for every run in
+    run_index regardless of audio status; the audio player is only
+    rendered if has_audio=1 (via a 'Listen with audio →' link to the
+    /listen page)."""
+    if "/" in run_id or ".." in run_id:
+        raise HTTPException(400, "Invalid run_id")
+    conn = content_db._connection()
+    row = conn.execute(
+        "SELECT * FROM run_index WHERE run_id = ?", (run_id,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, f"Unknown run_id: {run_id!r}")
+    episode = content_db.read_run_artifact(run_id, "phase3_episode")
+    if not isinstance(episode, dict):
+        raise HTTPException(
+            500, f"phase3_episode missing for run {run_id!r}",
+        )
+    novel = NOVEL_BY_ID.get(row["novel"])
+    panel_meta = PANEL_BY_ID.get(row["panel"])
+    return templates.TemplateResponse(request, "script.html", {
+        "run_id": run_id,
+        "episode": episode,
+        "novel": novel,
+        "novel_id": row["novel"],
+        "novel_title": novel.title if novel else row["novel"],
+        "novel_author": novel.author if novel else "",
+        "panel_id": row["panel"],
+        "panel_display": panel_meta.display if panel_meta else row["panel"],
+        "pipeline": row["pipeline"],
+        "length": row["length"],
+        "hostprep": bool(row["hostprep"]),
+        "ref_tools": bool(row["ref_tools"]),
+        "generator": row["generator"],
+        "has_audio": bool(row["has_audio"]),
+    })
 
 
 @app.get("/about", response_class=HTMLResponse)
@@ -324,8 +428,10 @@ def blog_post(request: Request, post_id: str):
 @app.get(
     "/listen/{novel_id}/{panel}/reading-list", response_class=HTMLResponse,
 )
-def tab_reading_list(request: Request, novel_id: str, panel: str):
-    ep, novel, panel_meta = _resolve_episode(novel_id, panel)
+def tab_reading_list(request: Request, novel_id: str, panel: str,
+    generator: str | None = None,
+):
+    ep, novel, panel_meta = _resolve_episode(novel_id, panel, generator)
     reading = content_db.read_run_artifact(ep.run_id, "phase2_5_reading_list")
     recommended = (
         reading.get("recommended", [])
