@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Versions — {{ run_id }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .rv-wrap     { max-width: 900px; margin: 1.6em auto; padding: 0 1.2em;
+                 font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                 color: #222; }
+  .rv-back     { font-size: 0.88em; color: #555; margin-bottom: 0.6em; }
+  .rv-back a   { color: #555; }
+  .rv-header h1 { margin: 0.2em 0 0.2em; font-size: 1.4em; }
+  .rv-header .sub { color: #666; font-size: 0.95em; margin: 0 0 1.2em; }
+
+  .rv-block    { margin: 1.2em 0; }
+  .rv-block h2 { font-size: 1.05em; margin: 0 0 0.4em;
+                 padding-bottom: 0.2em; border-bottom: 1px solid #eee;
+                 color: #345; }
+  table.rv-table { border-collapse: collapse; min-width: 28em; font-size: 0.9em; }
+  table.rv-table th, table.rv-table td {
+    border-bottom: 1px solid #eee; padding: 0.25em 0.7em 0.25em 0;
+    text-align: left; vertical-align: top; font-weight: 400;
+  }
+  table.rv-table th { color: #555; min-width: 14em; }
+  table.rv-table code { font-family: ui-monospace, Menlo, monospace; font-size: 0.92em; }
+  .rv-missing  { color: #999; font-style: italic; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rv-wrap">
+
+<p class="rv-back"><a href="/report/{{ run_id }}">← Report</a></p>
+
+<div class="rv-header">
+  <h1>Versions <small style="color:#888;font-weight:400;">— {{ run_id }}</small></h1>
+  <p class="sub">novel: <code>{{ novel }}</code> · generator: <code>{{ generator }}</code></p>
+</div>
+
+<div class="rv-block">
+  <h2>Code commit</h2>
+  {% if versions.pyproject_commit %}
+    <code>{{ versions.pyproject_commit }}</code>
+  {% else %}
+    <span class="rv-missing">not recorded</span>
+  {% endif %}
+</div>
+
+<div class="rv-block">
+  <h2>Models per task</h2>
+  {% if versions.models %}
+    <table class="rv-table">
+    {% for task, model in versions.models|dictsort %}
+      <tr><th><code>{{ task }}</code></th><td><code>{{ model }}</code></td></tr>
+    {% endfor %}
+    </table>
+  {% else %}
+    <span class="rv-missing">not recorded</span>
+  {% endif %}
+</div>
+
+<div class="rv-block">
+  <h2>Schema versions</h2>
+  {% if versions.schemas %}
+    <table class="rv-table">
+    {% for name, ver in versions.schemas|dictsort %}
+      <tr><th><code>{{ name }}</code></th><td>{{ ver }}</td></tr>
+    {% endfor %}
+    </table>
+  {% else %}
+    <span class="rv-missing">not recorded</span>
+  {% endif %}
+</div>
+
+<div class="rv-block">
+  <h2>Prompt versions</h2>
+  {% if versions.prompts %}
+    <table class="rv-table">
+    {% for name, ver in versions.prompts|dictsort %}
+      <tr><th><code>{{ name }}</code></th><td>{{ ver }}</td></tr>
+    {% endfor %}
+    </table>
+  {% else %}
+    <span class="rv-missing">not recorded</span>
+  {% endif %}
+</div>
+
+<div class="rv-block">
+  <h2>SDK versions</h2>
+  {% if versions.sdks %}
+    <table class="rv-table">
+    {% for pkg, ver in versions.sdks|dictsort %}
+      <tr><th><code>{{ pkg }}</code></th>
+        <td>{% if ver %}{{ ver }}{% else %}<span class="rv-missing">not installed</span>{% endif %}</td></tr>
+    {% endfor %}
+    </table>
+  {% else %}
+    <span class="rv-missing">not recorded</span>
+  {% endif %}
+</div>
+
+</div>
+{% endblock %}

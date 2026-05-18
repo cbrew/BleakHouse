@@ -601,6 +601,47 @@ async def report_viewer(run_id: str):
     return FileResponse(str(report_path))
 
 
+@app.get("/run/{run_id}/versions", response_class=HTMLResponse)
+async def run_versions(request: Request, run_id: str):
+    """Render a versions panel for one run.
+
+    Reads `config.json:versions` directly from the run dir on disk
+    (matching v1's existing per-run-file pattern via `read_run_artifact`-
+    free routes like `/api/runs/{run_id}/prep`). Webapp v2's equivalent
+    pulls from content.db; this v1 surface reads files. Same data,
+    different path. See BleakHouse-8oyy."""
+    if ".." in run_id or "/" in run_id:
+        raise HTTPException(400, "Invalid run_id")
+    config_path = DATA_DIR / "runs" / run_id / "config.json"
+    if not config_path.exists():
+        raise HTTPException(404, f"No config.json for run {run_id}")
+    with open(config_path) as f:
+        cfg = json.load(f)
+    versions_block = cfg.get("versions") or {}
+    if not isinstance(versions_block, dict):
+        versions_block = {}
+    # Best-effort models fallback for older runs (mirrors content.db
+    # builder's _legacy_generator synthesis).
+    models = versions_block.get("models")
+    if not models:
+        gen = cfg.get("generator")
+        if isinstance(gen, str) and gen:
+            models = {"_legacy_generator": gen}
+    versions = {
+        "schemas": versions_block.get("schemas") or None,
+        "prompts": versions_block.get("prompts") or None,
+        "sdks":    versions_block.get("sdks") or None,
+        "models":  models or None,
+        "pyproject_commit": versions_block.get("pyproject_commit") or None,
+    }
+    return templates.TemplateResponse(request, "run_versions.html", {
+        "run_id": run_id,
+        "generator": cfg.get("generator") or "—",
+        "novel": cfg.get("novel") or "—",
+        "versions": versions,
+    })
+
+
 @app.get("/api/runs/{run_id}/episode")
 async def get_episode(run_id: str):
     """Serve the raw phase3_episode.json for any run."""
