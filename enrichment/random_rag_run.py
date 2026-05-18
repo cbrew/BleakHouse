@@ -267,6 +267,7 @@ def main() -> None:
             logger.info("  %s (%s, %d-%d)", t.name, t.segment_type, t.min_passages, t.max_passages)
 
     # Save config
+    from enrichment.versions import collect_run_versions  # noqa: E402
     config_data = {
         "name": args.name,
         "pipeline_type": "random",
@@ -276,6 +277,8 @@ def main() -> None:
         "model": args.model,
         "passage_target": args.passage_target,
         "seed": seed,
+        # Versions snapshot — see enrichment/versions.py / BleakHouse-vwwg.
+        "versions": collect_run_versions(),
     }
     with open(run_dir / "config.json", "w") as f:
         json.dump(config_data, f, indent=2)

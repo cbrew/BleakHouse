@@ -309,6 +309,8 @@ def main() -> None:
         },
         "model": args.model,
         "prompt_version": args.prompt_version,
+        # Versions snapshot — see enrichment/versions.py / BleakHouse-vwwg.
+        "versions": __import__("enrichment.versions", fromlist=["collect_run_versions"]).collect_run_versions(),
     }
     with open(run_dir / "config.json", "w") as f:
         json.dump(config_data, f, indent=2)

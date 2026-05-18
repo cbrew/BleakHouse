@@ -227,6 +227,12 @@ def _provision_target_dir(
     cfg["generator"] = target_axes.generator
     # Keep the name aligned with the dir for legibility.
     cfg["name"] = target_dir.name
+    # Versions snapshot: this run uses a different generator (and
+    # possibly different SDKs in this venv) than the source. Replace
+    # the inherited block with a fresh snapshot. See
+    # enrichment/versions.py / BleakHouse-vwwg.
+    from enrichment.versions import collect_run_versions  # noqa: E402
+    cfg["versions"] = collect_run_versions()
     with open(target_dir / "config.json", "w") as f:
         json.dump(cfg, f, indent=2)
 

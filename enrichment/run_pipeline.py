@@ -666,6 +666,7 @@ Examples:
     }
 
     # Save config
+    from enrichment.versions import collect_run_versions  # noqa: E402
     config_data = {
         "name": args.name,
         "novel": args.novel,
@@ -683,6 +684,11 @@ Examples:
         # Anthropic-derived passages_enriched.json.
         "enrichment_variant": args.enrichment_variant,
         "providers": providers_block,
+        # Schema / prompt / SDK / model versions snapshot. Collected
+        # AFTER seam.activate() above so `models` reflects the active
+        # profile + per-task overrides actually in play. See
+        # enrichment/versions.py and BleakHouse-vwwg.
+        "versions": collect_run_versions(),
     }
     with open(run_dir / "config.json", "w") as f:
         json.dump(config_data, f, indent=2)
