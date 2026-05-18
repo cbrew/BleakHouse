@@ -9,9 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from enrichment.podcast_types import Turn
-
-
+from enrichment.llm.schemas import Turn
 @dataclass(frozen=True)
 class EpisodeContext:
     """Positional context for a turn within its episode."""

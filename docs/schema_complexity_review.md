@@ -1,9 +1,20 @@
 # Schema complexity review — BleakHouse LLM-bound schemas
 
-Status: review-and-recommendations, not yet acted on. Companion to
+> **Update 2026-05-18 (BleakHouse-gfn2 epic closed):** the file-level
+> inventory in this doc is **superseded** by the single consolidated
+> file `enrichment/llm/schemas.py`. Cross-cutting concerns C1 (three
+> postures on `additionalProperties`) and C5 (wrapper-list idiom) are
+> partially resolved by BleakHouse-vyo4 and the consolidation. The
+> per-schema observations and the open questions in §"Recommendations"
+> still apply — they're about the shape and content of individual
+> schemas, not their location. Read the inventory section as historical
+> context; read the deep dives and the recommendations as current.
+
+Status: review + (still-pending) recommendations. Companion to
 `docs/structured_recommendations.md` (the external recommendations
-doc) and `docs/structured_output_review.html` (the empirical evidence
-log + the two-tier-schema-strategy addendum).
+doc), `docs/structured_output_review.html` (the empirical evidence
+log + the two-tier-schema-strategy addendum), and
+`docs/schemas_changelog.md` (the version-bump policy and history).
 
 The review is scoped to **schemas that flow through the LLM seam via
 `json_schema=...`** — i.e. shapes the model is asked to produce. It
@@ -12,8 +23,16 @@ Schema (e.g. config-side `ExpertPersona`, vector-DB `ContextualPassage`).
 
 ## TL;DR
 
-Twelve LLM-bound schemas live across four files. They were not
-designed together; the postures across them diverge significantly:
+> **Post-consolidation (2026-05-18):** all 13 LLM-bound schemas now
+> live in a single file, `enrichment/llm/schemas.py`. The "scattered
+> across four files" framing below describes the pre-consolidation
+> state and the issues that motivated the move. The complexity
+> observations below — schema content, list cardinality, enum
+> overlaps — were NOT resolved by the move; they're about individual
+> schemas and remain open.
+
+Twelve LLM-bound schemas used to live across four files. They were not
+designed together; the postures across them diverged significantly:
 
 - **FieldReportEnrichment** (passage enrichment) is by far the largest
   — 21 fields, 11 of them Literal enums plus 4 lists. It declares
@@ -214,17 +233,16 @@ lists with min/max=3,4 or 1,4).
 
 ## Cross-cutting concerns
 
-### C1. Three different postures on `additionalProperties: false`
+### C1. Three different postures on `additionalProperties: false` — RESOLVED 2026-05-18
 
-| pattern | files using it | what it does |
-|---|---|---|
-| `_StrictBase` extends BaseModel with `json_schema_extra` | schemas.py (3 models) | injects `additionalProperties: false` into the emitted schema; does NOT forbid extras at Python validation time |
-| `ConfigDict(extra='forbid')` | podcast_types.py (3 models) | both emits the JSON Schema key AND forbids extras at validation |
-| (nothing) | podcast_types.py (6 models), embedding_podcast.py (2 models), design_segments.py (1 model) | schema omits the key; Anthropic's strict-mode requirement is unsatisfied (case-2 400 risk); validation is permissive |
-
-Choose one pattern, apply uniformly. `ConfigDict(extra='forbid')` is
-the stronger of the two (both effects); `_StrictBase` was an earlier
-version of the same idea. The third bucket is plain incomplete.
+Was three different patterns; now one. BleakHouse-vyo4 (closed
+2026-05-18) migrated every LLM-bound class to
+`model_config = ConfigDict(extra='forbid')` and deleted `_StrictBase`.
+The seam-side `_strictify_for_openai` walker is gone too. The
+single source of truth for object strictness is now the per-class
+Pydantic config. See `docs/schemas_changelog.md` for the version-bump
+discipline; see `CLAUDE.md`'s "Schema changes are breaking API
+changes" section for the contributor policy.
 
 ### C2. Three different postures on list cardinality
 
@@ -295,9 +313,9 @@ only one not derived from Pydantic. It's also the cleanest example of
 
 ### Apply uniformly
 
-1. **`ConfigDict(extra='forbid')` on every LLM-bound model.** Drop
-   `_StrictBase` and its `json_schema_extra` indirection. Make the
-   nine schemas currently in bucket 3 explicit. This is mechanical.
+1. **`ConfigDict(extra='forbid')` on every LLM-bound model.** ✅ Done
+   2026-05-18 under BleakHouse-vyo4. `_StrictBase` deleted; the nine
+   previously-undefended schemas now each declare the config.
 
 2. **Standardize on the recommendations-doc portable subset.** That
    means: `type`, `properties`, `required`, `items`, `$ref`, `$defs`,
@@ -305,7 +323,8 @@ only one not derived from Pydantic. It's also the cleanest example of
    `description`, `format`. Treat `minItems`/`maxItems`/`min_length`/
    `max_length`/`pattern` as non-portable; reserve them for cases
    where decode-time enforcement is genuinely needed and worth the
-   two-tier coercion machinery.
+   two-tier coercion machinery. (Still open beyond the host_prep
+   cluster.)
 
 ### Decide per-schema (each needs a small judgment)
 

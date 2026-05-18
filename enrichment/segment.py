@@ -12,7 +12,7 @@ from pathlib import Path
 
 import lxml.etree as etree
 
-from enrichment.schemas import Passage
+from enrichment.passage import Passage
 
 logger = logging.getLogger(__name__)
 

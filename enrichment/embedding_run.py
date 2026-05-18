@@ -34,11 +34,11 @@ from enrichment.embedding_podcast import (  # pyright: ignore[reportMissingImpor
     retrieve_candidate_pool,
 )
 from enrichment.generate_podcast import run_phase3  # pyright: ignore[reportMissingImports]  # noqa: F401 — re-exported
-from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
-    DEFAULT_PERSONAS,
+from enrichment.llm.schemas import SegmentTemplate
+from enrichment.personas import (
     ALTERNATIVE_PERSONAS,
+    DEFAULT_PERSONAS,
     ExpertPersona,
-    SegmentTemplate,
 )
 from enrichment.run_config import RUNS_DIR  # pyright: ignore[reportMissingImports]
 from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
@@ -276,7 +276,7 @@ def main() -> None:
         with open(run_dir / "phase0_segments.json") as f:
             templates = [SegmentTemplate.model_validate(t) for t in json.load(f)]
     elif args.no_design_segments:
-        from enrichment.podcast_types import DEFAULT_SEGMENT_TEMPLATES  # pyright: ignore[reportMissingImports]
+        from enrichment.run_config import DEFAULT_SEGMENT_TEMPLATES  # pyright: ignore[reportMissingImports]
         templates = list(DEFAULT_SEGMENT_TEMPLATES)
     else:
         logger.info("Phase 0: designing segments")

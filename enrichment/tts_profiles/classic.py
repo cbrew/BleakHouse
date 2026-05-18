@@ -8,7 +8,8 @@ under --profile classic (the default).
 from __future__ import annotations
 
 from enrichment import params as _params
-from enrichment.podcast_types import Turn, VoicePolicy
+from enrichment.llm.schemas import Turn
+from enrichment.personas import VoicePolicy
 from enrichment.tts_profiles.base import EpisodeContext
 
 # Load DVC-tracked values from params.yaml. The module-level constants

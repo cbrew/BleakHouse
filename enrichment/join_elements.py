@@ -7,7 +7,7 @@ import json
 import logging
 from pathlib import Path
 
-from enrichment.schemas import Passage
+from enrichment.passage import Passage
 
 logger = logging.getLogger(__name__)
 

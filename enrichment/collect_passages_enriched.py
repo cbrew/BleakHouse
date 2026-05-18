@@ -17,7 +17,8 @@ import anthropic
 from dotenv import load_dotenv
 
 from enrichment.novel_prompts import NOVEL_CONFIGS
-from enrichment.schemas import ChapterEnrichmentResult, Passage
+from enrichment.llm.schemas import ChapterEnrichmentResult
+from enrichment.passage import Passage
 from enrichment.timing import Recorder
 
 logger = logging.getLogger(__name__)

@@ -23,14 +23,16 @@ from dotenv import load_dotenv
 from enrichment import axes
 from enrichment.axes import panel_for_experts
 from enrichment.design_segments import design_segments  # pyright: ignore[reportMissingImports]
-from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
-    ALTERNATIVE_PERSONAS,
-    DEFAULT_PERSONAS,
-    DEFAULT_SEGMENT_TEMPLATES,
-    ExpertPersona,
+from enrichment.llm.schemas import (
     HostBrief,
     SegmentTemplate,
 )
+from enrichment.personas import (
+    ALTERNATIVE_PERSONAS,
+    DEFAULT_PERSONAS,
+    ExpertPersona,
+)
+from enrichment.run_config import DEFAULT_SEGMENT_TEMPLATES
 from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]
     PassageAssignment,
     build_passage_assignments,

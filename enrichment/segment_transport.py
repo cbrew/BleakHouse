@@ -18,10 +18,8 @@ from pathlib import Path
 
 from ortools.graph.python import min_cost_flow  # pyright: ignore[reportMissingImports]
 
-from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
-    DEFAULT_SEGMENT_TEMPLATES,
-    SegmentTemplate,
-)
+from enrichment.llm.schemas import SegmentTemplate
+from enrichment.run_config import DEFAULT_SEGMENT_TEMPLATES
 from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
     AggregatedResult,
     PassageRecord,

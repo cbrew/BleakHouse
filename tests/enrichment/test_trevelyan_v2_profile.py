@@ -3,7 +3,11 @@ from __future__ import annotations
 
 import pytest
 
-from enrichment.podcast_types import SentenceType, Turn, Utterance
+from enrichment.llm.schemas import (
+    SentenceType,
+    Turn,
+    Utterance,
+)
 from enrichment.tts_profiles import EpisodeContext, get_profile
 
 

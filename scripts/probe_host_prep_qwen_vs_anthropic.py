@@ -83,7 +83,7 @@ def _prep_run_dir(target: Path) -> tuple[dict, list, list]:
 
 def _alternatives_personas():
     """Return the alternatives-panel personas that the source run used."""
-    from enrichment.podcast_types import ALTERNATIVE_PERSONAS
+    from enrichment.personas import ALTERNATIVE_PERSONAS
     return [
         ALTERNATIVE_PERSONAS["sir_edmund"],     # Edmund Leigh
         ALTERNATIVE_PERSONAS["dr_rosen"],       # Daniel Rosen

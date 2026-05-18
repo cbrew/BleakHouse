@@ -80,11 +80,10 @@ def _python_panels() -> dict[str, dict]:
     instead of importing the Python dicts.
     """
     from enrichment.axes import PANELS_TUPLE  # type: ignore[import]
-    from enrichment.podcast_types import (  # type: ignore[import]
+    from enrichment.personas import (
         ALTERNATIVE_PERSONAS,
         DEFAULT_PERSONAS,
     )
-
     by_name = {p.name: p for p in DEFAULT_PERSONAS}
     by_name.update({p.name: p for p in ALTERNATIVE_PERSONAS.values()})
 

@@ -18,9 +18,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from enrichment.podcast_types import ExpertPersona, SegmentTemplate  # pyright: ignore[reportMissingImports]
+from enrichment.llm.schemas import SegmentDesignResult, SegmentTemplate  # pyright: ignore[reportMissingImports]
+from enrichment.personas import ExpertPersona
 from enrichment.timing import Recorder
 from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
     ArcDemand,
@@ -241,18 +240,9 @@ def _build_panel_summary(
 # LLM call
 # ---------------------------------------------------------------------------
 
-class SegmentDesignResult(BaseModel):
-    """Wrapper for structured output: list of designed segments.
-
-    extra='forbid' per BleakHouse-vyo4 (2026-05-18). The nested
-    SegmentTemplate also has it, so additionalProperties:false lands
-    on both objects in the generated JSON Schema."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    segments: list[SegmentTemplate] = Field(
-        description="The designed episode segments (5-8 segments)"
-    )
+# SegmentDesignResult moved to enrichment/llm/schemas.py under
+# BleakHouse-gfn2 (2026-05-18). Imported above; this file no longer
+# defines an LLM-bound class.
 
 
 def design_segments(

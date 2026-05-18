@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from enrichment.podcast_types import Turn, Utterance, VoicePolicy
+from enrichment.llm.schemas import (
+    Turn,
+    Utterance,
+)
+from enrichment.personas import VoicePolicy
 from enrichment.tts_profiles.base import EpisodeContext
 from enrichment.tts_profiles.classic import (
     SPEAKER_ACCENTS,

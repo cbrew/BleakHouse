@@ -21,7 +21,7 @@ from enrichment.novel_prompts import (  # noqa: I001 — single source of truth
     NOVEL_CONFIGS,
     build_enrichment_prompt,
 )
-from enrichment.schemas import ChapterEnrichmentResult
+from enrichment.llm.schemas import ChapterEnrichmentResult
 
 logger = logging.getLogger(__name__)
 

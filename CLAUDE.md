@@ -187,6 +187,14 @@ In the verification cascade (`enrichment/reference_verify.py`):
 
 We accept the residual risk: if a Wikipedia editor entered a wrong ISBN, we will surface it. That is the editorial system's responsibility, not ours. We will never be blamed for trusting a Wikipedia-curated identifier; we *would* be blamed for dropping a legitimate citation because a downstream resolver was flaky.
 
+## Policy: Schema changes are breaking API changes
+
+Every Pydantic class used as a `response_model` for a structured-output LLM call lives in `enrichment/llm/schemas.py`. Each class carries a `schema_version: ClassVar[str]` field and an in-file CHANGELOG block. Schema edits are governed by `docs/schemas_changelog.md`: patch (no migration), minor (verified-compatible tightening), major (saved data needs a migration script). When you edit `enrichment/llm/schemas.py`, add a changelog entry in `docs/schemas_changelog.md` and bump the affected class's `schema_version` if the change isn't a pure patch.
+
+The bump rules are spelled out in `docs/schemas_changelog.md`. The empirical test is: run `model_validate` against `data/runs/*/phase3_episode.json` (or the relevant artefact) with the new schema. If it fails on any saved run, you're in major-bump territory.
+
+The seam (`enrichment/llm/`) does not mutate schemas at runtime — `_strictify_for_openai` and `_StrictBase` were removed in BleakHouse-vyo4. All strictness comes from `model_config = ConfigDict(extra='forbid')` declared per-class, and any structural constraints (`min_length`, `max_length`) come from the Pydantic Field declaration.
+
 ## Key Dependencies
 
 - **Anthropic / OpenAI / Google GenAI / Cerebras** — LLM APIs. Anthropic structured output via `output_config={"format": {"type": "json_schema", ...}}` (see `enrichment/test_single.py` for the canonical pattern); Gemini for TTS.

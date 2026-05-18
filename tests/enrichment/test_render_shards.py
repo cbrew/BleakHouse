@@ -12,9 +12,9 @@ from unittest.mock import patch
 import pytest
 from pydub import AudioSegment
 
-from enrichment.podcast_types import (
+from enrichment.episode import PodcastEpisode
+from enrichment.llm.schemas import (
     EpisodeSegment,
-    PodcastEpisode,
     SentenceType,
     Turn,
     Utterance,

@@ -50,7 +50,7 @@ from enrichment.llm import GenerationRequest, generate, settings  # noqa: E402
 from enrichment.llm.eval.storage import save_results  # noqa: E402
 from enrichment.llm.types import ModelSpec  # noqa: E402
 from enrichment.novel_prompts import build_enrichment_prompt  # noqa: E402
-from enrichment.schemas import (  # noqa: E402
+from enrichment.llm.schemas import (  # noqa: E402
     ChapterEnrichmentResult,
     ParagraphEnrichment,
 )

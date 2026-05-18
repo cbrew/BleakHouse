@@ -17,9 +17,11 @@ from enrichment.host_prep import run_pre_interview
 from enrichment.llm import client as llm_client
 from enrichment.llm import settings
 from enrichment.llm.providers import AnthropicProvider
-from enrichment.podcast_types import ExpertPersona, PreInterviewResponse, VoicePolicy
-
-
+from enrichment.llm.schemas import PreInterviewResponse
+from enrichment.personas import (
+    ExpertPersona,
+    VoicePolicy,
+)
 @dataclass
 class _Blk:
     text: str

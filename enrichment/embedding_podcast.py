@@ -17,9 +17,11 @@ from pathlib import Path
 
 import anthropic
 import lancedb
-from pydantic import BaseModel, ConfigDict, Field
-
-from enrichment.podcast_types import SegmentTemplate  # pyright: ignore[reportMissingImports]
+from enrichment.llm.schemas import (  # pyright: ignore[reportMissingImports]
+    CuratedAssignment,
+    CurationResult,
+    SegmentTemplate,
+)
 from enrichment.timing import Recorder, time_model
 from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
     ArcDemand,
@@ -296,41 +298,9 @@ def retrieve_candidate_pool(
 # ---------------------------------------------------------------------------
 
 
-class CuratedAssignment(BaseModel):
-    """One passage selected and assigned by the curation LLM.
-
-    extra='forbid' per BleakHouse-vyo4 (2026-05-18)."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    passage_id: str
-    expert: str = Field(
-        description="Expert name, or empty string '' for arc-only/structure passages"
-    )
-    segment_name: str = Field(description="Segment name to assign this passage to")
-    dimension: str = Field(description="Primary prov_* dimension motivating selection")
-    arc_name: str = Field(
-        default="",
-        description="Character arc name if this passage serves an arc, else empty",
-    )
-    assignment_type: str = Field(
-        default="expert",
-        description="One of: 'expert', 'arc', 'structure'",
-    )
-    rationale: str = Field(description="One sentence: why this passage here")
-
-
-class CurationResult(BaseModel):
-    """The LLM's complete curation output.
-
-    extra='forbid' per BleakHouse-vyo4 (2026-05-18)."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    assignments: list[CuratedAssignment]
-    strategy: str = Field(
-        description="2-3 sentence summary of overall selection strategy"
-    )
+# CuratedAssignment and CurationResult moved to enrichment/llm/schemas.py
+# under BleakHouse-gfn2 (2026-05-18). Imported above; this file no
+# longer defines LLM-bound classes.
 
 
 CURATION_SYSTEM_PROMPT = """\

@@ -13,12 +13,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
-    DEFAULT_PERSONAS,
-    DEFAULT_SEGMENT_TEMPLATES,
-    ExpertPersona,
-    SegmentTemplate,
-)
+from enrichment.llm.schemas import SegmentTemplate  # pyright: ignore[reportMissingImports]
+from enrichment.personas import DEFAULT_PERSONAS, ExpertPersona  # pyright: ignore[reportMissingImports]
 from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImports]
     DEFAULT_ARCS,
     DEFAULT_EXPERTS,
@@ -28,6 +24,72 @@ from enrichment.transport_podcast import (  # pyright: ignore[reportMissingImpor
 )
 
 RUNS_DIR = Path(__file__).resolve().parent.parent / "data" / "runs"
+
+
+# Bleak House's default 7-segment seed. Used as the fallback when no
+# design_segments step ran. Lives in run_config.py because (a) one of
+# its four importers is here already, (b) it's pipeline-config rather
+# than schema or persona content. Migrated from enrichment/podcast_types.py
+# on 2026-05-18 under BleakHouse-gfn2.
+DEFAULT_SEGMENT_TEMPLATES = [
+    SegmentTemplate(
+        name="Opening: The World of Bleak House",
+        segment_type="opening",
+        preferred_dimensions=["prov_atmosphere_setting"],
+        min_passages=2,
+        max_passages=3,
+        preferred_experts=["Caroline Woodcourt"],
+    ),
+    SegmentTemplate(
+        name="Richard's Decline",
+        segment_type="deep_dive",
+        preferred_dimensions=["prov_character_development"],
+        preferred_arcs=["Richard's deterioration"],
+        min_passages=4,
+        max_passages=6,
+        preferred_experts=["Eleanor Hartley"],
+    ),
+    SegmentTemplate(
+        name="Institutions Under Fire",
+        segment_type="discussion",
+        preferred_dimensions=["prov_social_critique", "prov_thematic_depth"],
+        min_passages=3,
+        max_passages=5,
+        preferred_experts=["James Blackstone"],
+    ),
+    SegmentTemplate(
+        name="The Secret and the Chase",
+        segment_type="deep_dive",
+        preferred_dimensions=["prov_plot_advancement", "prov_character_development"],
+        preferred_arcs=["Lady Dedlock's secret"],
+        min_passages=3,
+        max_passages=5,
+    ),
+    SegmentTemplate(
+        name="Dickens at His Best",
+        segment_type="close_reading",
+        preferred_dimensions=["prov_narrative_technique", "prov_humor_entertainment"],
+        min_passages=3,
+        max_passages=4,
+        preferred_experts=["Caroline Woodcourt"],
+    ),
+    SegmentTemplate(
+        name="Jo's Story",
+        segment_type="deep_dive",
+        preferred_dimensions=["prov_social_critique"],
+        preferred_arcs=["Jo's suffering"],
+        min_passages=3,
+        max_passages=4,
+        preferred_experts=["James Blackstone"],
+    ),
+    SegmentTemplate(
+        name="Closing: What Bleak House Means Today",
+        segment_type="closing",
+        preferred_dimensions=["prov_thematic_depth"],
+        min_passages=2,
+        max_passages=3,
+    ),
+]
 
 
 @dataclass

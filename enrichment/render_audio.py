@@ -32,10 +32,8 @@ from pydub import AudioSegment
 
 from cas import store as cas_store
 
-from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
-    PodcastEpisode,
-    Turn,
-)
+from enrichment.episode import PodcastEpisode
+from enrichment.llm.schemas import Turn
 from enrichment.timing import Recorder, record_tts_audio, time_tts
 from enrichment.tts_profiles import (
     EpisodeContext,

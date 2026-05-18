@@ -36,8 +36,10 @@ import argparse
 import json
 from pathlib import Path
 
-from enrichment.podcast_types import ALTERNATIVE_PERSONAS, DEFAULT_PERSONAS
-
+from enrichment.personas import (
+    ALTERNATIVE_PERSONAS,
+    DEFAULT_PERSONAS,
+)
 RUNS_DIR = Path("data/runs")
 
 FIXED_ROLES = {"Host": "host", "Narrator": "narrator"}

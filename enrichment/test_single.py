@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 
 from enrichment.llm import GenerationRequest, generate
 from enrichment.novel_prompts import NOVEL_CONFIGS, build_enrichment_prompt
-from enrichment.schemas import ChapterEnrichmentResult
+from enrichment.llm.schemas import ChapterEnrichmentResult
 from enrichment.submit_passages_enriched import format_chapter_text
 
 TOKENS_PER_PARAGRAPH = 350

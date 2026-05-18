@@ -17,7 +17,8 @@ import logging
 from pathlib import Path
 
 from enrichment import axes
-from enrichment.podcast_types import PodcastEpisode, Turn
+from enrichment.episode import PodcastEpisode
+from enrichment.llm.schemas import Turn
 from enrichment.tts_profiles import EpisodeContext, TTSProfile, get_profile
 
 logger = logging.getLogger(__name__)

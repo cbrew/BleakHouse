@@ -41,7 +41,7 @@ import openai
 from dotenv import load_dotenv
 
 from enrichment.novel_prompts import NOVEL_CONFIGS, build_enrichment_prompt
-from enrichment.schemas import ChapterEnrichmentResult
+from enrichment.llm.schemas import ChapterEnrichmentResult
 from enrichment.submit_passages_enriched import format_chapter_text
 
 logger = logging.getLogger(__name__)

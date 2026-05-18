@@ -39,13 +39,15 @@ import llm
 
 from enrichment import axes
 from enrichment.generate_podcast import assemble_episode, build_messages, fix_turn_roles
-from enrichment.podcast_types import (
-    ALTERNATIVE_PERSONAS,
-    DEFAULT_PERSONAS,
+from enrichment.llm.schemas import (
     EpisodeSegment,
-    ExpertPersona,
     HostBrief,
     SegmentTemplate,
+)
+from enrichment.personas import (
+    ALTERNATIVE_PERSONAS,
+    DEFAULT_PERSONAS,
+    ExpertPersona,
 )
 from enrichment.post_phase3 import run_post_phase3
 from enrichment.segment_transport import (

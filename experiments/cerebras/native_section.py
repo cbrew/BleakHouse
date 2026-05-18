@@ -29,12 +29,12 @@ from cerebras.cloud.sdk import Cerebras
 from cerebras.cloud.sdk.types.chat.chat_completion import ChatCompletionResponse
 
 from enrichment.generate_podcast import build_messages
-from enrichment.podcast_types import (
-    DEFAULT_PERSONAS,
+from enrichment.llm.schemas import (
     EpisodeSegment,
     HostBrief,
     SegmentTemplate,
 )
+from enrichment.personas import DEFAULT_PERSONAS
 from enrichment.segment_transport import (
     PassageAssignment,
     PlannedSegment,

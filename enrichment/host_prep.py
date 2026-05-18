@@ -26,11 +26,11 @@ from pathlib import Path
 from typing import Any
 
 
-from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
-    ExpertPersona,
+from enrichment.llm.schemas import (
     HostBrief,
     PreInterviewResponse,
 )
+from enrichment.personas import ExpertPersona
 from enrichment.reference_tools import (
     CitationRecord,
     CitationRegistry,
@@ -957,7 +957,7 @@ def main() -> None:
             seg_assignments.append(full)
         assignments_by_segment.append(seg_assignments)
 
-    from enrichment.podcast_types import DEFAULT_PERSONAS  # pyright: ignore[reportMissingImports]
+    from enrichment.personas import DEFAULT_PERSONAS  # pyright: ignore[reportMissingImports]
 
     briefs, interviews = run_host_prep(
         DEFAULT_PERSONAS, segments, assignments_by_segment,

@@ -18,15 +18,19 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from enrichment.podcast_types import (  # pyright: ignore[reportMissingImports]
-    DEFAULT_PERSONAS,
+from enrichment.episode import (
     EpisodeMetadata,
-    EpisodeSegment,
-    ExpertPersona,
-    HostBrief,
     PodcastEpisode,
-    SegmentTemplate,
     fix_turn_roles,
+)
+from enrichment.llm.schemas import (
+    EpisodeSegment,
+    HostBrief,
+    SegmentTemplate,
+)
+from enrichment.personas import (
+    DEFAULT_PERSONAS,
+    ExpertPersona,
 )
 from enrichment.timing import Recorder
 from enrichment.segment_transport import (  # pyright: ignore[reportMissingImports]

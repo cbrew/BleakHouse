@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from pydub import AudioSegment
 
-from enrichment.podcast_types import SentenceType, Turn, Utterance
+from enrichment.llm.schemas import (
+    SentenceType,
+    Turn,
+    Utterance,
+)
 from enrichment.render_audio import apply_turn_pauses
 
 
