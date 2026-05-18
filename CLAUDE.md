@@ -195,6 +195,17 @@ The bump rules are spelled out in `docs/schemas_changelog.md`. The empirical tes
 
 The seam (`enrichment/llm/`) does not mutate schemas at runtime — `_strictify_for_openai` and `_StrictBase` were removed in BleakHouse-vyo4. All strictness comes from `model_config = ConfigDict(extra='forbid')` declared per-class, and any structural constraints (`min_length`, `max_length`) come from the Pydantic Field declaration.
 
+## Policy: Prompt changes are also breaking API changes
+
+Same spirit as the schema policy. Every LLM-bound prompt template lives in one of `enrichment/llm/host_prep_prompts.py`, `enrichment/llm/design_segments_prompts.py`, `enrichment/llm/generation_prompts.py`, `enrichment/llm/curation_prompts.py`. Each template has a sibling `*_VERSION` constant tracking its last material change.
+
+When you edit a prompt:
+1. Add a changelog entry in `docs/prompts_changelog.md`.
+2. Bump the affected `*_VERSION` if the change isn't a pure patch.
+3. The empirical test for major-vs-minor: run a small fixture (3-5 representative inputs) through the old and new prompt and diff the outputs. >~10% of diff lines materially changed → major bump.
+
+Novel-specific prompt bits parameterised by `enrichment/novel_prompts.py` are out of scope of this policy — they're per-novel config, not LLM prompt templates.
+
 ## Key Dependencies
 
 - **Anthropic / OpenAI / Google GenAI / Cerebras** — LLM APIs. Anthropic structured output via `output_config={"format": {"type": "json_schema", ...}}` (see `enrichment/test_single.py` for the canonical pattern); Gemini for TTS.

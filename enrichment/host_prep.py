@@ -42,42 +42,21 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Phase 2.5a: Pre-interviews (Haiku, parallel)
 # ---------------------------------------------------------------------------
+# Prompt templates moved to enrichment/llm/host_prep_prompts.py
+# (2026-05-18, BleakHouse-mz2g). The module-level aliases below
+# preserve the existing _INTERVIEW_* names used throughout this file.
 
-_INTERVIEW_SYSTEM = """\
-You are a podcast host preparing for a literary discussion about \
-**{novel_title}** by **{novel_author}**.  You are interviewing \
-**{expert_name}**, {expert_description}
-
-Your goal is to find out:
-1. What strikes this expert most about the passages assigned to this segment?
-2. Which passage would they most want to quote aloud, and why?
-3. Where might they disagree with or challenge the other experts ({other_experts})?
-4. What is the single most interesting or provocative claim they want to make?
-5. What specific finding emerges when they apply their own methods to these \
-passages?  Be concrete: if they would parse a sentence, show the parse.  \
-If they would compute a ratio, estimate it.  If they would cite a historical \
-source, name it.  This is the place to demonstrate what their discipline \
-actually reveals about the text.
-
-Be specific.  Reference passage IDs and actual text.  Think about what \
-will make good radio — moments of genuine intellectual excitement, \
-productive disagreement, or emotional connection to the text."""
-
-_INTERVIEW_USER = """\
-## Segment: {segment_name}
-
-The passages assigned to this segment are:
-
-{passage_block}
-
-What are your thoughts?  What strikes you?  Where would you push back \
-against the other panelists?  Which passage would you most want to \
-read aloud?
-
-Apply your specific methods to these passages.  Show your working — not \
-just "I would use dependency parsing" but "the structure is X and it \
-reveals Y."  Be concrete and specific.  This is your chance to do the \
-methodological work before the live discussion."""
+from enrichment.llm.host_prep_prompts import (  # noqa: E402
+    INTERVIEW_STRUCTURED_PARSE_SYSTEM as _INTERVIEW_STRUCTURED_PARSE_SYSTEM,
+    INTERVIEW_SYSTEM as _INTERVIEW_SYSTEM,
+    INTERVIEW_TOOLS_ADDENDUM as _INTERVIEW_TOOLS_ADDENDUM,
+    INTERVIEW_USER as _INTERVIEW_USER,
+    LISTENER_PICK_SYSTEM as _LISTENER_PICK_SYSTEM,
+    QUESTION_COUNT_LONG as _QUESTION_COUNT_LONG,
+    QUESTION_COUNT_SHORT as _QUESTION_COUNT_SHORT,
+    QUESTION_PLANNING_SYSTEM as _QUESTION_PLANNING_SYSTEM,
+    QUESTION_PLANNING_USER as _QUESTION_PLANNING_USER,
+)
 
 
 def _build_passage_summary(assignments: list[dict]) -> str:
@@ -167,25 +146,6 @@ def run_pre_interview(
     )
     return parsed
 
-
-_INTERVIEW_TOOLS_ADDENDUM = """
-
-You have three search tools.  Use `search_openalex` for scholarly works \
-(criticism, historical studies, theoretical texts) relevant to your analysis. \
-Use `search_wikipedia` for canonical works, Acts, named events, and well-known \
-people.  When a Wikipedia article looks central, call `read_wikipedia_article` \
-on its tag to access the works listed in that article's bibliography — those \
-items become citable as new tags too.
-
-Search based on what the passages actually contain — the novel and \
-author at hand, the historical period, the specific topics in front of \
-you.  Don't anchor on works from other novels you might have studied.
-
-Each tool result prefixes candidates with stable [ref-N] tags.  In your \
-structured output, populate `proposed_references` with these tags ONLY \
-(e.g. ["ref-3", "ref-7"]).  Do not invent citation text.  If a citation \
-isn't tagged, you can't propose it — search again first.  Search 3–5 times \
-total."""
 
 MAX_TOOL_CALLS = 6
 
@@ -322,11 +282,7 @@ def run_pre_interview_with_tools(
     _t1 = _time.monotonic()
     parse_result = llm_generate(GenerationRequest(
         task="host_prep_pre_interview_structured",
-        system=(
-            "Extract the pre-interview response from this expert's analysis. "
-            "proposed_references must contain ONLY [ref-N] tags from the "
-            "tool conversation — never free-text citations. " + tag_hint
-        ),
+        system=_INTERVIEW_STRUCTURED_PARSE_SYSTEM + tag_hint,
         user=final_text,
         max_tokens=2048,
         json_schema=PreInterviewResponse.model_json_schema(),
@@ -445,53 +401,6 @@ def run_all_pre_interviews(
 # Phase 2.5b: Question planning (Sonnet, per segment)
 # ---------------------------------------------------------------------------
 
-_QUESTION_PLANNING_SYSTEM = """\
-You are a podcast host planning questions for a segment of a literary \
-discussion about **{novel_title}** by **{novel_author}**.
-
-You've just finished pre-interviews with each expert.  Your job is to \
-plan {question_count_phrase} targeted questions that will:
-
-1. Draw out each expert's strongest, most interesting take
-2. Set up productive disagreements between experts
-3. Create moments where experts respond to each other's points
-4. Target specific passages for quotation — name the passage ID
-5. Keep the energy informal and conversational — pub with smart friends, \
-   not conference panel
-
-Each question should name a specific expert.  After that expert responds, \
-the others should feel free to jump in.  Your questions open threads, \
-not slots for single answers.
-
-When crafting questions, focus on the *findings* from each expert's \
-pre-interview, not their methods.  Instead of "can you tell us about \
-the dependency parsing?" write "you noticed that Dickens strips the \
-agent from every sentence here — what does that do to us as readers?"  \
-The host never asks an expert to demonstrate a method — the host asks \
-about what the method revealed.
-
-Also note any cross-engagement opportunities: places where one expert's \
-pre-interview response directly contradicts or complements another's."""
-
-_QUESTION_PLANNING_USER = """\
-## Segment: {segment_name}
-
-## Pre-interview responses:
-
-{interview_block}
-
-Plan {question_count_phrase} questions for this segment.  Make them \
-specific, conversational, and designed to produce good radio."""
-
-# Changed from "3–5" → "3–4" on 2026-05-18 to match the schema cap
-# (HostBrief.questions has max_length=4; see podcast_types.py module
-# docstring "Two-tier schema strategy"). Anthropic responses emitting
-# 5 questions get truncated to 4 by the before-validator; updating the
-# prompt avoids inviting the over-production in the first place.
-_QUESTION_COUNT_LONG = "3–4"
-_QUESTION_COUNT_SHORT = "1–2"
-
-
 def _format_interviews(interviews: list[PreInterviewResponse]) -> str:
     """Format pre-interview responses for the question planning prompt."""
     parts = []
@@ -589,49 +498,14 @@ def _format_record_for_host(record: CitationRecord) -> str:
     return f"{author_str}, \"{record.title}\" ({year})"
 
 
-# Prompt for the listener-recommendation filter. The criterion — "would a
-# general listener actually pursue this?" — has too many soft edges to
-# encode as a rule (book-vs-article isn't enough; some scholarly books
-# are eminently readable, some trade-press books are dense, some review
-# articles are accessible essays). Haiku gets the candidate metadata and
-# decides; "Zero Framework Cognition" applies — let the model do the
-# squishy judgement we can't formalise.
-_LISTENER_PICK_SYSTEM = """\
-You are curating a short reading list for a podcast about
-**{novel_title}** by {novel_author}. The experts on the show proposed
-many references during their pre-interviews. Your job is to pick the
-3-8 a *general listener* — someone driving home who enjoyed the
-episode, not a Victorianist or specialist — would actually pursue.
-
-LEAN TOWARD:
-- Books a listener could find in a public library or order from a
-  bookshop.
-- Works readable without specialist training — popular history, trade
-  biographies, accessible criticism, primary literary works.
-- Items that genuinely illuminate the novel under discussion.
-- Variety: avoid three picks by the same author or on the same narrow
-  sub-topic.
-
-LEAN AWAY FROM:
-- Journal articles, conference proceedings, dissertations, archival
-  reports — listeners can't easily access these and they read like
-  homework.
-- Specialist academic monographs, unless the work is a famously
-  readable exception.
-- Items where the title looks like a paraphrase ("essay on X by Y")
-  rather than a real published title.
-- Multiple Wikipedia articles on the same subject (pick at most one).
-
-You're not applying a hard rule; use judgement. If a "scholarly"
-candidate is genuinely the best Cranford-criticism book a listener
-should know about, include it. If a "popular" book is shallow, skip it.
-
-Output ONE JSON object only — no prose, no code fences:
-
-{{"tags": ["ref-3", "ref-7", ...]}}
-
-Pick 3-8 tags. If fewer than 3 candidates qualify, return what you have.
-"""
+# _LISTENER_PICK_SYSTEM is imported from enrichment.llm.host_prep_prompts
+# at module top. The criterion — "would a general listener actually
+# pursue this?" — has too many soft edges to encode as a rule
+# (book-vs-article isn't enough; some scholarly books are eminently
+# readable, some trade-press books are dense, some review articles are
+# accessible essays). Haiku gets the candidate metadata and decides;
+# "Zero Framework Cognition" applies — let the model do the squishy
+# judgement we can't formalise.
 
 
 _LISTENER_PICK_TAGS_RE = re.compile(r"\{[^{}]*\"tags\"[^{}]*\}", re.DOTALL)
