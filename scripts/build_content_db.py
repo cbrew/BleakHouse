@@ -193,7 +193,15 @@ CREATE TABLE IF NOT EXISTS run_index (
     ref_tools   INTEGER NOT NULL,
     generator   TEXT NOT NULL,
     has_audio   INTEGER NOT NULL,
-    rebuilt_at  REAL NOT NULL
+    rebuilt_at  REAL NOT NULL,
+    -- Version snapshot columns (BleakHouse-v5th). JSON-encoded for
+    -- shape flexibility (each is a dict). NULL on runs that predate
+    -- BleakHouse-vwwg (the writer for config.json:versions).
+    schema_versions_json   TEXT,
+    prompt_versions_json   TEXT,
+    sdk_versions_json      TEXT,
+    models_json            TEXT,
+    pyproject_commit       TEXT
 ) STRICT, WITHOUT ROWID;
 
 CREATE INDEX IF NOT EXISTS idx_run_index_novel_panel
@@ -215,6 +223,28 @@ def _conn(db_path: Path) -> sqlite3.Connection:
 
 def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
+    _migrate_run_index_versions(conn)
+
+
+def _migrate_run_index_versions(conn: sqlite3.Connection) -> None:
+    """Add the BleakHouse-v5th version columns to run_index if the
+    table predates them. Idempotent — checks pragma_table_info before
+    ALTER. SQLite has no native ADD COLUMN IF NOT EXISTS so we do it
+    by hand."""
+    existing = {
+        row[1]  # column name in pragma_table_info result
+        for row in conn.execute("PRAGMA table_info(run_index)")
+    }
+    additions = [
+        ("schema_versions_json", "TEXT"),
+        ("prompt_versions_json", "TEXT"),
+        ("sdk_versions_json",    "TEXT"),
+        ("models_json",          "TEXT"),
+        ("pyproject_commit",     "TEXT"),
+    ]
+    for name, sqltype in additions:
+        if name not in existing:
+            conn.execute(f"ALTER TABLE run_index ADD COLUMN {name} {sqltype}")
 
 
 def _extract_axes(config_payload: str) -> dict | None:
@@ -267,6 +297,68 @@ def _extract_axes(config_payload: str) -> dict | None:
     }
 
 
+def _extract_versions(config_payload: str) -> dict[str, str | None]:
+    """Pull the 'versions' block out of a config.json payload.
+
+    New runs (post-BleakHouse-vwwg) have versions = {schemas, prompts,
+    sdks, models, pyproject_commit}. Old runs don't have the block —
+    we fill JSON columns with NULL and best-effort-synthesise a partial
+    `models` from the legacy `generator` field so a webapp query that
+    expects 'something is there' isn't completely empty.
+
+    Returns a dict shaped for the 5 SQL columns; values may be None.
+    """
+    import json as _json
+    try:
+        cfg = _json.loads(config_payload)
+    except _json.JSONDecodeError:
+        return {
+            "schema_versions_json": None,
+            "prompt_versions_json": None,
+            "sdk_versions_json": None,
+            "models_json": None,
+            "pyproject_commit": None,
+        }
+    if not isinstance(cfg, dict):
+        return {
+            "schema_versions_json": None,
+            "prompt_versions_json": None,
+            "sdk_versions_json": None,
+            "models_json": None,
+            "pyproject_commit": None,
+        }
+    versions = cfg.get("versions") or {}
+    if not isinstance(versions, dict):
+        versions = {}
+
+    def _json_or_none(value: object) -> str | None:
+        if not value:
+            return None
+        try:
+            return _json.dumps(value, sort_keys=True)
+        except (TypeError, ValueError):
+            return None
+
+    # Best-effort models synthesis when full block missing: derive from
+    # the legacy `generator` field. Better than nothing for old runs.
+    models_block = versions.get("models")
+    if not models_block:
+        generator = cfg.get("generator")
+        if isinstance(generator, str) and generator:
+            # We don't know per-task routing for old runs; record what
+            # was visible at the axes level under a synthetic 'legacy'
+            # task name so the JSON is non-empty and grep-able.
+            models_block = {"_legacy_generator": generator}
+
+    return {
+        "schema_versions_json": _json_or_none(versions.get("schemas")),
+        "prompt_versions_json": _json_or_none(versions.get("prompts")),
+        "sdk_versions_json":    _json_or_none(versions.get("sdks")),
+        "models_json":          _json_or_none(models_block),
+        "pyproject_commit":     versions.get("pyproject_commit") or None,
+    }
+
+
 def _rebuild_run_index(conn: sqlite3.Connection, now: float) -> int:
     """Wipe and rebuild run_index from current run_artifact rows.
 
@@ -297,15 +389,23 @@ def _rebuild_run_index(conn: sqlite3.Connection, now: float) -> int:
         axes = _extract_axes(payload)
         if axes is None:
             continue
+        versions = _extract_versions(payload)
         conn.execute(
             "INSERT INTO run_index"
             "(run_id, novel, panel, pipeline, length, hostprep,"
-            " ref_tools, generator, has_audio, rebuilt_at)"
-            " VALUES(?,?,?,?,?,?,?,?,?,?)",
+            " ref_tools, generator, has_audio, rebuilt_at,"
+            " schema_versions_json, prompt_versions_json,"
+            " sdk_versions_json, models_json, pyproject_commit)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (run_id, axes["novel"], axes["panel"], axes["pipeline"],
              axes["length"], int(axes["hostprep"]),
              int(run_id in has_reading_list), axes["generator"],
-             int(run_id in has_shards), now),
+             int(run_id in has_shards), now,
+             versions["schema_versions_json"],
+             versions["prompt_versions_json"],
+             versions["sdk_versions_json"],
+             versions["models_json"],
+             versions["pyproject_commit"]),
         )
         n += 1
     return n
