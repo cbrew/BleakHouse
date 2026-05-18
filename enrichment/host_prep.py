@@ -483,7 +483,12 @@ _QUESTION_PLANNING_USER = """\
 Plan {question_count_phrase} questions for this segment.  Make them \
 specific, conversational, and designed to produce good radio."""
 
-_QUESTION_COUNT_LONG = "3–5"
+# Changed from "3–5" → "3–4" on 2026-05-18 to match the schema cap
+# (HostBrief.questions has max_length=4; see podcast_types.py module
+# docstring "Two-tier schema strategy"). Anthropic responses emitting
+# 5 questions get truncated to 4 by the before-validator; updating the
+# prompt avoids inviting the over-production in the first place.
+_QUESTION_COUNT_LONG = "3–4"
 _QUESTION_COUNT_SHORT = "1–2"
 
 

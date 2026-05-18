@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Qwen pricing — DeepInfra vs Alibaba Model Studio — BleakHouse 2026-05-17</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         max-width: 1100px; margin: 2em auto; padding: 0 1em; color: #222; line-height: 1.45; }
+  h1, h2, h3 { color: #111; }
+  h2 { border-bottom: 1px solid #ccc; padding-bottom: 0.2em; margin-top: 2em; }
+  table { border-collapse: collapse; margin: 1em 0; width: 100%; font-size: 0.92em; }
+  th, td { border: 1px solid #ddd; padding: 0.35em 0.55em; vertical-align: top; text-align: left; }
+  th { background: #f4f4f4; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.id  { font-family: SFMono-Regular, Menlo, monospace; font-size: 0.88em; }
+  .meta  { color: #555; font-size: 0.9em; }
+  .caveat { background: #fff8e1; border-left: 3px solid #f6c343; padding: 0.6em 0.9em; margin: 1em 0; }
+  code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; }
+  .rule { color: #888; font-size: 0.85em; }
+</style>
+</head>
+<body>
+
+<h1>Qwen pricing — DeepInfra vs Alibaba Model Studio</h1>
+<p class="meta">Snapshot 2026-05-17. Compiled to answer "is OpenRouter cheaper, are other providers cheaper, what's the OpenRouter commission against direct Alibaba?" while picking a routing default for short-format prose generation (BleakHouse-9k9n, dll8 listener panel context). All prices in USD per million tokens.</p>
+
+<h2>Sources and what they mean</h2>
+<ul>
+  <li><strong>DeepInfra direct</strong> — pulled live from <code>https://api.deepinfra.com/models/list</code>. Authoritative; this is the public catalogue endpoint DeepInfra exposes. Pricing fields <code>cents_per_input_token</code> and <code>cents_per_output_token</code> converted with multiplier 1e4 to USD-per-M.</li>
+  <li><strong>Alibaba direct</strong> — Alibaba Cloud Model Studio (International / Singapore region) per their pricing page, last updated 2026-04-01. <strong>Tiered pricing</strong>: Alibaba charges different per-token rates depending on the input-token-count bucket the request falls into. Ranges below are the documented min–max across tiers.</li>
+  <li><strong>Alibaba via OpenRouter</strong> — pulled live from <code>https://openrouter.ai/api/v1/models/&lt;slug&gt;/endpoints</code>, filtered to <code>provider_name == "Alibaba"</code>. OpenRouter exposes a single flat per-token rate per (model, provider) pair; this is what an OR-routed call against the Alibaba backend pays. The spread vs Alibaba direct is the OpenRouter commission plus any tier-collapsing.</li>
+</ul>
+
+<div class="caveat">
+<strong>Methodology caveat.</strong> Alibaba's tiered pricing makes single-number comparison imprecise. The OpenRouter Alibaba price tends to sit at or near the bottom of the published Alibaba tier range, suggesting OR negotiates the lowest tier and adds margin from there. For BleakHouse-shaped traffic (mostly small input, ~3-5k tokens/segment), the bottom-of-tier rate is what we'd actually pay direct, so the OR commission relative to the model's bottom-tier-direct is small (often single-digit percent). Treat any cross-row "commission" inference as approximate.
+</div>
+
+<h2>DeepInfra — Qwen text-generation models (live, sorted by output $/M)</h2>
+<p class="meta">22 active text-generation Qwen models. Quantization column is what DeepInfra serves at (<code>fp8</code> for most; <code>fp4</code> for the giant Coder-480B; <code>bfloat16</code> for the tiny dense Qwen 3.5 family).</p>
+<table>
+<tr><th>model id</th><th>ctx</th><th class="num">in $/M</th><th class="num">out $/M</th><th>quant</th></tr>
+<tr><td class="id">Qwen/Qwen3.5-0.8B</td><td>256k</td><td class="num">0.010</td><td class="num">0.050</td><td>bfloat16</td></tr>
+<tr><td class="id">Qwen/Qwen3-235B-A22B-Instruct-2507</td><td>256k</td><td class="num">0.071</td><td class="num">0.100</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3.5-2B</td><td>256k</td><td class="num">0.020</td><td class="num">0.100</td><td>bfloat16</td></tr>
+<tr><td class="id">Qwen/Qwen3.5-4B</td><td>256k</td><td class="num">0.030</td><td class="num">0.150</td><td>bfloat16</td></tr>
+<tr><td class="id">Qwen/Qwen3.5-9B</td><td>256k</td><td class="num">0.040</td><td class="num">0.150</td><td>bfloat16</td></tr>
+<tr><td class="id">Qwen/Qwen3-14B</td><td>40k</td><td class="num">0.120</td><td class="num">0.240</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3-32B</td><td>40k</td><td class="num">0.080</td><td class="num">0.280</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen2.5-72B-Instruct</td><td>32k</td><td class="num">0.360</td><td class="num">0.400</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3-30B-A3B</td><td>40k</td><td class="num">0.090</td><td class="num">0.450</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3-VL-30B-A3B-Instruct</td><td>256k</td><td class="num">0.150</td><td class="num">0.600</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3-VL-235B-A22B-Instruct</td><td>256k</td><td class="num">0.200</td><td class="num">0.880</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3.6-35B-A3B</td><td>256k</td><td class="num">0.150</td><td class="num">0.950</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo</td><td>256k</td><td class="num">0.300</td><td class="num">1.000</td><td>fp4</td></tr>
+<tr><td class="id">Qwen/Qwen3.5-35B-A3B</td><td>256k</td><td class="num">0.140</td><td class="num">1.000</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3-Next-80B-A3B-Instruct</td><td>256k</td><td class="num">0.090</td><td class="num">1.100</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3-235B-A22B-Thinking-2507</td><td>256k</td><td class="num">0.230</td><td class="num">2.300</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3.5-122B-A10B</td><td>256k</td><td class="num">0.290</td><td class="num">2.400</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3.5-27B</td><td>256k</td><td class="num">0.260</td><td class="num">2.600</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3.6-27B</td><td>256k</td><td class="num">0.320</td><td class="num">3.200</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3.5-397B-A17B</td><td>256k</td><td class="num">0.490</td><td class="num">3.600</td><td>fp8</td></tr>
+<tr><td class="id">Qwen/Qwen3-Max</td><td>250k</td><td class="num">1.200</td><td class="num">6.000</td><td>—</td></tr>
+<tr><td class="id">Qwen/Qwen3-Max-Thinking</td><td>250k</td><td class="num">1.200</td><td class="num">6.000</td><td>—</td></tr>
+</table>
+
+<h2>Alibaba direct — Qwen models on Model Studio International</h2>
+<p class="meta">Ranges are min–max across input-token-count tiers. For BleakHouse traffic (small input) the bottom of each range is the practical rate. Source: Alibaba Cloud Model Studio docs, updated 2026-04-01. The list is what Alibaba's pricing page surfaced; their actual catalogue is larger (see the Alibaba-via-OpenRouter table below for additional models visible through that route).</p>
+<table>
+<tr><th>model id</th><th>ctx</th><th class="num">in $/M (low–high)</th><th class="num">out $/M (low–high)</th><th>cache</th></tr>
+<tr><td class="id">qwen-turbo</td><td>1M</td><td class="num">0.050</td><td class="num">0.200 – 0.500</td><td>tiered</td></tr>
+<tr><td class="id">qwen3.5-flash</td><td>1M</td><td class="num">0.029 – 0.172</td><td class="num">0.287 – 1.720</td><td>tiered</td></tr>
+<tr><td class="id">qwen-flash</td><td>1M</td><td class="num">0.050 – 0.250</td><td class="num">0.400 – 2.000</td><td>tiered</td></tr>
+<tr><td class="id">qwen-plus</td><td>1M</td><td class="num">0.400 – 1.200</td><td class="num">1.200 – 3.600</td><td>tiered</td></tr>
+<tr><td class="id">qwen3.5-plus</td><td>1M</td><td class="num">0.400 – 0.500</td><td class="num">2.400 – 3.000</td><td>tiered</td></tr>
+<tr><td class="id">qwen3-coder-flash</td><td>1M</td><td class="num">0.300 – 1.600</td><td class="num">1.500 – 9.600</td><td>10–20% of standard</td></tr>
+<tr><td class="id">qwen-max</td><td>32k</td><td class="num">1.600</td><td class="num">6.400</td><td>—</td></tr>
+<tr><td class="id">qwen3-max</td><td>256k</td><td class="num">1.200 – 3.000</td><td class="num">6.000 – 15.000</td><td>context cache available</td></tr>
+<tr><td class="id">qwen3-coder-plus</td><td>1M</td><td class="num">1.000 – 6.000</td><td class="num">5.000 – 60.000</td><td>10–20% of standard</td></tr>
+</table>
+
+<h2>Alibaba via OpenRouter — single flat rate per model</h2>
+<p class="meta">37 Qwen models routed to Alibaba on OpenRouter as of 2026-05-17. The rate is what an OR-routed call against the Alibaba backend pays; difference vs Alibaba direct is OR commission plus tier-collapsing. Sorted by output cost.</p>
+<table>
+<tr><th>openrouter slug</th><th>ctx</th><th class="num">in $/M</th><th class="num">out $/M</th></tr>
+<tr><td class="id">qwen/qwen3.5-flash-02-23</td><td>1M</td><td class="num">0.065</td><td class="num">0.260</td></tr>
+<tr><td class="id">qwen/qwen3-32b</td><td>128k</td><td class="num">0.104</td><td class="num">0.416</td></tr>
+<tr><td class="id">qwen/qwen3-vl-32b-instruct</td><td>128k</td><td class="num">0.104</td><td class="num">0.416</td></tr>
+<tr><td class="id">qwen/qwen3-8b</td><td>128k</td><td class="num">0.117</td><td class="num">0.455</td></tr>
+<tr><td class="id">qwen/qwen3-vl-8b-instruct</td><td>128k</td><td class="num">0.117</td><td class="num">0.455</td></tr>
+<tr><td class="id">qwen/qwen3-30b-a3b</td><td>128k</td><td class="num">0.130</td><td class="num">0.520</td></tr>
+<tr><td class="id">qwen/qwen3-30b-a3b-instruct-2507</td><td>128k</td><td class="num">0.130</td><td class="num">0.520</td></tr>
+<tr><td class="id">qwen/qwen3-vl-30b-a3b-instruct</td><td>128k</td><td class="num">0.130</td><td class="num">0.520</td></tr>
+<tr><td class="id">qwen/qwen3-235b-a22b-2507</td><td>128k</td><td class="num">0.150</td><td class="num">0.598</td></tr>
+<tr><td class="id">qwen-plus</td><td>1M</td><td class="num">0.260</td><td class="num">0.780</td></tr>
+<tr><td class="id">qwen-plus-2025-07-28</td><td>1M</td><td class="num">0.260</td><td class="num">0.780</td></tr>
+<tr><td class="id">qwen/qwen3-next-80b-a3b-instruct</td><td>128k</td><td class="num">0.098</td><td class="num">0.780</td></tr>
+<tr><td class="id">qwen/qwen3-next-80b-a3b-thinking</td><td>128k</td><td class="num">0.098</td><td class="num">0.780</td></tr>
+<tr><td class="id">qwen/qwen3-14b</td><td>128k</td><td class="num">0.227</td><td class="num">0.910</td></tr>
+<tr><td class="id">qwen/qwen3-coder-flash</td><td>1M</td><td class="num">0.195</td><td class="num">0.975</td></tr>
+<tr><td class="id">qwen/qwen3-vl-235b-a22b-instruct</td><td>128k</td><td class="num">0.260</td><td class="num">1.040</td></tr>
+<tr><td class="id">qwen/qwen3.6-flash</td><td>1M</td><td class="num">0.188</td><td class="num">1.125</td></tr>
+<tr><td class="id">qwen/qwen3.5-35b-a3b</td><td>256k</td><td class="num">0.163</td><td class="num">1.300</td></tr>
+<tr><td class="id">qwen/qwen3-vl-8b-thinking</td><td>250k</td><td class="num">0.117</td><td class="num">1.365</td></tr>
+<tr><td class="id">qwen/qwen3-235b-a22b-thinking-2507</td><td>128k</td><td class="num">0.150</td><td class="num">1.495</td></tr>
+<tr><td class="id">qwen/qwen3-30b-a3b-thinking-2507</td><td>80k</td><td class="num">0.130</td><td class="num">1.560</td></tr>
+<tr><td class="id">qwen/qwen3-vl-30b-a3b-thinking</td><td>128k</td><td class="num">0.130</td><td class="num">1.560</td></tr>
+<tr><td class="id">qwen/qwen3.5-27b</td><td>256k</td><td class="num">0.195</td><td class="num">1.560</td></tr>
+<tr><td class="id">qwen/qwen3.5-plus-02-15</td><td>1M</td><td class="num">0.260</td><td class="num">1.560</td></tr>
+<tr><td class="id">qwen/qwen3-235b-a22b</td><td>128k</td><td class="num">0.455</td><td class="num">1.820</td></tr>
+<tr><td class="id">qwen/qwen3.5-plus-20260420</td><td>1M</td><td class="num">0.300</td><td class="num">1.800</td></tr>
+<tr><td class="id">qwen/qwen3.6-plus</td><td>1M</td><td class="num">0.325</td><td class="num">1.950</td></tr>
+<tr><td class="id">qwen/qwen3.5-122b-a10b</td><td>256k</td><td class="num">0.260</td><td class="num">2.080</td></tr>
+<tr><td class="id">qwen/qwen3.5-397b-a17b</td><td>256k</td><td class="num">0.390</td><td class="num">2.340</td></tr>
+<tr><td class="id">qwen/qwen3-vl-235b-a22b-thinking</td><td>128k</td><td class="num">0.260</td><td class="num">2.600</td></tr>
+<tr><td class="id">qwen/qwen3.6-27b</td><td>256k</td><td class="num">0.450</td><td class="num">2.700</td></tr>
+<tr><td class="id">qwen/qwen3-coder-plus</td><td>1M</td><td class="num">0.650</td><td class="num">3.250</td></tr>
+<tr><td class="id">qwen/qwen3-max</td><td>256k</td><td class="num">0.780</td><td class="num">3.900</td></tr>
+<tr><td class="id">qwen/qwen3-max-thinking</td><td>256k</td><td class="num">0.780</td><td class="num">3.900</td></tr>
+<tr><td class="id">qwen/qwen3-coder</td><td>256k</td><td class="num">0.975</td><td class="num">4.875</td></tr>
+<tr><td class="id">qwen/qwen3.6-max-preview</td><td>256k</td><td class="num">1.040</td><td class="num">6.240</td></tr>
+<tr><td class="id">qwen/qwen3-coder-30b-a3b-instruct</td><td>256k</td><td class="num">0.292</td><td class="num">1.462</td></tr>
+</table>
+
+<h2>What this tells us — cross-route comparison for the BleakHouse routing decision</h2>
+
+<p>The models most likely to matter for short-format prose generation per the dll8 listener results:</p>
+
+<table>
+<tr><th>model</th><th class="num">DeepInfra in/out $/M</th><th class="num">Alibaba direct in/out $/M (bottom tier)</th><th class="num">Alibaba via OR in/out $/M</th><th>note</th></tr>
+<tr><td class="id">Qwen3-235B-A22B-Instruct-2507</td><td class="num">0.071 / 0.100</td><td class="num">— (not surfaced)</td><td class="num">0.150 / 0.598</td><td>DeepInfra is ~6× cheaper on output than the OR-Alibaba route. The Tier L listener-panel winner at 60% win-rate.</td></tr>
+<tr><td class="id">Qwen3-Next-80B-A3B-Instruct</td><td class="num">0.090 / 1.100</td><td class="num">— (not surfaced)</td><td class="num">0.098 / 0.780</td><td>OR-Alibaba is cheaper on output ($0.78 vs $1.10). One of the few cases where OR-Alibaba beats DeepInfra.</td></tr>
+<tr><td class="id">Qwen3-30B-A3B-Instruct-2507</td><td class="num">— (not on DeepInfra)</td><td class="num">— (not surfaced)</td><td class="num">0.130 / 0.520</td><td>Only available through Alibaba routes. Smaller sibling of the 235B-A22B-2507; worth probing as an even cheaper alternative.</td></tr>
+<tr><td class="id">qwen-plus (Alibaba's hosted flagship)</td><td class="num">— (not on DeepInfra)</td><td class="num">0.400 / 1.200</td><td class="num">0.260 / 0.780</td><td>OR-Alibaba is <em>cheaper than Alibaba direct here</em> — likely because OR locks the lowest tier while Alibaba's range starts at $0.40 for low input volumes. Suggests OR may quote sub-direct rates for some Alibaba listings.</td></tr>
+<tr><td class="id">Qwen3-Max</td><td class="num">1.200 / 6.000</td><td class="num">1.200 / 6.000 (bottom tier)</td><td class="num">0.780 / 3.900</td><td>OR-Alibaba significantly under-quotes both DeepInfra and Alibaba direct. Worth verifying with a real call before relying.</td></tr>
+</table>
+
+<h3>Headline conclusions</h3>
+<ol>
+  <li><strong>For the dll8-panel winner (Qwen3-235B-A22B-Instruct-2507), DeepInfra direct is cleanly the cheapest route</strong> at $0.071 / $0.100 per M. The Alibaba route (whether direct or via OR) is materially more expensive. No reason to leave DeepInfra for this model.</li>
+  <li><strong>Alibaba via OpenRouter exposes a wider catalogue</strong> — 14 Qwen models that aren't on DeepInfra at all (qwen-plus, qwen3.5-flash, qwen3.5-plus, qwen3.6-flash, qwen3.6-plus, qwen3.6-max-preview, qwen3-coder-flash, qwen3-coder-plus, qwen-plus-2025-07-28, qwen3-30b-a3b-instruct-2507, qwen3-30b-a3b-thinking-2507, qwen3-next-80b-a3b-thinking, qwen3-vl-*-thinking, qwen/qwen3-coder-30b-a3b-instruct). If we want to probe an Alibaba-only model (e.g. qwen3-30b-a3b-instruct-2507 as a cheaper sibling of the panel winner), the OR route is the easiest first call.</li>
+  <li><strong>OR commission against Alibaba direct appears small or negative.</strong> For models where we have both numbers (qwen-plus, qwen3-max), OR's quoted price is at-or-below Alibaba's documented bottom-tier rate. This could be an artefact of (a) OR locking the lowest tier for callers who don't qualify for it on Alibaba direct, or (b) the Alibaba pricing page being slightly stale relative to OR's negotiated rates. <em>Anomaly worth one verification call before relying on the OR Alibaba quote.</em></li>
+  <li><strong>Operational implication for BleakHouse-9k9n</strong>: for the short-prose default we don't need to introduce a second provider. DeepInfra direct on Qwen3-235B-A22B-Instruct-2507 stays the recommended pick. The OR-Alibaba route is interesting as a <em>probe channel</em> for models DeepInfra doesn't host, not as a primary route.</li>
+</ol>
+
+<p class="meta">Generated via direct API calls to <code>api.deepinfra.com/models/list</code> and per-model lookups against <code>openrouter.ai/api/v1/models/&lt;slug&gt;/endpoints</code> on 2026-05-17. Alibaba direct pricing reflects the public Model Studio docs (last updated 2026-04-01); re-verify before quoting outward. Companion to <a href="structured_output_review.html"><code>structured_output_review.html</code></a> and to the dll8 listener results in <code>data/eval/stage2_tier_l_prose/preference_summary.json</code>.</p>
+
+</body>
+</html>

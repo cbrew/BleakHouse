@@ -199,18 +199,25 @@ class OpenAICompatibleProvider:
             # docs/structured_output_review.html addendum.
             if request.reasoning_effort is not None:
                 kwargs["reasoning_effort"] = _adapt_openai_reasoning_effort(
-                    spec.model, request.reasoning_effort,
+                    spec.model, request.reasoning_effort, spec.hosting,
                 )
         else:
             kwargs["max_tokens"] = request.max_tokens
             if request.temperature is not None:
                 kwargs["temperature"] = request.temperature
-            # For third-party openai-compat providers (DeepInfra), the
-            # gpt-oss family takes reasoning_effort via extra_body.
-            # See docs/structured_output_review.html supplementary probe.
+            # For third-party openai-compat providers (DeepInfra, Cerebras,
+            # Together), reasoning_effort goes via extra_body. The accepted
+            # vocabulary varies by hosting+model — see the survey table
+            # above _adapt_openai_reasoning_effort. The adapter coerces
+            # the value to one the target will accept; non-reasoning
+            # models silently ignore it.
             if request.reasoning_effort is not None:
                 kwargs.setdefault("extra_body", {})
-                kwargs["extra_body"]["reasoning_effort"] = request.reasoning_effort
+                kwargs["extra_body"]["reasoning_effort"] = (
+                    _adapt_openai_reasoning_effort(
+                        spec.model, request.reasoning_effort, spec.hosting,
+                    )
+                )
         if request.json_schema is not None:
             schema = request.json_schema
             if request.list_field_caps:
@@ -224,10 +231,16 @@ class OpenAICompatibleProvider:
                 )
             caps = for_hosting(spec.hosting)
             if caps.json_schema_strict:
-                # OpenAI strict mode requires additionalProperties=false on
-                # every object. Pydantic doesn't emit it. Inject before
-                # sending. Same posture as the Phase 3 alt driver's
-                # _strictify (enrichment/phase3_runner.py).
+                # OpenAI strict mode requires `additionalProperties: false`
+                # on every object. The CORRECT place to put this is on the
+                # Pydantic model with `model_config = ConfigDict(extra=
+                # 'forbid')`, which produces it natively and also gives
+                # Python-side validation of unknown fields — see how
+                # PreInterviewResponse / HostBrief / HostQuestion in
+                # podcast_types.py handle it. This walker is a defensive
+                # fallback for models that haven't yet been migrated to
+                # extra='forbid'; once they all have it, this call and
+                # `_strictify_for_openai` below can be deleted.
                 schema = _strictify_for_openai(schema)
             kwargs["response_format"] = {
                 "type": "json_schema",
@@ -326,7 +339,7 @@ class OpenAICompatibleProvider:
                 kwargs["max_completion_tokens"] = request.max_tokens
                 if request.reasoning_effort is not None:
                     kwargs["reasoning_effort"] = _adapt_openai_reasoning_effort(
-                        spec.model, request.reasoning_effort,
+                        spec.model, request.reasoning_effort, spec.hosting,
                     )
             else:
                 kwargs["max_tokens"] = request.max_tokens
@@ -335,7 +348,9 @@ class OpenAICompatibleProvider:
                 if request.reasoning_effort is not None:
                     kwargs.setdefault("extra_body", {})
                     kwargs["extra_body"]["reasoning_effort"] = (
-                        request.reasoning_effort
+                        _adapt_openai_reasoning_effort(
+                            spec.model, request.reasoning_effort, spec.hosting,
+                        )
                     )
 
             response = client.chat.completions.create(**kwargs)
@@ -431,15 +446,67 @@ class OpenAICompatibleProvider:
         )
 
 
-def _adapt_openai_reasoning_effort(model: str, effort: str) -> str:
-    """Map a requested effort to a value the specific model accepts.
+# Per-hosting `reasoning_effort` accepted vocabularies, established by
+# direct API probes against `https://api.deepinfra.com/models/<id>`
+# in_schema, Cerebras docs (inference-docs.cerebras.ai/api-reference/
+# chat-completions), and OpenAI behavioural observation. Snapshot 2026-05-17.
+#
+# OpenAI native:
+#   - gpt-5-mini  : {minimal, low, medium, high}
+#   - gpt-5.4     : {none, low, medium, high, xhigh}   — 'minimal' → HTTP 400
+#   - other gpt-5 : assumed gpt-5-mini-shape unless observed otherwise.
+#
+# DeepInfra:
+#   - Global request validator accepts {none, low, medium, high, xhigh}.
+#     'minimal' → HTTP 422 with "Input should be 'low', 'medium', 'high',
+#     'xhigh' or 'none'" — observed against Qwen3-235B-A22B-Instruct-2507.
+#   - Per-model in_schema does NOT list reasoning_effort for any model
+#     checked (Qwen3-235B-A22B-Instruct-2507, Qwen3-235B-A22B-Thinking-2507,
+#     gpt-oss-120b, gemma-4-31B-it, DeepSeek-V3.2). The validator accepts
+#     the field regardless; non-reasoning models silently ignore it.
+#
+# Cerebras (per vendor docs, 2026-05-17):
+#   - gpt-oss-120b  : {low, medium, high}
+#   - zai-glm-4.7   : {none}  (only this value)
+#   - qwen-3-*      : parameter not documented; behaviour unverified.
+#                     Sending 'low' has worked in production; sending
+#                     'minimal' is unknown — coerce to be safe.
+#
+# Anthropic: not a parameter; the AnthropicProvider does not consume
+# `reasoning_effort` so no adaptation is needed on that path.
+#
+# Universal-safe value: 'low'. Coercing 'minimal' → 'low' is the
+# robust default everywhere except gpt-5-mini (the only target that
+# explicitly accepts 'minimal').
 
-    gpt-5-mini accepts: minimal | low | medium | high.
-    gpt-5.4    accepts: none | low | medium | high | xhigh (rejects 'minimal').
-    For unrecognised models, pass through unchanged."""
-    if effort == "minimal" and model.startswith("gpt-5.4"):
-        return "low"
-    return effort
+_MODELS_ACCEPTING_MINIMAL: dict[str, tuple[str, ...]] = {
+    # hosting → tuple of model-name substrings that accept 'minimal'
+    "openai": ("gpt-5-mini",),
+    # gpt-oss family on DeepInfra was historically thought to accept
+    # 'minimal' via extra_body but DeepInfra's global validator rejects
+    # it (see comment above). No DeepInfra model accepts 'minimal'.
+    # Cerebras: no model accepts 'minimal' per their docs.
+}
+
+
+def _adapt_openai_reasoning_effort(
+    model: str, effort: str, hosting: str = "openai",
+) -> str:
+    """Coerce a requested reasoning_effort to a value the (hosting, model)
+    target will accept.
+
+    The default `hosting='openai'` keeps backward compatibility with
+    callers that haven't been updated to pass hosting; for those, the
+    old gpt-5-mini-vs-gpt-5.4 logic applies (which is what they need).
+
+    See the per-hosting vocabulary table above this function for the
+    survey that backs this behaviour."""
+    if effort != "minimal":
+        return effort
+    patterns = _MODELS_ACCEPTING_MINIMAL.get(hosting, ())
+    if any(p in model for p in patterns):
+        return effort
+    return "low"
 
 
 def _strictify_for_openai(schema: Any) -> Any:

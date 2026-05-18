@@ -8,14 +8,108 @@ Defines the output schema for the hybrid transport pipeline:
   PodcastEpisode   — the complete episode
   EpisodeMetadata  — provenance and coverage information
   VoicePolicy      — per-speaker rendering defaults for TTS
+
+# Two-tier schema strategy (host_prep cluster only, 2026-05-18)
+
+The host_prep cluster models — PreInterviewResponse, HostQuestion,
+HostBrief — are the source of truth for the STRICT schema. All list
+fields declare min_length / max_length plus extra='forbid'. These get
+emitted into the Pydantic-generated JSON Schema as `minItems`,
+`maxItems`, and `additionalProperties: false`.
+
+How each provider sees this:
+  * Qwen on DeepInfra honours minItems / maxItems at decode time, so
+    valid output is produced by construction. No coercion needed.
+  * Anthropic's output_config rejects minItems / maxItems / etc. The
+    seam's Anthropic provider (enrichment/llm/providers/
+    anthropic_provider.py) denatures the schema to an allowlist of
+    Anthropic-supported keys before sending. Anthropic's response may
+    therefore violate the strict schema. The `@field_validator(...,
+    mode='before')` coercers on each model pad/truncate any list whose
+    length is outside the [min_length, max_length] band and log when
+    they fire. Pydantic validation then succeeds.
+
+Placeholder values for padding:
+  * list[str] → `PLACEHOLDER_STR` ("[unspecified]")
+  * list[HostQuestion] → a HostQuestion-shaped dict whose own fields
+    are valid placeholder strings; constructing a real HostQuestion
+    via Pydantic would re-trigger the same coercion logic.
+
+Why this design (not e.g. mutating the JSON in the Anthropic provider
+itself): keeping coercion next to the constraints means the same model
+file documents both "what valid means" and "how we coerce on violation".
+A reader can answer "what happens if a list comes back empty" without
+crossing module boundaries. The trade-off: the validator also fires
+for Qwen responses, which should never violate; the log line at INFO
+is the diagnostic if Qwen ever does.
+
+See also docs/structured_output_review.html (Addendum 2026-05-18).
 """
 
 from __future__ import annotations
 
+import logging
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+logger = logging.getLogger(__name__)
+
+
+# Placeholder values used by the before-validators when padding a list
+# that came back from Anthropic (or any other source) with fewer items
+# than the strict schema's min_length. Keep grep-able for forensics.
+PLACEHOLDER_STR: str = "[unspecified]"
+
+
+def _placeholder_question_dict() -> dict[str, Any]:
+    """Shape-only HostQuestion placeholder for HostBrief.questions padding.
+
+    Returns a raw dict (not a HostQuestion instance) because the
+    before-validator runs on the raw input — Pydantic will construct
+    HostQuestion from each dict in the validated list. Each string field
+    is set to PLACEHOLDER_STR; `follow_up_for` has one PLACEHOLDER_STR
+    so it satisfies its own min_length=1 constraint after recursive
+    HostQuestion validation."""
+    return {
+        "target_expert": PLACEHOLDER_STR,
+        "question": PLACEHOLDER_STR,
+        "intent": PLACEHOLDER_STR,
+        "follow_up_for": [PLACEHOLDER_STR],
+    }
+
+
+def _coerce_list_to_bounds(
+    v: Any, field_name: str,
+    min_len: int, max_len: int,
+    placeholder: Any,
+) -> Any:
+    """Pad/truncate a list to satisfy [min_len, max_len].
+
+    No-ops if the value isn't a list (lets Pydantic raise a clear type
+    error). Logs INFO when coercion actually fires — Qwen-side responses
+    should never trigger this, so a log line is the canary.
+    """
+    if not isinstance(v, list):
+        return v
+    if len(v) > max_len:
+        logger.info(
+            "schema coercion: field=%r had %d items, truncated to max_length=%d",
+            field_name, len(v), max_len,
+        )
+        v = v[:max_len]
+    if len(v) < min_len:
+        n_to_add = min_len - len(v)
+        logger.info(
+            "schema coercion: field=%r had %d items, padded with %d placeholder(s) to min_length=%d",
+            field_name, len(v), n_to_add, min_len,
+        )
+        if callable(placeholder):
+            v = list(v) + [placeholder() for _ in range(n_to_add)]
+        else:
+            v = list(v) + [placeholder] * n_to_add
+    return v
 
 
 # ---------------------------------------------------------------------------
@@ -615,34 +709,63 @@ ALTERNATIVE_PERSONAS: dict[str, ExpertPersona] = {
 
 
 class PreInterviewResponse(BaseModel):
-    """One expert's pre-interview response for a segment."""
+    """One expert's pre-interview response for a segment.
+
+    All list fields carry min_length=1, max_length=4. See the module
+    docstring's "Two-tier schema strategy" section for the design.
+    Qwen-on-DeepInfra honours the constraints at decode time; Anthropic
+    sees them only as field descriptions (the keys are stripped by the
+    seam's allowlist filter) and may emit violations, which the
+    before-validator below coerces by padding with PLACEHOLDER_STR or
+    truncating.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     expert_name: str = Field(description="Name of the expert interviewed")
     key_points: list[str] = Field(
-        description="2-4 main points this expert wants to make about the segment's material"
+        min_length=1, max_length=4,
+        description="2-4 main points this expert wants to make about the segment's material",
     )
     potential_quotes: list[str] = Field(
-        description="1-3 passages or quotes the expert would most like to read aloud"
+        min_length=1, max_length=4,
+        description="1-3 passages or quotes the expert would most like to read aloud",
     )
     disagreement_angles: list[str] = Field(
-        default_factory=list,
-        description="Points where this expert might disagree with or challenge the others"
+        min_length=1, max_length=4,
+        description="Points where this expert might disagree with or challenge the others",
     )
     strongest_take: str = Field(
         default="",
-        description="The single most interesting or provocative thing this expert wants to say"
+        description="The single most interesting or provocative thing this expert wants to say",
     )
     proposed_references: list[str] = Field(
-        default_factory=list,
+        min_length=1, max_length=4,
         description=(
             "Scholarly references the expert proposed during pre-interview. "
-            "Format: 'Author, Title (Year)'. Empty if tools were not used."
+            "Format: '[ref-N]' tags from the tool conversation."
         ),
     )
 
+    @field_validator(
+        "key_points", "potential_quotes",
+        "disagreement_angles", "proposed_references",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_str_lists(cls, v: Any, info) -> Any:
+        return _coerce_list_to_bounds(
+            v, info.field_name, min_len=1, max_len=4, placeholder=PLACEHOLDER_STR,
+        )
+
 
 class HostQuestion(BaseModel):
-    """A planned question for the host to ask during a segment."""
+    """A planned question for the host to ask during a segment.
+
+    follow_up_for is constrained to 1-4 items per the two-tier schema
+    strategy (see module docstring)."""
+
+    model_config = ConfigDict(extra="forbid")
 
     target_expert: str = Field(description="Name of the expert this question is primarily directed at")
     question: str = Field(description="The question itself — conversational, not academic")
@@ -651,30 +774,69 @@ class HostQuestion(BaseModel):
         "(e.g. 'provoke disagreement with Blackstone', 'get Hartley to read the fog passage')"
     )
     follow_up_for: list[str] = Field(
-        default_factory=list,
-        description="Other experts who might want to jump in after the target responds"
+        min_length=1, max_length=4,
+        description="Other experts who might want to jump in after the target responds",
     )
+
+    @field_validator("follow_up_for", mode="before")
+    @classmethod
+    def _coerce_follow_up_for(cls, v: Any, info) -> Any:
+        return _coerce_list_to_bounds(
+            v, info.field_name, min_len=1, max_len=4, placeholder=PLACEHOLDER_STR,
+        )
 
 
 class HostBrief(BaseModel):
-    """The host's preparation notes for one segment."""
+    """The host's preparation notes for one segment.
+
+    Per the two-tier schema strategy (see module docstring): the list
+    fields carry min_length/max_length constraints that Qwen enforces
+    at decode time and Anthropic responses are coerced into via the
+    before-validators below. `questions` is special-cased to
+    min_length=3 (other lists are 1) — three is the prose-quality
+    floor we want even after Anthropic over-production is capped.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     segment_name: str = Field(description="Name of the segment this brief is for")
     questions: list[HostQuestion] = Field(
-        description="3-5 planned questions, in suggested order"
+        # Special case: min_length=3 (not the cluster's usual 1). A
+        # one-question brief isn't a podcast segment; three is the
+        # prose floor. max_length=4 still caps Anthropic over-production.
+        min_length=3, max_length=4,
+        description="3-4 planned questions, in suggested order",
     )
     steering_notes: str = Field(
         default="",
-        description="General notes on how to steer this segment's conversation"
+        description="General notes on how to steer this segment's conversation",
     )
     cross_engagement_targets: list[str] = Field(
-        default_factory=list,
-        description="Specific points where experts should be encouraged to respond to each other"
+        min_length=1, max_length=4,
+        description="Specific points where experts should be encouraged to respond to each other",
     )
     recommended_reading: list[str] = Field(
-        default_factory=list,
-        description="Verified scholarly references relevant to this segment, for the host's sign-off"
+        min_length=1, max_length=4,
+        description="Verified scholarly references relevant to this segment, for the host's sign-off",
     )
+
+    @field_validator("questions", mode="before")
+    @classmethod
+    def _coerce_questions(cls, v: Any, info) -> Any:
+        return _coerce_list_to_bounds(
+            v, info.field_name, min_len=3, max_len=4,
+            placeholder=_placeholder_question_dict,
+        )
+
+    @field_validator(
+        "cross_engagement_targets", "recommended_reading",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_str_lists(cls, v: Any, info) -> Any:
+        return _coerce_list_to_bounds(
+            v, info.field_name, min_len=1, max_len=4, placeholder=PLACEHOLDER_STR,
+        )
 
 
 HOST_VOICE_POLICY = VoicePolicy(

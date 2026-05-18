@@ -126,12 +126,29 @@ class AnthropicProvider:
                 schema = _apply_list_caps_to_descriptions(
                     schema, request.list_field_caps,
                 )
-            # 2) Anthropic's output_config schema subset rejects several
-            #    JSON Schema features that Pydantic emits and that other
-            #    providers accept — verified 2026-05-13 via 400 response
-            #    "For 'array' type, property 'maxItems' is not supported".
-            #    Strip them and fold the constraint into descriptions.
-            schema = _strip_unsupported_schema_keys(schema)
+            # 2) Denature the schema down to Anthropic-accepted keys
+            #    only. ALLOWLIST design (2026-05-18): rather than try to
+            #    enumerate keys Anthropic rejects, we keep only keys we
+            #    KNOW Anthropic accepts and drop everything else. See
+            #    _ANTHROPIC_SUPPORTED_KEYS above for the list and its
+            #    sourcing. Known-rejected keys (minItems, maxItems, etc.)
+            #    are folded into the parent's description; unknown keys
+            #    are dropped silently.
+            schema = _denature_schema_for_anthropic(schema)
+            # Note: Anthropic also requires `additionalProperties: false`
+            # on every object (per docs.claude.com/en/docs/build-with-claude/
+            # structured-outputs, verified 2026-05-17). We do NOT inject
+            # that here — the right place is on the Pydantic models with
+            # `model_config = ConfigDict(extra='forbid')`, which produces
+            # the correct JSON Schema natively and also gives Python-side
+            # validation of unknown fields. See podcast_types.py.
+            #
+            # The list-length constraints we just stripped (minItems /
+            # maxItems) are re-enforced post-response by the Pydantic
+            # model's @field_validator(mode='before') coercers, which
+            # pad/truncate Anthropic's responses to satisfy the strict
+            # schema. See enrichment/podcast_types.py module docstring,
+            # "Two-tier schema strategy".
             kwargs["output_config"] = {
                 "format": {"type": "json_schema", "schema": schema}
             }
@@ -303,27 +320,64 @@ class AnthropicProvider:
         )
 
 
-# JSON Schema keys Anthropic's output_config rejects. Documented in
-# platform.claude.com/docs/en/docs/build-with-claude/structured-outputs
-# (2026-05-13). The SDK's `messages.parse()` auto-strips these and
-# folds them into field descriptions; `messages.create()` (what the
-# seam uses) does not, so we replicate the transform here.
+# JSON Schema keys this seam keeps when sending a schema to Anthropic's
+# `messages.create()`. ALLOWLIST design (2026-05-18): rather than try
+# to enumerate the keys Anthropic rejects, we keep only the keys we
+# know Anthropic accepts and drop everything else. Strictly safer than
+# the prior denylist on two counts:
 #
-# minItems: only values 0 and 1 are accepted by Anthropic; higher
-# values must be stripped + described.
-# pattern: simple patterns supported; complex (lookahead, etc.) not.
-# We strip conservatively.
-_UNSUPPORTED_KEYS: frozenset[str] = frozenset({
-    "maxItems",
-    "minItems",
-    "uniqueItems",
-    "maxLength",
-    "minLength",
-    "pattern",
-    "minimum",
-    "maximum",
-    "exclusiveMinimum",
-    "exclusiveMaximum",
+#   1. New Anthropic restrictions land as a stripped-key rather than
+#      a 400 — the seam stays running, the caller gets a (possibly
+#      coerced) response.
+#   2. Pydantic versions that emit new keys (e.g. JSON Schema 2020-12
+#      keywords) don't accidentally leak through.
+#
+# How the allowlist was sourced:
+#   - JSON Schema core structural keys we always need: type, properties,
+#     required, items, $ref, $defs.
+#   - Anthropic-required: additionalProperties (must be false on objects,
+#     observed HTTP 400 2026-05-17 otherwise).
+#   - Anthropic documented (platform.claude.com/docs/en/docs/build-with-claude/
+#     structured-outputs, verified 2026-05-17): enum, anyOf, const,
+#     description, format, default, title.
+#
+# What's excluded — and why we strip rather than 400:
+#   - maxItems (HTTP 400 observed 2026-05-13)
+#   - minItems, uniqueItems, maxLength, minLength, pattern, minimum,
+#     maximum, exclusiveMinimum, exclusiveMaximum, multipleOf — listed
+#     as restricted in the structured-outputs docs.
+# When we strip a constraint key, its value is folded into the parent's
+# `description` so the model still sees the constraint as prompt text
+# (e.g. "Maximum 4 items.").
+#
+# The stripped constraints are NOT lost — they live on in the Pydantic
+# model. The host_prep cluster's PreInterviewResponse / HostQuestion /
+# HostBrief carry the constraints AND before-validators that coerce
+# Anthropic's responses into satisfying them (padding with placeholder
+# strings or truncating). See enrichment/podcast_types.py module
+# docstring, "Two-tier schema strategy".
+#
+# Reprobe trigger: when changing this list, run a small fixture against
+# `messages.create()` with each key present and record the 400/200
+# outcome here.
+_ANTHROPIC_SUPPORTED_KEYS: frozenset[str] = frozenset({
+    # Structural
+    "type", "properties", "required", "items", "$ref", "$defs",
+    # Required by Anthropic on objects
+    "additionalProperties",
+    # Allowed value/shape vocabulary
+    "enum", "anyOf", "const", "description", "format", "default", "title",
+})
+
+# Keys we know Anthropic rejects — used only for the description-note
+# fold (see _denature_schema_for_anthropic). Kept separate from the
+# allowlist so a key that's neither allowed nor explicitly known-bad
+# (e.g. a future Pydantic keyword) is silently dropped without a
+# description note (since we wouldn't know how to describe it).
+_KNOWN_REJECTED_KEYS: frozenset[str] = frozenset({
+    "maxItems", "minItems", "uniqueItems",
+    "maxLength", "minLength", "pattern",
+    "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
     "multipleOf",
 })
 
@@ -395,34 +449,67 @@ def _apply_list_caps_to_descriptions(
     return schema
 
 
-def _strip_unsupported_schema_keys(schema: Any) -> Any:
-    """Recursively remove JSON Schema keys Anthropic's output_config
-    rejects and fold them into the parent's `description` so the model
-    still sees the constraint as prompt-level guidance.
+_NAME_CONTAINER_KEYS: frozenset[str] = frozenset({"properties", "$defs"})
 
-    Returns a new structure; the input is not mutated. Pydantic
-    validation on our side still enforces the original constraints
-    against the model's text output."""
+
+def _denature_schema_for_anthropic(schema: Any) -> Any:
+    """Recursively reduce a JSON Schema to only the keys Anthropic's
+    output_config accepts. Anything else is dropped from the schema;
+    keys in `_KNOWN_REJECTED_KEYS` are additionally folded into the
+    parent's `description` so the model still sees the constraint as
+    prompt-level guidance ("Maximum 4 items.").
+
+    Returns a new structure; the input is not mutated. The original
+    constraints live on in the caller's Pydantic model and are
+    re-enforced post-response by the model's @field_validator(
+    mode='before') coercers — see enrichment/podcast_types.py module
+    docstring.
+
+    Allowlist scope: applies to schema-keyword positions only. Inside
+    `properties` and `$defs`, the immediate child keys are user-defined
+    names (field names, definition names) — those are kept verbatim
+    and only their values are recursively denatured.
+    """
     if isinstance(schema, dict):
-        # Collect descriptions for any unsupported keys at this level
-        # so we can append them to this object's description.
         notes: list[str] = []
         out: dict[str, Any] = {}
         for k, v in schema.items():
-            if k in _UNSUPPORTED_KEYS:
+            if k in _NAME_CONTAINER_KEYS:
+                # `properties` and `$defs` hold user-named subschemas:
+                # the keys are field/definition names, the VALUES are
+                # the subschemas to denature.
+                if isinstance(v, dict):
+                    out[k] = {
+                        name: _denature_schema_for_anthropic(subschema)
+                        for name, subschema in v.items()
+                    }
+                else:
+                    out[k] = v
+                continue
+            if k in _ANTHROPIC_SUPPORTED_KEYS:
+                out[k] = _denature_schema_for_anthropic(v)
+                continue
+            if k in _KNOWN_REJECTED_KEYS:
                 note = _describe_constraint(k, v)
                 if note:
                     notes.append(note)
                 continue
-            out[k] = _strip_unsupported_schema_keys(v)
+            # Unknown key: drop silently. We don't know whether
+            # Anthropic accepts it and we don't know how to describe
+            # it. If a new Pydantic keyword appears that we actually
+            # want, add it to the allowlist deliberately.
         if notes:
             existing_desc = out.get("description", "")
             note_text = " " + " ".join(notes) if existing_desc else " ".join(notes)
             out["description"] = (existing_desc + note_text).strip()
         return out
     if isinstance(schema, list):
-        return [_strip_unsupported_schema_keys(item) for item in schema]
+        return [_denature_schema_for_anthropic(item) for item in schema]
     return schema
+
+
+# Back-compat alias for any external caller that imported the old name.
+_strip_unsupported_schema_keys = _denature_schema_for_anthropic
 
 
 def _extract_text(response: Any) -> str:

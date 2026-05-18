@@ -72,6 +72,16 @@ generators:
     api_model: qwen-3-235b-a22b-instruct-2507
     provider: cerebras
     display: Cerebras Qwen-3 235B
+  - id: deepinfra_qwen
+    # Same model weights as cerebras_qwen; DeepInfra hosts at $0.071/$0.10 per
+    # M tokens (verified 2026-05-17 via api.deepinfra.com/models/list) and was
+    # the dll8 Tier L listener-panel winner at 60% on short-form prose.
+    # Tool use confirmed working on this hosting by scripts/probe_qwen3_235b_tool_use.py
+    # (report: docs/qwen3_235b_tool_use_probe.md). Used by the host_prep_qwen
+    # provider profile below.
+    api_model: Qwen/Qwen3-235B-A22B-Instruct-2507
+    provider: deepinfra
+    display: DeepInfra Qwen-3 235B-A22B-Instruct-2507
   - id: cerebras_zai_glm
     api_model: zai-glm-4.7
     provider: cerebras
@@ -130,5 +140,28 @@ provider_profiles:
     quote_verification:               openai_5_mini
     generate_podcast:                 openai_5_4
     embedding_podcast_curate:         openai_5_4
+
+  # Open-weight host_prep cluster on DeepInfra. Routes the four Phase 2.5
+  # call sites (pre_interview tool loop, pre_interview structured parse,
+  # brief, plus the two reference winnowers reached from host_prep) to
+  # qwen3-235b-a22b-instruct-2507. All other tasks fall through to the
+  # production defaults above.
+  #
+  # Provenance:
+  #   - Tool loop (pre_interview): validated by scripts/probe_qwen3_235b_tool_use.py
+  #     (PASS, both single-tool and multi-turn three-tool probes; report at
+  #     docs/qwen3_235b_tool_use_probe.md).
+  #   - Structured parse + winnowers: same model passed 5/5 schema validity
+  #     on the more complex Tier L Segment schema (BleakHouse-dll8); the
+  #     PreInterviewResponse and ReferenceWinnow schemas are simpler.
+  #   - Brief: NOT yet benchmarked on this model. Routing it here is fine
+  #     for ad-hoc test runs; the Tier M-Sonnet benchmark (BleakHouse-ubpm)
+  #     is the gating evidence before promoting this profile to default.
+  host_prep_qwen:
+    host_prep_pre_interview:            deepinfra_qwen
+    host_prep_pre_interview_structured: deepinfra_qwen
+    host_prep_brief:                    deepinfra_qwen
+    reading_list_winnow:                deepinfra_qwen
+    reference_tools_winnow:             deepinfra_qwen
 
 default_provider_profile: production

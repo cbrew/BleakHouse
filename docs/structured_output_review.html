@@ -60,6 +60,82 @@
   <li><strong>Pricing reference for the OpenAI tier added to our cost table.</strong> gpt-5-mini at $0.25/$2.00 per MTok (cached read $0.13/MTok per OpenAI docs); gpt-5.4 at $2.50/$15.00 per MTok (cached read $0.25/MTok). Batch discount halves both. Empirically Bleak House full enrichment via gpt-5-mini batch cost $2.08; OT $1.14. Phase 3 prose on Bleak House at gpt-5.4 cost $1.21 (8 segments); OT short at gpt-5.4 cost $0.78 (5 segments).</li>
 </ol>
 <p class='meta'>Implications for the seam (tracked in BleakHouse-otae, spec at <code>docs/provider_control_spec.md</code>): GenerationRequest already carries <code>reasoning_effort</code>; the settings layer should validate per-model-id; <code>strict</code> defaults should pick <code>true</code> when feasible (no $refs in schema) and explicit <code>false</code> otherwise with the choice recorded in run metadata for audit.</p>
+
+<h2 id="addendum-2026-05-17">Addendum 2026-05-17 — Gemma 4 26B-A4B-it repetition pathology under grammar-constrained decoding</h2>
+<p class='meta'>Findings recorded during the Tier L listener-prep work for BleakHouse-dll8 (short-prose generation panel). The single-shot 16-test probe matrix at the top of this document does <em>not</em> surface this failure mode because it tests very short outputs against synthetic schemas; the bug only appears at production prompt/schema scale (multi-turn segment-script prompt, full <code>Segment</code> Pydantic schema, ~600-word target). This addendum is what ruled <code>gemma-4-26B-A4B-it</code> out of the listener panel.</p>
+<ol>
+  <li><strong>Failure mode: repetition loop under JSON-schema decoding.</strong> Gemma 4 26B-A4B-it on DeepInfra, called with the multi-turn segment-script prompt and the full <code>Segment</code> output schema, produces grammar-valid prefixes that then degenerate into pure-whitespace loops (then mixed-whitespace loops under mitigation attempts) until the output budget exhausts. <code>finish_reason</code> ends up <code>length</code>, output fails Pydantic validation. The loops are inside what the grammar admits as valid string contents.</li>
+  <li><strong>Root cause is upstream, not BleakHouse-side.</strong> Tracked as vLLM issue #40080; fix is open PR #40099 (auto-enable <code>RepetitionDetectionParams</code> under structured-output decoding). PR has been open and not merged at DeepInfra as of 2026-05-17. The bug is a Gemma 4 × xgrammar interaction — cross-confirmed by external reports on Vertex, Cloudflare, ollama, and llama.cpp under structured output. Plain (non-grammar) decoding on the same model and prompt is fine. <em>This is a structured-output-specific pathology</em>, which is exactly why it belongs in this document.</li>
+  <li><strong>Empirical fail rate at default sampler:</strong> 2/5 first-try schema-valid for the BH seg-0 opening prompt; smoke valid (single trivial probe) + benchmark fail + 3 retries (2 valid + 1 fail). Other seg indices (1–4) were 5/5 first-try valid for the same model. The pathology concentrates on the <em>opening</em>-segment prompt shape, presumably because the opening directive frees up the most token budget for whitespace before any structural anchor is hit.</li>
+  <li><strong>Mitigations attempted and failed.</strong> Three independent BleakHouse-side mitigations were probed; none helped, two regressed:
+    <ul>
+      <li><code>list_field_caps={"emphasis_words": 3}</code> — no improvement. The schema already self-caps the field at 2 items; the cap was redundant and not where the loop forms.</li>
+      <li>Simpler opening directive in the prompt — no improvement. The loop is decode-time, not prompt-time.</li>
+      <li><code>frequency_penalty=0.3</code> + <code>stop=["\n×5"]</code> + <code>extra_body.repetition_detection</code> — <strong>worse</strong>: 0/5 valid. <code>frequency_penalty</code> pushed pure-newline loops into mixed-whitespace loops the <code>stop</code> string can't catch; the <code>extra_body</code> hint is silently ignored by DeepInfra's current vLLM (no error, no behaviour change).</li>
+    </ul>
+    Forensic artefacts kept under <code>data/eval/stage2_tier_l_prose/gemma-4-26b-a4b/</code>: <code>.degenerate.json</code>, <code>.retry{1,2,3}.json</code>, <code>list_caps_probe/</code>, <code>simpler_opening_probe/</code>, <code>rep_mitigations_probe/</code>.</li>
+  <li><strong>Disposition for Tier L:</strong> ruled OUT of the dll8 listener panel. 5/5 canonical samples do exist (seg-0 was promoted from retry-2) but production routing can't accept the ~30% retry overhead on openings, and the model is uniquely bad here — its 31B-dense sibling (<code>gemma-4-31B-it</code>) has no such pathology and finished second in the eventual Tier L listener panel (57% win-rate, BleakHouse-kl4f.6, 2026-05-17).</li>
+  <li><strong>Generalisable lesson for this document.</strong> Single-shot probe matrices like the test 1–16 grid at the top of this page are <em>systematically optimistic</em> for grammar-constrained decoding pathologies. They use small prompts, small schemas, and short generations — none of which give the decoder enough rope to enter a stable repetition basin. Production-shaped probes (real prompts, real schemas, real output budgets) are required to catch this class of bug. We should consider adding a "production-shaped smoke" tier to the methodology before promoting any new open-weight model to a routing decision.</li>
+  <li><strong>Re-probe trigger:</strong> when DeepInfra ships a vLLM release that includes PR #40099 (or its successor) and <code>RepetitionDetectionParams</code> are enabled by default under structured output, re-run the dll8 panel for this model. Until then the cost table entry stays as-is; routing for short-prose stays on the sibling 31B-dense or one of the other listener-eligible candidates (qwen3-235b-a22b-2507 was the listener winner at 60%).</li>
+</ol>
+<p class='meta'>Bd tracking: diagnosis lives in BleakHouse-dll8 notes; the model-level disposition is captured in memory as <code>project_gemma4_repetition_bug</code>.</p>
+
+<h2 id="addendum-2026-05-18">Addendum 2026-05-18 — Two-tier schema strategy for the host_prep cluster</h2>
+<p class='meta'>Findings and design decisions for the host_prep Phase 2.5 cluster: <code>PreInterviewResponse</code>, <code>HostQuestion</code>, <code>HostBrief</code> in <code>enrichment/podcast_types.py</code>. Driven by a real empirical asymmetry observed against the same call sites under different providers, this addendum is what the codebase now does and why.</p>
+
+<h3>The empirical asymmetry</h3>
+<p>Same prompts, same schemas, two providers, opposite failure modes:</p>
+<ul>
+  <li><strong>Anthropic Claude Sonnet 4.6</strong> on the host_prep_brief task: produces 5 questions per segment whether the prompt asked for "3–5" or "3–4", and emits 10–15 <code>proposed_references</code> per interview when the registry holds &gt;20 tags (Anthropic over-proposes; the entire downstream <code>listener_pick</code> winnow stage exists to cut 60+ raw refs down to ~6 recommended).</li>
+  <li><strong>Qwen3-235B-A22B-Instruct-2507</strong> on DeepInfra, same prompts: emits empty lists when the schema permits and the prompt is even slightly hedged. 8 of 9 interviews emitted <code>proposed_references=[]</code>; 2 of 3 brief calls emitted zero questions before <code>min_length</code> was added (observed 2026-05-17 in <code>scripts/probe_host_prep_qwen_vs_anthropic.py</code>).</li>
+</ul>
+<p>The implication: a schema that's correct for one model is wrong for the other. The host_prep prompts were tuned to Anthropic over time; Qwen needed different governance.</p>
+
+<h3>The design</h3>
+<p>The Pydantic models in <code>enrichment/podcast_types.py</code> are the <strong>single source of truth</strong> for the strict schema. All list fields in <code>PreInterviewResponse</code> / <code>HostQuestion</code> / <code>HostBrief</code> carry <code>min_length=1, max_length=4</code>; <code>HostBrief.questions</code> is special-cased to <code>min_length=3, max_length=4</code> (a 1-question brief isn't a podcast segment). All three models also carry <code>model_config = ConfigDict(extra='forbid')</code> for <code>additionalProperties: false</code>.</p>
+
+<p>Two paths through the seam apply the schema differently:</p>
+
+<h4>Path A — Qwen on DeepInfra (and openai-compatible hostings generally)</h4>
+<p>The full Pydantic-generated schema, complete with <code>minItems</code> / <code>maxItems</code> / <code>additionalProperties: false</code>, is sent to the provider verbatim. Qwen's vLLM-backed decoder enforces all three at decode time. Valid output is produced by construction. The seam does no schema transformation on the way out and no coercion on the way back.</p>
+
+<h4>Path B — Anthropic <code>messages.create()</code></h4>
+<p>Anthropic's <code>output_config</code> rejects <code>minItems</code>, <code>maxItems</code>, and several other JSON Schema features (verified 2026-05-13: HTTP 400 with <em>"For 'array' type, property 'maxItems' is not supported"</em>; verified 2026-05-17: <em>"For 'object' type, 'additionalProperties' must be explicitly set to false"</em>). The seam's Anthropic provider therefore does two things:</p>
+<ol>
+  <li><strong>On the way out</strong>: <code>_denature_schema_for_anthropic()</code> reduces the schema to an <em>allowlist</em> of keys we know Anthropic accepts. The allowlist is <code>type, properties, required, items, $ref, $defs, additionalProperties, enum, anyOf, const, description, format, default, title</code>. A separate set of known-rejected keys (<code>minItems</code>, <code>maxItems</code>, <code>uniqueItems</code>, length / numeric bounds, <code>pattern</code>, <code>multipleOf</code>) get their values folded into the parent's <code>description</code> as natural-language notes ("Maximum 4 items. Minimum 3 items."). Anything else is dropped silently — if a future Pydantic version emits a new keyword we haven't catalogued, it doesn't leak through.</li>
+  <li><strong>On the way back</strong>: the response goes through Pydantic <code>model_validate_json</code>, which fires the <code>@field_validator(mode='before')</code> coercers defined on each host_prep model. The coercers pad lists shorter than <code>min_length</code> with placeholder values (string <code>"[unspecified]"</code> for <code>list[str]</code>; a HostQuestion-shaped dict for <code>HostBrief.questions</code>), truncate lists longer than <code>max_length</code> to the cap, and log the coercion at INFO so the diagnostic isn't silently lost.</li>
+</ol>
+
+<h3>Allowlist design (rather than denylist)</h3>
+<p>The original strip helper used a denylist of known-rejected keys. The 2026-05-18 refactor switched to an allowlist for two reasons: (1) new Anthropic restrictions land as a stripped-key rather than a 400 — the seam keeps running, the caller gets a coerced response; (2) Pydantic versions that emit new keywords (JSON Schema 2020-12 etc.) don't accidentally leak through. The known-rejected list still exists, but only to source the description-note text — its job is now annotation, not gate.</p>
+
+<h3>Why coercion lives on the Pydantic model (not in the Anthropic provider)</h3>
+<p>The constraint and the coercion sit in the same file. A reader can answer "what happens if Anthropic returns an empty list" without crossing module boundaries. The trade-off: the validator also fires for Qwen-side responses, which should never violate. When the coercion no-ops (because the input is already valid) it's free; if Qwen ever does produce a violation, the INFO log line is the diagnostic.</p>
+
+<h3>What this lets us do, what it doesn't</h3>
+<ul>
+  <li><strong>Lets us keep one set of Pydantic models</strong> across providers. No HostBriefStrict / HostBriefLoose duplication. No per-provider Pydantic configs.</li>
+  <li><strong>Lets the Qwen path stay structurally enforced</strong> while the Anthropic path is structurally permissive + post-hoc coerced. Both arrive at the same validated state.</li>
+  <li><strong>Doesn't help with anything Anthropic doesn't strip but does enforce loosely</strong> — e.g. if Anthropic returns a string where an integer is expected, the strict-validation error propagates. The coercion only handles list-length violations because those are the ones Anthropic's schema subset can't constrain in the first place. Wrong-type / wrong-enum violations would still raise.</li>
+  <li><strong>Doesn't apply outside the host_prep cluster.</strong> Other Pydantic models in <code>podcast_types.py</code> (SegmentTemplate, EpisodeSegment, Turn, Utterance, …) don't yet carry list-length constraints or before-validator coercers. Extending them is tracked in BleakHouse-vyo4 (migrate all production Pydantic models to <code>extra='forbid'</code>, remove seam-side schema mutation).</li>
+</ul>
+
+<h3>Files involved</h3>
+<table>
+<tr><th>file</th><th>role</th></tr>
+<tr><td><code>enrichment/podcast_types.py</code></td><td>The three host_prep Pydantic models with <code>min_length</code>/<code>max_length</code>/<code>extra='forbid'</code>; <code>PLACEHOLDER_STR</code>; <code>_placeholder_question_dict()</code>; <code>_coerce_list_to_bounds()</code>; the four <code>@field_validator(mode='before')</code> coercers; module docstring with the strategy summary.</td></tr>
+<tr><td><code>enrichment/llm/providers/anthropic_provider.py</code></td><td><code>_ANTHROPIC_SUPPORTED_KEYS</code> (allowlist); <code>_KNOWN_REJECTED_KEYS</code> (annotation source); <code>_denature_schema_for_anthropic()</code> (the on-the-way-out walker); the call site at the <code>messages.create()</code> path. Back-compat alias <code>_strip_unsupported_schema_keys</code> preserved.</td></tr>
+<tr><td><code>enrichment/host_prep.py</code></td><td>Prompt constant <code>_QUESTION_COUNT_LONG</code> updated from "3–5" to "3–4" to match the schema cap; prompts otherwise unchanged.</td></tr>
+<tr><td><code>scripts/probe_host_prep_qwen_vs_anthropic.py</code></td><td>The side-by-side fixture that surfaced the empirical asymmetry. Still the reproducer.</td></tr>
+</table>
+
+<h3>Reprobe triggers</h3>
+<ul>
+  <li>Anthropic broadens / restricts its <code>output_config</code> schema subset → re-survey <code>_ANTHROPIC_SUPPORTED_KEYS</code> and <code>_KNOWN_REJECTED_KEYS</code>. Run a small fixture against <code>messages.create()</code> with each currently-rejected key present and record the 400/200 outcome.</li>
+  <li>Qwen empirically starts emitting violations of <code>min_length</code> / <code>max_length</code> (the coercion's INFO log fires for Qwen responses) → suggests a vLLM regression on grammar-constrained decoding; investigate before relying on decode-time enforcement.</li>
+  <li>The host_prep prompts get tuned again → re-check that the schema constraints and the prompt's numerical hints don't drift apart (e.g. prompt asks for "3–5" while schema caps at 4).</li>
+</ul>
+
 <h2>Legend</h2>
 <table class="legend">
 <tr><td class='cell honored'>✓</td><td>API accepted the schema, output parses as JSON, constraint was honored by the model.</td></tr>
@@ -390,6 +466,7 @@ tokens, input / output. Quantization is what each provider documents
 <ul>
   <li><strong>API behaviour identical to DeepSeek on this hosting</strong> on most tests (rejects only <code>uniqueItems</code>). Confirms most schema-feature acceptance is a vLLM/DeepInfra-side decision, not a model-side one.</li>
   <li><strong>At chapter scale</strong> (from this session's separate eval, not this probe) Gemma collapsed to 53% schema validity — short-input probes are systematically more optimistic than chapter-scale runs.</li>
+  <li><strong>Repetition-loop pathology under grammar-constrained decoding</strong> at production prompt/schema scale: ruled this model OUT of the Tier L listener panel (2026-05-17). Root cause is vLLM #40080 / open PR #40099, not BleakHouse-side. <strong>See the <a href="#addendum-2026-05-17">2026-05-17 addendum</a> above for the full diagnosis, failed mitigation attempts, and re-probe trigger.</strong></li>
   <li><strong>No <code>estimated_cost</code></strong> in the response for this model — DeepInfra only ships it on some models.</li>
 </ul>
 
