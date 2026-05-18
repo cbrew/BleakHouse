@@ -4,7 +4,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class _StrictBase(BaseModel):
-    model_config = ConfigDict(json_schema_extra={"additionalProperties": False})
+    # extra='forbid' produces `additionalProperties: false` in the
+    # generated JSON Schema (Anthropic and OpenAI strict-mode both
+    # require this) AND rejects unknown fields at Python validation
+    # time. The earlier `json_schema_extra={"additionalProperties":
+    # False}` form only set the JSON Schema key — Pydantic itself
+    # silently accepted hallucinated extras. Migrated 2026-05-18 per
+    # BleakHouse-vyo4.
+    model_config = ConfigDict(extra="forbid")
 
 
 class FieldReportEnrichment(_StrictBase):

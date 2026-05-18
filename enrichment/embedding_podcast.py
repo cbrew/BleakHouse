@@ -17,7 +17,7 @@ from pathlib import Path
 
 import anthropic
 import lancedb
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from enrichment.podcast_types import SegmentTemplate  # pyright: ignore[reportMissingImports]
 from enrichment.timing import Recorder, time_model
@@ -297,7 +297,11 @@ def retrieve_candidate_pool(
 
 
 class CuratedAssignment(BaseModel):
-    """One passage selected and assigned by the curation LLM."""
+    """One passage selected and assigned by the curation LLM.
+
+    extra='forbid' per BleakHouse-vyo4 (2026-05-18)."""
+
+    model_config = ConfigDict(extra="forbid")
 
     passage_id: str
     expert: str = Field(
@@ -317,7 +321,11 @@ class CuratedAssignment(BaseModel):
 
 
 class CurationResult(BaseModel):
-    """The LLM's complete curation output."""
+    """The LLM's complete curation output.
+
+    extra='forbid' per BleakHouse-vyo4 (2026-05-18)."""
+
+    model_config = ConfigDict(extra="forbid")
 
     assignments: list[CuratedAssignment]
     strategy: str = Field(

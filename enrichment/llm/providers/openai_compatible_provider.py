@@ -230,18 +230,11 @@ class OpenAICompatibleProvider:
                     schema, request.list_field_caps,
                 )
             caps = for_hosting(spec.hosting)
-            if caps.json_schema_strict:
-                # OpenAI strict mode requires `additionalProperties: false`
-                # on every object. The CORRECT place to put this is on the
-                # Pydantic model with `model_config = ConfigDict(extra=
-                # 'forbid')`, which produces it natively and also gives
-                # Python-side validation of unknown fields — see how
-                # PreInterviewResponse / HostBrief / HostQuestion in
-                # podcast_types.py handle it. This walker is a defensive
-                # fallback for models that haven't yet been migrated to
-                # extra='forbid'; once they all have it, this call and
-                # `_strictify_for_openai` below can be deleted.
-                schema = _strictify_for_openai(schema)
+            # OpenAI strict mode requires `additionalProperties: false` on
+            # every object. All LLM-bound Pydantic models in this project
+            # now carry `model_config = ConfigDict(extra='forbid')`, which
+            # emits the key natively (verified 2026-05-18 across 13 models
+            # under BleakHouse-vyo4). No seam-side strictification needed.
             kwargs["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
@@ -507,25 +500,6 @@ def _adapt_openai_reasoning_effort(
     if any(p in model for p in patterns):
         return effort
     return "low"
-
-
-def _strictify_for_openai(schema: Any) -> Any:
-    """Walk a JSON Schema dict and add `additionalProperties: false` to every
-    object. OpenAI strict json_schema mode requires this; Pydantic-generated
-    schemas omit it. Returns a new structure; input is not mutated.
-
-    Same transform as enrichment/phase3_runner.py:_strictify (duplicated
-    here to avoid a cross-package import; both copies are 12 lines)."""
-    if isinstance(schema, dict):
-        out: dict[str, Any] = {}
-        for k, v in schema.items():
-            out[k] = _strictify_for_openai(v)
-        if out.get("type") == "object" and "additionalProperties" not in out:
-            out["additionalProperties"] = False
-        return out
-    if isinstance(schema, list):
-        return [_strictify_for_openai(item) for item in schema]
-    return schema
 
 
 def _apply_list_caps_to_schema(

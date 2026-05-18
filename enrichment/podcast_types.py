@@ -118,7 +118,14 @@ def _coerce_list_to_bounds(
 
 
 class SegmentTemplate(BaseModel):
-    """Producer-defined episode segment with demand profile."""
+    """Producer-defined episode segment with demand profile.
+
+    extra='forbid' per BleakHouse-vyo4 (2026-05-18) — emits
+    additionalProperties:false in the JSON Schema for SegmentDesignResult,
+    which the design_segments LLM task uses, and rejects hallucinated
+    fields at Python validation time."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str = Field(description="Segment title, e.g. 'Opening: The Fog'")
     segment_type: str = Field(
@@ -228,7 +235,14 @@ class Utterance(BaseModel):
 
     Each utterance carries delivery annotations that the TTS renderer uses
     to control pacing, emphasis, and quote handling.
+
+    extra='forbid' per BleakHouse-vyo4 (2026-05-18). Verified on
+    2026-05-18 against all saved phase3_episode.json files in
+    data/runs/ — the saved keys exactly match the declared fields, so
+    no backward-compat risk on reload.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     text: str = Field(
         description="The spoken text (one sentence or short clause, max ~25 words)"
@@ -283,7 +297,12 @@ class Utterance(BaseModel):
 
 
 class Turn(BaseModel):
-    """One speaker's contribution in a podcast segment, broken into utterances."""
+    """One speaker's contribution in a podcast segment, broken into utterances.
+
+    extra='forbid' per BleakHouse-vyo4 (2026-05-18); see Utterance for
+    the verification notes."""
+
+    model_config = ConfigDict(extra="forbid")
 
     speaker: str = Field(
         description="Expert name, 'Host', or 'Narrator'"
@@ -297,7 +316,15 @@ class Turn(BaseModel):
 
 
 class EpisodeSegment(BaseModel):
-    """One segment of the podcast episode."""
+    """One segment of the podcast episode.
+
+    extra='forbid' per BleakHouse-vyo4 (2026-05-18); see Utterance for
+    the verification notes. This is the response_model for the Phase 3
+    generate_podcast task, so the strictness lands on both schema
+    generation (no _strictify_for_openai needed) and response
+    validation (hallucinated extras are caught)."""
+
+    model_config = ConfigDict(extra="forbid")
 
     title: str
     segment_type: str

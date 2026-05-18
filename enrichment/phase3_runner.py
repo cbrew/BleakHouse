@@ -57,23 +57,6 @@ from enrichment.segment_transport import (
 from enrichment.phase3_pricing import PRICING, cost_usd
 
 
-def _strictify(schema: Any) -> Any:
-    """Walk a JSON Schema dict and add `additionalProperties: false` to every
-    object. Cerebras strict json_schema mode requires this on every object;
-    OpenAI strict mode requires it too. Copied from experiments/cerebras/
-    native_section.py during the BleakHouse-99xl reorg to remove an awkward
-    enrichment/ → experiments/ import."""
-    if isinstance(schema, dict):
-        if schema.get("type") == "object" and "additionalProperties" not in schema:
-            schema["additionalProperties"] = False
-        for v in schema.values():
-            _strictify(v)
-    elif isinstance(schema, list):
-        for v in schema:
-            _strictify(v)
-    return schema
-
-
 logger = logging.getLogger(__name__)
 
 # Repo root is two levels up from enrichment/phase3_runner.py.
@@ -385,13 +368,12 @@ def generate_episode(
     prompt_version = _load_prompt_version(target_dir)
     personas = _load_personas(target_dir)
 
-    # For Cerebras strict json_schema we need additionalProperties=false on
-    # every object. For OpenAI we call the Responses API with strict=false
-    # (the Pydantic schema with $defs/$refs is incompatible with OpenAI strict
-    # mode; non-strict accepts the schema as-is and the model still emits
-    # well-formed JSON — verified empirically on Bleak House Phase 3 prose).
-    cerebras_schema = _strictify(EpisodeSegment.model_json_schema())
-    raw_schema = EpisodeSegment.model_json_schema()  # for openai responses non-strict
+    # EpisodeSegment / Turn / Utterance carry model_config = ConfigDict(
+    # extra='forbid'), so the Pydantic-generated schema already has
+    # `additionalProperties: false` on every object (verified 2026-05-18
+    # under BleakHouse-vyo4). Cerebras strict json_schema accepts it
+    # directly; OpenAI Responses non-strict accepts it as-is.
+    schema = EpisodeSegment.model_json_schema()
     client = _build_client(generator.provider)
 
     episode_segments: list[EpisodeSegment] = []
@@ -425,7 +407,7 @@ def generate_episode(
                 model=generator.api_model,
                 system_msg=system_msg,
                 user_msg=user_msg,
-                schema=raw_schema,
+                schema=schema,
                 max_output_tokens=max_completion_tokens,
                 reasoning_effort=reasoning_effort or "low",
             )
@@ -435,7 +417,7 @@ def generate_episode(
                 model=generator.api_model,
                 system_msg=system_msg,
                 user_msg=user_msg,
-                schema=cerebras_schema,
+                schema=schema,
                 max_completion_tokens=max_completion_tokens,
                 temperature=temperature,
                 reasoning_effort=reasoning_effort,
