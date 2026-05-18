@@ -7,6 +7,7 @@ on each turn so Phase C can wire click-to-seek without re-rendering.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -367,6 +368,7 @@ def script_viewer(request: Request, run_id: str):
         )
     novel = NOVEL_BY_ID.get(row["novel"])
     panel_meta = PANEL_BY_ID.get(row["panel"])
+    versions = _versions_from_row(row)
     return templates.TemplateResponse(request, "script.html", {
         "run_id": run_id,
         "episode": episode,
@@ -382,7 +384,42 @@ def script_viewer(request: Request, run_id: str):
         "ref_tools": bool(row["ref_tools"]),
         "generator": row["generator"],
         "has_audio": bool(row["has_audio"]),
+        "versions": versions,
     })
+
+
+def _versions_from_row(row: Any) -> dict[str, Any]:
+    """Parse the JSON-encoded version columns from a run_index row.
+
+    Returns a dict with the four block names (`schemas`, `prompts`,
+    `sdks`, `models`) as parsed dicts (or None if NULL on disk), plus
+    `pyproject_commit` as a string (or None). The template renders
+    None as 'not recorded'.
+
+    See `BleakHouse-v5th` for the column definitions and
+    `enrichment/versions.py` for the producer-side shape.
+    """
+    import json
+
+    def _parse(col: str) -> dict[str, Any] | None:
+        raw = row[col] if col in row.keys() else None
+        if raw is None:
+            return None
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+    return {
+        "schemas": _parse("schema_versions_json"),
+        "prompts": _parse("prompt_versions_json"),
+        "sdks": _parse("sdk_versions_json"),
+        "models": _parse("models_json"),
+        "pyproject_commit": (
+            row["pyproject_commit"]
+            if "pyproject_commit" in row.keys() else None
+        ),
+    }
 
 
 @app.get("/about", response_class=HTMLResponse)

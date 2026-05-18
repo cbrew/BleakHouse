@@ -34,6 +34,29 @@
     border-radius: 6px; font-size: 0.88em;
     margin: 0.4em 0 1.2em;
   }
+  .sv-versions {
+    margin: 0.4em 0 1.4em; font-size: 0.88em;
+    background: #fafafa; border: 1px solid #eee;
+    border-radius: 6px; padding: 0.4em 0.9em;
+  }
+  .sv-versions summary {
+    cursor: pointer; padding: 0.2em 0; color: #345;
+    font-weight: 500;
+  }
+  .sv-versions h4 {
+    font-size: 0.93em; margin: 0.9em 0 0.3em;
+    color: #345; font-weight: 600;
+  }
+  .sv-version-table {
+    border-collapse: collapse; margin: 0.2em 0 0.4em;
+    min-width: 28em;
+  }
+  .sv-version-table th, .sv-version-table td {
+    border-bottom: 1px solid #eee; padding: 0.2em 0.7em 0.2em 0;
+    text-align: left; vertical-align: top; font-weight: 400;
+  }
+  .sv-version-table th { color: #555; min-width: 14em; }
+  .sv-version-list code { font-size: 0.92em; }
 
   /* Transcript styling — lighter than listen.html (no audio JS hooks). */
   .sv-transcript { margin-top: 1.5em; }
@@ -68,6 +91,71 @@
   <tr><th>reference tools</th><td>{{ 'yes' if ref_tools else 'no' }}</td></tr>
   <tr><th>audio</th><td>{{ 'rendered' if has_audio else 'not rendered (script only)' }}</td></tr>
 </table>
+
+{# Versions panel (BleakHouse-cuo6). Renders only the fields that were
+   recorded; runs predating BleakHouse-vwwg show 'not recorded' for the
+   missing categories. #}
+<details class="sv-versions">
+  <summary>Versions <small style="color:#888;font-weight:400;">(schemas · prompts · SDKs · models · code commit)</small></summary>
+
+  <table class="sv-version-table">
+    <tr>
+      <th>code commit</th>
+      <td>
+        {% if versions.pyproject_commit %}
+          <code>{{ versions.pyproject_commit }}</code>
+        {% else %}
+          <em style="color:#999;">not recorded</em>
+        {% endif %}
+      </td>
+    </tr>
+  </table>
+
+  <h4>Models per task</h4>
+  {% if versions.models %}
+    <table class="sv-version-table sv-version-list">
+    {% for task, model in versions.models|dictsort %}
+      <tr><th><code>{{ task }}</code></th><td><code>{{ model }}</code></td></tr>
+    {% endfor %}
+    </table>
+  {% else %}
+    <p><em style="color:#999;">not recorded</em></p>
+  {% endif %}
+
+  <h4>Schema versions</h4>
+  {% if versions.schemas %}
+    <table class="sv-version-table sv-version-list">
+    {% for name, version in versions.schemas|dictsort %}
+      <tr><th><code>{{ name }}</code></th><td>{{ version }}</td></tr>
+    {% endfor %}
+    </table>
+  {% else %}
+    <p><em style="color:#999;">not recorded</em></p>
+  {% endif %}
+
+  <h4>Prompt versions</h4>
+  {% if versions.prompts %}
+    <table class="sv-version-table sv-version-list">
+    {% for name, version in versions.prompts|dictsort %}
+      <tr><th><code>{{ name }}</code></th><td>{{ version }}</td></tr>
+    {% endfor %}
+    </table>
+  {% else %}
+    <p><em style="color:#999;">not recorded</em></p>
+  {% endif %}
+
+  <h4>SDK versions</h4>
+  {% if versions.sdks %}
+    <table class="sv-version-table sv-version-list">
+    {% for pkg, version in versions.sdks|dictsort %}
+      <tr><th><code>{{ pkg }}</code></th>
+        <td>{% if version %}{{ version }}{% else %}<em style="color:#999;">not installed</em>{% endif %}</td></tr>
+    {% endfor %}
+    </table>
+  {% else %}
+    <p><em style="color:#999;">not recorded</em></p>
+  {% endif %}
+</details>
 
 {% if has_audio %}
 <a class="sv-cta" href="/listen/{{ novel_id }}/{{ panel_id }}?generator={{ generator }}">Listen with audio →</a>
