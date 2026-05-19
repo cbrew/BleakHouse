@@ -50,6 +50,14 @@ PRICING: dict[str, tuple[float, float, str]] = {
         15.00,
         "https://platform.openai.com/docs/pricing",
     ),
+    # International (Singapore) deployment, input bucket ≤256K tokens.
+    # 256K–1M input bucket is $1.20/$3.60; not used here because Phase 3
+    # segments run ~5–7K input. Source: alibabacloud.com/help/en/model-studio/models
+    "qwen-plus": (
+        0.40,
+        1.20,
+        "https://www.alibabacloud.com/help/en/model-studio/models",
+    ),
 }
 
 QUOTED_AT = "2026-04-22"

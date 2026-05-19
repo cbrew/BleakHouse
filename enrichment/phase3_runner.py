@@ -169,8 +169,13 @@ def _get_key(provider: str) -> str:
     aliases = {
         "cerebras": ("cerebras", "CEREBRAS_API_KEY"),
         "openai":   ("openai",   "OPENAI_API_KEY"),
+        "alibaba":  ("alibaba",  "ALIBABA_API_KEY"),
     }
     alias, env = aliases.get(provider, (provider, f"{provider.upper()}_API_KEY"))
+    # ALIBABA_API_KEY is .env-only; load it before llm.get_key falls back to os.environ.
+    if provider == "alibaba":
+        from dotenv import load_dotenv
+        load_dotenv()
     key = llm.get_key(alias=alias, env=env)
     if not key:
         raise RuntimeError(
@@ -193,8 +198,16 @@ def _build_client(provider: str) -> Any:
         # and a client-side retry would multiply latency rather than
         # help (the underlying call is non-idempotent at this scope).
         return OpenAI(api_key=_get_key("openai"), timeout=3600.0, max_retries=0)
+    if provider == "alibaba":
+        from openai import OpenAI
+        return OpenAI(
+            api_key=_get_key("alibaba"),
+            base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            timeout=3600.0,
+            max_retries=0,
+        )
     raise ValueError(
-        f"Unsupported provider {provider!r}. Known: cerebras, openai."
+        f"Unsupported provider {provider!r}. Known: cerebras, openai, alibaba."
     )
 
 
