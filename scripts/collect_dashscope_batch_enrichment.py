@@ -1,21 +1,28 @@
-"""Poll a DashScope batch enrichment probe to completion + write a report.
+"""Process a completed DashScope batch enrichment probe.
 
-Companion to scripts/submit_dashscope_batch_enrichment.py. Reads the
-manifest the submitter wrote, polls until the batch reaches a terminal
-state (no hard timeout — Ctrl+C and re-run is idempotent), downloads
-the result file, validates each line against ChapterEnrichmentResult,
-classifies defects, and writes probe_report.{json,md}.
+Pure post-processor — does not poll DashScope. Requires
+`batch_state.json` to already exist in the probe dir with a terminal
+status (write it by running `scripts/poll_dashscope_batch.py` first;
+its `_polled_at` snapshot is what this script consumes).
+
+Behaviour:
+- Reads `manifest.json` + `batch_state.json` from the probe dir.
+- Downloads `batch_output.jsonl` and/or `batch_errors.jsonl` if
+  referenced by batch_state and not already on disk.
+- Validates every output line against ChapterEnrichmentResult.
+- Surfaces every failure shape (entry-level error, server-side error,
+  empty choices/content, JSON parse failure, validation failure,
+  repetition pathology) as a RequestResult with a defect category.
+- Writes `probe_report.{json,md}`.
+
+Re-running is safe: cached files on disk are re-used; the report is
+re-generated from local state without re-spending API budget.
 
 Tracks BleakHouse-el1j.1.
 
 Run:
     uv run python scripts/collect_dashscope_batch_enrichment.py \\
         data/runs/_qwen_plus_batch_enrichment_probe/bleak_house_c6
-
-Re-running is safe: if batch_output.jsonl is already present, the
-poll/download steps are skipped and the report is regenerated from
-the cached output. Useful if you want to tweak the analysis without
-re-spending API budget.
 """
 
 from __future__ import annotations
@@ -26,7 +33,6 @@ import logging
 import os
 import re
 import sys
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -46,7 +52,7 @@ BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 RATE_INPUT_PER_MTOK = 0.20
 RATE_OUTPUT_PER_MTOK = 0.60
 
-DEFAULT_POLL_SECONDS = 30
+TERMINAL_STATES = frozenset({"completed", "failed", "expired", "cancelled"})
 
 # Any 20+ char run repeated 4+ consecutive times → likely repetition-loop
 # pathology (cf. [[project_gemma4_repetition_bug]]).
@@ -97,30 +103,6 @@ def _make_client() -> OpenAI:
     if not key:
         raise SystemExit("ALIBABA_API_KEY not set in env / .env")
     return OpenAI(api_key=key, base_url=BASE_URL, timeout=600.0, max_retries=0)
-
-
-def _poll_until_terminal(client: OpenAI, batch_id: str, poll_seconds: int) -> Any:
-    """Poll until the batch leaves the in-progress family. No hard timeout —
-    DashScope's own 24h completion window is the upper bound; Ctrl+C + re-run
-    is the recovery path."""
-    start = time.monotonic()
-    in_flight = {"in_progress", "validating", "finalizing"}
-    last_log = 0.0
-    while True:
-        batch = client.batches.retrieve(batch_id)
-        elapsed = time.monotonic() - start
-        if batch.status not in in_flight or elapsed - last_log > 60:
-            counts = getattr(batch, "request_counts", None)
-            counts_str = (
-                f" counts={counts.completed}/{counts.total} "
-                f"(failed={counts.failed})" if counts else ""
-            )
-            logger.info("status=%s  elapsed=%.0fs%s",
-                        batch.status, elapsed, counts_str)
-            last_log = elapsed
-        if batch.status not in in_flight:
-            return batch
-        time.sleep(poll_seconds)
 
 
 def _process_entry(
@@ -348,11 +330,7 @@ def main() -> int:
 
     p = argparse.ArgumentParser()
     p.add_argument("probe_dir", type=Path,
-                   help="Directory containing manifest.json from the submitter")
-    p.add_argument("--poll-seconds", type=int, default=DEFAULT_POLL_SECONDS,
-                   help="Poll interval (default: %(default)s)")
-    p.add_argument("--force-poll", action="store_true",
-                   help="Re-poll/re-download even if batch_output.jsonl exists.")
+                   help="Directory containing manifest.json + batch_state.json")
     args = p.parse_args()
 
     probe_dir: Path = args.probe_dir
@@ -363,7 +341,15 @@ def main() -> int:
 
     if not manifest_path.exists():
         raise SystemExit(f"no manifest at {manifest_path} — submit first")
+    if not state_path.exists():
+        raise SystemExit(
+            f"no batch_state.json at {state_path} — run "
+            f"scripts/poll_dashscope_batch.py {probe_dir} first"
+        )
+
     manifest = json.loads(manifest_path.read_text())
+    batch_state = json.loads(state_path.read_text())
+
     batch_id = manifest["batch_id"]
     submitted_at = manifest["submitted_at"]
     novel = manifest["novel"]
@@ -371,51 +357,36 @@ def main() -> int:
     model = manifest["model"]
     indices_by_custom_id = manifest["indices_by_custom_id"]
 
-    logger.info("probe_dir=%s  batch_id=%s", probe_dir, batch_id)
+    cached_id = batch_state.get("id")
+    if cached_id and cached_id != batch_id:
+        raise SystemExit(
+            f"stale batch_state.json: id={cached_id} but manifest says "
+            f"{batch_id} — delete the stale file and re-poll"
+        )
 
-    client = _make_client()
+    if batch_state.get("status") not in TERMINAL_STATES:
+        raise SystemExit(
+            f"batch_state.json status is {batch_state.get('status')!r}; "
+            f"not ready to collect. Keep polling."
+        )
 
-    # Phase 1: poll until terminal, then persist the full batch state.
-    # If we already have a terminal state on disk we skip the poll —
-    # batch_state.json is the durable record. --force-poll bypasses the
-    # cache for cases where you want to re-verify.
-    cached_state = None
-    if state_path.exists() and not args.force_poll:
-        cached_state = json.loads(state_path.read_text())
-        cached_id = cached_state.get("id")
-        if cached_id and cached_id != batch_id:
-            logger.warning(
-                "%s has batch_id=%s, manifest has %s — discarding stale state",
-                state_path, cached_id, batch_id,
-            )
-            cached_state = None
-        elif cached_state.get("status") in (
-            "completed", "failed", "expired", "cancelled"
-        ):
-            logger.info("loading cached %s (status=%s)",
-                        state_path, cached_state["status"])
-        else:
-            cached_state = None  # re-poll: previous run died mid-poll
-
-    if cached_state is None:
-        poll_start = time.monotonic()
-        batch = _poll_until_terminal(client, batch_id, args.poll_seconds)
-        wall_seconds = time.monotonic() - poll_start
-        completed_at = datetime.now(timezone.utc).isoformat()
-        logger.info("terminal status=%s  wall=%.0fs", batch.status, wall_seconds)
-
-        # Persist EVERYTHING the SDK returned before doing anything else.
-        # If the script crashes later, this is the receipt of what DashScope
-        # actually said.
-        batch_state = batch.model_dump(mode="json")
-        batch_state["_collect_wall_seconds"] = wall_seconds
-        batch_state["_collect_completed_at"] = completed_at
-        state_path.write_text(json.dumps(batch_state, indent=2, default=str))
-        logger.info("persisted batch state to %s", state_path)
+    polled_at = batch_state.get("_polled_at")
+    if polled_at:
+        try:
+            submitted_dt = datetime.fromisoformat(submitted_at)
+            polled_dt = datetime.fromisoformat(polled_at)
+            wall_seconds = (polled_dt - submitted_dt).total_seconds()
+        except (TypeError, ValueError):
+            wall_seconds = 0.0
     else:
-        batch_state = cached_state
-        wall_seconds = batch_state.get("_collect_wall_seconds", 0.0)
-        completed_at = batch_state.get("_collect_completed_at")
+        wall_seconds = 0.0
+    completed_at = polled_at  # the moment we observed terminal state
+
+    logger.info("probe_dir=%s  batch_id=%s  status=%s",
+                probe_dir, batch_id, batch_state["status"])
+
+    # Lazy: only construct the client if we actually need to download.
+    client: OpenAI | None = None
 
     # Phase 2: download both files defensively. Either can be None; both can be
     # absent on a failed-batch state. Errors during download are logged, not
@@ -432,6 +403,8 @@ def main() -> int:
         out_text = output_path.read_text()
         logger.info("loaded cached output (%d bytes)", len(out_text))
     elif output_file_id:
+        if client is None:
+            client = _make_client()
         try:
             out_text = client.files.content(output_file_id).text
             output_path.write_text(out_text)
@@ -444,6 +417,8 @@ def main() -> int:
         err_text = errors_path.read_text()
         logger.info("loaded cached errors (%d bytes)", len(err_text))
     elif error_file_id:
+        if client is None:
+            client = _make_client()
         try:
             err_text = client.files.content(error_file_id).text
             errors_path.write_text(err_text)
