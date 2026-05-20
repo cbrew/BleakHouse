@@ -53,9 +53,24 @@ DEFAULT_TEMPERATURE = 0.0
 
 PROBE_ROOT = Path("data/runs/_qwen_plus_batch_enrichment_probe")
 
+# Probe-local prompt wrap. The shared build_enrichment_prompt doesn't
+# mention JSON because the Anthropic seam enforces format at the API
+# level regardless of prompt. DashScope's batch validator apparently
+# relies on the prompt to set format expectation, so without this
+# the model emits prose and DashScope rejects with
+# ModelServingOutputInvalidJsonError. Avoid leaking Pydantic class
+# names into the prompt — the model can't see them. (BleakHouse-el1j.1)
+JSON_INSTRUCTION_SUFFIX = (
+    "\n\n## Output format\n\n"
+    "Respond with a single JSON object that conforms to the response "
+    "schema. The schema is supplied separately. Do not include any prose, "
+    "markdown fences, commentary, or chain-of-thought outside the JSON "
+    "object — emit JSON only, starting with `{` and ending with `}`."
+)
+
 
 def inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
-    """Resolve `$ref: #/$defs/<name>` inline and drop $defs.
+    """Resolve `$ref: #/$defs/<namcae>` inline and drop $defs.
 
     Non-recursive schemas only — raises ValueError if a self-referencing
     cycle is detected (ChapterEnrichmentResult isn't recursive, so this
@@ -194,9 +209,10 @@ def main() -> int:
         chapter_title, args.chunk_size,
     )
 
-    system_prompt = build_enrichment_prompt(args.novel)
+    system_prompt = build_enrichment_prompt(args.novel) + JSON_INSTRUCTION_SUFFIX
     schema = inline_refs(ChapterEnrichmentResult.model_json_schema())
     logger.info("schema flattened (refs inlined, $defs removed)")
+    logger.info("appended probe-local JSON-output instruction to system prompt")
 
     chunks = [
         chap_passages[i:i + args.chunk_size]
