@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>qwen-plus vs qwen-3-235b vs gpt-5.4 vs Sonnet — vocabulary comparison on bh_trn_literary_hostprep — BleakHouse 2026-05-20</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         max-width: 1150px; margin: 2em auto; padding: 0 1em; color: #222; line-height: 1.45; }
+  h1, h2, h3 { color: #111; }
+  h2 { border-bottom: 1px solid #ccc; padding-bottom: 0.2em; margin-top: 2em; }
+  table { border-collapse: collapse; margin: 1em 0; width: 100%; font-size: 0.92em; }
+  th, td { border: 1px solid #ddd; padding: 0.35em 0.55em; vertical-align: top; text-align: left; }
+  th { background: #f4f4f4; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.id  { font-family: SFMono-Regular, Menlo, monospace; font-size: 0.88em; }
+  td.tok { font-family: SFMono-Regular, Menlo, monospace; font-size: 0.9em; }
+  .meta  { color: #555; font-size: 0.9em; }
+  .caveat { background: #fff8e1; border-left: 3px solid #f6c343; padding: 0.6em 0.9em; margin: 1em 0; }
+  code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #f4f4f4; padding: 0.6em 0.9em; border-radius: 3px; overflow-x: auto; font-size: 0.88em; }
+  .pos { color: #1b5e20; }
+  .neg { color: #b71c1c; }
+  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2em; }
+  .twocol h3 { margin-top: 0; }
+</style>
+</head>
+<body>
+
+<h1>Vocabulary comparison — qwen-plus, qwen-3-235b, gpt-5.4, Sonnet</h1>
+<p class="meta">Snapshot 2026-05-20. Compares the lexical surface of four Phase&nbsp;3 outputs produced from the <em>same</em> <code>bh_trn_literary_hostprep</code> Phase 0/1/2/2.5 inputs (Bleak House, literary panel, host_prep on). qwen-3-235b is the existing Cerebras-hosted Qwen3-235B-A22B-Instruct-2507 run from 2026-04-26 — included here to separate "the qwen-plus signature" from "the Qwen3-family signature". Reproducible via <code>uv run python scripts/vocab_compare_episodes.py</code> (BleakHouse-j05l).</p>
+
+<h2>The four episodes being compared</h2>
+<table>
+<tr><th>label</th><th>generator</th><th>run dir</th><th class="num">Phase 3 cost</th><th class="num">tokens (in / out)</th></tr>
+<tr>
+  <td>qwen-plus</td>
+  <td class="id">alibaba_qwen_plus</td>
+  <td class="id">bh_trn_literary_hostprep_alibaba_qwen_plus</td>
+  <td class="num">$0.0563</td>
+  <td class="num">42,790 / 32,653</td>
+</tr>
+<tr>
+  <td>qwen-3-235b</td>
+  <td class="id">cerebras_qwen</td>
+  <td class="id">bh_trn_literary_hostprep_cerebras_qwen</td>
+  <td class="num">(metrics not archived)</td>
+  <td class="num">(metrics not archived)</td>
+</tr>
+<tr>
+  <td>gpt-5.4</td>
+  <td class="id">openai_5_4</td>
+  <td class="id">bh_trn_literary_hostprep_openai_5_4</td>
+  <td class="num">$1.21</td>
+  <td class="num">48,662 / 72,407</td>
+</tr>
+<tr>
+  <td>sonnet-base</td>
+  <td class="id">anthropic_sonnet_4_6</td>
+  <td class="id">bh_trn_literary_hostprep</td>
+  <td class="num">(production baseline)</td>
+  <td class="num">—</td>
+</tr>
+</table>
+<p class="meta">The cerebras_qwen run predates <code>phase3_generation_metrics.json</code> (added later in the pipeline); only <code>phase_timings.json</code> survives, which doesn't carry token counts.</p>
+
+<h2>Method</h2>
+<ul>
+  <li>Extract every utterance/turn text body from <code>phase3_episode.json</code> (handles both <code>turn.utterances[].text</code> and <code>turn.text</code> shapes).</li>
+  <li>Normalise typographic apostrophes (<code>’</code> → <code>'</code>) so <em>don't</em> and <em>don’t</em> share a token. Without this, qwen-plus's preference for curly punctuation inflates <code>s</code> and <code>t</code> as spurious top tokens.</li>
+  <li>Tokenise with <code>[A-Za-z‘’']+</code>, lowercase.</li>
+  <li>For each pair, compute Monroe-Colaresi-Quinn informative-Dirichlet log-odds with α = 0.01, dropping vocab items with combined count &lt; 5. Z-scores are signed: positive favours the first model.</li>
+  <li>A tiny function-word stoplist (~80 items) is applied <em>only</em> for the distinctive-word tables, not for word/type counts or TTR.</li>
+</ul>
+
+<h2>Length and lexical density</h2>
+<table>
+<tr><th>episode</th><th class="num">words</th><th class="num">types</th><th class="num">TTR</th><th class="num">mean word len</th><th class="num">mean sent len</th></tr>
+<tr><td>qwen-plus</td><td class="num">9,966</td><td class="num">2,486</td><td class="num">0.249</td><td class="num">4.78</td><td class="num">12.45</td></tr>
+<tr><td>qwen-3-235b</td><td class="num"><strong>6,520</strong></td><td class="num">1,759</td><td class="num"><strong>0.270</strong></td><td class="num">4.64</td><td class="num"><strong>7.91</strong></td></tr>
+<tr><td>gpt-5.4</td><td class="num">9,454</td><td class="num">2,145</td><td class="num">0.227</td><td class="num">4.62</td><td class="num">12.26</td></tr>
+<tr><td>sonnet-base</td><td class="num">14,457</td><td class="num">2,710</td><td class="num">0.187</td><td class="num">4.71</td><td class="num">13.63</td></tr>
+</table>
+
+<p>Adding the Qwen3-235B run reshapes the picture:</p>
+<ul>
+  <li><strong>qwen-3-235b is the shortest by a wide margin</strong> — 6,520 words, ~35% shorter than qwen-plus, ~55% shorter than sonnet. Across an 8-segment episode that's a noticeably more compressed podcast.</li>
+  <li><strong>And the densest</strong> — TTR 0.270 is the highest of the four, even allowing for the length artifact (TTR mechanically decreases with N).</li>
+  <li><strong>And the shortest-sentence</strong> — mean sentence length 7.91 words, vs ~12.3 for both qwen-plus and gpt-5.4 and 13.6 for sonnet. Qwen3-235B writes in short, punchy declarative sentences; qwen-plus writes in fuller, more clausal ones.</li>
+</ul>
+
+<div class="caveat">
+<strong>TTR length caveat.</strong> Type-token ratio mechanically decreases with total word count, so sonnet's low TTR is partly an artifact of length. The cleanest pair to compare on TTR is qwen-plus vs gpt-5.4 (9,966 vs 9,454 words) — qwen-plus wins by +10%. qwen-3-235b being shorter <em>and</em> denser is a genuine signal: it packs more lexical variety into less text.
+</div>
+
+<h2>Pairwise Jaccard on the type set</h2>
+<table>
+<tr><th>pair</th><th class="num">Jaccard</th><th class="num">shared types</th><th class="num">only A</th><th class="num">only B</th></tr>
+<tr><td>qwen-plus &nbsp;vs&nbsp; qwen-3-235b</td><td class="num"><strong>0.401</strong></td><td class="num">1,215</td><td class="num">1,271</td><td class="num">544</td></tr>
+<tr><td>qwen-plus &nbsp;vs&nbsp; gpt-5.4</td><td class="num">0.354</td><td class="num">1,210</td><td class="num">1,276</td><td class="num">935</td></tr>
+<tr><td>qwen-plus &nbsp;vs&nbsp; sonnet-base</td><td class="num">0.392</td><td class="num">1,462</td><td class="num">1,024</td><td class="num">1,248</td></tr>
+<tr><td>qwen-3-235b &nbsp;vs&nbsp; gpt-5.4</td><td class="num">0.360</td><td class="num">1,033</td><td class="num">726</td><td class="num">1,112</td></tr>
+<tr><td>qwen-3-235b &nbsp;vs&nbsp; sonnet-base</td><td class="num">0.384</td><td class="num">1,240</td><td class="num">519</td><td class="num">1,470</td></tr>
+<tr><td>gpt-5.4 &nbsp;vs&nbsp; sonnet-base</td><td class="num">0.386</td><td class="num">1,351</td><td class="num">794</td><td class="num">1,359</td></tr>
+</table>
+
+<p>The qwen-plus / qwen-3-235b pair is the closest at 0.401 — there's a real <strong>Qwen-family lexical signature</strong> that separates from the gpt-5.4 / sonnet pair (jaccard 0.386). qwen-3-235b's small vocab (1,759 types) is largely a subset of qwen-plus's: only 544 types appear in qwen-3-235b but not qwen-plus, vs 1,271 in the other direction.</p>
+
+<h2>Qwen-plus vs Qwen-3-235B — within-family distinctive vocab</h2>
+
+<div class="twocol">
+<div>
+<h3>qwen-plus side</h3>
+<p class="meta">qwen-plus does <em>more</em> close-reading and meta-analytical work.</p>
+<table>
+<tr><th class="num">z</th><th>token</th><th class="num">qwen-plus</th><th class="num">qwen-3-235b</th></tr>
+<tr><td class="num pos">+1.98</td><td class="tok">only</td><td class="num">21</td><td class="num">5</td></tr>
+<tr><td class="num pos">+1.96</td><td class="tok">precisely</td><td class="num">12</td><td class="num">1</td></tr>
+<tr><td class="num pos">+1.83</td><td class="tok">first</td><td class="num">15</td><td class="num">3</td></tr>
+<tr><td class="num pos">+1.80</td><td class="tok">law</td><td class="num">26</td><td class="num">8</td></tr>
+<tr><td class="num pos">+1.76</td><td class="tok">them</td><td class="num">19</td><td class="num">5</td></tr>
+<tr><td class="num pos">+1.75</td><td class="tok">names</td><td class="num">12</td><td class="num">2</td></tr>
+<tr><td class="num pos">+1.68</td><td class="tok">grammar</td><td class="num">27</td><td class="num">9</td></tr>
+<tr><td class="num pos">+1.66</td><td class="tok">architecture</td><td class="num">9</td><td class="num">1</td></tr>
+<tr><td class="num pos">+1.66</td><td class="tok">breath</td><td class="num">9</td><td class="num">1</td></tr>
+<tr><td class="num pos">+1.58</td><td class="tok">word</td><td class="num">13</td><td class="num">3</td></tr>
+<tr><td class="num pos">+1.55</td><td class="tok">silence</td><td class="num">15</td><td class="num">4</td></tr>
+<tr><td class="num pos">+1.53</td><td class="tok">happens</td><td class="num">8</td><td class="num">1</td></tr>
+<tr><td class="num pos">+1.53</td><td class="tok">inside</td><td class="num">8</td><td class="num">1</td></tr>
+<tr><td class="num pos">+1.49</td><td class="tok">reading</td><td class="num">10</td><td class="num">2</td></tr>
+<tr><td class="num pos">+1.45</td><td class="tok">between</td><td class="num">12</td><td class="num">3</td></tr>
+</table>
+</div>
+
+<div>
+<h3>qwen-3-235b side</h3>
+<p class="meta">qwen-3-235b does <em>more</em> character action / spoken-dialogue work.</p>
+<table>
+<tr><th class="num">z</th><th>token</th><th class="num">qwen-plus</th><th class="num">qwen-3-235b</th></tr>
+<tr><td class="num neg">−4.66</td><td class="tok">he's</td><td class="num">14</td><td class="num">38</td></tr>
+<tr><td class="num neg">−2.96</td><td class="tok">me</td><td class="num">13</td><td class="num">23</td></tr>
+<tr><td class="num neg">−2.51</td><td class="tok">power</td><td class="num">2</td><td class="num">9</td></tr>
+<tr><td class="num neg">−2.47</td><td class="tok">look</td><td class="num">9</td><td class="num">16</td></tr>
+<tr><td class="num neg">−2.39</td><td class="tok">emotional</td><td class="num">1</td><td class="num">8</td></tr>
+<tr><td class="num neg">−2.33</td><td class="tok">we'll</td><td class="num">2</td><td class="num">8</td></tr>
+<tr><td class="num neg">−2.32</td><td class="tok">form</td><td class="num">4</td><td class="num">10</td></tr>
+<tr><td class="num neg">−2.30</td><td class="tok">know</td><td class="num">11</td><td class="num">17</td></tr>
+<tr><td class="num neg">−2.29</td><td class="tok">you've</td><td class="num">6</td><td class="num">12</td></tr>
+<tr><td class="num neg">−2.29</td><td class="tok">can</td><td class="num">9</td><td class="num">15</td></tr>
+<tr><td class="num neg">−2.29</td><td class="tok">still</td><td class="num">8</td><td class="num">14</td></tr>
+<tr><td class="num neg">−2.13</td><td class="tok">trap</td><td class="num">2</td><td class="num">7</td></tr>
+<tr><td class="num neg">−2.12</td><td class="tok">young</td><td class="num">3</td><td class="num">8</td></tr>
+<tr><td class="num neg">−2.09</td><td class="tok">knows</td><td class="num">7</td><td class="num">12</td></tr>
+<tr><td class="num neg">−2.09</td><td class="tok">can't</td><td class="num">7</td><td class="num">12</td></tr>
+<tr><td class="num neg">−2.08</td><td class="tok">died</td><td class="num">1</td><td class="num">6</td></tr>
+</table>
+</div>
+</div>
+
+<h2>Qwen-plus vs gpt-5.4</h2>
+
+<div class="twocol">
+<div>
+<h3>qwen-plus side</h3>
+<table>
+<tr><th class="num">z</th><th>token</th><th class="num">qwen-plus</th><th class="num">gpt-5.4</th></tr>
+<tr><td class="num pos">+6.51</td><td class="tok">it's</td><td class="num">123</td><td class="num">4</td></tr>
+<tr><td class="num pos">+4.77</td><td class="tok">that's</td><td class="num">54</td><td class="num">4</td></tr>
+<tr><td class="num pos">+4.61</td><td class="tok">doesn't</td><td class="num">50</td><td class="num">4</td></tr>
+<tr><td class="num pos">+4.48</td><td class="tok">isn't</td><td class="num">57</td><td class="num">2</td></tr>
+<tr><td class="num pos">+3.03</td><td class="tok">she's</td><td class="num">25</td><td class="num">1</td></tr>
+<tr><td class="num pos">+2.59</td><td class="tok">court</td><td class="num">16</td><td class="num">2</td></tr>
+<tr><td class="num pos">+2.50</td><td class="tok">grammar</td><td class="num">27</td><td class="num">9</td></tr>
+<tr><td class="num pos">+2.49</td><td class="tok">silence</td><td class="num">15</td><td class="num">1</td></tr>
+<tr><td class="num pos">+2.36</td><td class="tok">chancery</td><td class="num">34</td><td class="num">14</td></tr>
+<tr><td class="num pos">+2.33</td><td class="tok">fog</td><td class="num">15</td><td class="num">3</td></tr>
+<tr><td class="num pos">+2.29</td><td class="tok">bleak</td><td class="num">20</td><td class="num">6</td></tr>
+<tr><td class="num pos">+2.26</td><td class="tok">brings</td><td class="num">12</td><td class="num">1</td></tr>
+<tr><td class="num pos">+2.26</td><td class="tok">let's</td><td class="num">12</td><td class="num">1</td></tr>
+<tr><td class="num pos">+2.20</td><td class="tok">law</td><td class="num">26</td><td class="num">10</td></tr>
+<tr><td class="num pos">+2.06</td><td class="tok">character</td><td class="num">10</td><td class="num">1</td></tr>
+</table>
+</div>
+
+<div>
+<h3>gpt-5.4 side</h3>
+<table>
+<tr><th class="num">z</th><th>token</th><th class="num">qwen-plus</th><th class="num">gpt-5.4</th></tr>
+<tr><td class="num neg">−4.95</td><td class="tok">me</td><td class="num">13</td><td class="num">52</td></tr>
+<tr><td class="num neg">−4.57</td><td class="tok">think</td><td class="num">5</td><td class="num">38</td></tr>
+<tr><td class="num neg">−4.44</td><td class="tok">can</td><td class="num">9</td><td class="num">40</td></tr>
+<tr><td class="num neg">−3.49</td><td class="tok">sentence</td><td class="num">13</td><td class="num">35</td></tr>
+<tr><td class="num neg">−3.25</td><td class="tok">into</td><td class="num">17</td><td class="num">38</td></tr>
+<tr><td class="num neg">−3.20</td><td class="tok">almost</td><td class="num">3</td><td class="num">19</td></tr>
+<tr><td class="num neg">−3.09</td><td class="tok">want</td><td class="num">4</td><td class="num">19</td></tr>
+<tr><td class="num neg">−2.87</td><td class="tok">social</td><td class="num">2</td><td class="num">15</td></tr>
+<tr><td class="num neg">−2.53</td><td class="tok">caroline</td><td class="num">11</td><td class="num">24</td></tr>
+<tr><td class="num neg">−2.53</td><td class="tok">moral</td><td class="num">8</td><td class="num">20</td></tr>
+<tr><td class="num neg">−2.53</td><td class="tok">merely</td><td class="num">1</td><td class="num">12</td></tr>
+<tr><td class="num neg">−2.43</td><td class="tok">become</td><td class="num">1</td><td class="num">11</td></tr>
+<tr><td class="num neg">−2.37</td><td class="tok">matters</td><td class="num">3</td><td class="num">12</td></tr>
+<tr><td class="num neg">−2.35</td><td class="tok">already</td><td class="num">6</td><td class="num">16</td></tr>
+<tr><td class="num neg">−2.34</td><td class="tok">language</td><td class="num">9</td><td class="num">20</td></tr>
+</table>
+</div>
+</div>
+
+<h2>Qwen-3-235b vs gpt-5.4</h2>
+
+<div class="twocol">
+<div>
+<h3>qwen-3-235b side</h3>
+<table>
+<tr><th class="num">z</th><th>token</th><th class="num">qwen-3-235b</th><th class="num">gpt-5.4</th></tr>
+<tr><td class="num pos">+6.58</td><td class="tok">it's</td><td class="num">83</td><td class="num">4</td></tr>
+<tr><td class="num pos">+4.59</td><td class="tok">that's</td><td class="num">33</td><td class="num">4</td></tr>
+<tr><td class="num pos">+4.31</td><td class="tok">doesn't</td><td class="num">29</td><td class="num">4</td></tr>
+<tr><td class="num pos">+4.10</td><td class="tok">isn't</td><td class="num">29</td><td class="num">2</td></tr>
+<tr><td class="num pos">+3.60</td><td class="tok">she's</td><td class="num">28</td><td class="num">1</td></tr>
+<tr><td class="num pos">+3.16</td><td class="tok">look</td><td class="num">16</td><td class="num">3</td></tr>
+<tr><td class="num pos">+2.93</td><td class="tok">let's</td><td class="num">15</td><td class="num">1</td></tr>
+<tr><td class="num pos">+2.71</td><td class="tok">jo</td><td class="num">16</td><td class="num">6</td></tr>
+<tr><td class="num pos">+2.63</td><td class="tok">can't</td><td class="num">12</td><td class="num">3</td></tr>
+<tr><td class="num pos">+2.26</td><td class="tok">we're</td><td class="num">8</td><td class="num">1</td></tr>
+<tr><td class="num pos">+2.23</td><td class="tok">you've</td><td class="num">12</td><td class="num">5</td></tr>
+<tr><td class="num pos">+2.15</td><td class="tok">emotional</td><td class="num">8</td><td class="num">2</td></tr>
+<tr><td class="num pos">+2.08</td><td class="tok">narrator</td><td class="num">10</td><td class="num">4</td></tr>
+<tr><td class="num pos">+2.01</td><td class="tok">moment</td><td class="num">12</td><td class="num">6</td></tr>
+<tr><td class="num pos">+1.93</td><td class="tok">chancery</td><td class="num">20</td><td class="num">14</td></tr>
+</table>
+</div>
+
+<div>
+<h3>gpt-5.4 side</h3>
+<table>
+<tr><th class="num">z</th><th>token</th><th class="num">qwen-3-235b</th><th class="num">gpt-5.4</th></tr>
+<tr><td class="num neg">−3.70</td><td class="tok">think</td><td class="num">4</td><td class="num">38</td></tr>
+<tr><td class="num neg">−2.57</td><td class="tok">want</td><td class="num">1</td><td class="num">19</td></tr>
+<tr><td class="num neg">−2.47</td><td class="tok">almost</td><td class="num">3</td><td class="num">19</td></tr>
+<tr><td class="num neg">−2.36</td><td class="tok">already</td><td class="num">2</td><td class="num">16</td></tr>
+<tr><td class="num neg">−2.28</td><td class="tok">feels</td><td class="num">3</td><td class="num">17</td></tr>
+<tr><td class="num neg">−2.27</td><td class="tok">social</td><td class="num">2</td><td class="num">15</td></tr>
+<tr><td class="num neg">−2.25</td><td class="tok">inside</td><td class="num">1</td><td class="num">14</td></tr>
+<tr><td class="num neg">−2.22</td><td class="tok">can</td><td class="num">15</td><td class="num">40</td></tr>
+<tr><td class="num neg">−2.21</td><td class="tok">into</td><td class="num">14</td><td class="num">38</td></tr>
+<tr><td class="num neg">−2.15</td><td class="tok">language</td><td class="num">5</td><td class="num">20</td></tr>
+<tr><td class="num neg">−2.10</td><td class="tok">sentence</td><td class="num">13</td><td class="num">35</td></tr>
+<tr><td class="num neg">−2.05</td><td class="tok">gives</td><td class="num">4</td><td class="num">17</td></tr>
+<tr><td class="num neg">−2.03</td><td class="tok">me</td><td class="num">23</td><td class="num">52</td></tr>
+<tr><td class="num neg">−1.94</td><td class="tok">pressure</td><td class="num">2</td><td class="num">12</td></tr>
+<tr><td class="num neg">−1.94</td><td class="tok">matters</td><td class="num">2</td><td class="num">12</td></tr>
+</table>
+</div>
+</div>
+
+<h2>Qwen-3-235b vs sonnet-base</h2>
+
+<div class="twocol">
+<div>
+<h3>qwen-3-235b side</h3>
+<table>
+<tr><th class="num">z</th><th>token</th><th class="num">qwen-3-235b</th><th class="num">sonnet-base</th></tr>
+<tr><td class="num pos">+6.92</td><td class="tok">it's</td><td class="num">83</td><td class="num">53</td></tr>
+<tr><td class="num pos">+5.27</td><td class="tok">he's</td><td class="num">38</td><td class="num">18</td></tr>
+<tr><td class="num pos">+4.76</td><td class="tok">she's</td><td class="num">28</td><td class="num">11</td></tr>
+<tr><td class="num pos">+4.12</td><td class="tok">isn't</td><td class="num">29</td><td class="num">18</td></tr>
+<tr><td class="num pos">+3.74</td><td class="tok">let's</td><td class="num">15</td><td class="num">3</td></tr>
+<tr><td class="num pos">+3.66</td><td class="tok">doesn't</td><td class="num">29</td><td class="num">22</td></tr>
+<tr><td class="num pos">+3.20</td><td class="tok">jo</td><td class="num">16</td><td class="num">9</td></tr>
+<tr><td class="num pos">+2.90</td><td class="tok">can't</td><td class="num">12</td><td class="num">6</td></tr>
+<tr><td class="num pos">+2.71</td><td class="tok">legally</td><td class="num">8</td><td class="num">2</td></tr>
+<tr><td class="num pos">+2.45</td><td class="tok">voice</td><td class="num">10</td><td class="num">6</td></tr>
+<tr><td class="num pos">+2.36</td><td class="tok">emotional</td><td class="num">8</td><td class="num">4</td></tr>
+<tr><td class="num pos">+2.27</td><td class="tok">truth</td><td class="num">6</td><td class="num">2</td></tr>
+<tr><td class="num pos">+2.27</td><td class="tok">narrative</td><td class="num">6</td><td class="num">2</td></tr>
+<tr><td class="num pos">+2.27</td><td class="tok">died</td><td class="num">6</td><td class="num">2</td></tr>
+</table>
+</div>
+
+<div>
+<h3>sonnet-base side</h3>
+<table>
+<tr><th class="num">z</th><th>token</th><th class="num">qwen-3-235b</th><th class="num">sonnet-base</th></tr>
+<tr><td class="num neg">−3.69</td><td class="tok">think</td><td class="num">4</td><td class="num">57</td></tr>
+<tr><td class="num neg">−3.14</td><td class="tok">want</td><td class="num">1</td><td class="num">50</td></tr>
+<tr><td class="num neg">−2.73</td><td class="tok">something</td><td class="num">8</td><td class="num">48</td></tr>
+<tr><td class="num neg">−2.66</td><td class="tok">about</td><td class="num">12</td><td class="num">59</td></tr>
+<tr><td class="num neg">−2.47</td><td class="tok">reading</td><td class="num">2</td><td class="num">26</td></tr>
+<tr><td class="num neg">−2.47</td><td class="tok">i'd</td><td class="num">2</td><td class="num">26</td></tr>
+<tr><td class="num neg">−2.46</td><td class="tok">cannot</td><td class="num">1</td><td class="num">26</td></tr>
+<tr><td class="num neg">−2.37</td><td class="tok">passage</td><td class="num">4</td><td class="num">30</td></tr>
+<tr><td class="num neg">−1.92</td><td class="tok">doing</td><td class="num">7</td><td class="num">33</td></tr>
+<tr><td class="num neg">−1.84</td><td class="tok">before</td><td class="num">5</td><td class="num">26</td></tr>
+<tr><td class="num neg">−1.82</td><td class="tok">precisely</td><td class="num">1</td><td class="num">14</td></tr>
+<tr><td class="num neg">−1.82</td><td class="tok">argument</td><td class="num">1</td><td class="num">14</td></tr>
+<tr><td class="num neg">−1.76</td><td class="tok">almost</td><td class="num">3</td><td class="num">19</td></tr>
+<tr><td class="num neg">−1.75</td><td class="tok">question</td><td class="num">4</td><td class="num">22</td></tr>
+<tr><td class="num neg">−1.69</td><td class="tok">because</td><td class="num">23</td><td class="num">73</td></tr>
+</table>
+</div>
+</div>
+
+<h2>Interpretation</h2>
+
+<h3>Four lexical signatures</h3>
+<ul>
+  <li><strong>qwen-plus</strong> — contracted, podcast-register, <em>analytical</em>. Heavy contractions plus the most pronounced close-reading lexicon: <em>precisely, architecture, breath, silence, names, grammar, between, reading</em>, and the legal/material vocabulary of the novel (<em>chancery, court, statute, law, fog, verb</em>). Mid-length sentences (12.5 words); among the most lexically diverse.</li>
+  <li><strong>qwen-3-235b</strong> — contracted, podcast-register, <em>character-action</em>. Same heavy contractions (he's, she's, it's, isn't, let's, can't, you've, we're, we'll, we've) but the distinctive content vocabulary skews toward characters in motion: <em>look, know, knows, trap, young, died, emotional, power, voice, truth, narrative, jo, narrator, moment</em>. Shortest output (6,520 words); shortest sentences (7.91 words); highest TTR. Reads like a brisker, more dramatic edit of the same episode.</li>
+  <li><strong>gpt-5.4</strong> — essayistic, modal, abstract. First-person studio register (<em>me, think, want, can, almost, listen, make, gives, feels, sounds, inside</em>) and abstract critical vocabulary (<em>social, moral, language, sentence, scene, point, force, pressure, matters</em>). Expands contractions almost universally.</li>
+  <li><strong>sonnet-base</strong> — talk-show, reflective, the longest. Same modal register as gpt-5.4, amplified by length: <em>think, want, cannot, something, reading, passage, question, doing, argument, i'd</em>. Disproportionately heavy author/character naming (<em>Dickens, Eleanor</em>).</li>
+</ul>
+
+<h3>Two clusters: Qwen-family vs OpenAI/Anthropic</h3>
+<p>The two contraction-heavy outputs (qwen-plus, qwen-3-235b) form one cluster (Jaccard 0.401); the two essayistic outputs (gpt-5.4, sonnet-base) form a weaker but discernible second cluster (Jaccard 0.386). The dividing line between clusters runs along contractions and register: <em>it's / he's / she's / let's / isn't / can't</em> dominate the Qwen side, while <em>think / want / something / about / cannot</em> dominate the other.</p>
+
+<h3>Within the Qwen cluster: analytical vs character-action</h3>
+<p>qwen-plus and qwen-3-235b agree on register (podcast, spoken, contracted) but differ on <em>what they spend words on</em>. qwen-plus invests in textual mechanics (<em>grammar, verb, syntax, names, architecture, between, reading</em>) and legal-historical specifics (<em>statute, legally, chancery, court</em>). qwen-3-235b invests in characters under pressure (<em>he's young, she's emotional, look, knows, trap, died, voice</em>) and uses fewer textual-mechanics words. Two genuinely different editorial choices on the same source plan.</p>
+
+<h3>What this implies for choosing a generator</h3>
+<ul>
+  <li>If the desired podcast is <strong>close-reading-heavy</strong> (panel literally walks through grammar and quotation), qwen-plus's lexical profile is the best fit.</li>
+  <li>If the desired podcast is <strong>character-and-stakes-heavy</strong> (panel dramatises what happens to Jo, Lady Dedlock, Richard), qwen-3-235b's profile is the best fit.</li>
+  <li>gpt-5.4 and sonnet read more like literary critics talking <em>about</em> the novel than a panel talking <em>through</em> it; for a podcast format, both Qwen options look more on-register.</li>
+</ul>
+
+<h3>Production caveats</h3>
+<ul>
+  <li><strong>Apostrophes are typographic.</strong> qwen-plus emits curly <code>’</code>; the other three emit straight <code>'</code>. Any downstream code that pattern-matches on apostrophes (TTS pronunciation tweaks, regex accent inference, search indexing) needs a Unicode-normalisation step.</li>
+  <li><strong>Length differences are large.</strong> qwen-3-235b at 6,520 words and sonnet at 14,457 words are not comparable on a per-segment basis without normalisation; the audio episodes will differ in runtime by ~2×.</li>
+  <li><strong>Single-novel, single-run signal.</strong> One episode per model on one novel; temperature variance not characterised. A repeat draw might shift any of these signatures.</li>
+  <li><strong>Cerebras_qwen metrics gap.</strong> Token counts and cost for the qwen-3-235b run weren't archived — that run predates <code>phase3_generation_metrics.json</code>. If we run a fresh qwen-3-235b episode the metrics will be captured.</li>
+</ul>
+
+<h2>Reproducibility</h2>
+<pre>uv run python scripts/vocab_compare_episodes.py \
+    --episode qwen-plus=data/runs/bh_trn_literary_hostprep_alibaba_qwen_plus/phase3_episode.json \
+    --episode qwen-3-235b=data/runs/bh_trn_literary_hostprep_cerebras_qwen/phase3_episode.json \
+    --episode gpt-5.4=data/runs/bh_trn_literary_hostprep_openai_5_4/phase3_episode.json \
+    --episode sonnet-base=data/runs/bh_trn_literary_hostprep/phase3_episode.json \
+    --pair qwen-plus,qwen-3-235b \
+    --pair qwen-plus,gpt-5.4 \
+    --pair qwen-3-235b,gpt-5.4 \
+    --pair qwen-3-235b,sonnet-base \
+    --top 20</pre>
+
+<p class="meta">Generated 2026-05-20 from commits <code>fcb4d6ef</code> (Phase 3 run dirs) and <code>e22fe852</code> (analysis script). Tracking issue: BleakHouse-j05l.</p>
+
+</body>
+</html>

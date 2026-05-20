@@ -1,0 +1,14 @@
+[project]
+name = "potato-listener"
+version = "0.1.0"
+description = "Isolated venv for the Potato annotation web app used in the BleakHouse Tier L pairwise prose-comparison workflow (BleakHouse-kl4f)."
+requires-python = ">=3.10"
+dependencies = [
+    "potato-annotation>=2.5.0",
+    # potato/__init__.py eagerly imports its `ai.ollama_endpoint`
+    # module which requires `ollama`. The PyPI wheel for
+    # potato-annotation 2.5.0 doesn't list it as a runtime dep, so
+    # `import potato` fails out of the box with ModuleNotFoundError.
+    # Pin loosely; we don't use the AI helpers ourselves.
+    "ollama",
+]
