@@ -1,8 +1,12 @@
-"""Run passage_enrichment on one chapter via concurrent qwen-plus realtime calls.
+"""Run passage_enrichment on one or many chapters via concurrent qwen-plus realtime calls.
 
-Designed as the fallback when DashScope batch is unusable: chunk the
+Designed as the fallback when DashScope batch is unusable: chunk each
 chapter, dispatch each chunk as an async chat completion via
-`asyncio.TaskGroup`, and collect the results when every task is done.
+`asyncio.TaskGroup`. Across chapters, a small asyncio.Semaphore bounds
+how many chapters can be in flight at once — chapter-level concurrency
+is the right granularity because each chapter is self-contained and the
+TPM budget is naturally measured per-chapter. The cross-chapter
+semaphore is ~5 lines and keeps us under DashScope's 1M TPM cap.
 
 Why this exists (BleakHouse-el1j.1):
 - Three batch attempts at 158 passages/call all returned
@@ -29,9 +33,24 @@ Behaviour:
 Tracks BleakHouse-el1j.1.
 
 Run:
-    uv run python scripts/run_qwen_plus_realtime_chapter.py
+    # single chapter
     uv run python scripts/run_qwen_plus_realtime_chapter.py \\
-        --novel bleak_house --chapter c6 --chunk-size 20
+        --chapters c6
+    # several explicit chapters
+    uv run python scripts/run_qwen_plus_realtime_chapter.py \\
+        --chapters c1,c2,c6
+    # entire novel (67 chapters for bleak_house, ~16 min wall, ~$5)
+    uv run python scripts/run_qwen_plus_realtime_chapter.py \\
+        --novel bleak_house --chapters all
+
+Run directory layout:
+    data/runs/_qwen_plus_realtime_chapter_runs/
+        <novel>/
+            <chapter>/
+                manifest.json
+                chunk_NN_{request,response,content,error}.{json,txt}
+                run_report.{json,md}
+            novel_report.{json,md}     # only when chapters > 1
 """
 
 from __future__ import annotations
@@ -324,36 +343,38 @@ def _write_reports(
     return verdict
 
 
-async def main_async(args: argparse.Namespace) -> int:
-    passages = _read_passages(args.novel)
-    chap = sorted(
-        [p for p in passages if p["chapter_id"] == args.chapter],
-        key=lambda x: x["paragraph_index"],
-    )
-    if not chap:
-        raise SystemExit(f"no passages for {args.novel}/{args.chapter}")
-    chapter_title = chap[0].get("chapter_title", "")
-
+async def _run_one_chapter(
+    *,
+    client: AsyncOpenAI,
+    novel: str,
+    chapter: str,
+    chap_passages: list[dict],
+    system_prompt: str,
+    schema: dict,
+    args: argparse.Namespace,
+    novel_root: Path,
+) -> dict:
+    """Run one chapter via concurrent chunk TaskGroup. Persists per-chunk
+    artifacts + chapter manifest + chapter run_report. Returns a summary
+    dict for the novel-level report."""
+    chapter_title = chap_passages[0].get("chapter_title", "")
     chunks = [
-        chap[i:i + args.chunk_size]
-        for i in range(0, len(chap), args.chunk_size)
+        chap_passages[i:i + args.chunk_size]
+        for i in range(0, len(chap_passages), args.chunk_size)
     ]
     logger.info(
         "%s/%s — %d passages (\"%s\"), %d chunks of up to %d",
-        args.novel, args.chapter, len(chap), chapter_title,
+        novel, chapter, len(chap_passages), chapter_title,
         len(chunks), args.chunk_size,
     )
 
-    system_prompt = build_enrichment_prompt(args.novel) + JSON_INSTRUCTION_SUFFIX
-    schema = inline_refs(ChapterEnrichmentResult.model_json_schema())
-
-    run_dir = RUN_ROOT / f"{args.novel}_{args.chapter}"
+    run_dir = novel_root / chapter
     run_dir.mkdir(parents=True, exist_ok=True)
 
     bodies: list[tuple[str, dict, list[int]]] = []
     for i, chunk in enumerate(chunks):
         user_message = (
-            f"Chapter: {args.chapter} - {chapter_title}\n\n"
+            f"Chapter: {chapter} - {chapter_title}\n\n"
             + format_chapter_text(chunk)
         )
         body = _build_body(
@@ -370,10 +391,10 @@ async def main_async(args: argparse.Namespace) -> int:
 
     started_at = datetime.now(timezone.utc).isoformat()
     manifest = {
-        "novel": args.novel,
-        "chapter": args.chapter,
+        "novel": novel,
+        "chapter": chapter,
         "chapter_title": chapter_title,
-        "passage_count": len(chap),
+        "passage_count": len(chap_passages),
         "chunk_size": args.chunk_size,
         "chunk_count": len(chunks),
         "model": args.model,
@@ -383,17 +404,8 @@ async def main_async(args: argparse.Namespace) -> int:
         "started_at": started_at,
     }
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
-    logger.info("manifest: %s", run_dir / "manifest.json")
-
-    load_dotenv()
-    key = os.environ.get("ALIBABA_API_KEY")
-    if not key:
-        raise SystemExit("ALIBABA_API_KEY not set in env / .env")
-    client = AsyncOpenAI(api_key=key, base_url=BASE_URL,
-                         timeout=1800.0, max_retries=0)
 
     started = time.monotonic()
-    results: list[ChunkResult]
     async with asyncio.TaskGroup() as tg:
         tasks = [
             tg.create_task(_call_one_chunk(
@@ -402,26 +414,217 @@ async def main_async(args: argparse.Namespace) -> int:
             ))
             for label, body, indices in bodies
         ]
-    # async with exits when every task is done. Each _call_one_chunk
-    # catches its own exceptions, so the gather never raises here.
     results = [t.result() for t in tasks]
     wall_seconds = time.monotonic() - started
-
-    await client.close()
 
     manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
     manifest["wall_seconds"] = wall_seconds
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
     verdict = _write_reports(results, run_dir, manifest, wall_seconds)
-    logger.info("=" * 60)
+
+    ok_count = sum(1 for r in results if r.status == "ok")
+    total_parsed = sum(r.parsed_count for r in results)
+    expected_total = sum(len(r.paragraph_indices) for r in results)
+    total_in = sum(r.input_tokens for r in results)
+    total_out = sum(r.output_tokens for r in results)
+    total_cost = sum(r.cost_usd for r in results)
     logger.info(
-        "%s  chunks=%d  ok=%d  wall=%.1fs  cost=$%.4f",
-        verdict, len(results),
-        sum(1 for r in results if r.status == "ok"),
-        wall_seconds, sum(r.cost_usd for r in results),
+        "%s/%s: %s  chunks=%d ok=%d  parsed=%d/%d  wall=%.0fs  cost=$%.4f",
+        novel, chapter, verdict, len(results), ok_count,
+        total_parsed, expected_total, wall_seconds, total_cost,
     )
-    logger.info("report: %s", run_dir / "run_report.md")
+    return {
+        "novel": novel,
+        "chapter": chapter,
+        "verdict": verdict,
+        "chunk_count": len(results),
+        "ok_chunks": ok_count,
+        "expected_paragraphs": expected_total,
+        "parsed_paragraphs": total_parsed,
+        "wall_seconds": wall_seconds,
+        "input_tokens": total_in,
+        "output_tokens": total_out,
+        "cost_usd": total_cost,
+        "run_dir": str(run_dir),
+    }
+
+
+def _natural_chapter_sort_key(passages_by_chapter: dict[str, list[dict]]) -> Any:
+    """Sort chapters by chapter-id pattern. char_start/paragraph_index both
+    restart per chapter so neither can drive order; the only signal in the
+    enriched passages data is chapter_id itself.
+
+    Convention used: cP (preface) first, F2 (preface footnote) right after,
+    then c1..cN numerically, with anything unrecognised at the end.
+    Works for the canonical BleakHouse layout and is harmless for novels
+    that only use c1..cN."""
+    def key(ch: str) -> tuple:
+        if ch == "cP":
+            return (0, 0)
+        if ch == "F2":
+            return (0, 1)
+        if ch.startswith("c"):
+            try:
+                return (1, int(ch[1:]))
+            except ValueError:
+                pass
+        return (2, ch)
+    return key
+
+
+def _write_novel_report(
+    novel_root: Path,
+    novel: str,
+    summaries: list[dict],
+    wall_seconds: float,
+    started_at: str,
+) -> str:
+    json_path = novel_root / "novel_report.json"
+    md_path = novel_root / "novel_report.md"
+
+    chapter_count = len(summaries)
+    pass_count = sum(1 for s in summaries if s["verdict"] == "PASS")
+    total_in = sum(s["input_tokens"] for s in summaries)
+    total_out = sum(s["output_tokens"] for s in summaries)
+    total_cost = sum(s["cost_usd"] for s in summaries)
+    total_parsed = sum(s["parsed_paragraphs"] for s in summaries)
+    expected_paragraphs = sum(s["expected_paragraphs"] for s in summaries)
+
+    verdict = "PASS" if pass_count == chapter_count and total_parsed == expected_paragraphs else "FAIL"
+
+    payload = {
+        "verdict": verdict,
+        "novel": novel,
+        "chapter_count": chapter_count,
+        "pass_count": pass_count,
+        "started_at": started_at,
+        "wall_seconds": wall_seconds,
+        "total_input_tokens": total_in,
+        "total_output_tokens": total_out,
+        "total_cost_usd": round(total_cost, 6),
+        "parsed_paragraphs": total_parsed,
+        "expected_paragraphs": expected_paragraphs,
+        "chapters": summaries,
+    }
+    json_path.write_text(json.dumps(payload, indent=2))
+
+    md = [
+        f"# qwen-plus realtime novel run — {novel}",
+        "",
+        f"- novel_root: `{novel_root}`",
+        f"- started: {started_at}",
+        f"- wall: {wall_seconds:.0f}s",
+        "",
+        "## Verdict",
+        "",
+        f"**{verdict}** — {pass_count}/{chapter_count} chapters PASS; "
+        f"{total_parsed}/{expected_paragraphs} paragraphs parsed.",
+        "",
+        "## Totals",
+        "",
+        f"- input tokens: {total_in:,}",
+        f"- output tokens: {total_out:,}",
+        f"- cost: ${total_cost:.4f}",
+        "",
+        "## Per-chapter",
+        "",
+        "| chapter | verdict | chunks ok | parsed/expected | wall | cost |",
+        "|---|---|---|---|---:|---:|",
+    ]
+    for s in summaries:
+        md.append(
+            f"| {s['chapter']} | {s['verdict']} | "
+            f"{s['ok_chunks']}/{s['chunk_count']} | "
+            f"{s['parsed_paragraphs']}/{s['expected_paragraphs']} | "
+            f"{s['wall_seconds']:.0f}s | ${s['cost_usd']:.4f} |"
+        )
+    md_path.write_text("\n".join(md))
+    return verdict
+
+
+def _resolve_chapters(
+    chapters_arg: str, passages_by_chapter: dict[str, list[dict]],
+) -> list[str]:
+    if chapters_arg == "all":
+        return sorted(
+            passages_by_chapter.keys(),
+            key=_natural_chapter_sort_key(passages_by_chapter),
+        )
+    wanted = [c.strip() for c in chapters_arg.split(",") if c.strip()]
+    unknown = [c for c in wanted if c not in passages_by_chapter]
+    if unknown:
+        raise SystemExit(f"unknown chapter ids: {unknown}")
+    return wanted
+
+
+async def main_async(args: argparse.Namespace) -> int:
+    passages = _read_passages(args.novel)
+    passages_by_chapter: dict[str, list[dict]] = {}
+    for p in passages:
+        passages_by_chapter.setdefault(p["chapter_id"], []).append(p)
+    for chap_list in passages_by_chapter.values():
+        chap_list.sort(key=lambda x: x["paragraph_index"])
+
+    chapters = _resolve_chapters(args.chapters, passages_by_chapter)
+    logger.info(
+        "%s — running %d chapters: %s",
+        args.novel, len(chapters),
+        ",".join(chapters) if len(chapters) <= 8 else f"{chapters[:4]}..{chapters[-2:]}",
+    )
+
+    system_prompt = build_enrichment_prompt(args.novel) + JSON_INSTRUCTION_SUFFIX
+    schema = inline_refs(ChapterEnrichmentResult.model_json_schema())
+    novel_root = RUN_ROOT / args.novel
+    novel_root.mkdir(parents=True, exist_ok=True)
+
+    load_dotenv()
+    key = os.environ.get("ALIBABA_API_KEY")
+    if not key:
+        raise SystemExit("ALIBABA_API_KEY not set in env / .env")
+    client = AsyncOpenAI(api_key=key, base_url=BASE_URL,
+                         timeout=1800.0, max_retries=0)
+
+    sem = asyncio.Semaphore(args.max_concurrent_chapters)
+
+    async def bounded(ch: str) -> dict:
+        async with sem:
+            return await _run_one_chapter(
+                client=client,
+                novel=args.novel,
+                chapter=ch,
+                chap_passages=passages_by_chapter[ch],
+                system_prompt=system_prompt,
+                schema=schema,
+                args=args,
+                novel_root=novel_root,
+            )
+
+    started_at = datetime.now(timezone.utc).isoformat()
+    started = time.monotonic()
+    async with asyncio.TaskGroup() as tg:
+        tasks = [tg.create_task(bounded(ch)) for ch in chapters]
+    summaries = [t.result() for t in tasks]
+    wall_seconds = time.monotonic() - started
+
+    await client.close()
+
+    if len(chapters) > 1:
+        verdict = _write_novel_report(
+            novel_root, args.novel, summaries, wall_seconds, started_at,
+        )
+    else:
+        verdict = summaries[0]["verdict"]
+
+    logger.info("=" * 60)
+    pass_count = sum(1 for s in summaries if s["verdict"] == "PASS")
+    total_cost = sum(s["cost_usd"] for s in summaries)
+    logger.info(
+        "%s  chapters=%d  pass=%d  wall=%.1fs  cost=$%.4f",
+        verdict, len(summaries), pass_count, wall_seconds, total_cost,
+    )
+    if len(chapters) > 1:
+        logger.info("novel report: %s", novel_root / "novel_report.md")
     return 0 if verdict == "PASS" else 2
 
 
@@ -434,7 +637,15 @@ def main() -> int:
 
     p = argparse.ArgumentParser()
     p.add_argument("--novel", default=DEFAULT_NOVEL)
-    p.add_argument("--chapter", default=DEFAULT_CHAPTER)
+    p.add_argument("--chapters", default=DEFAULT_CHAPTER,
+                   help="Comma-separated chapter ids (e.g. c1,c2,c6), or "
+                        "'all' for every chapter in the novel "
+                        "(default: %(default)s)")
+    p.add_argument("--max-concurrent-chapters", type=int, default=10,
+                   help="How many chapters to run concurrently; each chapter "
+                        "internally fans out to chunk_count concurrent calls. "
+                        "Default 10 stays well under DashScope's 1M TPM "
+                        "(~536 tok/s per chapter × 10 = ~5300 tok/s ≪ 16666).")
     p.add_argument("--model", default=DEFAULT_MODEL)
     p.add_argument("--chunk-size", type=int, default=DEFAULT_CHUNK_SIZE)
     p.add_argument("--max-completion-tokens", type=int,
