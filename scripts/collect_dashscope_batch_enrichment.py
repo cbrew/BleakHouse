@@ -123,81 +123,123 @@ def _poll_until_terminal(client: OpenAI, batch_id: str, poll_seconds: int) -> An
         time.sleep(poll_seconds)
 
 
-def _classify_defect(raw_content: str | None, validation: str) -> str | None:
-    if not raw_content:
-        return "empty"
-    if "JSONDecodeError" in validation:
-        return "json_parse"
-    if REPETITION_RE.search(raw_content):
-        return "repetition"
-    if validation.startswith("failed:"):
-        return "validation"
-    return None
+def _process_entry(
+    entry: dict, indices_by_custom_id: dict[str, list[int]], chapter_id: str,
+) -> RequestResult:
+    """Process one JSONL line from output OR error file.
+
+    Handles every failure shape we've observed or anticipate:
+    - top-level `error` (entry-level API rejection)
+    - response.body.error (server-side error like ModelServingOutputInvalidJsonError)
+    - empty/missing choices
+    - empty message.content
+    - JSON parse failure
+    - Pydantic validation failure
+    - repetition-loop pathology in otherwise-parseable content
+    """
+    custom_id = entry.get("custom_id", "")
+    indices = indices_by_custom_id.get(custom_id, [])
+    chunk_index = (
+        int(custom_id.rsplit("-part", 1)[1]) if "-part" in custom_id else 0
+    )
+
+    rr = RequestResult(
+        custom_id=custom_id, chapter_id=chapter_id,
+        chunk_index=chunk_index, paragraph_indices=indices,
+    )
+
+    resp = entry.get("response") or {}
+    body = resp.get("body") or {}
+    usage = body.get("usage") or {}
+    rr.input_tokens = int(usage.get("prompt_tokens") or 0)
+    rr.output_tokens = int(usage.get("completion_tokens") or 0)
+    rr.cost_usd = (
+        rr.input_tokens / 1_000_000 * RATE_INPUT_PER_MTOK
+        + rr.output_tokens / 1_000_000 * RATE_OUTPUT_PER_MTOK
+    )
+
+    # Entry-level error (e.g. submitter passed a malformed line).
+    top_err = entry.get("error")
+    if top_err:
+        code = top_err.get("code", "?")
+        msg = (top_err.get("message") or "")[:200]
+        rr.validation = f"failed: entry-level error {code}: {msg}"
+        rr.defect = "api_error"
+        return rr
+
+    # Server-side error returned inside response.body (the
+    # ModelServingOutputInvalidJsonError class from DashScope sits here).
+    body_err = body.get("error")
+    if body_err:
+        code = body_err.get("code", "?")
+        msg = (body_err.get("message") or "")[:200]
+        status = resp.get("status_code")
+        rr.validation = f"failed: server error {code} (status={status}): {msg}"
+        rr.defect = "api_error"
+        return rr
+
+    choices = body.get("choices") or []
+    if not choices:
+        rr.validation = (
+            f"failed: empty choices (status={resp.get('status_code')})"
+        )
+        rr.defect = "empty"
+        return rr
+
+    choice = choices[0]
+    rr.finish_reason = choice.get("finish_reason")
+    message = choice.get("message") or {}
+    rr.raw_content = message.get("content")
+    if not rr.raw_content:
+        rr.validation = f"failed: empty content (finish={rr.finish_reason})"
+        rr.defect = "empty"
+        return rr
+
+    try:
+        obj = json.loads(rr.raw_content)
+    except json.JSONDecodeError as e:
+        rr.validation = f"failed: JSONDecodeError: {e}"
+        rr.defect = "json_parse"
+        return rr
+
+    try:
+        parsed = ChapterEnrichmentResult.model_validate(obj)
+        rr.parsed = parsed.model_dump()
+        rr.validation = "ok"
+    except ValidationError as e:
+        rr.validation = f"failed: ValidationError: {e.error_count()} errors"
+        rr.defect = "validation"
+
+    # Even successfully-parsed JSON can still be repetition-pathology output.
+    if rr.defect is None and REPETITION_RE.search(rr.raw_content):
+        rr.defect = "repetition"
+
+    return rr
 
 
 def _process_results(
     output_text: str,
+    error_text: str,
     indices_by_custom_id: dict[str, list[int]],
     chapter_id: str,
 ) -> list[RequestResult]:
+    """Process every JSONL line from both files (whichever are populated).
+    Lines may appear in either file; each becomes a RequestResult."""
     results: list[RequestResult] = []
-    for line in output_text.strip().splitlines():
-        if not line.strip():
+    for label, text in (("output", output_text), ("errors", error_text)):
+        if not text.strip():
             continue
-        entry = json.loads(line)
-        custom_id = entry.get("custom_id", "")
-        indices = indices_by_custom_id.get(custom_id, [])
-        chunk_index = (
-            int(custom_id.rsplit("-part", 1)[1]) if "-part" in custom_id else 0
-        )
-
-        rr = RequestResult(
-            custom_id=custom_id,
-            chapter_id=chapter_id,
-            chunk_index=chunk_index,
-            paragraph_indices=indices,
-        )
-
-        resp = entry.get("response") or {}
-        body = resp.get("body") or {}
-        choices = body.get("choices") or []
-        usage = body.get("usage") or {}
-        rr.input_tokens = int(usage.get("prompt_tokens") or 0)
-        rr.output_tokens = int(usage.get("completion_tokens") or 0)
-        rr.cost_usd = (
-            rr.input_tokens / 1_000_000 * RATE_INPUT_PER_MTOK
-            + rr.output_tokens / 1_000_000 * RATE_OUTPUT_PER_MTOK
-        )
-
-        if entry.get("error"):
-            rr.validation = f"failed: API error {entry['error']}"
-        elif not choices:
-            rr.validation = (
-                f"failed: empty choices (status={resp.get('status_code')})"
-            )
-        else:
-            choice = choices[0]
-            rr.finish_reason = choice.get("finish_reason")
-            msg = choice.get("message") or {}
-            rr.raw_content = msg.get("content")
-            if not rr.raw_content:
-                rr.validation = f"failed: empty content (finish={rr.finish_reason})"
-            else:
-                try:
-                    obj = json.loads(rr.raw_content)
-                except json.JSONDecodeError as e:
-                    rr.validation = f"failed: JSONDecodeError: {e}"
-                else:
-                    try:
-                        parsed = ChapterEnrichmentResult.model_validate(obj)
-                        rr.parsed = parsed.model_dump()
-                        rr.validation = "ok"
-                    except ValidationError as e:
-                        rr.validation = (
-                            f"failed: ValidationError: {e.error_count()} errors"
-                        )
-        rr.defect = _classify_defect(rr.raw_content, rr.validation)
-        results.append(rr)
+        for line_no, line in enumerate(text.strip().splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError as e:
+                logger.warning(
+                    "skipping unparseable %s line %d: %s", label, line_no, e
+                )
+                continue
+            results.append(_process_entry(entry, indices_by_custom_id, chapter_id))
     return results
 
 
@@ -315,7 +357,10 @@ def main() -> int:
 
     probe_dir: Path = args.probe_dir
     manifest_path = probe_dir / "manifest.json"
-    raw_output_path = probe_dir / "batch_output.jsonl"
+    state_path = probe_dir / "batch_state.json"
+    output_path = probe_dir / "batch_output.jsonl"
+    errors_path = probe_dir / "batch_errors.jsonl"
+
     if not manifest_path.exists():
         raise SystemExit(f"no manifest at {manifest_path} — submit first")
     manifest = json.loads(manifest_path.read_text())
@@ -330,43 +375,103 @@ def main() -> int:
 
     client = _make_client()
 
-    if raw_output_path.exists() and not args.force_poll:
-        logger.info("found cached %s — skipping poll/download", raw_output_path)
-        out_text = raw_output_path.read_text()
-        completed_at = manifest.get("completed_at")
-        wall_seconds = manifest.get("wall_seconds", 0.0)
-    else:
+    # Phase 1: poll until terminal, then persist the full batch state.
+    # If we already have a terminal state on disk we skip the poll —
+    # batch_state.json is the durable record. --force-poll bypasses the
+    # cache for cases where you want to re-verify.
+    cached_state = None
+    if state_path.exists() and not args.force_poll:
+        cached_state = json.loads(state_path.read_text())
+        cached_id = cached_state.get("id")
+        if cached_id and cached_id != batch_id:
+            logger.warning(
+                "%s has batch_id=%s, manifest has %s — discarding stale state",
+                state_path, cached_id, batch_id,
+            )
+            cached_state = None
+        elif cached_state.get("status") in (
+            "completed", "failed", "expired", "cancelled"
+        ):
+            logger.info("loading cached %s (status=%s)",
+                        state_path, cached_state["status"])
+        else:
+            cached_state = None  # re-poll: previous run died mid-poll
+
+    if cached_state is None:
         poll_start = time.monotonic()
         batch = _poll_until_terminal(client, batch_id, args.poll_seconds)
         wall_seconds = time.monotonic() - poll_start
         completed_at = datetime.now(timezone.utc).isoformat()
         logger.info("terminal status=%s  wall=%.0fs", batch.status, wall_seconds)
 
-        if batch.status != "completed":
-            report = ProbeReport(
-                novel=novel, chapter=chapter, model=model,
-                batch_id=batch_id, submitted_at=submitted_at,
-                completed_at=completed_at, wall_seconds=wall_seconds,
-                request_count=0, valid_count=0,
-                defects={f"batch_status_{batch.status}": 1},
-            )
-            verdict = _write_reports(report, probe_dir)
-            logger.warning("batch did not complete (status=%s); %s",
-                           batch.status, verdict)
-            return 1
+        # Persist EVERYTHING the SDK returned before doing anything else.
+        # If the script crashes later, this is the receipt of what DashScope
+        # actually said.
+        batch_state = batch.model_dump(mode="json")
+        batch_state["_collect_wall_seconds"] = wall_seconds
+        batch_state["_collect_completed_at"] = completed_at
+        state_path.write_text(json.dumps(batch_state, indent=2, default=str))
+        logger.info("persisted batch state to %s", state_path)
+    else:
+        batch_state = cached_state
+        wall_seconds = batch_state.get("_collect_wall_seconds", 0.0)
+        completed_at = batch_state.get("_collect_completed_at")
 
-        out_text = client.files.content(batch.output_file_id).text
-        raw_output_path.write_text(out_text)
-        logger.info("wrote raw output to %s (%d bytes)",
-                    raw_output_path, len(out_text))
+    # Phase 2: download both files defensively. Either can be None; both can be
+    # absent on a failed-batch state. Errors during download are logged, not
+    # raised — the next phase will surface what we have.
+    output_file_id = batch_state.get("output_file_id")
+    error_file_id = batch_state.get("error_file_id")
+    logger.info("output_file_id=%s  error_file_id=%s",
+                output_file_id, error_file_id)
 
-        # Persist completion timing into manifest so re-runs of this script
-        # don't lose wall_seconds.
-        manifest["completed_at"] = completed_at
-        manifest["wall_seconds"] = wall_seconds
-        manifest_path.write_text(json.dumps(manifest, indent=2))
+    out_text = ""
+    err_text = ""
 
-    results = _process_results(out_text, indices_by_custom_id, chapter)
+    if output_path.exists():
+        out_text = output_path.read_text()
+        logger.info("loaded cached output (%d bytes)", len(out_text))
+    elif output_file_id:
+        try:
+            out_text = client.files.content(output_file_id).text
+            output_path.write_text(out_text)
+            logger.info("wrote output to %s (%d bytes)",
+                        output_path, len(out_text))
+        except Exception as e:
+            logger.exception("output download failed (%s): %s", output_file_id, e)
+
+    if errors_path.exists():
+        err_text = errors_path.read_text()
+        logger.info("loaded cached errors (%d bytes)", len(err_text))
+    elif error_file_id:
+        try:
+            err_text = client.files.content(error_file_id).text
+            errors_path.write_text(err_text)
+            logger.info("wrote errors to %s (%d bytes)",
+                        errors_path, len(err_text))
+        except Exception as e:
+            logger.exception("error file download failed (%s): %s", error_file_id, e)
+
+    # Phase 3: process whatever's on disk. Both files contribute one
+    # RequestResult per line; missing files just produce no entries.
+    results = _process_results(out_text, err_text, indices_by_custom_id, chapter)
+    if not results:
+        # Batch reached terminal but neither output nor error file is usable
+        # — surface this as a single synthetic result so the report doesn't
+        # silently say "0 requests" without explanation.
+        synthetic = RequestResult(
+            custom_id="<no-output>",
+            chapter_id=chapter,
+            chunk_index=0,
+            paragraph_indices=[],
+            validation=(
+                f"failed: batch status={batch_state.get('status')} produced "
+                f"no parseable output (output_file_id={output_file_id}, "
+                f"error_file_id={error_file_id})"
+            ),
+            defect="api_error",
+        )
+        results = [synthetic]
 
     defects: dict[str, int] = {}
     valid_count = 0

@@ -146,6 +146,11 @@ def _build_jsonl_line(
             },
             "max_completion_tokens": max_completion_tokens,
             "temperature": temperature,
+            # Qwen 3.x thinking mode prepends "<think>...</think>" prose to
+            # the response, which DashScope's batch server then rejects as
+            # ModelServingOutputInvalidJsonError. Force the chat template to
+            # skip the thinking turn. Verified pattern in docs/qwen_family_test_plan.md.
+            "chat_template_kwargs": {"enable_thinking": False},
         },
     }
 
