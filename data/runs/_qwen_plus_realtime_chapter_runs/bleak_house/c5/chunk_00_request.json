@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c5 - A Morning Adventure\n\n[P0] Although the morning was raw, and although the fog still seemed\nheavy\u2014I say seemed, for the windows were so encrusted with dirt that\nthey would have made midsummer sunshine dim\u2014I was sufficiently\nforewarned of the discomfort within doors at that early hour and\nsufficiently curious about London to think it a good idea on the part\nof Miss Jellyby when she proposed that we should go out for a walk.\n\n[P1] \u201cMa won\u2019t be down for ever so long,\u201d she said, \u201cand then it\u2019s a\nchance if breakfast\u2019s ready for an hour afterwards, they dawdle so.\nAs to Pa, he gets what he can and goes to the office. He never has\nwhat you would call a regular breakfast. Priscilla leaves him out the\nloaf and some milk, when there is any, overnight. Sometimes there\nisn\u2019t any milk, and sometimes the cat drinks it. But I\u2019m afraid you\nmust be tired, Miss Summerson, and perhaps you would rather go to\nbed.\u201d\n\n[P2] \u201cI am not at all tired, my dear,\u201d said I, \u201cand would much prefer to\ngo out.\u201d\n\n[P3] \u201cIf you\u2019re sure you would,\u201d returned Miss Jellyby, \u201cI\u2019ll get my\nthings on.\u201d\n\n[P4] Ada said she would go too, and was soon astir. I made a proposal to\nPeepy, in default of being able to do anything better for him, that\nhe should let me wash him and afterwards lay him down on my bed\nagain. To this he submitted with the best grace possible, staring at\nme during the whole operation as if he never had been, and never\ncould again be, so astonished in his life\u2014looking very miserable\nalso, certainly, but making no complaint, and going snugly to sleep\nas soon as it was over. At first I was in two minds about taking such\na liberty, but I soon reflected that nobody in the house was likely\nto notice it.\n\n[P5] What with the bustle of dispatching Peepy and the bustle of getting\nmyself ready and helping Ada, I was soon quite in a glow. We found\nMiss Jellyby trying to warm herself at the fire in the writing-room,\nwhich Priscilla was then lighting with a smutty parlour candlestick,\nthrowing the candle in to make it burn better. Everything was just as\nwe had left it last night and was evidently intended to remain so.\nBelow-stairs the dinner-cloth had not been taken away, but had been\nleft ready for breakfast. Crumbs, dust, and waste-paper were all over\nthe house. Some pewter pots and a milk-can hung on the area railings;\nthe door stood open; and we met the cook round the corner coming out\nof a public-house, wiping her mouth. She mentioned, as she passed us,\nthat she had been to see what o\u2019clock it was.\n\n[P6] But before we met the cook, we met Richard, who was dancing up and\ndown Thavies Inn to warm his feet. He was agreeably surprised to see\nus stirring so soon and said he would gladly share our walk. So he\ntook care of Ada, and Miss Jellyby and I went first. I may mention\nthat Miss Jellyby had relapsed into her sulky manner and that I\nreally should not have thought she liked me much unless she had told\nme so.\n\n[P7] \u201cWhere would you wish to go?\u201d she asked.\n\n[P8] \u201cAnywhere, my dear,\u201d I replied.\n\n[P9] \u201cAnywhere\u2019s nowhere,\u201d said Miss Jellyby, stopping perversely.\n\n[P10] \u201cLet us go somewhere at any rate,\u201d said I.\n\n[P11] She then walked me on very fast.\n\n[P12] \u201cI don\u2019t care!\u201d she said. \u201cNow, you are my witness, Miss Summerson, I\nsay I don\u2019t care\u2014but if he was to come to our house with his great,\nshining, lumpy forehead night after night till he was as old as\nMethuselah, I wouldn\u2019t have anything to say to him. Such ASSES as he\nand Ma make of themselves!\u201d\n\n[P13] \u201cMy dear!\u201d I remonstrated, in allusion to the epithet and the\nvigorous emphasis Miss Jellyby set upon it. \u201cYour duty as a\n child\u2014\u201d\n\n[P14] \u201cOh! Don\u2019t talk of duty as a child, Miss Summerson; where\u2019s Ma\u2019s duty\nas a parent? All made over to the public and Africa, I suppose! Then\nlet the public and Africa show duty as a child; it\u2019s much more their\naffair than mine. You are shocked, I dare say! Very well, so am I\nshocked too; so we are both shocked, and there\u2019s an end of it!\u201d\n\n[P15] She walked me on faster yet.\n\n[P16] \u201cBut for all that, I say again, he may come, and come, and come, and\nI won\u2019t have anything to say to him. I can\u2019t bear him. If there\u2019s any\nstuff in the world that I hate and detest, it\u2019s the stuff he and Ma\ntalk. I wonder the very paving-stones opposite our house can have the\npatience to stay there and be a witness of such inconsistencies and\ncontradictions as all that sounding nonsense, and Ma\u2019s management!\u201d\n\n[P17] I could not but understand her to refer to Mr. Quale, the young\ngentleman who had appeared after dinner yesterday. I was saved the\ndisagreeable necessity of pursuing the subject by Richard and Ada\ncoming up at a round pace, laughing and asking us if we meant to run\na race. Thus interrupted, Miss Jellyby became silent and walked\nmoodily on at my side while I admired the long successions and\nvarieties of streets, the quantity of people already going to and\nfro, the number of vehicles passing and repassing, the busy\npreparations in the setting forth of shop windows and the sweeping\nout of shops, and the extraordinary creatures in rags secretly\ngroping among the swept-out rubbish for pins and other refuse.\n\n[P18] \u201cSo, cousin,\u201d said the cheerful voice of Richard to Ada behind me.\n\u201cWe are never to get out of Chancery! We have come by another way to\nour place of meeting yesterday, and\u2014by the Great Seal, here\u2019s the\nold lady again!\u201d\n\n[P19] Truly, there she was, immediately in front of us, curtsying, and\nsmiling, and saying with her yesterday\u2019s air of patronage, \u201cThe wards\nin Jarndyce! Ve-ry happy, I am sure!\u201d"
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

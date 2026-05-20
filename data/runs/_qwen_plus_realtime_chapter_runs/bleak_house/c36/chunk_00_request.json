@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c36 - Chesney Wold\n\n[P0] Charley and I did not set off alone upon our expedition into\nLincolnshire. My guardian had made up his mind not to lose sight of\nme until I was safe in Mr. Boythorn\u2019s house, so he accompanied us,\nand we were two days upon the road. I found every breath of air, and\nevery scent, and every flower and leaf and blade of grass, and every\npassing cloud, and everything in nature, more beautiful and wonderful\nto me than I had ever found it yet. This was my first gain from my\nillness. How little I had lost, when the wide world was so full of\ndelight for me.\n\n[P1] My guardian intending to go back immediately, we appointed, on our\nway down, a day when my dear girl should come. I wrote her a letter,\nof which he took charge, and he left us within half an hour of our\narrival at our destination, on a delightful evening in the early\nsummer-time.\n\n[P2] If a good fairy had built the house for me with a wave of her wand,\nand I had been a princess and her favoured god-child, I could not\nhave been more considered in it. So many preparations were made for\nme and such an endearing remembrance was shown of all my little\ntastes and likings that I could have sat down, overcome, a dozen\ntimes before I had revisited half the rooms. I did better than that,\nhowever, by showing them all to Charley instead. Charley\u2019s delight\ncalmed mine; and after we had had a walk in the garden, and Charley\nhad exhausted her whole vocabulary of admiring expressions, I was as\ntranquilly happy as I ought to have been. It was a great comfort to\nbe able to say to myself after tea, \u201cEsther, my dear, I think you are\nquite sensible enough to sit down now and write a note of thanks to\nyour host.\u201d He had left a note of welcome for me, as sunny as his own\nface, and had confided his bird to my care, which I knew to be his\nhighest mark of confidence. Accordingly I wrote a little note to him\nin London, telling him how all his favourite plants and trees were\nlooking, and how the most astonishing of birds had chirped the\nhonours of the house to me in the most hospitable manner, and how,\nafter singing on my shoulder, to the inconceivable rapture of my\nlittle maid, he was then at roost in the usual corner of his cage,\nbut whether dreaming or no I could not report. My note finished and\nsent off to the post, I made myself very busy in unpacking and\narranging; and I sent Charley to bed in good time and told her I\nshould want her no more that night.\n\n[P3] For I had not yet looked in the glass and had never asked to have my\nown restored to me. I knew this to be a weakness which must be\novercome, but I had always said to myself that I would begin afresh\nwhen I got to where I now was. Therefore I had wanted to be alone,\nand therefore I said, now alone, in my own room, \u201cEsther, if you are\nto be happy, if you are to have any right to pray to be true-hearted,\nyou must keep your word, my dear.\u201d I was quite resolved to keep it,\nbut I sat down for a little while first to reflect upon all my\nblessings. And then I said my prayers and thought a little more.\n\n[P4] My hair had not been cut off, though it had been in danger more than\nonce. It was long and thick. I let it down, and shook it out, and\nwent up to the glass upon the dressing-table. There was a little\nmuslin curtain drawn across it. I drew it back and stood for a moment\nlooking through such a veil of my own hair that I could see nothing\nelse. Then I put my hair aside and looked at the reflection in the\nmirror, encouraged by seeing how placidly it looked at me. I was very\nmuch changed\u2014oh, very, very much. At first my face was so strange to\nme that I think I should have put my hands before it and started back\nbut for the encouragement I have mentioned. Very soon it became more\nfamiliar, and then I knew the extent of the alteration in it better\nthan I had done at first. It was not like what I had expected, but I\nhad expected nothing definite, and I dare say anything definite would\nhave surprised me.\n\n[P5] I had never been a beauty and had never thought myself one, but I had\nbeen very different from this. It was all gone now. Heaven was so\ngood to me that I could let it go with a few not bitter tears and\ncould stand there arranging my hair for the night quite thankfully.\n\n[P6] One thing troubled me, and I considered it for a long time before I\nwent to sleep. I had kept Mr. Woodcourt\u2019s flowers. When they were\nwithered I had dried them and put them in a book that I was fond of.\nNobody knew this, not even Ada. I was doubtful whether I had a right\nto preserve what he had sent to one so different\u2014whether it was\ngenerous towards him to do it. I wished to be generous to him, even\nin the secret depths of my heart, which he would never know, because\nI could have loved him\u2014could have been devoted to him. At last I\ncame to the conclusion that I might keep them if I treasured them\nonly as a remembrance of what was irrevocably past and gone, never to\nbe looked back on any more, in any other light. I hope this may not\nseem trivial. I was very much in earnest.\n\n[P7] I took care to be up early in the morning and to be before the glass\nwhen Charley came in on tiptoe.\n\n[P8] \u201cDear, dear, miss!\u201d cried Charley, starting. \u201cIs that you?\u201d\n\n[P9] \u201cYes, Charley,\u201d said I, quietly putting up my hair. \u201cAnd I am very\nwell indeed, and very happy.\u201d\n\n[P10] I saw it was a weight off Charley\u2019s mind, but it was a greater weight\noff mine. I knew the worst now and was composed to it. I shall not\nconceal, as I go on, the weaknesses I could not quite conquer, but\nthey always passed from me soon and the happier frame of mind stayed\nby me faithfully.\n\n[P11] Wishing to be fully re-established in my strength and my good spirits\nbefore Ada came, I now laid down a little series of plans with\nCharley for being in the fresh air all day long. We were to be out\nbefore breakfast, and were to dine early, and were to be out again\nbefore and after dinner, and were to talk in the garden after tea,\nand were to go to rest betimes, and were to climb every hill and\nexplore every road, lane, and field in the neighbourhood. As to\nrestoratives and strengthening delicacies, Mr. Boythorn\u2019s good\nhousekeeper was for ever trotting about with something to eat or\ndrink in her hand; I could not even be heard of as resting in the\npark but she would come trotting after me with a basket, her cheerful\nface shining with a lecture on the importance of frequent\nnourishment. Then there was a pony expressly for my riding, a chubby\npony with a short neck and a mane all over his eyes who could\ncanter\u2014when he would\u2014so easily and quietly that he was a treasure.\nIn a very few days he would come to me in the paddock when I called\nhim, and eat out of my hand, and follow me about. We arrived at such\na capital understanding that when he was jogging with me lazily, and\nrather obstinately, down some shady lane, if I patted his neck and\nsaid, \u201cStubbs, I am surprised you don\u2019t canter when you know how much\nI like it; and I think you might oblige me, for you are only getting\nstupid and going to sleep,\u201d he would give his head a comical shake or\ntwo and set off directly, while Charley would stand still and laugh\nwith such enjoyment that her laughter was like music. I don\u2019t know\nwho had given Stubbs his name, but it seemed to belong to him as\nnaturally as his rough coat. Once we put him in a little chaise and\ndrove him triumphantly through the green lanes for five miles; but\nall at once, as we were extolling him to the skies, he seemed to take\nit ill that he should have been accompanied so far by the circle of\ntantalizing little gnats that had been hovering round and round his\nears the whole way without appearing to advance an inch, and stopped\nto think about it. I suppose he came to the decision that it was not\nto be borne, for he steadily refused to move until I gave the reins\nto Charley and got out and walked, when he followed me with a sturdy\nsort of good humour, putting his head under my arm and rubbing his\near against my sleeve. It was in vain for me to say, \u201cNow, Stubbs, I\nfeel quite sure from what I know of you that you will go on if I ride\na little while,\u201d for the moment I left him, he stood stock still\nagain. Consequently I was obliged to lead the way, as before; and in\nthis order we returned home, to the great delight of the village.\n\n[P12] Charley and I had reason to call it the most friendly of villages, I\nam sure, for in a week\u2019s time the people were so glad to see us go\nby, though ever so frequently in the course of a day, that there were\nfaces of greeting in every cottage. I had known many of the grown\npeople before and almost all the children, but now the very steeple\nbegan to wear a familiar and affectionate look. Among my new friends\nwas an old old woman who lived in such a little thatched and\nwhitewashed dwelling that when the outside shutter was turned up on\nits hinges, it shut up the whole house-front. This old lady had a\ngrandson who was a sailor, and I wrote a letter to him for her and\ndrew at the top of it the chimney-corner in which she had brought him\nup and where his old stool yet occupied its old place. This was\nconsidered by the whole village the most wonderful achievement in the\nworld, but when an answer came back all the way from Plymouth, in\nwhich he mentioned that he was going to take the picture all the way\nto America, and from America would write again, I got all the credit\nthat ought to have been given to the post-office and was invested\nwith the merit of the whole system.\n\n[P13] Thus, what with being so much in the air, playing with so many\nchildren, gossiping with so many people, sitting on invitation in so\nmany cottages, going on with Charley\u2019s education, and writing long\nletters to Ada every day, I had scarcely any time to think about that\nlittle loss of mine and was almost always cheerful. If I did think of\nit at odd moments now and then, I had only to be busy and forget it.\nI felt it more than I had hoped I should once when a child said,\n\u201cMother, why is the lady not a pretty lady now like she used to be?\u201d\nBut when I found the child was not less fond of me, and drew its soft\nhand over my face with a kind of pitying protection in its touch,\nthat soon set me up again. There were many little occurrences which\nsuggested to me, with great consolation, how natural it is to gentle\nhearts to be considerate and delicate towards any inferiority. One of\nthese particularly touched me. I happened to stroll into the little\nchurch when a marriage was just concluded, and the young couple had\nto sign the register.\n\n[P14] The bridegroom, to whom the pen was handed first, made a rude cross\nfor his mark; the bride, who came next, did the same. Now, I had\nknown the bride when I was last there, not only as the prettiest girl\nin the place, but as having quite distinguished herself in the\nschool, and I could not help looking at her with some surprise. She\ncame aside and whispered to me, while tears of honest love and\nadmiration stood in her bright eyes, \u201cHe\u2019s a dear good fellow, miss;\nbut he can\u2019t write yet\u2014he\u2019s going to learn of me\u2014and I wouldn\u2019t\nshame him for the world!\u201d Why, what had I to fear, I thought, when\nthere was this nobility in the soul of a labouring man\u2019s daughter!\n\n[P15] The air blew as freshly and revivingly upon me as it had ever blown,\nand the healthy colour came into my new face as it had come into my\nold one. Charley was wonderful to see, she was so radiant and so\nrosy; and we both enjoyed the whole day and slept soundly the whole\nnight.\n\n[P16] There was a favourite spot of mine in the park-woods of Chesney Wold\nwhere a seat had been erected commanding a lovely view. The wood had\nbeen cleared and opened to improve this point of sight, and the\nbright sunny landscape beyond was so beautiful that I rested there at\nleast once every day. A picturesque part of the Hall, called the\nGhost\u2019s Walk, was seen to advantage from this higher ground; and the\nstartling name, and the old legend in the Dedlock family which I had\nheard from Mr. Boythorn accounting for it, mingled with the view and\ngave it something of a mysterious interest in addition to its real\ncharms. There was a bank here, too, which was a famous one for\nviolets; and as it was a daily delight of Charley\u2019s to gather wild\nflowers, she took as much to the spot as I did.\n\n[P17] It would be idle to inquire now why I never went close to the house\nor never went inside it. The family were not there, I had heard on my\narrival, and were not expected. I was far from being incurious or\nuninterested about the building; on the contrary, I often sat in this\nplace wondering how the rooms ranged and whether any echo like a\nfootstep really did resound at times, as the story said, upon the\nlonely Ghost\u2019s Walk. The indefinable feeling with which Lady Dedlock\nhad impressed me may have had some influence in keeping me from the\nhouse even when she was absent. I am not sure. Her face and figure\nwere associated with it, naturally; but I cannot say that they\nrepelled me from it, though something did. For whatever reason or no\nreason, I had never once gone near it, down to the day at which my\nstory now arrives.\n\n[P18] I was resting at my favourite point after a long ramble, and Charley\nwas gathering violets at a little distance from me. I had been\nlooking at the Ghost\u2019s Walk lying in a deep shade of masonry afar off\nand picturing to myself the female shape that was said to haunt it\nwhen I became aware of a figure approaching through the wood. The\nperspective was so long and so darkened by leaves, and the shadows of\nthe branches on the ground made it so much more intricate to the eye,\nthat at first I could not discern what figure it was. By little and\nlittle it revealed itself to be a woman\u2019s\u2014a lady\u2019s\u2014Lady Dedlock\u2019s.\nShe was alone and coming to where I sat with a much quicker step, I\nobserved to my surprise, than was usual with her.\n\n[P19] I was fluttered by her being unexpectedly so near (she was almost\nwithin speaking distance before I knew her) and would have risen to\ncontinue my walk. But I could not. I was rendered motionless. Not so\nmuch by her hurried gesture of entreaty, not so much by her quick\nadvance and outstretched hands, not so much by the great change in\nher manner and the absence of her haughty self-restraint, as by a\nsomething in her face that I had pined for and dreamed of when I was\na little child, something I had never seen in any face, something I\nhad never seen in hers before."
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

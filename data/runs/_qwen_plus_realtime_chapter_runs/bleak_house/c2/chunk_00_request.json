@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c2 - In Fashion\n\n[P0] It is but a glimpse of the world of fashion that we want on this same\nmiry afternoon. It is not so unlike the Court of Chancery but that we\nmay pass from the one scene to the other, as the crow flies. Both the\nworld of fashion and the Court of Chancery are things of precedent\nand usage: oversleeping Rip Van Winkles who have played at strange\ngames through a deal of thundery weather; sleeping beauties whom the\nknight will wake one day, when all the stopped spits in the kitchen\nshall begin to turn prodigiously!\n\n[P1] It is not a large world. Relatively even to this world of ours, which\nhas its limits too (as your Highness shall find when you have made\nthe tour of it and are come to the brink of the void beyond), it is a\nvery little speck. There is much good in it; there are many good and\ntrue people in it; it has its appointed place. But the evil of it is\nthat it is a world wrapped up in too much jeweller\u2019s cotton and fine\nwool, and cannot hear the rushing of the larger worlds, and cannot\nsee them as they circle round the sun. It is a deadened world, and\nits growth is sometimes unhealthy for want of air.\n\n[P2] My Lady Dedlock has returned to her house in town for a few days\nprevious to her departure for Paris, where her ladyship intends to\nstay some weeks, after which her movements are uncertain. The\nfashionable intelligence says so for the comfort of the Parisians,\nand it knows all fashionable things. To know things otherwise were to\nbe unfashionable. My Lady Dedlock has been down at what she calls, in\nfamiliar conversation, her \u201cplace\u201d in Lincolnshire. The waters are\nout in Lincolnshire. An arch of the bridge in the park has been\nsapped and sopped away. The adjacent low-lying ground for half a mile\nin breadth is a stagnant river with melancholy trees for islands in\nit and a surface punctured all over, all day long, with falling rain.\nMy Lady Dedlock\u2019s place has been extremely dreary. The weather for\nmany a day and night has been so wet that the trees seem wet through,\nand the soft loppings and prunings of the woodman\u2019s axe can make no\ncrash or crackle as they fall. The deer, looking soaked, leave\nquagmires where they pass. The shot of a rifle loses its sharpness in\nthe moist air, and its smoke moves in a tardy little cloud towards\nthe green rise, coppice-topped, that makes a background for the\nfalling rain. The view from my Lady Dedlock\u2019s own windows is\nalternately a lead-coloured view and a view in Indian ink. The vases\non the stone terrace in the foreground catch the rain all day; and\nthe heavy drops fall\u2014drip, drip, drip\u2014upon the broad flagged\npavement, called from old time the Ghost\u2019s Walk, all night. On\nSundays the little church in the park is mouldy; the oaken pulpit\nbreaks out into a cold sweat; and there is a general smell and taste\nas of the ancient Dedlocks in their graves. My Lady Dedlock (who is\nchildless), looking out in the early twilight from her boudoir at a\nkeeper\u2019s lodge and seeing the light of a fire upon the latticed\npanes, and smoke rising from the chimney, and a child, chased by a\nwoman, running out into the rain to meet the shining figure of a\nwrapped-up man coming through the gate, has been put quite out of\ntemper. My Lady Dedlock says she has been \u201cbored to death.\u201d\n\n[P3] Therefore my Lady Dedlock has come away from the place in\nLincolnshire and has left it to the rain, and the crows, and the\nrabbits, and the deer, and the partridges and pheasants. The pictures\nof the Dedlocks past and gone have seemed to vanish into the damp\nwalls in mere lowness of spirits, as the housekeeper has passed along\nthe old rooms shutting up the shutters. And when they will next come\nforth again, the fashionable intelligence\u2014which, like the fiend, is\nomniscient of the past and present, but not the future\u2014cannot yet\nundertake to say.\n\n[P4] Sir Leicester Dedlock is only a baronet, but there is no mightier\nbaronet than he. His family is as old as the hills, and infinitely\nmore respectable. He has a general opinion that the world might get\non without hills but would be done up without Dedlocks. He would on\nthe whole admit nature to be a good idea (a little low, perhaps, when\nnot enclosed with a park-fence), but an idea dependent for its\nexecution on your great county families. He is a gentleman of strict\nconscience, disdainful of all littleness and meanness and ready on\nthe shortest notice to die any death you may please to mention rather\nthan give occasion for the least impeachment of his integrity. He is\nan honourable, obstinate, truthful, high-spirited, intensely\nprejudiced, perfectly unreasonable man.\n\n[P5] Sir Leicester is twenty years, full measure, older than my Lady. He\nwill never see sixty-five again, nor perhaps sixty-six, nor yet\nsixty-seven. He has a twist of the gout now and then and walks a\nlittle stiffly. He is of a worthy presence, with his light-grey hair\nand whiskers, his fine shirt-frill, his pure-white waistcoat, and his\nblue coat with bright buttons always buttoned. He is ceremonious,\nstately, most polite on every occasion to my Lady, and holds her\npersonal attractions in the highest estimation. His gallantry to my\nLady, which has never changed since he courted her, is the one little\ntouch of romantic fancy in him.\n\n[P6] Indeed, he married her for love. A whisper still goes about that she\nhad not even family; howbeit, Sir Leicester had so much family that\nperhaps he had enough and could dispense with any more. But she had\nbeauty, pride, ambition, insolent resolve, and sense enough to\nportion out a legion of fine ladies. Wealth and station, added to\nthese, soon floated her upward, and for years now my Lady Dedlock has\nbeen at the centre of the fashionable intelligence and at the top of\nthe fashionable tree.\n\n[P7] How Alexander wept when he had no more worlds to conquer, everybody\nknows\u2014or has some reason to know by this time, the matter having\nbeen rather frequently mentioned. My Lady Dedlock, having conquered\nHER world, fell not into the melting, but rather into the freezing,\nmood. An exhausted composure, a worn-out placidity, an equanimity of\nfatigue not to be ruffled by interest or satisfaction, are the\ntrophies of her victory. She is perfectly well-bred. If she could be\ntranslated to heaven to-morrow, she might be expected to ascend\nwithout any rapture.\n\n[P8] She has beauty still, and if it be not in its heyday, it is not yet\nin its autumn. She has a fine face\u2014originally of a character that\nwould be rather called very pretty than handsome, but improved into\nclassicality by the acquired expression of her fashionable state. Her\nfigure is elegant and has the effect of being tall. Not that she is\nso, but that \u201cthe most is made,\u201d as the Honourable Bob Stables has\nfrequently asserted upon oath, \u201cof all her points.\u201d The same\nauthority observes that she is perfectly got up and remarks in\ncommendation of her hair especially that she is the best-groomed\nwoman in the whole stud.\n\n[P9] With all her perfections on her head, my Lady Dedlock has come up\nfrom her place in Lincolnshire (hotly pursued by the fashionable\nintelligence) to pass a few days at her house in town previous to her\ndeparture for Paris, where her ladyship intends to stay some weeks,\nafter which her movements are uncertain. And at her house in town,\nupon this muddy, murky afternoon, presents himself an old-fashioned\nold gentleman, attorney-at-law and eke solicitor of the High Court of\nChancery, who has the honour of acting as legal adviser of the\nDedlocks and has as many cast-iron boxes in his office with that name\noutside as if the present baronet were the coin of the conjuror\u2019s\ntrick and were constantly being juggled through the whole set. Across\nthe hall, and up the stairs, and along the passages, and through the\nrooms, which are very brilliant in the season and very dismal out of\nit\u2014fairy-land to visit, but a desert to live in\u2014the old gentleman\nis conducted by a Mercury in powder to my Lady\u2019s presence.\n\n[P10] The old gentleman is rusty to look at, but is reputed to have made\ngood thrift out of aristocratic marriage settlements and aristocratic\nwills, and to be very rich. He is surrounded by a mysterious halo of\nfamily confidences, of which he is known to be the silent depository.\nThere are noble mausoleums rooted for centuries in retired glades of\nparks among the growing timber and the fern, which perhaps hold fewer\nnoble secrets than walk abroad among men, shut up in the breast of\nMr. Tulkinghorn. He is of what is called the old school\u2014a phrase\ngenerally meaning any school that seems never to have been young\u2014and\nwears knee-breeches tied with ribbons, and gaiters or stockings. One\npeculiarity of his black clothes and of his black stockings, be they\nsilk or worsted, is that they never shine. Mute, close, irresponsive\nto any glancing light, his dress is like himself. He never converses\nwhen not professionally consulted. He is found sometimes, speechless\nbut quite at home, at corners of dinner-tables in great country\nhouses and near doors of drawing-rooms, concerning which the\nfashionable intelligence is eloquent, where everybody knows him and\nwhere half the Peerage stops to say \u201cHow do you do, Mr. Tulkinghorn?\u201d\nHe receives these salutations with gravity and buries them along with\nthe rest of his knowledge.\n\n[P11] Sir Leicester Dedlock is with my Lady and is happy to see Mr.\nTulkinghorn. There is an air of prescription about him which is\nalways agreeable to Sir Leicester; he receives it as a kind of\ntribute. He likes Mr. Tulkinghorn\u2019s dress; there is a kind of tribute\nin that too. It is eminently respectable, and likewise, in a general\nway, retainer-like. It expresses, as it were, the steward of the\nlegal mysteries, the butler of the legal cellar, of the Dedlocks.\n\n[P12] Has Mr. Tulkinghorn any idea of this himself? It may be so, or it may\nnot, but there is this remarkable circumstance to be noted in\neverything associated with my Lady Dedlock as one of a class\u2014as one\nof the leaders and representatives of her little world. She supposes\nherself to be an inscrutable Being, quite out of the reach and ken of\nordinary mortals\u2014seeing herself in her glass, where indeed she looks\nso. Yet every dim little star revolving about her, from her maid to\nthe manager of the Italian Opera, knows her weaknesses, prejudices,\nfollies, haughtinesses, and caprices and lives upon as accurate a\ncalculation and as nice a measure of her moral nature as her\ndressmaker takes of her physical proportions. Is a new dress, a new\ncustom, a new singer, a new dancer, a new form of jewellery, a new\ndwarf or giant, a new chapel, a new anything, to be set up? There are\ndeferential people in a dozen callings whom my Lady Dedlock suspects\nof nothing but prostration before her, who can tell you how to manage\nher as if she were a baby, who do nothing but nurse her all their\nlives, who, humbly affecting to follow with profound subservience,\nlead her and her whole troop after them; who, in hooking one, hook\nall and bear them off as Lemuel Gulliver bore away the stately fleet\nof the majestic Lilliput. \u201cIf you want to address our people, sir,\u201d\nsay Blaze and Sparkle, the jewellers\u2014meaning by our people Lady\nDedlock and the rest\u2014\u201cyou must remember that you are not dealing\nwith the general public; you must hit our people in their weakest\nplace, and their weakest place is such a place.\u201d \u201cTo make this\narticle go down, gentlemen,\u201d say Sheen and Gloss, the mercers, to\ntheir friends the manufacturers, \u201cyou must come to us, because we\nknow where to have the fashionable people, and we can make it\nfashionable.\u201d \u201cIf you want to get this print upon the tables of my\nhigh connexion, sir,\u201d says Mr. Sladdery, the librarian, \u201cor if you\nwant to get this dwarf or giant into the houses of my high connexion,\nsir, or if you want to secure to this entertainment the patronage of\nmy high connexion, sir, you must leave it, if you please, to me, for\nI have been accustomed to study the leaders of my high connexion,\nsir, and I may tell you without vanity that I can turn them round my\nfinger\u201d\u2014in which Mr. Sladdery, who is an honest man, does not\nexaggerate at all.\n\n[P13] Therefore, while Mr. Tulkinghorn may not know what is passing in the\nDedlock mind at present, it is very possible that he may.\n\n[P14] \u201cMy Lady\u2019s cause has been again before the Chancellor, has it, Mr.\nTulkinghorn?\u201d says Sir Leicester, giving him his hand.\n\n[P15] \u201cYes. It has been on again to-day,\u201d Mr. Tulkinghorn replies, making\none of his quiet bows to my Lady, who is on a sofa near the fire,\nshading her face with a hand-screen.\n\n[P16] \u201cIt would be useless to ask,\u201d says my Lady with the dreariness of the\nplace in Lincolnshire still upon her, \u201cwhether anything has been\ndone.\u201d\n\n[P17] \u201cNothing that YOU would call anything has been done to-day,\u201d replies\nMr. Tulkinghorn.\n\n[P18] \u201cNor ever will be,\u201d says my Lady.\n\n[P19] Sir Leicester has no objection to an interminable Chancery suit. It\nis a slow, expensive, British, constitutional kind of thing. To be\nsure, he has not a vital interest in the suit in question, her part\nin which was the only property my Lady brought him; and he has a\nshadowy impression that for his name\u2014the name of Dedlock\u2014to be in a\ncause, and not in the title of that cause, is a most ridiculous\naccident. But he regards the Court of Chancery, even if it should\ninvolve an occasional delay of justice and a trifling amount of\nconfusion, as a something devised in conjunction with a variety of\nother somethings by the perfection of human wisdom for the eternal\nsettlement (humanly speaking) of everything. And he is upon the whole\nof a fixed opinion that to give the sanction of his countenance to\nany complaints respecting it would be to encourage some person in the\nlower classes to rise up somewhere\u2014like Wat Tyler."
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

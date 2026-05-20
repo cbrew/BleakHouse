@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c54 - Springing a Mine\n\n[P120] \u201cIf you WILL PARLAY, you know,\u201d says Mr. Bucket parenthetically, \u201cyou\nmust take the consequences. Now, whether she became my lodger, Sir\nLeicester Dedlock, with any deliberate intention then of doing this\ndeed and blinding me, I give no opinion on; but she lived in my house\nin that capacity at the time that she was hovering about the chambers\nof the deceased Mr. Tulkinghorn with a view to a wrangle, and\nlikewise persecuting and half frightening the life out of an\nunfortunate stationer.\u201d\n\n[P121] \u201cLie!\u201d cries mademoiselle. \u201cAll lie!\u201d\n\n[P122] \u201cThe murder was committed, Sir Leicester Dedlock, Baronet, and you\nknow under what circumstances. Now, I beg of you to follow me close\nwith your attention for a minute or two. I was sent for, and the case\nwas entrusted to me. I examined the place, and the body, and the\npapers, and everything. From information I received (from a clerk in\nthe same house) I took George into custody as having been seen\nhanging about there on the night, and at very nigh the time of the\nmurder, also as having been overheard in high words with the deceased\non former occasions\u2014even threatening him, as the witness made out.\nIf you ask me, Sir Leicester Dedlock, whether from the first I\nbelieved George to be the murderer, I tell you candidly no, but he\nmight be, notwithstanding, and there was enough against him to make\nit my duty to take him and get him kept under remand. Now, observe!\u201d\n\n[P123] As Mr. Bucket bends forward in some excitement\u2014for him\u2014and\ninaugurates what he is going to say with one ghostly beat of his\nforefinger in the air, Mademoiselle Hortense fixes her black eyes\nupon him with a dark frown and sets her dry lips closely and firmly\ntogether.\n\n[P124] \u201cI went home, Sir Leicester Dedlock, Baronet, at night and found this\nyoung woman having supper with my wife, Mrs. Bucket. She had made a\nmighty show of being fond of Mrs. Bucket from her first offering\nherself as our lodger, but that night she made more than ever\u2014in\nfact, overdid it. Likewise she overdid her respect, and all that, for\nthe lamented memory of the deceased Mr. Tulkinghorn. By the living\nLord it flashed upon me, as I sat opposite to her at the table and\nsaw her with a knife in her hand, that she had done it!\u201d\n\n[P125] Mademoiselle is hardly audible in straining through her teeth and\nlips the words, \u201cYou are a devil.\u201d\n\n[P126] \u201cNow where,\u201d pursues Mr. Bucket, \u201chad she been on the night of the\nmurder? She had been to the theayter. (She really was there, I have\nsince found, both before the deed and after it.) I knew I had an\nartful customer to deal with and that proof would be very difficult;\nand I laid a trap for her\u2014such a trap as I never laid yet, and such\na venture as I never made yet. I worked it out in my mind while I was\ntalking to her at supper. When I went upstairs to bed, our house\nbeing small and this young woman\u2019s ears sharp, I stuffed the sheet\ninto Mrs. Bucket\u2019s mouth that she shouldn\u2019t say a word of surprise\nand told her all about it. My dear, don\u2019t you give your mind to that\nagain, or I shall link your feet together at the ankles.\u201d Mr. Bucket,\nbreaking off, has made a noiseless descent upon mademoiselle and laid\nhis heavy hand upon her shoulder.\n\n[P127] \u201cWhat is the matter with you now?\u201d she asks him.\n\n[P128] \u201cDon\u2019t you think any more,\u201d returns Mr. Bucket with admonitory\nfinger, \u201cof throwing yourself out of window. That\u2019s what\u2019s the matter\nwith me. Come! Just take my arm. You needn\u2019t get up; I\u2019ll sit down by\nyou. Now take my arm, will you? I\u2019m a married man, you know; you\u2019re\nacquainted with my wife. Just take my arm.\u201d\n\n[P129] Vainly endeavouring to moisten those dry lips, with a painful sound\nshe struggles with herself and complies.\n\n[P130] \u201cNow we\u2019re all right again. Sir Leicester Dedlock, Baronet, this case\ncould never have been the case it is but for Mrs. Bucket, who is a\nwoman in fifty thousand\u2014in a hundred and fifty thousand! To throw\nthis young woman off her guard, I have never set foot in our house\nsince, though I\u2019ve communicated with Mrs. Bucket in the baker\u2019s\nloaves and in the milk as often as required. My whispered words to\nMrs. Bucket when she had the sheet in her mouth were, \u2018My dear, can\nyou throw her off continually with natural accounts of my suspicions\nagainst George, and this, and that, and t\u2019other? Can you do without\nrest and keep watch upon her night and day? Can you undertake to say,\n\u2018She shall do nothing without my knowledge, she shall be my prisoner\nwithout suspecting it, she shall no more escape from me than from\ndeath, and her life shall be my life, and her soul my soul, till I\nhave got her, if she did this murder?\u2019 Mrs. Bucket says to me, as\nwell as she could speak on account of the sheet, \u2018Bucket, I can!\u2019 And\nshe has acted up to it glorious!\u201d\n\n[P131] \u201cLies!\u201d mademoiselle interposes. \u201cAll lies, my friend!\u201d\n\n[P132] \u201cSir Leicester Dedlock, Baronet, how did my calculations come out\nunder these circumstances? When I calculated that this impetuous\nyoung woman would overdo it in new directions, was I wrong or right?\nI was right. What does she try to do? Don\u2019t let it give you a turn?\nTo throw the murder on her ladyship.\u201d\n\n[P133] Sir Leicester rises from his chair and staggers down again.\n\n[P134] \u201cAnd she got encouragement in it from hearing that I was always here,\nwhich was done a-purpose. Now, open that pocket-book of mine, Sir\nLeicester Dedlock, if I may take the liberty of throwing it towards\nyou, and look at the letters sent to me, each with the two words\n\u2018Lady Dedlock\u2019 in it. Open the one directed to yourself, which I\nstopped this very morning, and read the three words \u2018Lady Dedlock,\nMurderess\u2019 in it. These letters have been falling about like a shower\nof lady-birds. What do you say now to Mrs. Bucket, from her spy-place\nhaving seen them all written by this young woman? What do you say to\nMrs. Bucket having, within this half-hour, secured the corresponding\nink and paper, fellow half-sheets and what not? What do you say to\nMrs. Bucket having watched the posting of \u2019em every one by this young\nwoman, Sir Leicester Dedlock, Baronet?\u201d Mr. Bucket asks, triumphant\nin his admiration of his lady\u2019s genius.\n\n[P135] Two things are especially observable as Mr. Bucket proceeds to a\nconclusion. First, that he seems imperceptibly to establish a\ndreadful right of property in mademoiselle. Secondly, that the very\natmosphere she breathes seems to narrow and contract about her as if\na close net or a pall were being drawn nearer and yet nearer around\nher breathless figure.\n\n[P136] \u201cThere is no doubt that her ladyship was on the spot at the eventful\nperiod,\u201d says Mr. Bucket, \u201cand my foreign friend here saw her, I\nbelieve, from the upper part of the staircase. Her ladyship and\nGeorge and my foreign friend were all pretty close on one another\u2019s\nheels. But that don\u2019t signify any more, so I\u2019ll not go into it. I\nfound the wadding of the pistol with which the deceased Mr.\nTulkinghorn was shot. It was a bit of the printed description of your\nhouse at Chesney Wold. Not much in that, you\u2019ll say, Sir Leicester\nDedlock, Baronet. No. But when my foreign friend here is so\nthoroughly off her guard as to think it a safe time to tear up the\nrest of that leaf, and when Mrs. Bucket puts the pieces together and\nfinds the wadding wanting, it begins to look like Queer Street.\u201d\n\n[P137] \u201cThese are very long lies,\u201d mademoiselle interposes. \u201cYou prose great\ndeal. Is it that you have almost all finished, or are you speaking\nalways?\u201d\n\n[P138] \u201cSir Leicester Dedlock, Baronet,\u201d proceeds Mr. Bucket, who delights\nin a full title and does violence to himself when he dispenses with\nany fragment of it, \u201cthe last point in the case which I am now going\nto mention shows the necessity of patience in our business, and never\ndoing a thing in a hurry. I watched this young woman yesterday\nwithout her knowledge when she was looking at the funeral, in company\nwith my wife, who planned to take her there; and I had so much to\nconvict her, and I saw such an expression in her face, and my mind so\nrose against her malice towards her ladyship, and the time was\naltogether such a time for bringing down what you may call\nretribution upon her, that if I had been a younger hand with less\nexperience, I should have taken her, certain. Equally, last night,\nwhen her ladyship, as is so universally admired I am sure, come home\nlooking\u2014why, Lord, a man might almost say like Venus rising from the\nocean\u2014it was so unpleasant and inconsistent to think of her being\ncharged with a murder of which she was innocent that I felt quite to\nwant to put an end to the job. What should I have lost? Sir Leicester\nDedlock, Baronet, I should have lost the weapon. My prisoner here\nproposed to Mrs. Bucket, after the departure of the funeral, that\nthey should go per bus a little ways into the country and take tea at\na very decent house of entertainment. Now, near that house of\nentertainment there\u2019s a piece of water. At tea, my prisoner got up to\nfetch her pocket-handkercher from the bedroom where the bonnets was;\nshe was rather a long time gone and came back a little out of wind.\nAs soon as they came home this was reported to me by Mrs. Bucket,\nalong with her observations and suspicions. I had the piece of water\ndragged by moonlight, in presence of a couple of our men, and the\npocket pistol was brought up before it had been there half-a-dozen\nhours. Now, my dear, put your arm a little further through mine, and\nhold it steady, and I shan\u2019t hurt you!\u201d\n\n[P139] In a trice Mr. Bucket snaps a handcuff on her wrist. \u201cThat\u2019s one,\u201d\nsays Mr. Bucket. \u201cNow the other, darling. Two, and all told!\u201d"
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

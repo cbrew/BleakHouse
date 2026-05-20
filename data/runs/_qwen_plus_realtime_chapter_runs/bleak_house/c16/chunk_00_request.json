@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c16 - Tom-all-Alone\u2019s\n\n[P0] My Lady Dedlock is restless, very restless. The astonished\nfashionable intelligence hardly knows where to have her. To-day she\nis at Chesney Wold; yesterday she was at her house in town; to-morrow\nshe may be abroad, for anything the fashionable intelligence can with\nconfidence predict. Even Sir Leicester\u2019s gallantry has some trouble\nto keep pace with her. It would have more but that his other faithful\nally, for better and for worse\u2014the gout\u2014darts into the old oak\nbed-chamber at Chesney Wold and grips him by both legs.\n\n[P1] Sir Leicester receives the gout as a troublesome demon, but still a\ndemon of the patrician order. All the Dedlocks, in the direct male\nline, through a course of time during and beyond which the memory of\nman goeth not to the contrary, have had the gout. It can be proved,\nsir. Other men\u2019s fathers may have died of the rheumatism or may have\ntaken base contagion from the tainted blood of the sick vulgar, but\nthe Dedlock family have communicated something exclusive even to the\nlevelling process of dying by dying of their own family gout. It has\ncome down through the illustrious line like the plate, or the\npictures, or the place in Lincolnshire. It is among their dignities.\nSir Leicester is perhaps not wholly without an impression, though he\nhas never resolved it into words, that the angel of death in the\ndischarge of his necessary duties may observe to the shades of the\naristocracy, \u201cMy lords and gentlemen, I have the honour to present to\nyou another Dedlock certified to have arrived per the family gout.\u201d\n\n[P2] Hence Sir Leicester yields up his family legs to the family disorder\nas if he held his name and fortune on that feudal tenure. He feels\nthat for a Dedlock to be laid upon his back and spasmodically\ntwitched and stabbed in his extremities is a liberty taken somewhere,\nbut he thinks, \u201cWe have all yielded to this; it belongs to us; it has\nfor some hundreds of years been understood that we are not to make\nthe vaults in the park interesting on more ignoble terms; and I\nsubmit myself to the compromise.\u201d\n\n[P3] And a goodly show he makes, lying in a flush of crimson and gold in\nthe midst of the great drawing-room before his favourite picture of\nmy Lady, with broad strips of sunlight shining in, down the long\nperspective, through the long line of windows, and alternating with\nsoft reliefs of shadow. Outside, the stately oaks, rooted for ages in\nthe green ground which has never known ploughshare, but was still a\nchase when kings rode to battle with sword and shield and rode\na-hunting with bow and arrow, bear witness to his greatness. Inside,\nhis forefathers, looking on him from the walls, say, \u201cEach of us was\na passing reality here and left this coloured shadow of himself and\nmelted into remembrance as dreamy as the distant voices of the rooks\nnow lulling you to rest,\u201d and hear their testimony to his greatness\ntoo. And he is very great this day. And woe to Boythorn or other\ndaring wight who shall presumptuously contest an inch with him!\n\n[P4] My Lady is at present represented, near Sir Leicester, by her\nportrait. She has flitted away to town, with no intention of\nremaining there, and will soon flit hither again, to the confusion of\nthe fashionable intelligence. The house in town is not prepared for\nher reception. It is muffled and dreary. Only one Mercury in powder\ngapes disconsolate at the hall-window; and he mentioned last night to\nanother Mercury of his acquaintance, also accustomed to good society,\nthat if that sort of thing was to last\u2014which it couldn\u2019t, for a man\nof his spirits couldn\u2019t bear it, and a man of his figure couldn\u2019t be\nexpected to bear it\u2014there would be no resource for him, upon his\nhonour, but to cut his throat!\n\n[P5] What connexion can there be between the place in Lincolnshire, the\nhouse in town, the Mercury in powder, and the whereabout of Jo the\noutlaw with the broom, who had that distant ray of light upon him\nwhen he swept the churchyard-step? What connexion can there have been\nbetween many people in the innumerable histories of this world who\nfrom opposite sides of great gulfs have, nevertheless, been very\ncuriously brought together!\n\n[P6] Jo sweeps his crossing all day long, unconscious of the link, if any\nlink there be. He sums up his mental condition when asked a question\nby replying that he \u201cdon\u2019t know nothink.\u201d He knows that it\u2019s hard to\nkeep the mud off the crossing in dirty weather, and harder still to\nlive by doing it. Nobody taught him even that much; he found it out.\n\n[P7] Jo lives\u2014that is to say, Jo has not yet died\u2014in a ruinous place\nknown to the like of him by the name of Tom-all-Alone\u2019s. It is a\nblack, dilapidated street, avoided by all decent people, where the\ncrazy houses were seized upon, when their decay was far advanced, by\nsome bold vagrants who after establishing their own possession took\nto letting them out in lodgings. Now, these tumbling tenements\ncontain, by night, a swarm of misery. As on the ruined human wretch\nvermin parasites appear, so these ruined shelters have bred a crowd\nof foul existence that crawls in and out of gaps in walls and boards;\nand coils itself to sleep, in maggot numbers, where the rain drips\nin; and comes and goes, fetching and carrying fever and sowing more\nevil in its every footprint than Lord Coodle, and Sir Thomas Doodle,\nand the Duke of Foodle, and all the fine gentlemen in office, down to\nZoodle, shall set right in five hundred years\u2014though born expressly\nto do it.\n\n[P8] Twice lately there has been a crash and a cloud of dust, like the\nspringing of a mine, in Tom-all-Alone\u2019s; and each time a house has\nfallen. These accidents have made a paragraph in the newspapers and\nhave filled a bed or two in the nearest hospital. The gaps remain,\nand there are not unpopular lodgings among the rubbish. As several\nmore houses are nearly ready to go, the next crash in Tom-all-Alone\u2019s\nmay be expected to be a good one.\n\n[P9] This desirable property is in Chancery, of course. It would be an\ninsult to the discernment of any man with half an eye to tell him so.\nWhether \u201cTom\u201d is the popular representative of the original plaintiff\nor defendant in Jarndyce and Jarndyce, or whether Tom lived here when\nthe suit had laid the street waste, all alone, until other settlers\ncame to join him, or whether the traditional title is a comprehensive\nname for a retreat cut off from honest company and put out of the\npale of hope, perhaps nobody knows. Certainly Jo don\u2019t know.\n\n[P10] \u201cFor I don\u2019t,\u201d says Jo, \u201cI don\u2019t know nothink.\u201d\n\n[P11] It must be a strange state to be like Jo! To shuffle through the\nstreets, unfamiliar with the shapes, and in utter darkness as to the\nmeaning, of those mysterious symbols, so abundant over the shops, and\nat the corners of streets, and on the doors, and in the windows! To\nsee people read, and to see people write, and to see the postmen\ndeliver letters, and not to have the least idea of all that\nlanguage\u2014to be, to every scrap of it, stone blind and dumb! It must\nbe very puzzling to see the good company going to the churches on\nSundays, with their books in their hands, and to think (for perhaps\nJo DOES think at odd times) what does it all mean, and if it means\nanything to anybody, how comes it that it means nothing to me? To be\nhustled, and jostled, and moved on; and really to feel that it would\nappear to be perfectly true that I have no business here, or there,\nor anywhere; and yet to be perplexed by the consideration that I AM\nhere somehow, too, and everybody overlooked me until I became the\ncreature that I am! It must be a strange state, not merely to be told\nthat I am scarcely human (as in the case of my offering myself for a\nwitness), but to feel it of my own knowledge all my life! To see the\nhorses, dogs, and cattle go by me and to know that in ignorance I\nbelong to them and not to the superior beings in my shape, whose\ndelicacy I offend! Jo\u2019s ideas of a criminal trial, or a judge, or a\nbishop, or a government, or that inestimable jewel to him (if he only\nknew it) the Constitution, should be strange! His whole material and\nimmaterial life is wonderfully strange; his death, the strangest\nthing of all.\n\n[P12] Jo comes out of Tom-all-Alone\u2019s, meeting the tardy morning which is\nalways late in getting down there, and munches his dirty bit of bread\nas he comes along. His way lying through many streets, and the houses\nnot yet being open, he sits down to breakfast on the door-step of the\nSociety for the Propagation of the Gospel in Foreign Parts and gives\nit a brush when he has finished as an acknowledgment of the\naccommodation. He admires the size of the edifice and wonders what\nit\u2019s all about. He has no idea, poor wretch, of the spiritual\ndestitution of a coral reef in the Pacific or what it costs to look\nup the precious souls among the coco-nuts and bread-fruit.\n\n[P13] He goes to his crossing and begins to lay it out for the day. The\ntown awakes; the great tee-totum is set up for its daily spin and\nwhirl; all that unaccountable reading and writing, which has been\nsuspended for a few hours, recommences. Jo and the other lower\nanimals get on in the unintelligible mess as they can. It is\nmarket-day. The blinded oxen, over-goaded, over-driven, never guided,\nrun into wrong places and are beaten out, and plunge red-eyed and\nfoaming at stone walls, and often sorely hurt the innocent, and often\nsorely hurt themselves. Very like Jo and his order; very, very like!\n\n[P14] A band of music comes and plays. Jo listens to it. So does a dog\u2014a\ndrover\u2019s dog, waiting for his master outside a butcher\u2019s shop, and\nevidently thinking about those sheep he has had upon his mind for\nsome hours and is happily rid of. He seems perplexed respecting three\nor four, can\u2019t remember where he left them, looks up and down the\nstreet as half expecting to see them astray, suddenly pricks up his\nears and remembers all about it. A thoroughly vagabond dog,\naccustomed to low company and public-houses; a terrific dog to sheep,\nready at a whistle to scamper over their backs and tear out mouthfuls\nof their wool; but an educated, improved, developed dog who has been\ntaught his duties and knows how to discharge them. He and Jo listen\nto the music, probably with much the same amount of animal\nsatisfaction; likewise as to awakened association, aspiration, or\nregret, melancholy or joyful reference to things beyond the senses,\nthey are probably upon a par. But, otherwise, how far above the human\nlistener is the brute!\n\n[P15] Turn that dog\u2019s descendants wild, like Jo, and in a very few years\nthey will so degenerate that they will lose even their bark\u2014but not\ntheir bite.\n\n[P16] The day changes as it wears itself away and becomes dark and drizzly.\nJo fights it out at his crossing among the mud and wheels, the\nhorses, whips, and umbrellas, and gets but a scanty sum to pay for\nthe unsavoury shelter of Tom-all-Alone\u2019s. Twilight comes on; gas\nbegins to start up in the shops; the lamplighter, with his ladder,\nruns along the margin of the pavement. A wretched evening is\nbeginning to close in.\n\n[P17] In his chambers Mr. Tulkinghorn sits meditating an application to the\nnearest magistrate to-morrow morning for a warrant. Gridley, a\ndisappointed suitor, has been here to-day and has been alarming. We\nare not to be put in bodily fear, and that ill-conditioned fellow\nshall be held to bail again. From the ceiling, foreshortened\nAllegory, in the person of one impossible Roman upside down, points\nwith the arm of Samson (out of joint, and an odd one) obtrusively\ntoward the window. Why should Mr. Tulkinghorn, for such no reason,\nlook out of window? Is the hand not always pointing there? So he does\nnot look out of window.\n\n[P18] And if he did, what would it be to see a woman going by? There are\nwomen enough in the world, Mr. Tulkinghorn thinks\u2014too many; they are\nat the bottom of all that goes wrong in it, though, for the matter of\nthat, they create business for lawyers. What would it be to see a\nwoman going by, even though she were going secretly? They are all\nsecret. Mr. Tulkinghorn knows that very well.\n\n[P19] But they are not all like the woman who now leaves him and his house\nbehind, between whose plain dress and her refined manner there is\nsomething exceedingly inconsistent. She should be an upper servant by\nher attire, yet in her air and step, though both are hurried and\nassumed\u2014as far as she can assume in the muddy streets, which she\ntreads with an unaccustomed foot\u2014she is a lady. Her face is veiled,\nand still she sufficiently betrays herself to make more than one of\nthose who pass her look round sharply."
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

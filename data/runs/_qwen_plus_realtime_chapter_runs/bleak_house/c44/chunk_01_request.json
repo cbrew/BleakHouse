@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c44 - The Letter and the Answer\n\n[P20] \u201cMost thoroughly,\u201d said I with my whole heart.\n\n[P21] \u201cMy dear girl,\u201d returned my guardian, \u201cgive me your hand.\u201d\n\n[P22] He took it in his, holding me lightly with his arm, and looking down\ninto my face with the same genuine freshness and faithfulness of\nmanner\u2014the old protecting manner which had made that house my home\nin a moment\u2014said, \u201cYou have wrought changes in me, little woman,\nsince the winter day in the stage-coach. First and last you have done\nme a world of good since that time.\u201d\n\n[P23] \u201cAh, guardian, what have you done for me since that time!\u201d\n\n[P24] \u201cBut,\u201d said he, \u201cthat is not to be remembered now.\u201d\n\n[P25] \u201cIt never can be forgotten.\u201d\n\n[P26] \u201cYes, Esther,\u201d said he with a gentle seriousness, \u201cit is to be\nforgotten now, to be forgotten for a while. You are only to remember\nnow that nothing can change me as you know me. Can you feel quite\nassured of that, my dear?\u201d\n\n[P27] \u201cI can, and I do,\u201d I said.\n\n[P28] \u201cThat\u2019s much,\u201d he answered. \u201cThat\u2019s everything. But I must not take\nthat at a word. I will not write this something in my thoughts until\nyou have quite resolved within yourself that nothing can change me as\nyou know me. If you doubt that in the least degree, I will never\nwrite it. If you are sure of that, on good consideration, send\nCharley to me this night week\u2014\u2018for the letter.\u2019 But if you are not\nquite certain, never send. Mind, I trust to your truth, in this thing\nas in everything. If you are not quite certain on that one point,\nnever send!\u201d\n\n[P29] \u201cGuardian,\u201d said I, \u201cI am already certain, I can no more be changed\nin that conviction than you can be changed towards me. I shall send\nCharley for the letter.\u201d\n\n[P30] He shook my hand and said no more. Nor was any more said in reference\nto this conversation, either by him or me, through the whole week.\nWhen the appointed night came, I said to Charley as soon as I was\nalone, \u201cGo and knock at Mr. Jarndyce\u2019s door, Charley, and say you\nhave come from me\u2014\u2018for the letter.\u2019\u201d Charley went up the stairs, and\ndown the stairs, and along the passages\u2014the zig-zag way about the\nold-fashioned house seemed very long in my listening ears that\nnight\u2014and so came back, along the passages, and down the stairs, and\nup the stairs, and brought the letter. \u201cLay it on the table,\nCharley,\u201d said I. So Charley laid it on the table and went to bed,\nand I sat looking at it without taking it up, thinking of many\nthings.\n\n[P31] I began with my overshadowed childhood, and passed through those\ntimid days to the heavy time when my aunt lay dead, with her resolute\nface so cold and set, and when I was more solitary with Mrs. Rachael\nthan if I had had no one in the world to speak to or to look at. I\npassed to the altered days when I was so blest as to find friends in\nall around me, and to be beloved. I came to the time when I first saw\nmy dear girl and was received into that sisterly affection which was\nthe grace and beauty of my life. I recalled the first bright gleam of\nwelcome which had shone out of those very windows upon our expectant\nfaces on that cold bright night, and which had never paled. I lived\nmy happy life there over again, I went through my illness and\nrecovery, I thought of myself so altered and of those around me so\nunchanged; and all this happiness shone like a light from one central\nfigure, represented before me by the letter on the table.\n\n[P32] I opened it and read it. It was so impressive in its love for me, and\nin the unselfish caution it gave me, and the consideration it showed\nfor me in every word, that my eyes were too often blinded to read\nmuch at a time. But I read it through three times before I laid it\ndown. I had thought beforehand that I knew its purport, and I did. It\nasked me, would I be the mistress of Bleak House.\n\n[P33] It was not a love letter, though it expressed so much love, but was\nwritten just as he would at any time have spoken to me. I saw his\nface, and heard his voice, and felt the influence of his kind\nprotecting manner in every line. It addressed me as if our places\nwere reversed, as if all the good deeds had been mine and all the\nfeelings they had awakened his. It dwelt on my being young, and he\npast the prime of life; on his having attained a ripe age, while I\nwas a child; on his writing to me with a silvered head, and knowing\nall this so well as to set it in full before me for mature\ndeliberation. It told me that I would gain nothing by such a marriage\nand lose nothing by rejecting it, for no new relation could enhance\nthe tenderness in which he held me, and whatever my decision was, he\nwas certain it would be right. But he had considered this step anew\nsince our late confidence and had decided on taking it, if it only\nserved to show me through one poor instance that the whole world\nwould readily unite to falsify the stern prediction of my childhood.\nI was the last to know what happiness I could bestow upon him, but of\nthat he said no more, for I was always to remember that I owed him\nnothing and that he was my debtor, and for very much. He had often\nthought of our future, and foreseeing that the time must come, and\nfearing that it might come soon, when Ada (now very nearly of age)\nwould leave us, and when our present mode of life must be broken up,\nhad become accustomed to reflect on this proposal. Thus he made it.\nIf I felt that I could ever give him the best right he could have to\nbe my protector, and if I felt that I could happily and justly become\nthe dear companion of his remaining life, superior to all lighter\nchances and changes than death, even then he could not have me bind\nmyself irrevocably while this letter was yet so new to me, but even\nthen I must have ample time for reconsideration. In that case, or in\nthe opposite case, let him be unchanged in his old relation, in his\nold manner, in the old name by which I called him. And as to his\nbright Dame Durden and little housekeeper, she would ever be the\nsame, he knew.\n\n[P34] This was the substance of the letter, written throughout with a\njustice and a dignity as if he were indeed my responsible guardian\nimpartially representing the proposal of a friend against whom in his\nintegrity he stated the full case.\n\n[P35] But he did not hint to me that when I had been better looking he had\nhad this same proceeding in his thoughts and had refrained from it.\nThat when my old face was gone from me, and I had no attractions, he\ncould love me just as well as in my fairer days. That the discovery\nof my birth gave him no shock. That his generosity rose above my\ndisfigurement and my inheritance of shame. That the more I stood in\nneed of such fidelity, the more firmly I might trust in him to the\nlast.\n\n[P36] But I knew it, I knew it well now. It came upon me as the close of\nthe benignant history I had been pursuing, and I felt that I had but\none thing to do. To devote my life to his happiness was to thank him\npoorly, and what had I wished for the other night but some new means\nof thanking him?\n\n[P37] Still I cried very much, not only in the fullness of my heart after\nreading the letter, not only in the strangeness of the prospect\u2014for\nit was strange though I had expected the contents\u2014but as if\nsomething for which there was no name or distinct idea were\nindefinitely lost to me. I was very happy, very thankful, very\nhopeful; but I cried very much.\n\n[P38] By and by I went to my old glass. My eyes were red and swollen, and I\nsaid, \u201cOh, Esther, Esther, can that be you!\u201d I am afraid the face in\nthe glass was going to cry again at this reproach, but I held up my\nfinger at it, and it stopped.\n\n[P39] \u201cThat is more like the composed look you comforted me with, my dear,\nwhen you showed me such a change!\u201d said I, beginning to let down my\nhair. \u201cWhen you are mistress of Bleak House, you are to be as\ncheerful as a bird. In fact, you are always to be cheerful; so let us\nbegin for once and for all.\u201d"
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c25 - Mrs. Snagsby Sees It All\n\n[P0] There is disquietude in Cook\u2019s Court, Cursitor Street. Black\nsuspicion hides in that peaceful region. The mass of Cook\u2019s Courtiers\nare in their usual state of mind, no better and no worse; but Mr.\nSnagsby is changed, and his little woman knows it.\n\n[P1] For Tom-all-Alone\u2019s and Lincoln\u2019s Inn Fields persist in harnessing\nthemselves, a pair of ungovernable coursers, to the chariot of Mr.\nSnagsby\u2019s imagination; and Mr. Bucket drives; and the passengers are\nJo and Mr. Tulkinghorn; and the complete equipage whirls though the\nlaw-stationery business at wild speed all round the clock. Even in\nthe little front kitchen where the family meals are taken, it rattles\naway at a smoking pace from the dinner-table, when Mr. Snagsby pauses\nin carving the first slice of the leg of mutton baked with potatoes\nand stares at the kitchen wall.\n\n[P2] Mr. Snagsby cannot make out what it is that he has had to do with.\nSomething is wrong somewhere, but what something, what may come of\nit, to whom, when, and from which unthought of and unheard of quarter\nis the puzzle of his life. His remote impressions of the robes and\ncoronets, the stars and garters, that sparkle through the\nsurface-dust of Mr. Tulkinghorn\u2019s chambers; his veneration for the\nmysteries presided over by that best and closest of his customers,\nwhom all the Inns of Court, all Chancery Lane, and all the legal\nneighbourhood agree to hold in awe; his remembrance of Detective Mr.\nBucket with his forefinger and his confidential manner, impossible to\nbe evaded or declined, persuade him that he is a party to some\ndangerous secret without knowing what it is. And it is the fearful\npeculiarity of this condition that, at any hour of his daily life, at\nany opening of the shop-door, at any pull of the bell, at any\nentrance of a messenger, or any delivery of a letter, the secret may\ntake air and fire, explode, and blow up\u2014Mr. Bucket only knows whom.\n\n[P3] For which reason, whenever a man unknown comes into the shop (as many\nmen unknown do) and says, \u201cIs Mr. Snagsby in?\u201d or words to that\ninnocent effect, Mr. Snagsby\u2019s heart knocks hard at his guilty\nbreast. He undergoes so much from such inquiries that when they are\nmade by boys he revenges himself by flipping at their ears over the\ncounter and asking the young dogs what they mean by it and why they\ncan\u2019t speak out at once? More impracticable men and boys persist in\nwalking into Mr. Snagsby\u2019s sleep and terrifying him with\nunaccountable questions, so that often when the cock at the little\ndairy in Cursitor Street breaks out in his usual absurd way about the\nmorning, Mr. Snagsby finds himself in a crisis of nightmare, with his\nlittle woman shaking him and saying \u201cWhat\u2019s the matter with the man!\u201d\n\n[P4] The little woman herself is not the least item in his difficulty. To\nknow that he is always keeping a secret from her, that he has under\nall circumstances to conceal and hold fast a tender double tooth,\nwhich her sharpness is ever ready to twist out of his head, gives Mr.\nSnagsby, in her dentistical presence, much of the air of a dog who\nhas a reservation from his master and will look anywhere rather than\nmeet his eye.\n\n[P5] These various signs and tokens, marked by the little woman, are not\nlost upon her. They impel her to say, \u201cSnagsby has something on his\nmind!\u201d And thus suspicion gets into Cook\u2019s Court, Cursitor Street.\nFrom suspicion to jealousy, Mrs. Snagsby finds the road as natural\nand short as from Cook\u2019s Court to Chancery Lane. And thus jealousy\ngets into Cook\u2019s Court, Cursitor Street. Once there (and it was\nalways lurking thereabout), it is very active and nimble in Mrs.\nSnagsby\u2019s breast, prompting her to nocturnal examinations of Mr.\nSnagsby\u2019s pockets; to secret perusals of Mr. Snagsby\u2019s letters; to\nprivate researches in the day book and ledger, till, cash-box, and\niron safe; to watchings at windows, listenings behind doors, and a\ngeneral putting of this and that together by the wrong end.\n\n[P6] Mrs. Snagsby is so perpetually on the alert that the house becomes\nghostly with creaking boards and rustling garments. The \u2019prentices\nthink somebody may have been murdered there in bygone times. Guster\nholds certain loose atoms of an idea (picked up at Tooting, where\nthey were found floating among the orphans) that there is buried\nmoney underneath the cellar, guarded by an old man with a white\nbeard, who cannot get out for seven thousand years because he said\nthe Lord\u2019s Prayer backwards.\n\n[P7] \u201cWho was Nimrod?\u201d Mrs. Snagsby repeatedly inquires of herself. \u201cWho\nwas that lady\u2014that creature? And who is that boy?\u201d Now, Nimrod being\nas dead as the mighty hunter whose name Mrs. Snagsby has\nappropriated, and the lady being unproducible, she directs her mental\neye, for the present, with redoubled vigilance to the boy. \u201cAnd who,\u201d\nquoth Mrs. Snagsby for the thousand and first time, \u201cis that boy? Who\nis  that\u2014!\u201d  And\nthere Mrs. Snagsby is seized with an inspiration.\n\n[P8] He has no respect for Mr. Chadband. No, to be sure, and he wouldn\u2019t\nhave, of course. Naturally he wouldn\u2019t, under those contagious\ncircumstances. He was invited and appointed by Mr. Chadband\u2014why,\nMrs. Snagsby heard it herself with her own ears!\u2014to come back, and\nbe told where he was to go, to be addressed by Mr. Chadband; and he\nnever came! Why did he never come? Because he was told not to come.\nWho told him not to come? Who? Ha, ha! Mrs. Snagsby sees it all.\n\n[P9] But happily (and Mrs. Snagsby tightly shakes her head and tightly\nsmiles) that boy was met by Mr. Chadband yesterday in the streets;\nand that boy, as affording a subject which Mr. Chadband desires to\nimprove for the spiritual delight of a select congregation, was\nseized by Mr. Chadband and threatened with being delivered over to\nthe police unless he showed the reverend gentleman where he lived and\nunless he entered into, and fulfilled, an undertaking to appear in\nCook\u2019s Court to-morrow night, \u201cto\u2014mor\u2014row\u2014night,\u201d Mrs. Snagsby\nrepeats for mere emphasis with another tight smile and another tight\nshake of her head; and to-morrow night that boy will be here, and\nto-morrow night Mrs. Snagsby will have her eye upon him and upon some\none else; and oh, you may walk a long while in your secret ways (says\nMrs. Snagsby with haughtiness and scorn), but you can\u2019t blind ME!\n\n[P10] Mrs. Snagsby sounds no timbrel in anybody\u2019s ears, but holds her\npurpose quietly, and keeps her counsel. To-morrow comes, the savoury\npreparations for the Oil Trade come, the evening comes. Comes Mr.\nSnagsby in his black coat; come the Chadbands; come (when the gorging\nvessel is replete) the \u2019prentices and Guster, to be edified; comes at\nlast, with his slouching head, and his shuffle backward, and his\nshuffle forward, and his shuffle to the right, and his shuffle to the\nleft, and his bit of fur cap in his muddy hand, which he picks as if\nit were some mangy bird he had caught and was plucking before eating\nraw, Jo, the very, very tough subject Mr. Chadband is to improve.\n\n[P11] Mrs. Snagsby screws a watchful glance on Jo as he is brought into the\nlittle drawing-room by Guster. He looks at Mr. Snagsby the moment he\ncomes in. Aha! Why does he look at Mr. Snagsby? Mr. Snagsby looks at\nhim. Why should he do that, but that Mrs. Snagsby sees it all? Why\nelse should that look pass between them, why else should Mr. Snagsby\nbe confused and cough a signal cough behind his hand? It is as clear\nas crystal that Mr. Snagsby is that boy\u2019s father.\n\n[P12] \u201cPeace, my friends,\u201d says Chadband, rising and wiping the oily\nexudations from his reverend visage. \u201cPeace be with us! My friends,\nwhy with us? Because,\u201d with his fat smile, \u201cit cannot be against us,\nbecause it must be for us; because it is not hardening, because it is\nsoftening; because it does not make war like the hawk, but comes home\nunto us like the dove. Therefore, my friends, peace be with us! My\nhuman boy, come forward!\u201d\n\n[P13] Stretching forth his flabby paw, Mr. Chadband lays the same on Jo\u2019s\narm and considers where to station him. Jo, very doubtful of his\nreverend friend\u2019s intentions and not at all clear but that something\npractical and painful is going to be done to him, mutters, \u201cYou let\nme alone. I never said nothink to you. You let me alone.\u201d\n\n[P14] \u201cNo, my young friend,\u201d says Chadband smoothly, \u201cI will not let you\nalone. And why? Because I am a harvest-labourer, because I am a\ntoiler and a moiler, because you are delivered over unto me and are\nbecome as a precious instrument in my hands. My friends, may I so\nemploy this instrument as to use it to your advantage, to your\nprofit, to your gain, to your welfare, to your enrichment! My young\nfriend, sit upon this stool.\u201d\n\n[P15] Jo, apparently possessed by an impression that the reverend gentleman\nwants to cut his hair, shields his head with both arms and is got\ninto the required position with great difficulty and every possible\nmanifestation of reluctance.\n\n[P16] When he is at last adjusted like a lay-figure, Mr. Chadband, retiring\nbehind the table, holds up his bear\u2019s-paw and says, \u201cMy friends!\u201d\nThis is the signal for a general settlement of the audience. The\n\u2019prentices giggle internally and nudge each other. Guster falls into\na staring and vacant state, compounded of a stunned admiration of Mr.\nChadband and pity for the friendless outcast whose condition touches\nher nearly. Mrs. Snagsby silently lays trains of gunpowder. Mrs.\nChadband composes herself grimly by the fire and warms her knees,\nfinding that sensation favourable to the reception of eloquence.\n\n[P17] It happens that Mr. Chadband has a pulpit habit of fixing some member\nof his congregation with his eye and fatly arguing his points with\nthat particular person, who is understood to be expected to be moved\nto an occasional grunt, groan, gasp, or other audible expression of\ninward working, which expression of inward working, being echoed by\nsome elderly lady in the next pew and so communicated like a game of\nforfeits through a circle of the more fermentable sinners present,\nserves the purpose of parliamentary cheering and gets Mr. Chadband\u2019s\nsteam up. From mere force of habit, Mr. Chadband in saying \u201cMy\nfriends!\u201d has rested his eye on Mr. Snagsby and proceeds to make that\nill-starred stationer, already sufficiently confused, the immediate\nrecipient of his discourse.\n\n[P18] \u201cWe have here among us, my friends,\u201d says Chadband, \u201ca Gentile and a\nheathen, a dweller in the tents of Tom-all-Alone\u2019s and a mover-on\nupon the surface of the earth. We have here among us, my friends,\u201d\nand Mr. Chadband, untwisting the point with his dirty thumb-nail,\nbestows an oily smile on Mr. Snagsby, signifying that he will throw\nhim an argumentative back-fall presently if he be not already down,\n\u201ca brother and a boy. Devoid of parents, devoid of relations, devoid\nof flocks and herds, devoid of gold and silver and of precious\nstones. Now, my friends, why do I say he is devoid of these\npossessions? Why? Why is he?\u201d Mr. Chadband states the question as if\nhe were propounding an entirely new riddle of much ingenuity and\nmerit to Mr. Snagsby and entreating him not to give it up.\n\n[P19] Mr. Snagsby, greatly perplexed by the mysterious look he received\njust now from his little woman\u2014at about the period when Mr. Chadband\nmentioned the word parents\u2014is tempted into modestly remarking, \u201cI\ndon\u2019t know, I\u2019m sure, sir.\u201d On which interruption Mrs. Chadband\nglares and Mrs. Snagsby says, \u201cFor shame!\u201d"
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

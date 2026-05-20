@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c10 - The Law-Writer\n\n[P0] On the eastern borders of Chancery Lane, that is to say, more\nparticularly in Cook\u2019s Court, Cursitor Street, Mr. Snagsby,\nlaw-stationer, pursues his lawful calling. In the shade of Cook\u2019s\nCourt, at most times a shady place, Mr. Snagsby has dealt in all\nsorts of blank forms of legal process; in skins and rolls of\nparchment; in paper\u2014foolscap, brief, draft, brown, white,\nwhitey-brown, and blotting; in stamps; in office-quills, pens, ink,\nIndia-rubber, pounce, pins, pencils, sealing-wax, and wafers; in red\ntape and green ferret; in pocket-books, almanacs, diaries, and law\nlists; in string boxes, rulers, inkstands\u2014glass and\nleaden\u2014pen-knives, scissors, bodkins, and other small\noffice-cutlery; in short, in articles too numerous to mention, ever\nsince he was out of his time and went into partnership with Peffer.\nOn that occasion, Cook\u2019s Court was in a manner revolutionized by the\nnew inscription in fresh paint, PEFFER AND SNAGSBY, displacing the\ntime-honoured and not easily to be deciphered legend PEFFER only. For\nsmoke, which is the London ivy, had so wreathed itself round Peffer\u2019s\nname and clung to his dwelling-place that the affectionate parasite\nquite overpowered the parent tree.\n\n[P1] Peffer is never seen in Cook\u2019s Court now. He is not expected there,\nfor he has been recumbent this quarter of a century in the churchyard\nof St. Andrews, Holborn, with the waggons and hackney-coaches roaring\npast him all the day and half the night like one great dragon. If he\never steal forth when the dragon is at rest to air himself again in\nCook\u2019s Court until admonished to return by the crowing of the\nsanguine cock in the cellar at the little dairy in Cursitor Street,\nwhose ideas of daylight it would be curious to ascertain, since he\nknows from his personal observation next to nothing about it\u2014if\nPeffer ever do revisit the pale glimpses of Cook\u2019s Court, which no\nlaw-stationer in the trade can positively deny, he comes invisibly,\nand no one is the worse or wiser.\n\n[P2] In his lifetime, and likewise in the period of Snagsby\u2019s \u201ctime\u201d of\nseven long years, there dwelt with Peffer in the same\nlaw-stationering premises a niece\u2014a short, shrewd niece, something\ntoo violently compressed about the waist, and with a sharp nose like\na sharp autumn evening, inclining to be frosty towards the end. The\nCook\u2019s Courtiers had a rumour flying among them that the mother of\nthis niece did, in her daughter\u2019s childhood, moved by too jealous a\nsolicitude that her figure should approach perfection, lace her up\nevery morning with her maternal foot against the bed-post for a\nstronger hold and purchase; and further, that she exhibited\ninternally pints of vinegar and lemon-juice, which acids, they held,\nhad mounted to the nose and temper of the patient. With whichsoever\nof the many tongues of Rumour this frothy report originated, it\neither never reached or never influenced the ears of young Snagsby,\nwho, having wooed and won its fair subject on his arrival at man\u2019s\nestate, entered into two partnerships at once. So now, in Cook\u2019s\nCourt, Cursitor Street, Mr. Snagsby and the niece are one; and the\nniece still cherishes her figure, which, however tastes may differ,\nis unquestionably so far precious that there is mighty little of it.\n\n[P3] Mr. and Mrs. Snagsby are not only one bone and one flesh, but, to the\nneighbours\u2019 thinking, one voice too. That voice, appearing to proceed\nfrom Mrs. Snagsby alone, is heard in Cook\u2019s Court very often. Mr.\nSnagsby, otherwise than as he finds expression through these dulcet\ntones, is rarely heard. He is a mild, bald, timid man with a shining\nhead and a scrubby clump of black hair sticking out at the back. He\ntends to meekness and obesity. As he stands at his door in Cook\u2019s\nCourt in his grey shop-coat and black calico sleeves, looking up at\nthe clouds, or stands behind a desk in his dark shop with a heavy\nflat ruler, snipping and slicing at sheepskin in company with his two\n\u2019prentices, he is emphatically a retiring and unassuming man. From\nbeneath his feet, at such times, as from a shrill ghost unquiet in\nits grave, there frequently arise complainings and lamentations in\nthe voice already mentioned; and haply, on some occasions when these\nreach a sharper pitch than usual, Mr. Snagsby mentions to the\n\u2019prentices, \u201cI think my little woman is a-giving it to Guster!\u201d\n\n[P4] This proper name, so used by Mr. Snagsby, has before now sharpened\nthe wit of the Cook\u2019s Courtiers to remark that it ought to be the\nname of Mrs. Snagsby, seeing that she might with great force and\nexpression be termed a Guster, in compliment to her stormy character.\nIt is, however, the possession, and the only possession except fifty\nshillings per annum and a very small box indifferently filled with\nclothing, of a lean young woman from a workhouse (by some supposed to\nhave been christened Augusta) who, although she was farmed or\ncontracted for during her growing time by an amiable benefactor of\nhis species resident at Tooting, and cannot fail to have been\ndeveloped under the most favourable circumstances, \u201chas fits,\u201d which\nthe parish can\u2019t account for.\n\n[P5] Guster, really aged three or four and twenty, but looking a round ten\nyears older, goes cheap with this unaccountable drawback of fits, and\nis so apprehensive of being returned on the hands of her patron saint\nthat except when she is found with her head in the pail, or the sink,\nor the copper, or the dinner, or anything else that happens to be\nnear her at the time of her seizure, she is always at work. She is a\nsatisfaction to the parents and guardians of the \u2019prentices, who feel\nthat there is little danger of her inspiring tender emotions in the\nbreast of youth; she is a satisfaction to Mrs. Snagsby, who can\nalways find fault with her; she is a satisfaction to Mr. Snagsby, who\nthinks it a charity to keep her. The law-stationer\u2019s establishment\nis, in Guster\u2019s eyes, a temple of plenty and splendour. She believes\nthe little drawing-room upstairs, always kept, as one may say, with\nits hair in papers and its pinafore on, to be the most elegant\napartment in Christendom. The view it commands of Cook\u2019s Court at one\nend (not to mention a squint into Cursitor Street) and of Coavinses\u2019\nthe sheriff\u2019s officer\u2019s backyard at the other she regards as a\nprospect of unequalled beauty. The portraits it displays in oil\u2014and\nplenty of it too\u2014of Mr. Snagsby looking at Mrs. Snagsby and of Mrs.\nSnagsby looking at Mr. Snagsby are in her eyes as achievements of\nRaphael or Titian. Guster has some recompenses for her many\nprivations.\n\n[P6] Mr. Snagsby refers everything not in the practical mysteries of the\nbusiness to Mrs. Snagsby. She manages the money, reproaches the\ntax-gatherers, appoints the times and places of devotion on Sundays,\nlicenses Mr. Snagsby\u2019s entertainments, and acknowledges no\nresponsibility as to what she thinks fit to provide for dinner,\ninsomuch that she is the high standard of comparison among the\nneighbouring wives a long way down Chancery Lane on both sides, and\neven out in Holborn, who in any domestic passages of arms habitually\ncall upon their husbands to look at the difference between their (the\nwives\u2019) position and Mrs. Snagsby\u2019s, and their (the husbands\u2019)\nbehaviour and Mr. Snagsby\u2019s. Rumour, always flying bat-like about\nCook\u2019s Court and skimming in and out at everybody\u2019s windows, does say\nthat Mrs. Snagsby is jealous and inquisitive and that Mr. Snagsby is\nsometimes worried out of house and home, and that if he had the\nspirit of a mouse he wouldn\u2019t stand it. It is even observed that the\nwives who quote him to their self-willed husbands as a shining\nexample in reality look down upon him and that nobody does so with\ngreater superciliousness than one particular lady whose lord is more\nthan suspected of laying his umbrella on her as an instrument of\ncorrection. But these vague whisperings may arise from Mr. Snagsby\u2019s\nbeing in his way rather a meditative and poetical man, loving to walk\nin Staple Inn in the summer-time and to observe how countrified the\nsparrows and the leaves are, also to lounge about the Rolls Yard of a\nSunday afternoon and to remark (if in good spirits) that there were\nold times once and that you\u2019d find a stone coffin or two now under\nthat chapel, he\u2019ll be bound, if you was to dig for it. He solaces his\nimagination, too, by thinking of the many Chancellors and Vices, and\nMasters of the Rolls who are deceased; and he gets such a flavour of\nthe country out of telling the two \u2019prentices how he HAS heard say\nthat a brook \u201cas clear as crystal\u201d once ran right down the middle of\nHolborn, when Turnstile really was a turnstile, leading slap away\ninto the meadows\u2014gets such a flavour of the country out of this that\nhe never wants to go there.\n\n[P7] The day is closing in and the gas is lighted, but is not yet fully\neffective, for it is not quite dark. Mr. Snagsby standing at his\nshop-door looking up at the clouds sees a crow who is out late skim\nwestward over the slice of sky belonging to Cook\u2019s Court. The crow\nflies straight across Chancery Lane and Lincoln\u2019s Inn Garden into\nLincoln\u2019s Inn Fields.\n\n[P8] Here, in a large house, formerly a house of state, lives Mr.\nTulkinghorn. It is let off in sets of chambers now, and in those\nshrunken fragments of its greatness, lawyers lie like maggots in\nnuts. But its roomy staircases, passages, and antechambers still\nremain; and even its painted ceilings, where Allegory, in Roman\nhelmet and celestial linen, sprawls among balustrades and pillars,\nflowers, clouds, and big-legged boys, and makes the head ache\u2014as\nwould seem to be Allegory\u2019s object always, more or less. Here, among\nhis many boxes labelled with transcendent names, lives Mr.\nTulkinghorn, when not speechlessly at home in country-houses where\nthe great ones of the earth are bored to death. Here he is to-day,\nquiet at his table. An oyster of the old school whom nobody can open.\n\n[P9] Like as he is to look at, so is his apartment in the dusk of the\npresent afternoon. Rusty, out of date, withdrawing from attention,\nable to afford it. Heavy, broad-backed, old-fashioned,\nmahogany-and-horsehair chairs, not easily lifted; obsolete tables\nwith spindle-legs and dusty baize covers; presentation prints of the\nholders of great titles in the last generation or the last but one,\nenviron him. A thick and dingy Turkey-carpet muffles the floor where\nhe sits, attended by two candles in old-fashioned silver candlesticks\nthat give a very insufficient light to his large room. The titles on\nthe backs of his books have retired into the binding; everything that\ncan have a lock has got one; no key is visible. Very few loose papers\nare about. He has some manuscript near him, but is not referring to\nit. With the round top of an inkstand and two broken bits of\nsealing-wax he is silently and slowly working out whatever train of\nindecision is in his mind. Now the inkstand top is in the middle, now\nthe red bit of sealing-wax, now the black bit. That\u2019s not it. Mr.\nTulkinghorn must gather them all up and begin again.\n\n[P10] Here, beneath the painted ceiling, with foreshortened Allegory\nstaring down at his intrusion as if it meant to swoop upon him, and\nhe cutting it dead, Mr. Tulkinghorn has at once his house and office.\nHe keeps no staff, only one middle-aged man, usually a little out at\nelbows, who sits in a high pew in the hall and is rarely overburdened\nwith business. Mr. Tulkinghorn is not in a common way. He wants no\nclerks. He is a great reservoir of confidences, not to be so tapped.\nHis clients want HIM; he is all in all. Drafts that he requires to be\ndrawn are drawn by special-pleaders in the temple on mysterious\ninstructions; fair copies that he requires to be made are made at the\nstationers\u2019, expense being no consideration. The middle-aged man in\nthe pew knows scarcely more of the affairs of the peerage than any\ncrossing-sweeper in Holborn.\n\n[P11] The red bit, the black bit, the inkstand top, the other inkstand top,\nthe little sand-box. So! You to the middle, you to the right, you to\nthe left. This train of indecision must surely be worked out now or\nnever. Now! Mr. Tulkinghorn gets up, adjusts his spectacles, puts on\nhis hat, puts the manuscript in his pocket, goes out, tells the\nmiddle-aged man out at elbows, \u201cI shall be back presently.\u201d Very\nrarely tells him anything more explicit.\n\n[P12] Mr. Tulkinghorn goes, as the crow came\u2014not quite so straight, but\nnearly\u2014to Cook\u2019s Court, Cursitor Street. To Snagsby\u2019s,\nLaw-Stationer\u2019s, Deeds engrossed and copied, Law-Writing executed in\nall its branches, &c., &c., &c.\n\n[P13] It is somewhere about five or six o\u2019clock in the afternoon, and a\nbalmy fragrance of warm tea hovers in Cook\u2019s Court. It hovers about\nSnagsby\u2019s door. The hours are early there: dinner at half-past one\nand supper at half-past nine. Mr. Snagsby was about to descend into\nthe subterranean regions to take tea when he looked out of his door\njust now and saw the crow who was out late.\n\n[P14] \u201cMaster at home?\u201d\n\n[P15] Guster is minding the shop, for the \u2019prentices take tea in the\nkitchen with Mr. and Mrs. Snagsby; consequently, the robe-maker\u2019s two\ndaughters, combing their curls at the two glasses in the two\nsecond-floor windows of the opposite house, are not driving the two\n\u2019prentices to distraction as they fondly suppose, but are merely\nawakening the unprofitable admiration of Guster, whose hair won\u2019t\ngrow, and never would, and it is confidently thought, never will.\n\n[P16] \u201cMaster at home?\u201d says Mr. Tulkinghorn.\n\n[P17] Master is at home, and Guster will fetch him. Guster disappears, glad\nto get out of the shop, which she regards with mingled dread and\nveneration as a storehouse of awful implements of the great torture\nof the law\u2014a place not to be entered after the gas is turned off.\n\n[P18] Mr. Snagsby appears, greasy, warm, herbaceous, and chewing. Bolts a\nbit of bread and butter. Says, \u201cBless my soul, sir! Mr. Tulkinghorn!\u201d\n\n[P19] \u201cI want half a word with you, Snagsby.\u201d"
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

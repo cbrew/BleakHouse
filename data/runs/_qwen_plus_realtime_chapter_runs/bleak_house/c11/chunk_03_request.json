@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c11 - Our Dear Brother\n\n[P60] By and by the beadle comes out, once more intensifying the sensation,\nwhich has rather languished in the interval. He is understood to be\nin want of witnesses for the inquest to-morrow who can tell the\ncoroner and jury anything whatever respecting the deceased. Is\nimmediately referred to innumerable people who can tell nothing\nwhatever. Is made more imbecile by being constantly informed that\nMrs. Green\u2019s son \u201cwas a law-writer his-self and knowed him better\nthan anybody,\u201d which son of Mrs. Green\u2019s appears, on inquiry, to be\nat the present time aboard a vessel bound for China, three months\nout, but considered accessible by telegraph on application to the\nLords of the Admiralty. Beadle goes into various shops and parlours,\nexamining the inhabitants, always shutting the door first, and by\nexclusion, delay, and general idiotcy exasperating the public.\nPoliceman seen to smile to potboy. Public loses interest and\nundergoes reaction. Taunts the beadle in shrill youthful voices with\nhaving boiled a boy, choruses fragments of a popular song to that\neffect and importing that the boy was made into soup for the\nworkhouse. Policeman at last finds it necessary to support the law\nand seize a vocalist, who is released upon the flight of the rest on\ncondition of his getting out of this then, come, and cutting it\u2014a\ncondition he immediately observes. So the sensation dies off for the\ntime; and the unmoved policeman (to whom a little opium, more or\nless, is nothing), with his shining hat, stiff stock, inflexible\ngreat-coat, stout belt and bracelet, and all things fitting, pursues\nhis lounging way with a heavy tread, beating the palms of his white\ngloves one against the other and stopping now and then at a\nstreet-corner to look casually about for anything between a lost\nchild and a murder.\n\n[P61] Under cover of the night, the feeble-minded beadle comes flitting\nabout Chancery Lane with his summonses, in which every juror\u2019s name\nis wrongly spelt, and nothing rightly spelt but the beadle\u2019s own\nname, which nobody can read or wants to know. The summonses served\nand his witnesses forewarned, the beadle goes to Mr. Krook\u2019s to keep\na small appointment he has made with certain paupers, who, presently\narriving, are conducted upstairs, where they leave the great eyes in\nthe shutter something new to stare at, in that last shape which\nearthly lodgings take for No one\u2014and for Every one.\n\n[P62] And all that night the coffin stands ready by the old portmanteau;\nand the lonely figure on the bed, whose path in life has lain through\nfive and forty years, lies there with no more track behind him that\nany one can trace than a deserted infant.\n\n[P63] Next day the court is all alive\u2014is like a fair, as Mrs. Perkins,\nmore than reconciled to Mrs. Piper, says in amicable conversation\nwith that excellent woman. The coroner is to sit in the first-floor\nroom at the Sol\u2019s Arms, where the Harmonic Meetings take place twice\na week and where the chair is filled by a gentleman of professional\ncelebrity, faced by Little Swills, the comic vocalist, who hopes\n(according to the bill in the window) that his friends will rally\nround him and support first-rate talent. The Sol\u2019s Arms does a brisk\nstroke of business all the morning. Even children so require\nsustaining under the general excitement that a pieman who has\nestablished himself for the occasion at the corner of the court says\nhis brandy-balls go off like smoke. What time the beadle, hovering\nbetween the door of Mr. Krook\u2019s establishment and the door of the\nSol\u2019s Arms, shows the curiosity in his keeping to a few discreet\nspirits and accepts the compliment of a glass of ale or so in return.\n\n[P64] At the appointed hour arrives the coroner, for whom the jurymen are\nwaiting and who is received with a salute of skittles from the good\ndry skittle-ground attached to the Sol\u2019s Arms. The coroner frequents\nmore public-houses than any man alive. The smell of sawdust, beer,\ntobacco-smoke, and spirits is inseparable in his vocation from death\nin its most awful shapes. He is conducted by the beadle and the\nlandlord to the Harmonic Meeting Room, where he puts his hat on the\npiano and takes a Windsor-chair at the head of a long table formed of\nseveral short tables put together and ornamented with glutinous rings\nin endless involutions, made by pots and glasses. As many of the jury\nas can crowd together at the table sit there. The rest get among the\nspittoons and pipes or lean against the piano. Over the coroner\u2019s\nhead is a small iron garland, the pendant handle of a bell, which\nrather gives the majesty of the court the appearance of going to be\nhanged presently.\n\n[P65] Call over and swear the jury! While the ceremony is in progress,\nsensation is created by the entrance of a chubby little man in a\nlarge shirt-collar, with a moist eye and an inflamed nose, who\nmodestly takes a position near the door as one of the general public,\nbut seems familiar with the room too. A whisper circulates that this\nis Little Swills. It is considered not unlikely that he will get up\nan imitation of the coroner and make it the principal feature of the\nHarmonic Meeting in the evening.\n\n[P66] \u201cWell, gentlemen\u2014\u201d the coroner begins.\n\n[P67] \u201cSilence there, will you!\u201d says the beadle. Not to the coroner,\nthough it might appear so.\n\n[P68] \u201cWell, gentlemen,\u201d resumes the coroner. \u201cYou are impanelled here to\ninquire into the death of a certain man. Evidence will be given\nbefore you as to the circumstances attending that death, and you will\ngive your verdict according to the\u2014skittles; they must be stopped,\nyou know, beadle!\u2014evidence, and not according to anything else. The\nfirst thing to be done is to view the body.\u201d\n\n[P69] \u201cMake way there!\u201d cries the beadle.\n\n[P70] So they go out in a loose procession, something after the manner of a\nstraggling funeral, and make their inspection in Mr. Krook\u2019s back\nsecond floor, from which a few of the jurymen retire pale and\nprecipitately. The beadle is very careful that two gentlemen not very\nneat about the cuffs and buttons (for whose accommodation he has\nprovided a special little table near the coroner in the Harmonic\nMeeting Room) should see all that is to be seen. For they are the\npublic chroniclers of such inquiries by the line; and he is not\nsuperior to the universal human infirmity, but hopes to read in print\nwhat \u201cMooney, the active and intelligent beadle of the district,\u201d\nsaid and did and even aspires to see the name of Mooney as familiarly\nand patronizingly mentioned as the name of the hangman is, according\nto the latest examples.\n\n[P71] Little Swills is waiting for the coroner and jury on their return.\nMr. Tulkinghorn, also. Mr. Tulkinghorn is received with distinction\nand seated near the coroner between that high judicial officer, a\nbagatelle-board, and the coal-box. The inquiry proceeds. The jury\nlearn how the subject of their inquiry died, and learn no more about\nhim. \u201cA very eminent solicitor is in attendance, gentlemen,\u201d says the\ncoroner, \u201cwho, I am informed, was accidentally present when discovery\nof the death was made, but he could only repeat the evidence you have\nalready heard from the surgeon, the landlord, the lodger, and the\nlaw-stationer, and it is not necessary to trouble him. Is anybody in\nattendance who knows anything more?\u201d\n\n[P72] Mrs. Piper pushed forward by Mrs. Perkins. Mrs. Piper sworn.\n\n[P73] Anastasia Piper, gentlemen. Married woman. Now, Mrs. Piper, what have\nyou got to say about this?\n\n[P74] Why, Mrs. Piper has a good deal to say, chiefly in parentheses and\nwithout punctuation, but not much to tell. Mrs. Piper lives in the\ncourt (which her husband is a cabinet-maker), and it has long been\nwell beknown among the neighbours (counting from the day next but one\nbefore the half-baptizing of Alexander James Piper aged eighteen\nmonths and four days old on accounts of not being expected to live\nsuch was the sufferings gentlemen of that child in his gums) as the\nplaintive\u2014so Mrs. Piper insists on calling the deceased\u2014was\nreported to have sold himself. Thinks it was the plaintive\u2019s air in\nwhich that report originatinin. See the plaintive often and\nconsidered as his air was feariocious and not to be allowed to go\nabout some children being timid (and if doubted hoping Mrs. Perkins\nmay be brought forard for she is here and will do credit to her\nhusband and herself and family). Has seen the plaintive wexed and\nworrited by the children (for children they will ever be and you\ncannot expect them specially if of playful dispositions to be\nMethoozellers which you was not yourself). On accounts of this and\nhis dark looks has often dreamed as she see him take a pick-axe from\nhis pocket and split Johnny\u2019s head (which the child knows not fear\nand has repeatually called after him close at his eels). Never\nhowever see the plaintive take a pick-axe or any other wepping far\nfrom it. Has seen him hurry away when run and called after as if not\npartial to children and never see him speak to neither child nor\ngrown person at any time (excepting the boy that sweeps the crossing\ndown the lane over the way round the corner which if he was here\nwould tell you that he has been seen a-speaking to him frequent).\n\n[P75] Says the coroner, is that boy here? Says the beadle, no, sir, he is\nnot here. Says the coroner, go and fetch him then. In the absence of\nthe active and intelligent, the coroner converses with Mr.\nTulkinghorn.\n\n[P76] Oh! Here\u2019s the boy, gentlemen!\n\n[P77] Here he is, very muddy, very hoarse, very ragged. Now, boy! But stop\na minute. Caution. This boy must be put through a few preliminary\npaces.\n\n[P78] Name, Jo. Nothing else that he knows on. Don\u2019t know that everybody\nhas two names. Never heerd of sich a think. Don\u2019t know that Jo is\nshort for a longer name. Thinks it long enough for HIM. HE don\u2019t find\nno fault with it. Spell it? No. HE can\u2019t spell it. No father, no\nmother, no friends. Never been to school. What\u2019s home? Knows a\nbroom\u2019s a broom, and knows it\u2019s wicked to tell a lie. Don\u2019t recollect\nwho told him about the broom or about the lie, but knows both. Can\u2019t\nexactly say what\u2019ll be done to him arter he\u2019s dead if he tells a lie\nto the gentlemen here, but believes it\u2019ll be something wery bad to\npunish him, and serve him right\u2014and so he\u2019ll tell the truth.\n\n[P79] \u201cThis won\u2019t do, gentlemen!\u201d says the coroner with a melancholy shake\nof the head."
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

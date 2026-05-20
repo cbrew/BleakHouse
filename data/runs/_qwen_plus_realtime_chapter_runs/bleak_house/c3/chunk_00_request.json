@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c3 - A Progress\n\n[P0] I have a great deal of difficulty in beginning to write my portion of\nthese pages, for I know I am not clever. I always knew that. I can\nremember, when I was a very little girl indeed, I used to say to my\ndoll when we were alone together, \u201cNow, Dolly, I am not clever, you\nknow very well, and you must be patient with me, like a dear!\u201d And so\nshe used to sit propped up in a great arm-chair, with her beautiful\ncomplexion and rosy lips, staring at me\u2014or not so much at me, I\nthink, as at nothing\u2014while I busily stitched away and told her every\none of my secrets.\n\n[P1] My dear old doll! I was such a shy little thing that I seldom dared\nto open my lips, and never dared to open my heart, to anybody else.\nIt almost makes me cry to think what a relief it used to be to me\nwhen I came home from school of a day to run upstairs to my room and\nsay, \u201cOh, you dear faithful Dolly, I knew you would be expecting me!\u201d\nand then to sit down on the floor, leaning on the elbow of her great\nchair, and tell her all I had noticed since we parted. I had always\nrather a noticing way\u2014not a quick way, oh, no!\u2014a silent way of\nnoticing what passed before me and thinking I should like to\nunderstand it better. I have not by any means a quick understanding.\nWhen I love a person very tenderly indeed, it seems to brighten. But\neven that may be my vanity.\n\n[P2] I was brought up, from my earliest remembrance\u2014like some of the\nprincesses in the fairy stories, only I was not charming\u2014by my\ngodmother. At least, I only knew her as such. She was a good, good\nwoman! She went to church three times every Sunday, and to morning\nprayers on Wednesdays and Fridays, and to lectures whenever there\nwere lectures; and never missed. She was handsome; and if she had\never smiled, would have been (I used to think) like an angel\u2014but she\nnever smiled. She was always grave and strict. She was so very good\nherself, I thought, that the badness of other people made her frown\nall her life. I felt so different from her, even making every\nallowance for the differences between a child and a woman; I felt so\npoor, so trifling, and so far off that I never could be unrestrained\nwith her\u2014no, could never even love her as I wished. It made me very\nsorry to consider how good she was and how unworthy of her I was, and\nI used ardently to hope that I might have a better heart; and I\ntalked it over very often with the dear old doll, but I never loved\nmy godmother as I ought to have loved her and as I felt I must have\nloved her if I had been a better girl.\n\n[P3] This made me, I dare say, more timid and retiring than I naturally\nwas and cast me upon Dolly as the only friend with whom I felt at\nease. But something happened when I was still quite a little thing\nthat helped it very much.\n\n[P4] I had never heard my mama spoken of. I had never heard of my papa\neither, but I felt more interested about my mama. I had never worn a\nblack frock, that I could recollect. I had never been shown my mama\u2019s\ngrave. I had never been told where it was. Yet I had never been\ntaught to pray for any relation but my godmother. I had more than\nonce approached this subject of my thoughts with Mrs. Rachael, our\nonly servant, who took my light away when I was in bed (another very\ngood woman, but austere to me), and she had only said, \u201cEsther, good\nnight!\u201d and gone away and left me.\n\n[P5] Although there were seven girls at the neighbouring school where I\nwas a day boarder, and although they called me little Esther\nSummerson, I knew none of them at home. All of them were older than\nI, to be sure (I was the youngest there by a good deal), but there\nseemed to be some other separation between us besides that, and\nbesides their being far more clever than I was and knowing much more\nthan I did. One of them in the first week of my going to the school\n(I remember it very well) invited me home to a little party, to my\ngreat joy. But my godmother wrote a stiff letter declining for me,\nand I never went. I never went out at all.\n\n[P6] It was my birthday. There were holidays at school on other\nbirthdays\u2014none on mine. There were rejoicings at home on other\nbirthdays, as I knew from what I heard the girls relate to one\nanother\u2014there were none on mine. My birthday was the most melancholy\nday at home in the whole year.\n\n[P7] I have mentioned that unless my vanity should deceive me (as I know\nit may, for I may be very vain without suspecting it, though indeed I\ndon\u2019t), my comprehension is quickened when my affection is. My\ndisposition is very affectionate, and perhaps I might still feel such\na wound if such a wound could be received more than once with the\nquickness of that birthday.\n\n[P8] Dinner was over, and my godmother and I were sitting at the table\nbefore the fire. The clock ticked, the fire clicked; not another\nsound had been heard in the room or in the house for I don\u2019t know how\nlong. I happened to look timidly up from my stitching, across the\ntable at my godmother, and I saw in her face, looking gloomily at me,\n\u201cIt would have been far better, little Esther, that you had had no\nbirthday, that you had never been born!\u201d\n\n[P9] I broke out crying and sobbing, and I said, \u201cOh, dear godmother, tell\nme, pray do tell me, did Mama die on my birthday?\u201d\n\n[P10] \u201cNo,\u201d she returned. \u201cAsk me no more, child!\u201d\n\n[P11] \u201cOh, do pray tell me something of her. Do now, at last, dear\ngodmother, if you please! What did I do to her? How did I lose her?\nWhy am I so different from other children, and why is it my fault,\ndear godmother? No, no, no, don\u2019t go away. Oh, speak to me!\u201d\n\n[P12] I was in a kind of fright beyond my grief, and I caught hold of her\ndress and was kneeling to her. She had been saying all the while,\n\u201cLet me go!\u201d But now she stood still.\n\n[P13] Her darkened face had such power over me that it stopped me in the\nmidst of my vehemence. I put up my trembling little hand to clasp\nhers or to beg her pardon with what earnestness I might, but withdrew\nit as she looked at me, and laid it on my fluttering heart. She\nraised me, sat in her chair, and standing me before her, said slowly\nin a cold, low voice\u2014I see her knitted brow and pointed\nfinger\u2014\u201cYour mother, Esther, is your disgrace, and you were hers.\nThe time will come\u2014and soon enough\u2014when you will understand this\nbetter and will feel it too, as no one save a woman can. I have\nforgiven her\u201d\u2014but her face did not relent\u2014\u201cthe wrong she did to me,\nand I say no more of it, though it was greater than you will ever\nknow\u2014than any one will ever know but I, the sufferer. For yourself,\nunfortunate girl, orphaned and degraded from the first of these evil\nanniversaries, pray daily that the sins of others be not visited upon\nyour head, according to what is written. Forget your mother and leave\nall other people to forget her who will do her unhappy child that\ngreatest kindness. Now, go!\u201d\n\n[P14] She checked me, however, as I was about to depart from her\u2014so frozen\nas I was!\u2014and added this, \u201cSubmission, self-denial, diligent work,\nare the preparations for a life begun with such a shadow on it. You\nare different from other children, Esther, because you were not born,\nlike them, in common sinfulness and wrath. You are set apart.\u201d\n\n[P15] I went up to my room, and crept to bed, and laid my doll\u2019s cheek\nagainst mine wet with tears, and holding that solitary friend upon my\nbosom, cried myself to sleep. Imperfect as my understanding of my\nsorrow was, I knew that I had brought no joy at any time to anybody\u2019s\nheart and that I was to no one upon earth what Dolly was to me.\n\n[P16] Dear, dear, to think how much time we passed alone together\nafterwards, and how often I repeated to the doll the story of my\nbirthday and confided to her that I would try as hard as ever I could\nto repair the fault I had been born with (of which I confessedly felt\nguilty and yet innocent) and would strive as I grew up to be\nindustrious, contented, and kind-hearted and to do some good to some\none, and win some love to myself if I could. I hope it is not\nself-indulgent to shed these tears as I think of it. I am very\nthankful, I am very cheerful, but I cannot quite help their coming to\nmy eyes.\n\n[P17] There! I have wiped them away now and can go on again properly.\n\n[P18] I felt the distance between my godmother and myself so much more\nafter the birthday, and felt so sensible of filling a place in her\nhouse which ought to have been empty, that I found her more difficult\nof approach, though I was fervently grateful to her in my heart, than\never. I felt in the same way towards my school companions; I felt in\nthe same way towards Mrs. Rachael, who was a widow; and oh, towards\nher daughter, of whom she was proud, who came to see her once a\nfortnight! I was very retired and quiet, and tried to be very\ndiligent.\n\n[P19] One sunny afternoon when I had come home from school with my books\nand portfolio, watching my long shadow at my side, and as I was\ngliding upstairs to my room as usual, my godmother looked out of the\nparlour-door and called me back. Sitting with her, I found\u2014which was\nvery unusual indeed\u2014a stranger. A portly, important-looking\ngentleman, dressed all in black, with a white cravat, large gold\nwatch seals, a pair of gold eye-glasses, and a large seal-ring upon\nhis little finger."
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

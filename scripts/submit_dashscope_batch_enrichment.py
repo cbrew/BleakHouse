@@ -69,6 +69,46 @@ JSON_INSTRUCTION_SUFFIX = (
 )
 
 
+def add_list_caps(
+    schema: Any, default_max: int = 8, _seen_id: set[int] | None = None,
+) -> Any:
+    """Probe-local mutation: walk the schema and add `maxItems` to every
+    unbounded array of strings (or arrays of any primitive). Leaves
+    array-of-object fields (e.g. ChapterEnrichmentResult.enrichments)
+    untouched — we want all 20 paragraphs in the outer list.
+
+    Rationale: the production Pydantic schemas deliberately don't enforce
+    list-length caps (description-only), per the schemas.py docstring. On
+    Qwen-family models under grammar-constrained decoding, unbounded
+    string-array fields like `themes` and `characters_present` are
+    susceptible to repetition loops (model emits "tender", "tender", ...
+    until the server-side timeout cuts it off mid-JSON). Capping at the
+    docstring's stated upper bound (8 items) prevents this without changing
+    the production schema.
+    """
+    if _seen_id is None:
+        _seen_id = set()
+    if isinstance(schema, dict):
+        if id(schema) in _seen_id:
+            return schema
+        _seen_id.add(id(schema))
+        items = schema.get("items")
+        if (
+            schema.get("type") == "array"
+            and "maxItems" not in schema
+            and isinstance(items, dict)
+            and items.get("type") in ("string", "number", "integer", "boolean")
+        ):
+            schema["maxItems"] = default_max
+        for v in schema.values():
+            if isinstance(v, (dict, list)):
+                add_list_caps(v, default_max, _seen_id)
+    elif isinstance(schema, list):
+        for item in schema:
+            add_list_caps(item, default_max, _seen_id)
+    return schema
+
+
 def inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
     """Resolve `$ref: #/$defs/<namcae>` inline and drop $defs.
 
@@ -166,6 +206,12 @@ def _build_jsonl_line(
             # ModelServingOutputInvalidJsonError. Force the chat template to
             # skip the thinking turn. Verified pattern in docs/qwen_family_test_plan.md.
             "chat_template_kwargs": {"enable_thinking": False},
+            # Repetition mitigation. qwen-plus under grammar-constrained
+            # decoding occasionally loops on string-array fields (e.g.
+            # emitting "tender", "tender", ... in themes). Modest positive
+            # frequency_penalty makes repeat tokens less likely without
+            # materially affecting normal output quality.
+            "frequency_penalty": 0.5,
         },
     }
 
@@ -210,8 +256,9 @@ def main() -> int:
     )
 
     system_prompt = build_enrichment_prompt(args.novel) + JSON_INSTRUCTION_SUFFIX
-    schema = inline_refs(ChapterEnrichmentResult.model_json_schema())
-    logger.info("schema flattened (refs inlined, $defs removed)")
+    schema = add_list_caps(inline_refs(ChapterEnrichmentResult.model_json_schema()))
+    logger.info("schema flattened (refs inlined, $defs removed); "
+                "primitive-array fields capped at maxItems=8")
     logger.info("appended probe-local JSON-output instruction to system prompt")
 
     chunks = [

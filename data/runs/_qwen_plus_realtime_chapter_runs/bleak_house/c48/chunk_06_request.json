@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c48 - Closing In\n\n[P120] \u201cOnly for my hat. I am going home.\u201d\n\n[P121] She bows her eyes rather than her head, the movement is so slight and\ncurious, and he withdraws. Clear of the room he looks at his watch\nbut is inclined to doubt it by a minute or thereabouts. There is a\nsplendid clock upon the staircase, famous, as splendid clocks not\noften are, for its accuracy. \u201cAnd what do YOU say,\u201d Mr. Tulkinghorn\ninquires, referring to it. \u201cWhat do you say?\u201d\n\n[P122] If it said now, \u201cDon\u2019t go home!\u201d What a famous clock, hereafter, if\nit said to-night of all the nights that it has counted off, to this\nold man of all the young and old men who have ever stood before it,\n\u201cDon\u2019t go home!\u201d With its sharp clear bell it strikes three quarters\nafter seven and ticks on again. \u201cWhy, you are worse than I thought\nyou,\u201d says Mr. Tulkinghorn, muttering reproof to his watch. \u201cTwo\nminutes wrong? At this rate you won\u2019t last my time.\u201d What a watch to\nreturn good for evil if it ticked in answer, \u201cDon\u2019t go home!\u201d\n\n[P123] He passes out into the streets and walks on, with his hands behind\nhim, under the shadow of the lofty houses, many of whose mysteries,\ndifficulties, mortgages, delicate affairs of all kinds, are treasured\nup within his old black satin waistcoat. He is in the confidence of\nthe very bricks and mortar. The high chimney-stacks telegraph family\nsecrets to him. Yet there is not a voice in a mile of them to\nwhisper, \u201cDon\u2019t go home!\u201d\n\n[P124] Through the stir and motion of the commoner streets; through the roar\nand jar of many vehicles, many feet, many voices; with the blazing\nshop-lights lighting him on, the west wind blowing him on, and the\ncrowd pressing him on, he is pitilessly urged upon his way, and\nnothing meets him murmuring, \u201cDon\u2019t go home!\u201d Arrived at last in his\ndull room to light his candles, and look round and up, and see the\nRoman pointing from the ceiling, there is no new significance in the\nRoman\u2019s hand to-night or in the flutter of the attendant groups to\ngive him the late warning, \u201cDon\u2019t come here!\u201d\n\n[P125] It is a moonlight night, but the moon, being past the full, is only\nnow rising over the great wilderness of London. The stars are shining\nas they shone above the turret-leads at Chesney Wold. This woman, as\nhe has of late been so accustomed to call her, looks out upon them.\nHer soul is turbulent within her; she is sick at heart and restless.\nThe large rooms are too cramped and close. She cannot endure their\nrestraint and will walk alone in a neighbouring garden.\n\n[P126] Too capricious and imperious in all she does to be the cause of much\nsurprise in those about her as to anything she does, this woman,\nloosely muffled, goes out into the moonlight. Mercury attends with\nthe key. Having opened the garden-gate, he delivers the key into his\nLady\u2019s hands at her request and is bidden to go back. She will walk\nthere some time to ease her aching head. She may be an hour, she may\nbe more. She needs no further escort. The gate shuts upon its spring\nwith a clash, and he leaves her passing on into the dark shade of\nsome trees.\n\n[P127] A fine night, and a bright large moon, and multitudes of stars. Mr.\nTulkinghorn, in repairing to his cellar and in opening and shutting\nthose resounding doors, has to cross a little prison-like yard. He\nlooks up casually, thinking what a fine night, what a bright large\nmoon, what multitudes of stars! A quiet night, too.\n\n[P128] A very quiet night. When the moon shines very brilliantly, a solitude\nand stillness seem to proceed from her that influence even crowded\nplaces full of life. Not only is it a still night on dusty high roads\nand on hill-summits, whence a wide expanse of country may be seen in\nrepose, quieter and quieter as it spreads away into a fringe of trees\nagainst the sky with the grey ghost of a bloom upon them; not only is\nit a still night in gardens and in woods, and on the river where the\nwater-meadows are fresh and green, and the stream sparkles on among\npleasant islands, murmuring weirs, and whispering rushes; not only\ndoes the stillness attend it as it flows where houses cluster thick,\nwhere many bridges are reflected in it, where wharves and shipping\nmake it black and awful, where it winds from these disfigurements\nthrough marshes whose grim beacons stand like skeletons washed\nashore, where it expands through the bolder region of rising grounds,\nrich in cornfield wind-mill and steeple, and where it mingles with\nthe ever-heaving sea; not only is it a still night on the deep, and\non the shore where the watcher stands to see the ship with her spread\nwings cross the path of light that appears to be presented to only\nhim; but even on this stranger\u2019s wilderness of London there is some\nrest. Its steeples and towers and its one great dome grow more\nethereal; its smoky house-tops lose their grossness in the pale\neffulgence; the noises that arise from the streets are fewer and are\nsoftened, and the footsteps on the pavements pass more tranquilly\naway. In these fields of Mr. Tulkinghorn\u2019s inhabiting, where the\nshepherds play on Chancery pipes that have no stop, and keep their\nsheep in the fold by hook and by crook until they have shorn them\nexceeding close, every noise is merged, this moonlight night, into a\ndistant ringing hum, as if the city were a vast glass, vibrating.\n\n[P129] What\u2019s that? Who fired a gun or pistol? Where was it?\n\n[P130] The few foot-passengers start, stop, and stare about them. Some\nwindows and doors are opened, and people come out to look. It was a\nloud report and echoed and rattled heavily. It shook one house, or so\na man says who was passing. It has aroused all the dogs in the\nneighbourhood, who bark vehemently. Terrified cats scamper across the\nroad. While the dogs are yet barking and howling\u2014there is one dog\nhowling like a demon\u2014the church-clocks, as if they were startled\ntoo, begin to strike. The hum from the streets, likewise, seems to\nswell into a shout. But it is soon over. Before the last clock begins\nto strike ten, there is a lull. When it has ceased, the fine night,\nthe bright large moon, and multitudes of stars, are left at peace\nagain.\n\n[P131] Has Mr. Tulkinghorn been disturbed? His windows are dark and quiet,\nand his door is shut. It must be something unusual indeed to bring\nhim out of his shell. Nothing is heard of him, nothing is seen of\nhim. What power of cannon might it take to shake that rusty old man\nout of his immovable composure?\n\n[P132] For many years the persistent Roman has been pointing, with no\nparticular meaning, from that ceiling. It is not likely that he has\nany new meaning in him to-night. Once pointing, always pointing\u2014like\nany Roman, or even Briton, with a single idea. There he is, no doubt,\nin his impossible attitude, pointing, unavailingly, all night long.\nMoonlight, darkness, dawn, sunrise, day. There he is still, eagerly\npointing, and no one minds him.\n\n[P133] But a little after the coming of the day come people to clean the\nrooms. And either the Roman has some new meaning in him, not\nexpressed before, or the foremost of them goes wild, for looking up\nat his outstretched hand and looking down at what is below it, that\nperson shrieks and flies. The others, looking in as the first one\nlooked, shriek and fly too, and there is an alarm in the street.\n\n[P134] What does it mean? No light is admitted into the darkened chamber,\nand people unaccustomed to it enter, and treading softly but heavily,\ncarry a weight into the bedroom and lay it down. There is whispering\nand wondering all day, strict search of every corner, careful tracing\nof steps, and careful noting of the disposition of every article of\nfurniture. All eyes look up at the Roman, and all voices murmur, \u201cIf\nhe could only tell what he saw!\u201d\n\n[P135] He is pointing at a table with a bottle (nearly full of wine) and a\nglass upon it and two candles that were blown out suddenly soon after\nbeing lighted. He is pointing at an empty chair and at a stain upon\nthe ground before it that might be almost covered with a hand. These\nobjects lie directly within his range. An excited imagination might\nsuppose that there was something in them so terrific as to drive the\nrest of the composition, not only the attendant big-legged boys, but\nthe clouds and flowers and pillars too\u2014in short, the very body and\nsoul of Allegory, and all the brains it has\u2014stark mad. It happens\nsurely that every one who comes into the darkened room and looks at\nthese things looks up at the Roman and that he is invested in all\neyes with mystery and awe, as if he were a paralysed dumb witness.\n\n[P136] So it shall happen surely, through many years to come, that ghostly\nstories shall be told of the stain upon the floor, so easy to be\ncovered, so hard to be got out, and that the Roman, pointing from the\nceiling shall point, so long as dust and damp and spiders spare him,\nwith far greater significance than he ever had in Mr. Tulkinghorn\u2019s\ntime, and with a deadly meaning. For Mr. Tulkinghorn\u2019s time is over\nfor evermore, and the Roman pointed at the murderous hand uplifted\nagainst his life, and pointed helplessly at him, from night to\nmorning, lying face downward on the floor, shot through the heart."
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

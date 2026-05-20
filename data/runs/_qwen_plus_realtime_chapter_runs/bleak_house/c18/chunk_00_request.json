@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c18 - Lady Dedlock\n\n[P0] It was not so easy as it had appeared at first to arrange for\nRichard\u2019s making a trial of Mr. Kenge\u2019s office. Richard himself was\nthe chief impediment. As soon as he had it in his power to leave Mr.\nBadger at any moment, he began to doubt whether he wanted to leave\nhim at all. He didn\u2019t know, he said, really. It wasn\u2019t a bad\nprofession; he couldn\u2019t assert that he disliked it; perhaps he liked\nit as well as he liked any other\u2014suppose he gave it one more chance!\nUpon that, he shut himself up for a few weeks with some books and\nsome bones and seemed to acquire a considerable fund of information\nwith great rapidity. His fervour, after lasting about a month, began\nto cool, and when it was quite cooled, began to grow warm again. His\nvacillations between law and medicine lasted so long that midsummer\narrived before he finally separated from Mr. Badger and entered on an\nexperimental course of Messrs. Kenge and Carboy. For all his\nwaywardness, he took great credit to himself as being determined to\nbe in earnest \u201cthis time.\u201d And he was so good-natured throughout, and\nin such high spirits, and so fond of Ada, that it was very difficult\nindeed to be otherwise than pleased with him.\n\n[P1] \u201cAs to Mr. Jarndyce,\u201d who, I may mention, found the wind much given,\nduring this period, to stick in the east; \u201cAs to Mr. Jarndyce,\u201d\nRichard would say to me, \u201che is the finest fellow in the world,\nEsther! I must be particularly careful, if it were only for his\nsatisfaction, to take myself well to task and have a regular wind-up\nof this business now.\u201d\n\n[P2] The idea of his taking himself well to task, with that laughing face\nand heedless manner and with a fancy that everything could catch and\nnothing could hold, was ludicrously anomalous. However, he told us\nbetween-whiles that he was doing it to such an extent that he\nwondered his hair didn\u2019t turn grey. His regular wind-up of the\nbusiness was (as I have said) that he went to Mr. Kenge\u2019s about\nmidsummer to try how he liked it.\n\n[P3] All this time he was, in money affairs, what I have described him in\na former illustration\u2014generous, profuse, wildly careless, but fully\npersuaded that he was rather calculating and prudent. I happened to\nsay to Ada, in his presence, half jestingly, half seriously, about\nthe time of his going to Mr. Kenge\u2019s, that he needed to have\nFortunatus\u2019 purse, he made so light of money, which he answered in\nthis way, \u201cMy jewel of a dear cousin, you hear this old woman! Why\ndoes she say that? Because I gave eight pounds odd (or whatever it\nwas) for a certain neat waistcoat and buttons a few days ago. Now, if\nI had stayed at Badger\u2019s I should have been obliged to spend twelve\npounds at a blow for some heart-breaking lecture-fees. So I make four\npounds\u2014in a lump\u2014by the transaction!\u201d\n\n[P4] It was a question much discussed between him and my guardian what\narrangements should be made for his living in London while he\nexperimented on the law, for we had long since gone back to Bleak\nHouse, and it was too far off to admit of his coming there oftener\nthan once a week. My guardian told me that if Richard were to settle\ndown at Mr. Kenge\u2019s he would take some apartments or chambers where\nwe too could occasionally stay for a few days at a time; \u201cbut, little\nwoman,\u201d he added, rubbing his head very significantly, \u201che hasn\u2019t\nsettled down there yet!\u201d The discussions ended in our hiring for him,\nby the month, a neat little furnished lodging in a quiet old house\nnear Queen Square. He immediately began to spend all the money he had\nin buying the oddest little ornaments and luxuries for this lodging;\nand so often as Ada and I dissuaded him from making any purchase that\nhe had in contemplation which was particularly unnecessary and\nexpensive, he took credit for what it would have cost and made out\nthat to spend anything less on something else was to save the\ndifference.\n\n[P5] While these affairs were in abeyance, our visit to Mr. Boythorn\u2019s was\npostponed. At length, Richard having taken possession of his lodging,\nthere was nothing to prevent our departure. He could have gone with\nus at that time of the year very well, but he was in the full novelty\nof his new position and was making most energetic attempts to unravel\nthe mysteries of the fatal suit. Consequently we went without him,\nand my darling was delighted to praise him for being so busy.\n\n[P6] We made a pleasant journey down into Lincolnshire by the coach and\nhad an entertaining companion in Mr. Skimpole. His furniture had been\nall cleared off, it appeared, by the person who took possession of it\non his blue-eyed daughter\u2019s birthday, but he seemed quite relieved to\nthink that it was gone. Chairs and table, he said, were wearisome\nobjects; they were monotonous ideas, they had no variety of\nexpression, they looked you out of countenance, and you looked them\nout of countenance. How pleasant, then, to be bound to no particular\nchairs and tables, but to sport like a butterfly among all the\nfurniture on hire, and to flit from rosewood to mahogany, and from\nmahogany to walnut, and from this shape to that, as the humour took\none!\n\n[P7] \u201cThe oddity of the thing is,\u201d said Mr. Skimpole with a quickened\nsense of the ludicrous, \u201cthat my chairs and tables were not paid for,\nand yet my landlord walks off with them as composedly as possible.\nNow, that seems droll! There is something grotesque in it. The chair\nand table merchant never engaged to pay my landlord my rent. Why\nshould my landlord quarrel with HIM? If I have a pimple on my nose\nwhich is disagreeable to my landlord\u2019s peculiar ideas of beauty, my\nlandlord has no business to scratch my chair and table merchant\u2019s\nnose, which has no pimple on it. His reasoning seems defective!\u201d\n\n[P8] \u201cWell,\u201d said my guardian good-humouredly, \u201cit\u2019s pretty clear that\nwhoever became security for those chairs and tables will have to pay\nfor them.\u201d\n\n[P9] \u201cExactly!\u201d returned Mr. Skimpole. \u201cThat\u2019s the crowning point of\nunreason in the business! I said to my landlord, \u2018My good man, you\nare not aware that my excellent friend Jarndyce will have to pay for\nthose things that you are sweeping off in that indelicate manner.\nHave you no consideration for HIS property?\u2019 He hadn\u2019t the least.\u201d\n\n[P10] \u201cAnd refused all proposals,\u201d said my guardian.\n\n[P11] \u201cRefused all proposals,\u201d returned Mr. Skimpole. \u201cI made him business\nproposals. I had him into my room. I said, \u2018You are a man of\nbusiness, I believe?\u2019 He replied, \u2018I am.\u2019 \u2018Very well,\u2019 said I, \u2018now\nlet us be business-like. Here is an inkstand, here are pens and\npaper, here are wafers. What do you want? I have occupied your house\nfor a considerable period, I believe to our mutual satisfaction until\nthis unpleasant misunderstanding arose; let us be at once friendly\nand business-like. What do you want?\u2019 In reply to this, he made use\nof the figurative expression\u2014which has something Eastern about\nit\u2014that he had never seen the colour of my money. \u2018My amiable\nfriend,\u2019 said I, \u2018I never have any money. I never know anything about\nmoney.\u2019 \u2018Well, sir,\u2019 said he, \u2018what do you offer if I give you time?\u2019\n\u2018My good fellow,\u2019 said I, \u2018I have no idea of time; but you say you\nare a man of business, and whatever you can suggest to be done in a\nbusiness-like way with pen, and ink, and paper\u2014and wafers\u2014I am\nready to do. Don\u2019t pay yourself at another man\u2019s expense (which is\nfoolish), but be business-like!\u2019 However, he wouldn\u2019t be, and there\nwas an end of it.\u201d\n\n[P12] If these were some of the inconveniences of Mr. Skimpole\u2019s childhood,\nit assuredly possessed its advantages too. On the journey he had a\nvery good appetite for such refreshment as came in our way (including\na basket of choice hothouse peaches), but never thought of paying for\nanything. So when the coachman came round for his fee, he pleasantly\nasked him what he considered a very good fee indeed, now\u2014a liberal\none\u2014and on his replying half a crown for a single passenger, said it\nwas little enough too, all things considered, and left Mr. Jarndyce\nto give it him.\n\n[P13] It was delightful weather. The green corn waved so beautifully, the\nlarks sang so joyfully, the hedges were so full of wild flowers, the\ntrees were so thickly out in leaf, the bean-fields, with a light wind\nblowing over them, filled the air with such a delicious fragrance!\nLate in the afternoon we came to the market-town where we were to\nalight from the coach\u2014a dull little town with a church-spire, and a\nmarketplace, and a market-cross, and one intensely sunny street, and\na pond with an old horse cooling his legs in it, and a very few men\nsleepily lying and standing about in narrow little bits of shade.\nAfter the rustling of the leaves and the waving of the corn all along\nthe road, it looked as still, as hot, as motionless a little town as\nEngland could produce.\n\n[P14] At the inn we found Mr. Boythorn on horseback, waiting with an open\ncarriage to take us to his house, which was a few miles off. He was\noverjoyed to see us and dismounted with great alacrity.\n\n[P15] \u201cBy heaven!\u201d said he after giving us a courteous greeting. \u201cThis a\nmost infamous coach. It is the most flagrant example of an abominable\npublic vehicle that ever encumbered the face of the earth. It is\ntwenty-five minutes after its time this afternoon. The coachman ought\nto be put to death!\u201d\n\n[P16] \u201cIS he after his time?\u201d said Mr. Skimpole, to whom he happened to\naddress himself. \u201cYou know my infirmity.\u201d\n\n[P17] \u201cTwenty-five minutes! Twenty-six minutes!\u201d replied Mr. Boythorn,\nreferring to his watch. \u201cWith two ladies in the coach, this scoundrel\nhas deliberately delayed his arrival six and twenty minutes.\nDeliberately! It is impossible that it can be accidental! But his\nfather\u2014and his uncle\u2014were the most profligate coachmen that ever\nsat upon a box.\u201d\n\n[P18] While he said this in tones of the greatest indignation, he handed us\ninto the little phaeton with the utmost gentleness and was all smiles\nand pleasure.\n\n[P19] \u201cI am sorry, ladies,\u201d he said, standing bare-headed at the\ncarriage-door when all was ready, \u201cthat I am obliged to conduct you\nnearly two miles out of the way. But our direct road lies through Sir\nLeicester Dedlock\u2019s park, and in that fellow\u2019s property I have sworn\nnever to set foot of mine, or horse\u2019s foot of mine, pending the\npresent relations between us, while I breathe the breath of life!\u201d\nAnd here, catching my guardian\u2019s eye, he broke into one of his\ntremendous laughs, which seemed to shake even the motionless little\nmarket-town."
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c7 - The Ghost\u2019s Walk\n\n[P0] While Esther sleeps, and while Esther wakes, it is still wet weather\ndown at the place in Lincolnshire. The rain is ever falling\u2014drip,\ndrip, drip\u2014by day and night upon the broad flagged terrace-pavement,\nthe Ghost\u2019s Walk. The weather is so very bad down in Lincolnshire\nthat the liveliest imagination can scarcely apprehend its ever being\nfine again. Not that there is any superabundant life of imagination\non the spot, for Sir Leicester is not here (and, truly, even if he\nwere, would not do much for it in that particular), but is in Paris\nwith my Lady; and solitude, with dusky wings, sits brooding upon\nChesney Wold.\n\n[P1] There may be some motions of fancy among the lower animals at Chesney\nWold. The horses in the stables\u2014the long stables in a barren,\nred-brick court-yard, where there is a great bell in a turret, and a\nclock with a large face, which the pigeons who live near it and who\nlove to perch upon its shoulders seem to be always consulting\u2014THEY\nmay contemplate some mental pictures of fine weather on occasions,\nand may be better artists at them than the grooms. The old roan, so\nfamous for cross-country work, turning his large eyeball to the\ngrated window near his rack, may remember the fresh leaves that\nglisten there at other times and the scents that stream in, and may\nhave a fine run with the hounds, while the human helper, clearing out\nthe next stall, never stirs beyond his pitchfork and birch-broom. The\ngrey, whose place is opposite the door and who with an impatient\nrattle of his halter pricks his ears and turns his head so wistfully\nwhen it is opened, and to whom the opener says, \u201cWoa grey, then,\nsteady! Noabody wants you to-day!\u201d may know it quite as well as the\nman. The whole seemingly monotonous and uncompanionable half-dozen,\nstabled together, may pass the long wet hours when the door is shut\nin livelier communication than is held in the servants\u2019 hall or at\nthe Dedlock Arms, or may even beguile the time by improving (perhaps\ncorrupting) the pony in the loose-box in the corner.\n\n[P2] So the mastiff, dozing in his kennel in the court-yard with his large\nhead on his paws, may think of the hot sunshine when the shadows of\nthe stable-buildings tire his patience out by changing and leave him\nat one time of the day no broader refuge than the shadow of his own\nhouse, where he sits on end, panting and growling short, and very\nmuch wanting something to worry besides himself and his chain. So\nnow, half-waking and all-winking, he may recall the house full of\ncompany, the coach-houses full of vehicles, the stables full of\nhorses, and the out-buildings full of attendants upon horses, until\nhe is undecided about the present and comes forth to see how it is.\nThen, with that impatient shake of himself, he may growl in the\nspirit, \u201cRain, rain, rain! Nothing but rain\u2014and no family here!\u201d as\nhe goes in again and lies down with a gloomy yawn.\n\n[P3] So with the dogs in the kennel-buildings across the park, who have\ntheir restless fits and whose doleful voices when the wind has been\nvery obstinate have even made it known in the house itself\u2014upstairs,\ndownstairs, and in my Lady\u2019s chamber. They may hunt the whole\ncountry-side, while the raindrops are pattering round their\ninactivity. So the rabbits with their self-betraying tails, frisking\nin and out of holes at roots of trees, may be lively with ideas of\nthe breezy days when their ears are blown about or of those seasons\nof interest when there are sweet young plants to gnaw. The turkey in\nthe poultry-yard, always troubled with a class-grievance (probably\nChristmas), may be reminiscent of that summer morning wrongfully\ntaken from him when he got into the lane among the felled trees,\nwhere there was a barn and barley. The discontented goose, who stoops\nto pass under the old gateway, twenty feet high, may gabble out, if\nwe only knew it, a waddling preference for weather when the gateway\ncasts its shadow on the ground.\n\n[P4] Be this as it may, there is not much fancy otherwise stirring at\nChesney Wold. If there be a little at any odd moment, it goes, like a\nlittle noise in that old echoing place, a long way and usually leads\noff to ghosts and mystery.\n\n[P5] It has rained so hard and rained so long down in Lincolnshire that\nMrs. Rouncewell, the old housekeeper at Chesney Wold, has several\ntimes taken off her spectacles and cleaned them to make certain that\nthe drops were not upon the glasses. Mrs. Rouncewell might have been\nsufficiently assured by hearing the rain, but that she is rather\ndeaf, which nothing will induce her to believe. She is a fine old\nlady, handsome, stately, wonderfully neat, and has such a back and\nsuch a stomacher that if her stays should turn out when she dies to\nhave been a broad old-fashioned family fire-grate, nobody who knows\nher would have cause to be surprised. Weather affects Mrs. Rouncewell\nlittle. The house is there in all weathers, and the house, as she\nexpresses it, \u201cis what she looks at.\u201d She sits in her room (in a side\npassage on the ground floor, with an arched window commanding a\nsmooth quadrangle, adorned at regular intervals with smooth round\ntrees and smooth round blocks of stone, as if the trees were going to\nplay at bowls with the stones), and the whole house reposes on her\nmind. She can open it on occasion and be busy and fluttered, but it\nis shut up now and lies on the breadth of Mrs. Rouncewell\u2019s\niron-bound bosom in a majestic sleep.\n\n[P6] It is the next difficult thing to an impossibility to imagine Chesney\nWold without Mrs. Rouncewell, but she has only been here fifty years.\nAsk her how long, this rainy day, and she shall answer \u201cfifty year,\nthree months, and a fortnight, by the blessing of heaven, if I live\ntill Tuesday.\u201d Mr. Rouncewell died some time before the decease of\nthe pretty fashion of pig-tails, and modestly hid his own (if he took\nit with him) in a corner of the churchyard in the park near the\nmouldy porch. He was born in the market-town, and so was his young\nwidow. Her progress in the family began in the time of the last Sir\nLeicester and originated in the still-room.\n\n[P7] The present representative of the Dedlocks is an excellent master. He\nsupposes all his dependents to be utterly bereft of individual\ncharacters, intentions, or opinions, and is persuaded that he was\nborn to supersede the necessity of their having any. If he were to\nmake a discovery to the contrary, he would be simply stunned\u2014would\nnever recover himself, most likely, except to gasp and die. But he is\nan excellent master still, holding it a part of his state to be so.\nHe has a great liking for Mrs. Rouncewell; he says she is a most\nrespectable, creditable woman. He always shakes hands with her when\nhe comes down to Chesney Wold and when he goes away; and if he were\nvery ill, or if he were knocked down by accident, or run over, or\nplaced in any situation expressive of a Dedlock at a disadvantage, he\nwould say if he could speak, \u201cLeave me, and send Mrs. Rouncewell\nhere!\u201d feeling his dignity, at such a pass, safer with her than with\nanybody else.\n\n[P8] Mrs. Rouncewell has known trouble. She has had two sons, of whom the\nyounger ran wild, and went for a soldier, and never came back. Even\nto this hour, Mrs. Rouncewell\u2019s calm hands lose their composure when\nshe speaks of him, and unfolding themselves from her stomacher, hover\nabout her in an agitated manner as she says what a likely lad, what a\nfine lad, what a gay, good-humoured, clever lad he was! Her second\nson would have been provided for at Chesney Wold and would have been\nmade steward in due season, but he took, when he was a schoolboy, to\nconstructing steam-engines out of saucepans and setting birds to draw\ntheir own water with the least possible amount of labour, so\nassisting them with artful contrivance of hydraulic pressure that a\nthirsty canary had only, in a literal sense, to put his shoulder to\nthe wheel and the job was done. This propensity gave Mrs. Rouncewell\ngreat uneasiness. She felt it with a mother\u2019s anguish to be a move in\nthe Wat Tyler direction, well knowing that Sir Leicester had that\ngeneral impression of an aptitude for any art to which smoke and a\ntall chimney might be considered essential. But the doomed young\nrebel (otherwise a mild youth, and very persevering), showing no sign\nof grace as he got older but, on the contrary, constructing a model\nof a power-loom, she was fain, with many tears, to mention his\nbackslidings to the baronet. \u201cMrs. Rouncewell,\u201d said Sir Leicester,\n\u201cI can never consent to argue, as you know, with any one on any\nsubject. You had better get rid of your boy; you had better get him\ninto some Works. The iron country farther north is, I suppose, the\ncongenial direction for a boy with these tendencies.\u201d Farther north\nhe went, and farther north he grew up; and if Sir Leicester Dedlock\never saw him when he came to Chesney Wold to visit his mother, or\never thought of him afterwards, it is certain that he only regarded\nhim as one of a body of some odd thousand conspirators, swarthy and\ngrim, who were in the habit of turning out by torchlight two or three\nnights in the week for unlawful purposes.\n\n[P9] Nevertheless, Mrs. Rouncewell\u2019s son has, in the course of nature and\nart, grown up, and established himself, and married, and called unto\nhim Mrs. Rouncewell\u2019s grandson, who, being out of his apprenticeship,\nand home from a journey in far countries, whither he was sent to\nenlarge his knowledge and complete his preparations for the venture\nof this life, stands leaning against the chimney-piece this very day\nin Mrs. Rouncewell\u2019s room at Chesney Wold.\n\n[P10] \u201cAnd, again and again, I am glad to see you, Watt! And, once again, I\nam glad to see you, Watt!\u201d says Mrs. Rouncewell. \u201cYou are a fine\nyoung fellow. You are like your poor uncle George. Ah!\u201d Mrs.\nRouncewell\u2019s hands unquiet, as usual, on this reference.\n\n[P11] \u201cThey say I am like my father, grandmother.\u201d\n\n[P12] \u201cLike him, also, my dear\u2014but most like your poor uncle George! And\nyour dear father.\u201d Mrs. Rouncewell folds her hands again. \u201cHe is\nwell?\u201d\n\n[P13] \u201cThriving, grandmother, in every way.\u201d\n\n[P14] \u201cI am thankful!\u201d Mrs. Rouncewell is fond of her son but has a\nplaintive feeling towards him, much as if he were a very honourable\nsoldier who had gone over to the enemy.\n\n[P15] \u201cHe is quite happy?\u201d says she.\n\n[P16] \u201cQuite.\u201d\n\n[P17] \u201cI am thankful! So he has brought you up to follow in his ways and\nhas sent you into foreign countries and the like? Well, he knows\nbest. There may be a world beyond Chesney Wold that I don\u2019t\nunderstand. Though I am not young, either. And I have seen a quantity\nof good company too!\u201d\n\n[P18] \u201cGrandmother,\u201d says the young man, changing the subject, \u201cwhat a very\npretty girl that was I found with you just now. You called her Rosa?\u201d\n\n[P19] \u201cYes, child. She is daughter of a widow in the village. Maids are so\nhard to teach, now-a-days, that I have put her about me young. She\u2019s\nan apt scholar and will do well. She shows the house already, very\npretty. She lives with me at my table here.\u201d"
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

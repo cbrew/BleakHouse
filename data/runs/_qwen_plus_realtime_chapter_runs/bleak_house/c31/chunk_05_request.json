@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c31 - Nurse and Patient\n\n[P100] At what time of the night he had gone, or how, or why, it seemed\nhopeless ever to divine. The door remaining as it had been left, and\nthe lantern standing in the window, it could only be supposed that he\nhad got out by a trap in the floor which communicated with an empty\ncart-house below. But he had shut it down again, if that were so; and\nit looked as if it had not been raised. Nothing of any kind was\nmissing. On this fact being clearly ascertained, we all yielded to\nthe painful belief that delirium had come upon him in the night and\nthat, allured by some imaginary object or pursued by some imaginary\nhorror, he had strayed away in that worse than helpless state; all of\nus, that is to say, but Mr. Skimpole, who repeatedly suggested, in\nhis usual easy light style, that it had occurred to our young friend\nthat he was not a safe inmate, having a bad kind of fever upon him,\nand that he had with great natural politeness taken himself off.\n\n[P101] Every possible inquiry was made, and every place was searched. The\nbrick-kilns were examined, the cottages were visited, the two women\nwere particularly questioned, but they knew nothing of him, and\nnobody could doubt that their wonder was genuine. The weather had for\nsome time been too wet and the night itself had been too wet to admit\nof any tracing by footsteps. Hedge and ditch, and wall, and rick and\nstack, were examined by our men for a long distance round, lest the\nboy should be lying in such a place insensible or dead; but nothing\nwas seen to indicate that he had ever been near. From the time when\nhe was left in the loft-room, he vanished.\n\n[P102] The search continued for five days. I do not mean that it ceased even\nthen, but that my attention was then diverted into a current very\nmemorable to me.\n\n[P103] As Charley was at her writing again in my room in the evening, and as\nI sat opposite to her at work, I felt the table tremble. Looking up,\nI saw my little maid shivering from head to foot.\n\n[P104] \u201cCharley,\u201d said I, \u201care you so cold?\u201d\n\n[P105] \u201cI think I am, miss,\u201d she replied. \u201cI don\u2019t know what it is. I can\u2019t\nhold myself still. I felt so yesterday at about this same time, miss.\nDon\u2019t be uneasy, I think I\u2019m ill.\u201d\n\n[P106] I heard Ada\u2019s voice outside, and I hurried to the door of\ncommunication between my room and our pretty sitting-room, and locked\nit. Just in time, for she tapped at it while my hand was yet upon the\nkey.\n\n[P107] Ada called to me to let her in, but I said, \u201cNot now, my dearest. Go\naway. There\u2019s nothing the matter; I will come to you presently.\u201d Ah!\nIt was a long, long time before my darling girl and I were companions\nagain.\n\n[P108] Charley fell ill. In twelve hours she was very ill. I moved her to my\nroom, and laid her in my bed, and sat down quietly to nurse her. I\ntold my guardian all about it, and why I felt it was necessary that I\nshould seclude myself, and my reason for not seeing my darling above\nall. At first she came very often to the door, and called to me, and\neven reproached me with sobs and tears; but I wrote her a long letter\nsaying that she made me anxious and unhappy and imploring her, as she\nloved me and wished my mind to be at peace, to come no nearer than\nthe garden. After that she came beneath the window even oftener than\nshe had come to the door, and if I had learnt to love her dear sweet\nvoice before when we were hardly ever apart, how did I learn to love\nit then, when I stood behind the window-curtain listening and\nreplying, but not so much as looking out! How did I learn to love it\nafterwards, when the harder time came!\n\n[P109] They put a bed for me in our sitting-room; and by keeping the door\nwide open, I turned the two rooms into one, now that Ada had vacated\nthat part of the house, and kept them always fresh and airy. There\nwas not a servant in or about the house but was so good that they\nwould all most gladly have come to me at any hour of the day or night\nwithout the least fear or unwillingness, but I thought it best to\nchoose one worthy woman who was never to see Ada and whom I could\ntrust to come and go with all precaution. Through her means I got out\nto take the air with my guardian when there was no fear of meeting\nAda, and wanted for nothing in the way of attendance, any more than\nin any other respect.\n\n[P110] And thus poor Charley sickened and grew worse, and fell into heavy\ndanger of death, and lay severely ill for many a long round of day\nand night. So patient she was, so uncomplaining, and inspired by such\na gentle fortitude that very often as I sat by Charley holding her\nhead in my arms\u2014repose would come to her, so, when it would come to\nher in no other attitude\u2014I silently prayed to our Father in heaven\nthat I might not forget the lesson which this little sister taught\nme.\n\n[P111] I was very sorrowful to think that Charley\u2019s pretty looks would\nchange and be disfigured, even if she recovered\u2014she was such a child\nwith her dimpled face\u2014but that thought was, for the greater part,\nlost in her greater peril. When she was at the worst, and her mind\nrambled again to the cares of her father\u2019s sick bed and the little\nchildren, she still knew me so far as that she would be quiet in my\narms when she could lie quiet nowhere else, and murmur out the\nwanderings of her mind less restlessly. At those times I used to\nthink, how should I ever tell the two remaining babies that the baby\nwho had learned of her faithful heart to be a mother to them in their\nneed was dead!\n\n[P112] There were other times when Charley knew me well and talked to me,\ntelling me that she sent her love to Tom and Emma and that she was\nsure Tom would grow up to be a good man. At those times Charley would\nspeak to me of what she had read to her father as well as she could\nto comfort him, of that young man carried out to be buried who was\nthe only son of his mother and she was a widow, of the ruler\u2019s\ndaughter raised up by the gracious hand upon her bed of death. And\nCharley told me that when her father died she had kneeled down and\nprayed in her first sorrow that he likewise might be raised up and\ngiven back to his poor children, and that if she should never get\nbetter and should die too, she thought it likely that it might come\ninto Tom\u2019s mind to offer the same prayer for her. Then would I show\nTom how these people of old days had been brought back to life on\nearth, only that we might know our hope to be restored to heaven!\n\n[P113] But of all the various times there were in Charley\u2019s illness, there\nwas not one when she lost the gentle qualities I have spoken of. And\nthere were many, many when I thought in the night of the last high\nbelief in the watching angel, and the last higher trust in God, on\nthe part of her poor despised father.\n\n[P114] And Charley did not die. She flutteringly and slowly turned the\ndangerous point, after long lingering there, and then began to mend.\nThe hope that never had been given, from the first, of Charley being\nin outward appearance Charley any more soon began to be encouraged;\nand even that prospered, and I saw her growing into her old childish\nlikeness again.\n\n[P115] It was a great morning when I could tell Ada all this as she stood\nout in the garden; and it was a great evening when Charley and I at\nlast took tea together in the next room. But on that same evening, I\nfelt that I was stricken cold.\n\n[P116] Happily for both of us, it was not until Charley was safe in bed\nagain and placidly asleep that I began to think the contagion of her\nillness was upon me. I had been able easily to hide what I felt at\ntea-time, but I was past that already now, and I knew that I was\nrapidly following in Charley\u2019s steps.\n\n[P117] I was well enough, however, to be up early in the morning, and to\nreturn my darling\u2019s cheerful blessing from the garden, and to talk\nwith her as long as usual. But I was not free from an impression that\nI had been walking about the two rooms in the night, a little beside\nmyself, though knowing where I was; and I felt confused at\ntimes\u2014with a curious sense of fullness, as if I were becoming too\nlarge altogether.\n\n[P118] In the evening I was so much worse that I resolved to prepare\nCharley, with which view I said, \u201cYou\u2019re getting quite strong,\nCharley, are you not?\u201d\n\n[P119] \u201cOh, quite!\u201d said Charley."
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

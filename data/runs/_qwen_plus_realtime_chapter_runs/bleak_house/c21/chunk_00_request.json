@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c21 - The Smallweed Family\n\n[P0] In a rather ill-favoured and ill-savoured neighbourhood, though one\nof its rising grounds bears the name of Mount Pleasant, the Elfin\nSmallweed, christened Bartholomew and known on the domestic hearth as\nBart, passes that limited portion of his time on which the office and\nits contingencies have no claim. He dwells in a little narrow street,\nalways solitary, shady, and sad, closely bricked in on all sides like\na tomb, but where there yet lingers the stump of an old forest tree\nwhose flavour is about as fresh and natural as the Smallweed smack of\nyouth.\n\n[P1] There has been only one child in the Smallweed family for several\ngenerations. Little old men and women there have been, but no child,\nuntil Mr. Smallweed\u2019s grandmother, now living, became weak in her\nintellect and fell (for the first time) into a childish state. With\nsuch infantine graces as a total want of observation, memory,\nunderstanding, and interest, and an eternal disposition to fall\nasleep over the fire and into it, Mr. Smallweed\u2019s grandmother has\nundoubtedly brightened the family.\n\n[P2] Mr. Smallweed\u2019s grandfather is likewise of the party. He is in a\nhelpless condition as to his lower, and nearly so as to his upper,\nlimbs, but his mind is unimpaired. It holds, as well as it ever held,\nthe first four rules of arithmetic and a certain small collection of\nthe hardest facts. In respect of ideality, reverence, wonder, and\nother such phrenological attributes, it is no worse off than it used\nto be. Everything that Mr. Smallweed\u2019s grandfather ever put away in\nhis mind was a grub at first, and is a grub at last. In all his life\nhe has never bred a single butterfly.\n\n[P3] The father of this pleasant grandfather, of the neighbourhood of\nMount Pleasant, was a horny-skinned, two-legged, money-getting\nspecies of spider who spun webs to catch unwary flies and retired\ninto holes until they were entrapped. The name of this old pagan\u2019s\ngod was Compound Interest. He lived for it, married it, died of it.\nMeeting with a heavy loss in an honest little enterprise in which all\nthe loss was intended to have been on the other side, he broke\nsomething\u2014something necessary to his existence, therefore it\ncouldn\u2019t have been his heart\u2014and made an end of his career. As his\ncharacter was not good, and he had been bred at a charity school in a\ncomplete course, according to question and answer, of those ancient\npeople the Amorites and Hittites, he was frequently quoted as an\nexample of the failure of education.\n\n[P4] His spirit shone through his son, to whom he had always preached of\n\u201cgoing out\u201d early in life and whom he made a clerk in a sharp\nscrivener\u2019s office at twelve years old. There the young gentleman\nimproved his mind, which was of a lean and anxious character, and\ndeveloping the family gifts, gradually elevated himself into the\ndiscounting profession. Going out early in life and marrying late, as\nhis father had done before him, he too begat a lean and\nanxious-minded son, who in his turn, going out early in life and\nmarrying late, became the father of Bartholomew and Judith Smallweed,\ntwins. During the whole time consumed in the slow growth of this\nfamily tree, the house of Smallweed, always early to go out and late\nto marry, has strengthened itself in its practical character, has\ndiscarded all amusements, discountenanced all story-books,\nfairy-tales, fictions, and fables, and banished all levities\nwhatsoever. Hence the gratifying fact that it has had no child born\nto it and that the complete little men and women whom it has produced\nhave been observed to bear a likeness to old monkeys with something\ndepressing on their minds.\n\n[P5] At the present time, in the dark little parlour certain feet below\nthe level of the street\u2014a grim, hard, uncouth parlour, only\nornamented with the coarsest of baize table-covers, and the hardest\nof sheet-iron tea-trays, and offering in its decorative character no\nbad allegorical representation of Grandfather Smallweed\u2019s\nmind\u2014seated in two black horsehair porter\u2019s chairs, one on each side\nof the fire-place, the superannuated Mr. and Mrs. Smallweed while\naway the rosy hours. On the stove are a couple of trivets for the\npots and kettles which it is Grandfather Smallweed\u2019s usual occupation\nto watch, and projecting from the chimney-piece between them is a\nsort of brass gallows for roasting, which he also superintends when\nit is in action. Under the venerable Mr. Smallweed\u2019s seat and guarded\nby his spindle legs is a drawer in his chair, reported to contain\nproperty to a fabulous amount. Beside him is a spare cushion with\nwhich he is always provided in order that he may have something to\nthrow at the venerable partner of his respected age whenever she\nmakes an allusion to money\u2014a subject on which he is particularly\nsensitive.\n\n[P6] \u201cAnd where\u2019s Bart?\u201d Grandfather Smallweed inquires of Judy, Bart\u2019s\ntwin sister.\n\n[P7] \u201cHe an\u2019t come in yet,\u201d says Judy.\n\n[P8] \u201cIt\u2019s his tea-time, isn\u2019t it?\u201d\n\n[P9] \u201cNo.\u201d\n\n[P10] \u201cHow much do you mean to say it wants then?\u201d\n\n[P11] \u201cTen minutes.\u201d\n\n[P12] \u201cHey?\u201d\n\n[P13] \u201cTen minutes.\u201d (Loud on the part of Judy.)\n\n[P14] \u201cHo!\u201d says Grandfather Smallweed. \u201cTen minutes.\u201d\n\n[P15] Grandmother Smallweed, who has been mumbling and shaking her head at\nthe trivets, hearing figures mentioned, connects them with money and\nscreeches like a horrible old parrot without any plumage, \u201cTen\nten-pound notes!\u201d\n\n[P16] Grandfather Smallweed immediately throws the cushion at her.\n\n[P17] \u201cDrat you, be quiet!\u201d says the good old man.\n\n[P18] The effect of this act of jaculation is twofold. It not only doubles\nup Mrs. Smallweed\u2019s head against the side of her porter\u2019s chair and\ncauses her to present, when extricated by her granddaughter, a highly\nunbecoming state of cap, but the necessary exertion recoils on Mr.\nSmallweed himself, whom it throws back into HIS porter\u2019s chair like a\nbroken puppet. The excellent old gentleman being at these times a\nmere clothes-bag with a black skull-cap on the top of it, does not\npresent a very animated appearance until he has undergone the two\noperations at the hands of his granddaughter of being shaken up like\na great bottle and poked and punched like a great bolster. Some\nindication of a neck being developed in him by these means, he and\nthe sharer of his life\u2019s evening again sit fronting one another in their\ntwo porter\u2019s chairs, like a couple of sentinels long forgotten on\ntheir post by the Black Serjeant, Death.\n\n[P19] Judy the twin is worthy company for these associates. She is so\nindubitably sister to Mr. Smallweed the younger that the two kneaded\ninto one would hardly make a young person of average proportions,\nwhile she so happily exemplifies the before-mentioned family likeness\nto the monkey tribe that attired in a spangled robe and cap she might\nwalk about the table-land on the top of a barrel-organ without\nexciting much remark as an unusual specimen. Under existing\ncircumstances, however, she is dressed in a plain, spare gown of\nbrown stuff."
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

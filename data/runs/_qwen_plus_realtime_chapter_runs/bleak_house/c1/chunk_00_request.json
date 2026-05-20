@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c1 - In Chancery\n\n[P0] London. Michaelmas term lately over, and the Lord Chancellor sitting\nin Lincoln\u2019s Inn Hall. Implacable November weather. As much mud in\nthe streets as if the waters had but newly retired from the face of\nthe earth, and it would not be wonderful to meet a Megalosaurus,\nforty feet long or so, waddling like an elephantine lizard up Holborn\nHill. Smoke lowering down from chimney-pots, making a soft black\ndrizzle, with flakes of soot in it as big as full-grown\nsnowflakes\u2014gone into mourning, one might imagine, for the death of\nthe sun. Dogs, undistinguishable in mire. Horses, scarcely better;\nsplashed to their very blinkers. Foot passengers, jostling one\nanother\u2019s umbrellas in a general infection of ill temper, and losing\ntheir foot-hold at street-corners, where tens of thousands of other\nfoot passengers have been slipping and sliding since the day broke\n(if this day ever broke), adding new deposits to the crust upon crust\nof mud, sticking at those points tenaciously to the pavement, and\naccumulating at compound interest.\n\n[P1] Fog everywhere. Fog up the river, where it flows among green aits and\nmeadows; fog down the river, where it rolls defiled among the tiers\nof shipping and the waterside pollutions of a great (and dirty) city.\nFog on the Essex marshes, fog on the Kentish heights. Fog creeping\ninto the cabooses of collier-brigs; fog lying out on the yards and\nhovering in the rigging of great ships; fog drooping on the gunwales\nof barges and small boats. Fog in the eyes and throats of ancient\nGreenwich pensioners, wheezing by the firesides of their wards; fog\nin the stem and bowl of the afternoon pipe of the wrathful skipper,\ndown in his close cabin; fog cruelly pinching the toes and fingers of\nhis shivering little \u2019prentice boy on deck. Chance people on the\nbridges peeping over the parapets into a nether sky of fog, with fog\nall round them, as if they were up in a balloon and hanging in the\nmisty clouds.\n\n[P2] Gas looming through the fog in divers places in the streets, much as\nthe sun may, from the spongey fields, be seen to loom by husbandman\nand ploughboy. Most of the shops lighted two hours before their\ntime\u2014as the gas seems to know, for it has a haggard and unwilling\nlook.\n\n[P3] The raw afternoon is rawest, and the dense fog is densest, and the\nmuddy streets are muddiest near that leaden-headed old obstruction,\nappropriate ornament for the threshold of a leaden-headed old\ncorporation, Temple Bar. And hard by Temple Bar, in Lincoln\u2019s Inn\nHall, at the very heart of the fog, sits the Lord High Chancellor in\nhis High Court of Chancery.\n\n[P4] Never can there come fog too thick, never can there come mud and mire\ntoo deep, to assort with the groping and floundering condition which\nthis High Court of Chancery, most pestilent of hoary sinners, holds\nthis day in the sight of heaven and earth.\n\n[P5] On such an afternoon, if ever, the Lord High Chancellor ought to be\nsitting here\u2014as here he is\u2014with a foggy glory round his head,\nsoftly fenced in with crimson cloth and curtains, addressed by a\nlarge advocate with great whiskers, a little voice, and an\ninterminable brief, and outwardly directing his contemplation to the\nlantern in the roof, where he can see nothing but fog. On such an\nafternoon some score of members of the High Court of Chancery bar\nought to be\u2014as here they are\u2014mistily engaged in one of the ten\nthousand stages of an endless cause, tripping one another up on\nslippery precedents, groping knee-deep in technicalities, running\ntheir goat-hair and horsehair warded heads against walls of words and\nmaking a pretence of equity with serious faces, as players might. On\nsuch an afternoon the various solicitors in the cause, some two or\nthree of whom have inherited it from their fathers, who made a\nfortune by it, ought to be\u2014as are they not?\u2014ranged in a line, in a\nlong matted well (but you might look in vain for truth at the bottom\nof it) between the registrar\u2019s red table and the silk gowns, with\nbills, cross-bills, answers, rejoinders, injunctions, affidavits,\nissues, references to masters, masters\u2019 reports, mountains of costly\nnonsense, piled before them. Well may the court be dim, with wasting\ncandles here and there; well may the fog hang heavy in it, as if it\nwould never get out; well may the stained-glass windows lose their\ncolour and admit no light of day into the place; well may the\nuninitiated from the streets, who peep in through the glass panes in\nthe door, be deterred from entrance by its owlish aspect and by the\ndrawl, languidly echoing to the roof from the padded dais where the\nLord High Chancellor looks into the lantern that has no light in it\nand where the attendant wigs are all stuck in a fog-bank! This is the\nCourt of Chancery, which has its decaying houses and its blighted\nlands in every shire, which has its worn-out lunatic in every\nmadhouse and its dead in every churchyard, which has its ruined\nsuitor with his slipshod heels and threadbare dress borrowing and\nbegging through the round of every man\u2019s acquaintance, which gives to\nmonied might the means abundantly of wearying out the right, which so\nexhausts finances, patience, courage, hope, so overthrows the brain\nand breaks the heart, that there is not an honourable man among its\npractitioners who would not give\u2014who does not often give\u2014the\nwarning, \u201cSuffer any wrong that can be done you rather than come\nhere!\u201d\n\n[P6] Who happen to be in the Lord Chancellor\u2019s court this murky afternoon\nbesides the Lord Chancellor, the counsel in the cause, two or three\ncounsel who are never in any cause, and the well of solicitors before\nmentioned? There is the registrar below the judge, in wig and gown;\nand there are two or three maces, or petty-bags, or privy purses, or\nwhatever they may be, in legal court suits. These are all yawning,\nfor no crumb of amusement ever falls from Jarndyce and Jarndyce (the\ncause in hand), which was squeezed dry years upon years ago. The\nshort-hand writers, the reporters of the court, and the reporters of\nthe newspapers invariably decamp with the rest of the regulars when\nJarndyce and Jarndyce comes on. Their places are a blank. Standing on\na seat at the side of the hall, the better to peer into the curtained\nsanctuary, is a little mad old woman in a squeezed bonnet who is\nalways in court, from its sitting to its rising, and always expecting\nsome incomprehensible judgment to be given in her favour. Some say\nshe really is, or was, a party to a suit, but no one knows for\ncertain because no one cares. She carries some small litter in a\nreticule which she calls her documents, principally consisting of\npaper matches and dry lavender. A sallow prisoner has come up, in\ncustody, for the half-dozenth time to make a personal application \u201cto\npurge himself of his contempt,\u201d which, being a solitary surviving\nexecutor who has fallen into a state of conglomeration about accounts\nof which it is not pretended that he had ever any knowledge, he is\nnot at all likely ever to do. In the meantime his prospects in life\nare ended. Another ruined suitor, who periodically appears from\nShropshire and breaks out into efforts to address the Chancellor at\nthe close of the day\u2019s business and who can by no means be made to\nunderstand that the Chancellor is legally ignorant of his existence\nafter making it desolate for a quarter of a century, plants himself\nin a good place and keeps an eye on the judge, ready to call out \u201cMy\nLord!\u201d in a voice of sonorous complaint on the instant of his rising.\nA few lawyers\u2019 clerks and others who know this suitor by sight linger\non the chance of his furnishing some fun and enlivening the dismal\nweather a little.\n\n[P7] Jarndyce and Jarndyce drones on. This scarecrow of a suit has, in\ncourse of time, become so complicated that no man alive knows what it\nmeans. The parties to it understand it least, but it has been\nobserved that no two Chancery lawyers can talk about it for five\nminutes without coming to a total disagreement as to all the\npremises. Innumerable children have been born into the cause;\ninnumerable young people have married into it; innumerable old people\nhave died out of it. Scores of persons have deliriously found\nthemselves made parties in Jarndyce and Jarndyce without knowing how\nor why; whole families have inherited legendary hatreds with the\nsuit. The little plaintiff or defendant who was promised a new\nrocking-horse when Jarndyce and Jarndyce should be settled has grown\nup, possessed himself of a real horse, and trotted away into the\nother world. Fair wards of court have faded into mothers and\ngrandmothers; a long procession of Chancellors has come in and gone\nout; the legion of bills in the suit have been transformed into mere\nbills of mortality; there are not three Jarndyces left upon the earth\nperhaps since old Tom Jarndyce in despair blew his brains out at a\ncoffee-house in Chancery Lane; but Jarndyce and Jarndyce still drags\nits dreary length before the court, perennially hopeless.\n\n[P8] Jarndyce and Jarndyce has passed into a joke. That is the only good\nthat has ever come of it. It has been death to many, but it is a joke\nin the profession. Every master in Chancery has had a reference out\nof it. Every Chancellor was \u201cin it,\u201d for somebody or other, when he\nwas counsel at the bar. Good things have been said about it by\nblue-nosed, bulbous-shoed old benchers in select port-wine committee\nafter dinner in hall. Articled clerks have been in the habit of\nfleshing their legal wit upon it. The last Lord Chancellor handled it\nneatly, when, correcting Mr. Blowers, the eminent silk gown who said\nthat such a thing might happen when the sky rained potatoes, he\nobserved, \u201cor when we get through Jarndyce and Jarndyce, Mr.\nBlowers\u201d\u2014a pleasantry that particularly tickled the maces, bags, and\npurses.\n\n[P9] How many people out of the suit Jarndyce and Jarndyce has stretched\nforth its unwholesome hand to spoil and corrupt would be a very wide\nquestion. From the master upon whose impaling files reams of dusty\nwarrants in Jarndyce and Jarndyce have grimly writhed into many\nshapes, down to the copying-clerk in the Six Clerks\u2019 Office who has\ncopied his tens of thousands of Chancery folio-pages under that\neternal heading, no man\u2019s nature has been made better by it. In\ntrickery, evasion, procrastination, spoliation, botheration, under\nfalse pretences of all sorts, there are influences that can never\ncome to good. The very solicitors\u2019 boys who have kept the wretched\nsuitors at bay, by protesting time out of mind that Mr. Chizzle,\nMizzle, or otherwise was particularly engaged and had appointments\nuntil dinner, may have got an extra moral twist and shuffle into\nthemselves out of Jarndyce and Jarndyce. The receiver in the cause\nhas acquired a goodly sum of money by it but has acquired too a\ndistrust of his own mother and a contempt for his own kind. Chizzle,\nMizzle, and otherwise have lapsed into a habit of vaguely promising\nthemselves that they will look into that outstanding little matter\nand see what can be done for Drizzle\u2014who was not well used\u2014when\nJarndyce and Jarndyce shall be got out of the office. Shirking and\nsharking in all their many varieties have been sown broadcast by the\nill-fated cause; and even those who have contemplated its history\nfrom the outermost circle of such evil have been insensibly tempted\ninto a loose way of letting bad things alone to take their own bad\ncourse, and a loose belief that if the world go wrong it was in some\noff-hand manner never meant to go right.\n\n[P10] Thus, in the midst of the mud and at the heart of the fog, sits the\nLord High Chancellor in his High Court of Chancery.\n\n[P11] \u201cMr. Tangle,\u201d says the Lord High Chancellor, latterly something\nrestless under the eloquence of that learned gentleman.\n\n[P12] \u201cMlud,\u201d says Mr. Tangle. Mr. Tangle knows more of Jarndyce and\nJarndyce than anybody. He is famous for it\u2014supposed never to have\nread anything else since he left school.\n\n[P13] \u201cHave you nearly concluded your argument?\u201d\n\n[P14] \u201cMlud, no\u2014variety of points\u2014feel it my duty tsubmit\u2014ludship,\u201d is\nthe reply that slides out of Mr. Tangle.\n\n[P15] \u201cSeveral members of the bar are still to be heard, I believe?\u201d says\nthe Chancellor with a slight smile.\n\n[P16] Eighteen of Mr. Tangle\u2019s learned friends, each armed with a little\nsummary of eighteen hundred sheets, bob up like eighteen hammers in a\npianoforte, make eighteen bows, and drop into their eighteen places\nof obscurity.\n\n[P17] \u201cWe will proceed with the hearing on Wednesday fortnight,\u201d says the\nChancellor. For the question at issue is only a question of costs, a\nmere bud on the forest tree of the parent suit, and really will come\nto a settlement one of these days.\n\n[P18] The Chancellor rises; the bar rises; the prisoner is brought forward\nin a hurry; the man from Shropshire cries, \u201cMy lord!\u201d Maces, bags,\nand purses indignantly proclaim silence and frown at the man from\nShropshire.\n\n[P19] \u201cIn reference,\u201d proceeds the Chancellor, still on Jarndyce and\nJarndyce, \u201cto the young  girl\u2014\u201d"
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}

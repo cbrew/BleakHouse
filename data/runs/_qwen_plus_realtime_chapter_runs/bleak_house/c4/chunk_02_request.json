@@ -1,0 +1,282 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c4 - Telescopic Philanthropy\n\n[P40] Peepy (so self-named) was the unfortunate child who had fallen\ndownstairs, who now interrupted the correspondence by presenting\nhimself, with a strip of plaster on his forehead, to exhibit his\nwounded knees, in which Ada and I did not know which to pity\nmost\u2014the bruises or the dirt. Mrs. Jellyby merely added, with the\nserene composure with which she said everything, \u201cGo along, you\nnaughty Peepy!\u201d and fixed her fine eyes on Africa again.\n\n[P41] However, as she at once proceeded with her dictation, and as I\ninterrupted nothing by doing it, I ventured quietly to stop poor\nPeepy as he was going out and to take him up to nurse. He looked very\nmuch astonished at it and at Ada\u2019s kissing him, but soon fell fast\nasleep in my arms, sobbing at longer and longer intervals, until he\nwas quiet. I was so occupied with Peepy that I lost the letter in\ndetail, though I derived such a general impression from it of the\nmomentous importance of Africa, and the utter insignificance of all\nother places and things, that I felt quite ashamed to have thought so\nlittle about it.\n\n[P42] \u201cSix o\u2019clock!\u201d said Mrs. Jellyby. \u201cAnd our dinner hour is nominally\n(for we dine at all hours) five! Caddy, show Miss Clare and Miss\nSummerson their rooms. You will like to make some change, perhaps?\nYou will excuse me, I know, being so much occupied. Oh, that very bad\nchild! Pray put him down, Miss Summerson!\u201d\n\n[P43] I begged permission to retain him, truly saying that he was not at\nall troublesome, and carried him upstairs and laid him on my bed. Ada\nand I had two upper rooms with a door of communication between. They\nwere excessively bare and disorderly, and the curtain to my window\nwas fastened up with a fork.\n\n[P44] \u201cYou would like some hot water, wouldn\u2019t you?\u201d said Miss Jellyby,\nlooking round for a jug with a handle to it, but looking in vain.\n\n[P45] \u201cIf it is not being troublesome,\u201d said we.\n\n[P46] \u201cOh, it\u2019s not the trouble,\u201d returned Miss Jellyby; \u201cthe question is,\nif there IS any.\u201d\n\n[P47] The evening was so very cold and the rooms had such a marshy smell\nthat I must confess it was a little miserable, and Ada was half\ncrying. We soon laughed, however, and were busily unpacking when Miss\nJellyby came back to say that she was sorry there was no hot water,\nbut they couldn\u2019t find the kettle, and the boiler was out of order.\n\n[P48] We begged her not to mention it and made all the haste we could to\nget down to the fire again. But all the little children had come up\nto the landing outside to look at the phenomenon of Peepy lying on my\nbed, and our attention was distracted by the constant apparition of\nnoses and fingers in situations of danger between the hinges of the\ndoors. It was impossible to shut the door of either room, for my\nlock, with no knob to it, looked as if it wanted to be wound up; and\nthough the handle of Ada\u2019s went round and round with the greatest\nsmoothness, it was attended with no effect whatever on the door.\nTherefore I proposed to the children that they should come in and be\nvery good at my table, and I would tell them the story of Little Red\nRiding Hood while I dressed; which they did, and were as quiet as\nmice, including Peepy, who awoke opportunely before the appearance of\nthe wolf.\n\n[P49] When we went downstairs we found a mug with \u201cA Present from Tunbridge\nWells\u201d on it lighted up in the staircase window with a floating wick,\nand a young woman, with a swelled face bound up in a flannel bandage\nblowing the fire of the drawing-room (now connected by an open door\nwith Mrs. Jellyby\u2019s room) and choking dreadfully. It smoked to that\ndegree, in short, that we all sat coughing and crying with the\nwindows open for half an hour, during which Mrs. Jellyby, with the\nsame sweetness of temper, directed letters about Africa. Her being so\nemployed was, I must say, a great relief to me, for Richard told us\nthat he had washed his hands in a pie-dish and that they had found\nthe kettle on his dressing-table, and he made Ada laugh so that they\nmade me laugh in the most ridiculous manner.\n\n[P50] Soon after seven o\u2019clock we went down to dinner, carefully, by Mrs.\nJellyby\u2019s advice, for the stair-carpets, besides being very deficient\nin stair-wires, were so torn as to be absolute traps. We had a fine\ncod-fish, a piece of roast beef, a dish of cutlets, and a pudding; an\nexcellent dinner, if it had had any cooking to speak of, but it was\nalmost raw. The young woman with the flannel bandage waited, and\ndropped everything on the table wherever it happened to go, and never\nmoved it again until she put it on the stairs. The person I had seen\nin pattens, who I suppose to have been the cook, frequently came and\nskirmished with her at the door, and there appeared to be ill will\nbetween them.\n\n[P51] All through dinner\u2014which was long, in consequence of such accidents\nas the dish of potatoes being mislaid in the coal skuttle and the\nhandle of the corkscrew coming off and striking the young woman in\nthe chin\u2014Mrs. Jellyby preserved the evenness of her disposition. She\ntold us a great deal that was interesting about Borrioboola-Gha and\nthe natives, and received so many letters that Richard, who sat by\nher, saw four envelopes in the gravy at once. Some of the letters\nwere proceedings of ladies\u2019 committees or resolutions of ladies\u2019\nmeetings, which she read to us; others were applications from people\nexcited in various ways about the cultivation of coffee, and natives;\nothers required answers, and these she sent her eldest daughter from\nthe table three or four times to write. She was full of business and\nundoubtedly was, as she had told us, devoted to the cause.\n\n[P52] I was a little curious to know who a mild bald gentleman in\nspectacles was, who dropped into a vacant chair (there was no top or\nbottom in particular) after the fish was taken away and seemed\npassively to submit himself to Borrioboola-Gha but not to be actively\ninterested in that settlement. As he never spoke a word, he might\nhave been a native but for his complexion. It was not until we left\nthe table and he remained alone with Richard that the possibility of\nhis being Mr. Jellyby ever entered my head. But he WAS Mr. Jellyby;\nand a loquacious young man called Mr. Quale, with large shining knobs\nfor temples and his hair all brushed to the back of his head, who\ncame in the evening, and told Ada he was a philanthropist, also\ninformed her that he called the matrimonial alliance of Mrs. Jellyby\nwith Mr. Jellyby the union of mind and matter.\n\n[P53] This young man, besides having a great deal to say for himself about\nAfrica and a project of his for teaching the coffee colonists to\nteach the natives to turn piano-forte legs and establish an export\ntrade, delighted in drawing Mrs. Jellyby out by saying, \u201cI believe\nnow, Mrs. Jellyby, you have received as many as from one hundred and\nfifty to two hundred letters respecting Africa in a single day, have\nyou not?\u201d or, \u201cIf my memory does not deceive me, Mrs. Jellyby, you\nonce mentioned that you had sent off five thousand circulars from one\npost-office at one time?\u201d\u2014always repeating Mrs. Jellyby\u2019s answer to\nus like an interpreter. During the whole evening, Mr. Jellyby sat in\na corner with his head against the wall as if he were subject to low\nspirits. It seemed that he had several times opened his mouth when\nalone with Richard after dinner, as if he had something on his mind,\nbut had always shut it again, to Richard\u2019s extreme confusion, without\nsaying anything.\n\n[P54] Mrs. Jellyby, sitting in quite a nest of waste paper, drank coffee\nall the evening and dictated at intervals to her eldest daughter. She\nalso held a discussion with Mr. Quale, of which the subject seemed to\nbe\u2014if I understood it\u2014the brotherhood of humanity, and gave\nutterance to some beautiful sentiments. I was not so attentive an\nauditor as I might have wished to be, however, for Peepy and the\nother children came flocking about Ada and me in a corner of the\ndrawing-room to ask for another story; so we sat down among them and\ntold them in whispers \u201cPuss in Boots\u201d and I don\u2019t know what else\nuntil Mrs. Jellyby, accidentally remembering them, sent them to bed.\nAs Peepy cried for me to take him to bed, I carried him upstairs,\nwhere the young woman with the flannel bandage charged into the midst\nof the little family like a dragon and overturned them into cribs.\n\n[P55] After that I occupied myself in making our room a little tidy and in\ncoaxing a very cross fire that had been lighted to burn, which at\nlast it did, quite brightly. On my return downstairs, I felt that\nMrs. Jellyby looked down upon me rather for being so frivolous, and I\nwas sorry for it, though at the same time I knew that I had no higher\npretensions.\n\n[P56] It was nearly midnight before we found an opportunity of going to\nbed, and even then we left Mrs. Jellyby among her papers drinking\ncoffee and Miss Jellyby biting the feather of her pen.\n\n[P57] \u201cWhat a strange house!\u201d said Ada when we got upstairs. \u201cHow curious\nof my cousin Jarndyce to send us here!\u201d\n\n[P58] \u201cMy love,\u201d said I, \u201cit quite confuses me. I want to understand it,\nand I can\u2019t understand it at all.\u201d\n\n[P59] \u201cWhat?\u201d asked Ada with her pretty smile."
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "ChapterEnrichmentResult",
+      "strict": true,
+      "schema": {
+        "additionalProperties": false,
+        "description": "Batch result for a chapter's worth of paragraph enrichments.",
+        "properties": {
+          "chapter_id": {
+            "description": "The chapter identifier, e.g. 'c1'",
+            "title": "Chapter Id",
+            "type": "string"
+          },
+          "enrichments": {
+            "items": {
+              "additionalProperties": false,
+              "description": "One paragraph's index + its enrichment payload.",
+              "properties": {
+                "paragraph_index": {
+                  "description": "The index of the paragraph in the chapter (matches [P{n}] marker)",
+                  "title": "Paragraph Index",
+                  "type": "integer"
+                },
+                "enrichment": {
+                  "additionalProperties": false,
+                  "description": "Enrichment of a single paragraph for podcast production planning.\n\n21 fields capturing literary signals the production pipeline reads:\ncharacter presence, narrator, plot function, emotional register,\nthemes, quotability, accessibility, plus six `prov_*` provision\ndimensions used by the transport pipeline's demand-matching.\n\nNumerical count caps on the list fields are deliberately not\nenforced (description-only) \u2014 see docs/schema_complexity_review.md\nfor the rationale and the open question about which `prov_*`\ndimensions are still load-bearing downstream.",
+                  "properties": {
+                    "interest_score": {
+                      "description": "How interesting is this paragraph for a literary podcast? 0=routine connective prose, 1=minor detail, 2=some interest, 3=notable, 4=very interesting, 5=unmissable highlight",
+                      "title": "Interest Score",
+                      "type": "integer"
+                    },
+                    "interest_rationale": {
+                      "description": "One sentence explaining the interest score",
+                      "title": "Interest Rationale",
+                      "type": "string"
+                    },
+                    "characters_present": {
+                      "description": "Distinct character names mentioned or present in this paragraph. Most paragraphs have 1-3 characters; crowded scenes may reach 6-8 named individuals. Avoid listing functional referents (\"bride's aunt\") or collective type-names as separate characters. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Present",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "characters_speaking": {
+                      "description": "Distinct character names who have direct speech in this paragraph. Most paragraphs have 1-2 speakers; very rarely more. Do not list any character more than once.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Characters Speaking",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "narrator": {
+                      "description": "Which narrative voice is speaking in this paragraph. 'first_person' for any first-person narrator (named or unnamed). 'omniscient' for any third-person omniscient narrator. 'unclear' when the voice cannot be determined from the paragraph.",
+                      "enum": [
+                        "first_person",
+                        "omniscient",
+                        "unclear"
+                      ],
+                      "title": "Narrator",
+                      "type": "string"
+                    },
+                    "plot_function": {
+                      "description": "Primary narrative function of this paragraph",
+                      "enum": [
+                        "action",
+                        "dialogue",
+                        "description",
+                        "exposition",
+                        "transition",
+                        "digression",
+                        "climax",
+                        "revelation"
+                      ],
+                      "title": "Plot Function",
+                      "type": "string"
+                    },
+                    "emotional_register": {
+                      "description": "Distinct emotional tones present in this paragraph. Typically 1-2; up to 4 for tonally complex paragraphs. Each tone must be different \u2014 do not repeat any register value.",
+                      "items": {
+                        "enum": [
+                          "comic",
+                          "tragic",
+                          "suspenseful",
+                          "satirical",
+                          "tender",
+                          "gothic",
+                          "polemical",
+                          "pastoral",
+                          "neutral"
+                        ],
+                        "type": "string"
+                      },
+                      "title": "Emotional Register",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "themes": {
+                      "description": "Distinct theme tags genuinely present in this paragraph. A typical paragraph has 2-4 themes \u2014 only the most important. Rich paragraphs may reach 8 themes. Use short lowercase tags drawn from this novel itself; do not import themes from other novels. Each tag must be unique.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "title": "Themes",
+                      "type": "array",
+                      "maxItems": 8
+                    },
+                    "quotability": {
+                      "description": "Does this paragraph contain memorable, quotable lines suitable for reading aloud on a podcast?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Quotability",
+                      "type": "string"
+                    },
+                    "best_quote": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The most quotable line from this paragraph, if any. Extract verbatim from the text.",
+                      "title": "Best Quote"
+                    },
+                    "accessibility": {
+                      "description": "Can a modern listener follow this paragraph without historical context or explanation?",
+                      "enum": [
+                        "easy",
+                        "moderate",
+                        "difficult"
+                      ],
+                      "title": "Accessibility",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "description": "1-2 sentence summary of what happens or is described",
+                      "title": "Summary",
+                      "type": "string"
+                    },
+                    "prov_character_development": {
+                      "description": "Does this paragraph develop, reveal, or transform a character?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Character Development",
+                      "type": "string"
+                    },
+                    "prov_plot_advancement": {
+                      "description": "Does this paragraph advance the story or reveal plot information?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Plot Advancement",
+                      "type": "string"
+                    },
+                    "prov_thematic_depth": {
+                      "description": "Does this paragraph engage with the novel's central themes (judge against this novel's own thematic concerns, not a generic checklist)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Thematic Depth",
+                      "type": "string"
+                    },
+                    "prov_social_critique": {
+                      "description": "Does this paragraph contain the author's commentary on society, institutions, or class \u2014 as expressed through the narration or the characters?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Social Critique",
+                      "type": "string"
+                    },
+                    "prov_humor_entertainment": {
+                      "description": "Is this paragraph funny, entertaining, or dramatically engaging?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Humor Entertainment",
+                      "type": "string"
+                    },
+                    "prov_atmosphere_setting": {
+                      "description": "Does this paragraph create mood, atmosphere, or vivid setting?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Atmosphere Setting",
+                      "type": "string"
+                    },
+                    "prov_narrative_technique": {
+                      "description": "Does this paragraph demonstrate notable literary technique (irony, foreshadowing, imagery, free indirect style, symbolism, point-of-view shift)?",
+                      "enum": [
+                        "none",
+                        "weak",
+                        "strong"
+                      ],
+                      "title": "Prov Narrative Technique",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "interest_score",
+                    "interest_rationale",
+                    "characters_present",
+                    "characters_speaking",
+                    "narrator",
+                    "plot_function",
+                    "emotional_register",
+                    "themes",
+                    "quotability",
+                    "best_quote",
+                    "accessibility",
+                    "summary",
+                    "prov_character_development",
+                    "prov_plot_advancement",
+                    "prov_thematic_depth",
+                    "prov_social_critique",
+                    "prov_humor_entertainment",
+                    "prov_atmosphere_setting",
+                    "prov_narrative_technique"
+                  ],
+                  "title": "FieldReportEnrichment",
+                  "type": "object"
+                }
+              },
+              "required": [
+                "paragraph_index",
+                "enrichment"
+              ],
+              "title": "ParagraphEnrichment",
+              "type": "object"
+            },
+            "title": "Enrichments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chapter_id",
+          "enrichments"
+        ],
+        "title": "ChapterEnrichmentResult",
+        "type": "object"
+      }
+    }
+  },
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "frequency_penalty": 0.5
+}
