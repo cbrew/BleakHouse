@@ -1,0 +1,36 @@
+[project]
+name = "qwen3-tts"
+version = "0.1.0"
+description = "Local Qwen3-TTS-12Hz-1.7B-VoiceDesign rendering for the all-Qwen pipeline (BleakHouse-el1j.4)."
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    # qwen-tts ships its own Qwen3TTSModel wrapper around transformers
+    "qwen-tts>=0.1.0",
+    # Pinned torch+cuda for the 2070 SUPER (sm_75). bf16 is enough; we
+    # don't strictly need FA2 (SDPA fallback works).
+    "torch>=2.4.0",
+    "torchaudio>=2.4.0",
+    "transformers>=4.45.0",
+    "soundfile>=0.12.1",
+    "numpy>=1.26",
+    "accelerate>=0.30",
+    # For mp3 export + the existing shards-pipeline workflow.
+    "pydub>=0.25",
+]
+
+[project.optional-dependencies]
+flash = [
+    # Optional: FlashAttention 2 — sm_75 (Turing) sometimes builds OK,
+    # sometimes not. Try this extra; if install fails, the main env
+    # still works via SDPA.
+    "flash-attn>=2.5.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# This isn't a shipped package — it's just a venv definition. Tell
+# hatch not to bother trying to find a wheel target.
+[tool.hatch.build.targets.wheel]
+bypass-selection = true
