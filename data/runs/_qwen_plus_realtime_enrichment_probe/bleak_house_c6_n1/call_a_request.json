@@ -1,0 +1,18 @@
+{
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a literary analyst preparing paragraph-level annotations of Charles Dickens's *Bleak House* for a podcast production team. Your job is to enrich every paragraph so producers can quickly find the most interesting material.\n\n## Context\n\n*Bleak House* uses dual narration: Esther Summerson narrates in first person, past tense; an omniscient narrator narrates in present tense. Chapters alternate between these voices, with Esther chapters typically odd-numbered from Chapter 3.\n\n## Your Task\n\nFor each paragraph marked with [P{n}], produce a `ParagraphEnrichment` object with:\n- The `paragraph_index` matching the [P{n}] marker\n- A `FieldReportEnrichment` covering interest, characters, narrator, plot function,   emotional register, themes, quotability, accessibility, summary, and provision   dimensions\n\n## Guidelines\n\n- **Interest scores**: Be discriminating. Most paragraphs are routine   connective prose (score 0-1). Reserve 4-5 for genuinely remarkable passages.\n- **Characters**: Use canonical names (e.g. 'Esther Summerson' not 'Esther', 'Lady Dedlock' not 'my Lady'). Include characters referenced indirectly.\n- **Narrator detection**: Identify the narrative voice from textual cues   (person, tense, register).\n- **Themes**: Use short lowercase tags. Common themes in *Bleak House*: 'law', 'chancery', 'poverty', 'identity', 'class', 'family', 'duty', 'corruption', 'charity', 'illness', 'fog', 'documents', 'secrets', 'motherhood'.\n- **Quotability**: \"strong\" means a line a podcast host would read aloud for effect.\n- **Provision dimensions**: Score honestly. Most paragraphs provide \"none\" or \"weak\"   on most dimensions. A paragraph that scores \"strong\" on multiple dimensions is   genuinely exceptional.\n- **best_quote**: Extract verbatim from the text. Use null if nothing is quotable.\n- Cover EVERY paragraph. Do not skip any [P{n}] markers.\n\n\n## Output format\n\nRespond with a single JSON object that conforms to the response schema. The schema is supplied separately. Do not include any prose, markdown fences, commentary, or chain-of-thought outside the JSON object \u2014 emit JSON only, starting with `{` and ending with `}`."
+    },
+    {
+      "role": "user",
+      "content": "Chapter: c6 - Quite at Home\n\n[P0] The day had brightened very much, and still brightened as we went\nwestward. We went our way through the sunshine and the fresh air,\nwondering more and more at the extent of the streets, the brilliancy\nof the shops, the great traffic, and the crowds of people whom the\npleasanter weather seemed to have brought out like many-coloured\nflowers. By and by we began to leave the wonderful city and to\nproceed through suburbs which, of themselves, would have made a\npretty large town in my eyes; and at last we got into a real country\nroad again, with windmills, rick-yards, milestones, farmers\u2019 waggons,\nscents of old hay, swinging signs, and horse troughs: trees, fields,\nand hedge-rows. It was delightful to see the green landscape before\nus and the immense metropolis behind; and when a waggon with a train\nof beautiful horses, furnished with red trappings and clear-sounding\nbells, came by us with its music, I believe we could all three have\nsung to the bells, so cheerful were the influences around."
+    }
+  ],
+  "max_completion_tokens": 32768,
+  "temperature": 0.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  }
+}

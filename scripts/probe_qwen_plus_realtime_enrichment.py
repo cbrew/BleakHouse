@@ -67,6 +67,11 @@ DEFAULT_NOVEL = "bleak_house"
 DEFAULT_CHAPTER = "c6"
 DEFAULT_MAX_COMPLETION_TOKENS = 32768
 DEFAULT_TEMPERATURE = 0.0
+# Default to ONE passage. Smallest meaningful unit — output is ~50
+# tokens of JSON, eyeball-readable in whole. If the model can't satisfy
+# the schema for one passage, the problem is fundamental and we don't
+# need to scale up to find out. Bump only after a clean baseline.
+DEFAULT_MAX_PASSAGES = 1
 PROBE_ROOT = Path("data/runs/_qwen_plus_realtime_enrichment_probe")
 REPETITION_RE = re.compile(r"(.{20,})\1{3,}")
 
@@ -328,6 +333,12 @@ def main() -> int:
     p.add_argument("--max-completion-tokens", type=int,
                    default=DEFAULT_MAX_COMPLETION_TOKENS)
     p.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE)
+    p.add_argument("--max-passages", type=int, default=DEFAULT_MAX_PASSAGES,
+                   help="Cap on passages sent in the diagnostic chunk "
+                        "(default: %(default)s — keeps the output "
+                        "eyeball-readable and isolates 'can the model do "
+                        "this at all?' from 'does it scale?'). Bump only "
+                        "after a clean baseline.")
     p.add_argument("--analyze-only", action="store_true",
                    help="Re-run analysis on cached calls; do not call the API.")
     args = p.parse_args()
@@ -342,6 +353,9 @@ def main() -> int:
         raise SystemExit(f"no passages for {args.novel}/{args.chapter}")
     chap_passages.sort(key=lambda x: x["paragraph_index"])
     chapter_title = chap_passages[0].get("chapter_title", "")
+    full_chapter_count = len(chap_passages)
+    if args.max_passages and len(chap_passages) > args.max_passages:
+        chap_passages = chap_passages[:args.max_passages]
 
     system_prompt = build_enrichment_prompt(args.novel) + JSON_INSTRUCTION_SUFFIX
     user_message = (
@@ -354,7 +368,9 @@ def main() -> int:
         "novel": args.novel,
         "chapter": args.chapter,
         "chapter_title": chapter_title,
-        "passage_count": len(chap_passages),
+        "full_chapter_passage_count": full_chapter_count,
+        "passages_sent": len(chap_passages),
+        "max_passages_cap": args.max_passages,
         "model": args.model,
         "max_completion_tokens": args.max_completion_tokens,
         "temperature": args.temperature,
@@ -365,6 +381,11 @@ def main() -> int:
         "schema_form": "flat (refs inlined)",
     }
     manifest_path.write_text(json.dumps(manifest, indent=2))
+    logger.info(
+        "%s/%s — sending %d/%d passages (\"%s\")",
+        args.novel, args.chapter, len(chap_passages),
+        full_chapter_count, chapter_title,
+    )
     logger.info("manifest: %s", manifest_path)
 
     if not args.analyze_only:
