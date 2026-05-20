@@ -76,6 +76,7 @@ _API_KEY_ENV: dict[str, str] = {
     "nvidia": "NVIDIA_API_KEY",
     "novita": "NOVITA_API_KEY",
     "featherless": "FEATHERLESS_API_KEY",
+    "alibaba": "ALIBABA_API_KEY",
     # Self-hosted endpoints typically do need auth at request time
     # (Runpod hands you an API key with the deploy; GKE depends on
     # how you set up ingress). Modal is the exception — see above.
@@ -218,6 +219,25 @@ class OpenAICompatibleProvider:
                         spec.model, request.reasoning_effort, spec.hosting,
                     )
                 )
+        # Alibaba/DashScope qwen-plus has two repetition-pathology
+        # mitigations that proved necessary in BleakHouse-el1j.1:
+        #   - chat_template_kwargs.enable_thinking=False suppresses
+        #     <think>...</think> leak that DashScope's server-side
+        #     JSON validator otherwise rejects (sometimes after
+        #     server-side timeout cut mid-string, producing invalid JSON).
+        #   - frequency_penalty=0.5 reduces repeat-token probability
+        #     when the model gets stuck emitting the same value
+        #     across an unbounded array. Belt-and-braces alongside
+        #     the maxItems caps below.
+        # These are part of the canonical qwen-plus call shape; not
+        # injecting them is the difference between "works" and "fails".
+        if spec.hosting == "alibaba":
+            kwargs.setdefault("extra_body", {})
+            kwargs["extra_body"]["chat_template_kwargs"] = {
+                "enable_thinking": False
+            }
+            kwargs["frequency_penalty"] = 0.5
+
         if request.json_schema is not None:
             schema = request.json_schema
             if request.list_field_caps:

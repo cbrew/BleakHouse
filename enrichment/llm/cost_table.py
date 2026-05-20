@@ -128,6 +128,15 @@ _PRICES: dict[tuple[str, str], ModelPricing] = {
     ("openai_compatible", "deepseek-ai/DeepSeek-V3.2"): ModelPricing(
         input_per_m=0.26, output_per_m=0.38,
     ),
+
+    # Alibaba DashScope (intl Singapore). qwen-plus tiered: ≤256K input
+    # is $0.40 in / $1.20 out; 256K-1M tier is 3x. We bill the ≤256K
+    # rate here — Phase 2.5 / Phase 3 chunks stay well within that
+    # bucket. Batch is 50% off (file API) but broken for our schema;
+    # the realtime rate below is what we actually pay (BleakHouse-el1j).
+    ("openai_compatible", "qwen-plus"): ModelPricing(
+        input_per_m=0.40, output_per_m=1.20,
+    ),
     # DeepSeek-V4-Flash (284B total / 13B active MoE). Apache 2.0.
     # 1M context. Verified 2026-05-12 via deepinfra.com/models page:
     # $0.14 in / $0.28 out, cached $0.028.

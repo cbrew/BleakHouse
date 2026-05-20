@@ -170,6 +170,22 @@ _CAPABILITIES: dict[str, ProviderCapabilities] = {
         native_batch=False,
         context_window=131_072,
     ),
+
+    # Alibaba DashScope (intl Singapore). OpenAI-compatible chat
+    # completions. Strict json_schema honored on realtime (verified
+    # BleakHouse-el1j.1). Tool-use verified BleakHouse-el1j.2.
+    # native_batch=False — the file-based Batch API exists but its
+    # server-side validator is broken for chapter-scale strict schemas
+    # (3 attempts, all ModelServingOutputInvalidJsonError); realtime
+    # + async concurrency is the proven path. Context window 1M tokens
+    # but tiered pricing kicks in past 256K input.
+    "alibaba": ProviderCapabilities(
+        json_schema_constrained=True,
+        json_schema_strict=True,
+        tool_use=True,
+        native_batch=False,
+        context_window=1_000_000,
+    ),
 }
 
 

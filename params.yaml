@@ -168,4 +168,23 @@ provider_profiles:
     reading_list_winnow:                deepinfra_qwen
     reference_tools_winnow:             deepinfra_qwen
 
+  # Same shape as host_prep_qwen but routes to qwen-plus on Alibaba
+  # DashScope (intl) instead of Qwen3-235B on DeepInfra. Targets the
+  # four ACTUAL host_prep call sites — reading_list_winnow and
+  # reference_tools_winnow are dead task names (the real code calls
+  # task='listener_pick' for winnowing), so we route listener_pick
+  # explicitly. Tracks BleakHouse-el1j.2.
+  #
+  # Provenance:
+  #   - Tool loop (pre_interview): scripts/probe_qwen_plus_tool_use.py PASS
+  #     (single-tool + multi-turn three-tool; docs/qwen_plus_tool_use_probe.md).
+  #   - Structured parse + brief + listener_pick: qwen-plus already proven
+  #     at scale for ChapterEnrichmentResult (BleakHouse-el1j.1, full
+  #     Bleak House at 99.22% coverage). Same provider, same call shape.
+  host_prep_qwen_dashscope:
+    host_prep_pre_interview:            alibaba_qwen_plus
+    host_prep_pre_interview_structured: alibaba_qwen_plus
+    host_prep_brief:                    alibaba_qwen_plus
+    listener_pick:                      alibaba_qwen_plus
+
 default_provider_profile: production

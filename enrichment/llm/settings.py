@@ -43,6 +43,7 @@ _BASE_URL_BY_HOSTING: dict[str, str | None] = {
     "cerebras": "https://api.cerebras.ai/v1",
     "deepinfra": "https://api.deepinfra.com/v1/openai",
     "together": "https://api.together.xyz/v1",
+    "alibaba": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 }
 
 
