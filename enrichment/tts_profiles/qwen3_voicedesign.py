@@ -31,10 +31,10 @@ FALLBACK_VOICE = (
 
 VOICES: dict[str, str] = {
     "Host": (
-        "Warm female voice in her early forties with a polished Home "
-        "Counties accent — a BBC Radio 4 presenter's measured cadence. "
-        "Calm, conversational, with the unhurried authority of someone "
-        "who has hosted many literary panels."
+        "British English voice. Warm female presenter in her early "
+        "forties with a polished Home Counties accent — a BBC Radio 4 "
+        "cadence. Calm, conversational, with the unhurried authority of "
+        "someone who has hosted many literary panels."
     ),
     "Narrator": (
         "Clear, neutral female voice with a precise British accent — "
@@ -44,22 +44,22 @@ VOICES: dict[str, str] = {
 
     # Literary panel
     "Eleanor Hartley": (
-        "Bright, articulate female voice in her late thirties with a "
-        "precise Cambridge accent. Lively and analytical — the cadence "
-        "of an English-faculty academic who loves dissecting a sentence "
-        "in front of an audience."
+        "British English voice. Bright, articulate female academic in "
+        "her late thirties with a precise Cambridge accent. Lively and "
+        "analytical — the cadence of an English-faculty academic who "
+        "loves dissecting a sentence in front of an audience."
     ),
     "James Blackstone": (
-        "Measured male voice in his mid-fifties with a dry Edinburgh "
-        "accent. Authoritative and slightly austere, like a legal "
-        "historian who has lectured for thirty years and chooses every "
-        "clause with care."
+        "Scottish English voice. Measured male legal historian in his "
+        "mid-fifties with a dry Edinburgh accent. Authoritative and "
+        "slightly austere, like a legal historian who has lectured for "
+        "thirty years and chooses every clause with care."
     ),
     "Caroline Woodcourt": (
-        "Gentle female voice in her late forties with a soft Bristol "
-        "accent. Warm and intimate, slightly contemplative — the "
-        "unhurried tone of someone who has read the same novels across "
-        "decades."
+        "British English voice. Gentle female reader in her late forties "
+        "with a soft Bristol accent. Warm and intimate, slightly "
+        "contemplative — the unhurried tone of someone who has read the "
+        "same novels across decades."
     ),
 
     # Other panels in the rotation
@@ -96,6 +96,23 @@ VOICES: dict[str, str] = {
 }
 
 
+# Normalised lookup so "caroline_woodcourt" and "Caroline Woodcourt" both
+# resolve to the same VOICES entry. phase3_episode.json has historically
+# emitted both forms — and also "host" alongside "Host" — for the same
+# speaker, which would otherwise drop the affected turns through to
+# FALLBACK_VOICE and lose the per-character voice description.
+_VOICE_KEYS_NORM: dict[str, str] = {
+    k.lower().replace("_", " "): k for k in VOICES
+}
+
+
 def voice_for(speaker: str) -> str:
     """Return the instruct description for a speaker, or the fallback."""
-    return VOICES.get(speaker, FALLBACK_VOICE)
+    if not speaker:
+        return FALLBACK_VOICE
+    if speaker in VOICES:
+        return VOICES[speaker]
+    canonical = _VOICE_KEYS_NORM.get(speaker.strip().lower().replace("_", " "))
+    if canonical is not None:
+        return VOICES[canonical]
+    return FALLBACK_VOICE

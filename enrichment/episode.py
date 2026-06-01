@@ -49,18 +49,34 @@ def fix_turn_roles(
     episode_dict: dict,
     personas: "list[ExpertPersona]",
 ) -> dict:
-    """Overwrite each turn's ``role`` field with the persona's canonical role.
+    """Canonicalise each turn's ``speaker`` and ``role`` against the persona list.
 
-    The LLM sometimes invents roles like ``close_reader`` or ``social_historian``
-    instead of using the persona's actual role. This fixes them in-place.
+    The LLM sometimes emits a speaker name in snake_case
+    ("caroline_woodcourt") or all-lowercase ("host") even though the prompt
+    briefs it with the Title Case form ("Caroline Woodcourt", "Host"). It
+    also occasionally invents roles like ``close_reader`` or
+    ``social_historian``. Both are corrected here against the persona list
+    before the episode is written to disk, so downstream consumers (TTS
+    voice selection, metrics, webapp) see a single canonical form per
+    speaker. Lookup is case-insensitive with ``_`` treated as a space.
     """
     name_to_role: dict[str, str] = {p.name: p.role for p in personas}
     name_to_role["Host"] = "host"
     name_to_role["Narrator"] = "narrator"
+    norm_to_name: dict[str, str] = {
+        k.lower().replace("_", " "): k for k in name_to_role
+    }
 
     for seg in episode_dict.get("segments", []):
         for turn in seg.get("turns", []):
             speaker = turn.get("speaker", "")
             if speaker in name_to_role:
                 turn["role"] = name_to_role[speaker]
+                continue
+            canonical = norm_to_name.get(
+                speaker.strip().lower().replace("_", " ")
+            )
+            if canonical is not None:
+                turn["speaker"] = canonical
+                turn["role"] = name_to_role[canonical]
     return episode_dict
